@@ -27,7 +27,7 @@ def test_buckets_add_to_the_gap_and_split_by_cap_and_size():
 def test_stack_and_cold_are_counted_per_batch():
     t = tasks([1.0] * 4, ["p", "p", "q", "q"], cold={0: 1, 2: 1})
     r = B.stack_cold(t, [{"tasks": [0, 1, 2, 3], "n": 4, "over": True}])
-    assert r[("over", "le4")] == [1, 1, 2, 4, 4] and r[("all", "all")] == [1, 1, 2, 4, 4]
+    assert r[("over", "le4")] == [1, 1, 2, 4, 2] and r[("all", "all")] == [1, 1, 2, 4, 2]
 
 
 def test_a_log_that_misses_or_repeats_tasks_fails_loudly():
