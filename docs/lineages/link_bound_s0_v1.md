@@ -85,6 +85,12 @@ that CD's surrogate S plus a good search is the bar.
   - **The default 1000 MB/s IS screened, on the same 17100–17107 topologies,** as the descriptive reference. It cannot
     GO; it exists so the ladder is read on the same topologies, not against big_groups' different ones.
   - **Disclosed, as in big_groups:** the GNN self-search plan is not an ILS start, because it is unavailable offline.
+  - **L3's S′ is re-targeted to input routes** (S5, rp/cd-exacts aa208b1d, flag `HEROSIM_PG_INPUT_LINK`).
+    - For each task, the term adds the maximum, over the core links on its input route, of the summed holds of the
+      batch's other inputs that share that link. It is order-free, so it is an upper bound against FIFO.
+    - **Registered L3 uses `hold`:** each hold is input / route bottleneck, which is what the pipelined physics charges.
+      The literal `core` variant (input / core bandwidth) is reported descriptively.
+    - The old peer-pair S′ priced exchange contention that does not exist in this physics.
 - 2026-10-11 — **Pre-check set up** (S7).
   - Development topologies 17100–17107, verified unused.
   - The ladder is minted into the cfg `backbone.bandwidth_mbps`; `core_bandwidth_mbps` defaults to it
