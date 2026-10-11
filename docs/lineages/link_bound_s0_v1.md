@@ -78,6 +78,15 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Live gate at 3.9 MB/s launched** (S7; array 858137, 12 tasks, 288 cells, code pinned e02ad362).
+  - Topologies 17007–17018, verified unused by a token scan of /share and simulation_data plus a grep of docs, code and
+    experiments. 17200–17211 was rejected because ds_172xx exists in a training corpus.
+  - Reader `link_bound_gate_read.py` (e02ad362), committed before any data:
+    - paired % per topology, median, sign count and exact Wilcoxon;
+    - contrasts self-search vs CD, self-search vs cd_exactS, and cd_exactS vs CD;
+    - per-cell CD health; unhealthy cells are listed, never dropped.
+  - Smoke, one heavy g0 cell per arm on 17007, part of the 288: 0 failed. The core rate 3.90625 reached the live fabric,
+    and CD's link wait is about 1.9 % of latency.
 - 2026-10-11 — **Extension read: NO-GO, LINKS-DO-NOT-BIND by the signed stop rule; the ILS screen is not run; the live
   gate runs at 3.9 MB/s** (S7; 384 more cells, 0 failed or hung, pinned f9de3e8a;
   `/share/nikola.lukic/link_bound/precheck_read_ext.json`).
