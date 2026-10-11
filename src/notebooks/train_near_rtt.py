@@ -527,6 +527,11 @@ def _masked_topo_regret_for_graph(
     )
 
 
+_EVAL_EXTRA_PLANS: Optional[Dict[str, Any]] = (
+    json.load(open(os.environ["NEAR_RTT_EVAL_EXTRA_PLANS"])) if os.environ.get("NEAR_RTT_EVAL_EXTRA_PLANS") else None
+)
+
+
 def _decode_variants(model: nn.Module, data: Data, rtt_map) -> Dict[str, Any]:
     """Diagnostic decode variants (S6 offline screen; NEAR_RTT_EVAL_VARIANTS=1), on the masked_topo scorer and order:
       branches   the first task (topological order) fixed to each candidate in turn, the rest greedy (argmax per step);
@@ -576,6 +581,20 @@ def _decode_variants(model: nn.Module, data: Data, rtt_map) -> Dict[str, Any]:
             cand.sort(key=lambda r: (-r[0], r[1]))
             beams = [(p, a) for a, _, p in cand[:k]]
         out[f"beam{k}"] = [finish(p, a) for p, a in beams]
+    # NEAR_RTT_EVAL_EXTRA_PLANS: {dataset_id: [plan, ...]} -- externally supplied plans (e.g. the argmin-S ties) scored the same way:
+    # summed step logits teacher-forced along the plan in the decode order, and the plan score.
+    extra = _EVAL_EXTRA_PLANS.get(lookup_dataset_id(data), []) if _EVAL_EXTRA_PLANS is not None else []
+    if extra:
+        out["extra"] = []
+        for pl in extra:
+            pl = [tuple(int(v) for v in c) for c in pl]
+            if len(pl) != n or any(pl[t] not in tl[t] for t in range(n)):
+                raise RuntimeError(f"FAIL LOUD: extra plan {pl} is outside the candidate slate of {lookup_dataset_id(data)}")
+            acc, prefix = 0.0, {}
+            for t in order:
+                acc += step_logits(t, prefix)[tl[t].index(pl[t])]
+                prefix[t] = pl[t]
+            out["extra"].append(finish(prefix, acc))
     plans = [r for key in out for r in out[key]]
     scores = _plan_scores_for_graph(model, data, [tuple(tuple(c) for c in r["plan"]) for r in plans])
     for r, sc in zip(plans, scores):
