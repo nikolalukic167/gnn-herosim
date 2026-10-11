@@ -29,9 +29,9 @@ Different mechanism, different claim; neither result transfers to the other. Bot
   - **Scan (S7, 2026-10-11).** `git grep` of 5-digit tokens 190xx–199xx over every local and remote branch (docs, `LINEAGES.md`, `scripts_cosim`, `experiments`, `tests`): only 19073, 19100, 19123, 19169, 19284, 19300–19306,
     19381, 19386, 19490, 19516, 19602, 19617, 19623, 19676, 19703, 19752, 19884, 19999 occur. Dataset directory names under `/share/nikola.lukic` (`ds_*`, which begin with a 5-digit prefix): the 190xx–199xx prefixes in use are
     multiples of 20 and 19000–19004, 19200–19204, 19400–19404, 19600–19604, 19800–19804, so 19205 and below, and 19206–19219, are free (`ds_172xx` is what forced the earlier move away from 172xx).
-    The `/share` file-name scan for 192xx–193xx finds none; a content grep of selection/manifest JSON for 192xx found none.
+    A `/share` file-name scan for 192xx matches only those dataset prefixes (and 6-digit ids that contain 192xx inside a longer number); a content grep of selection/manifest JSON for 192xx found none.
   - **Disjoint from:** 19300–19305 (S4), 18700–18711 (S5, `prune_g8`), 19100–19123 (reserved for `plan_rerank`), 17007–17018 (`link_bound_s0_v1` gate), 16900–16911 (`big_groups_s0_v1` gate), 17100–17107, 16493/16503/16504/16507 (`selfsearch_gap_v1`)
-    and the earlier pools listed in those nodes. The scan is token-based, not a proof; the inputs job reports any directory already holding a `cc40s192xx` config and refuses to overwrite.
+    and the earlier pools listed in those nodes. The scan is token-based, not a proof; the prep job fails loudly if any `cc40s1920x`/`cc40s1921x` file or directory already exists under `/share/nikola.lukic`.
 - **Arms** (cell = arm × topology × window × rung; 12 × 4 × 2 = 96 cells per arm, 384 in all):
 
   | arm | kind | seed | what it is |
