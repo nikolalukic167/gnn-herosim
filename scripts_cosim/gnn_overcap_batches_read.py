@@ -15,9 +15,38 @@ import statistics as st
 import sys
 from collections import defaultdict
 
-from selfsearch_gap_batches import check_alignment, load_groups, load_tasks, size_bucket
-
+SIZES = (("le4", 1, 4), ("5to8", 5, 8), ("ge9", 9, 10 ** 9))
 OPENING_TASKS = 12500
+
+
+def size_bucket(n):
+    return next(name for name, lo, hi in SIZES if lo <= n <= hi)
+
+
+def load_tasks(path):
+    doc = json.load(open(path))
+    rows = (doc.get("stats") or doc)["taskResults"]
+    out = {}
+    for r in rows:
+        tid = r.get("taskId")
+        if tid is None or int(tid) < 0:
+            continue
+        out[int(tid)] = {"disp": float(r["dispatchedTime"]), "lat": float(r["doneTime"]) - float(r["dispatchedTime"]),
+                         "cold": 1 if r.get("coldStarted") else 0, "plat": (r.get("executionNode"), r.get("executionPlatform"))}
+    return out
+
+
+def load_groups(workload_path):
+    ev = json.load(open(workload_path))["events"]
+    return {"ts": [float(e["timestamp"]) for e in ev]}
+
+
+def check_alignment(tasks, groups, tol=0.5):
+    """Task ids are workload event indices only if the dispatched times follow the event timestamps; fail loudly otherwise."""
+    worst = max(abs(t["disp"] - groups["ts"][i]) for i, t in tasks.items())
+    if len(tasks) != len(groups["ts"]) or worst > tol:
+        raise SystemExit(f"FAIL LOUD: task ids do not line up with workload events ({len(tasks)} tasks vs {len(groups['ts'])} events, worst dispatched-time offset {worst:.3f} s)")
+    return worst
 
 
 def load_batches(path):
