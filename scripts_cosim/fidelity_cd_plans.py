@@ -17,6 +17,7 @@ import os
 import sys
 from multiprocessing import get_context
 from pathlib import Path
+from typing import Dict
 
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
@@ -31,9 +32,58 @@ def label_of(rows, platforms):
     return min(hit) if hit else None
 
 
+COMP_KEYS = ("rtt", "drain_platform", "drain_batch", "cold", "cold_dup", "exec_lat", "exch")
+
+
+def _plan_components(sched, PG, batch_tasks, plan, orch, memo, nodes):
+    """`_pg_plan_cost`'s S split into summed terms (plan_rerank_v1 S_alpha): drain_platform = the platform's own drain (+ in-flight),
+    drain_batch = the service of the other batch tasks the plan stacks on the same platform, cold, exec_lat = exec + latency,
+    exch = exchange_scale * exchange. cold_dup = the part of cold charged to a task whose platform already holds an earlier batch task
+    (index order) of the same type, i.e. a cold start co-location avoids."""
+    if getattr(sched, "pg_pull_hold", False) or sched.pg_ext_rate is not None:
+        raise RuntimeError("S components assume pull hold off and no ext term")
+    n = len(batch_tasks)
+    planned = {int(batch_tasks[i].id): plan[i][0].node_name for i in range(n)}
+    books = (sched.pg_partners_known, sched.pg_partners_unknown, sched.pg_partners_blinded)
+    peer_nodes_of = []
+    for i in range(n):
+        others = dict(planned)
+        others.pop(int(batch_tasks[i].id), None)
+        peer_nodes_of.append(sched._pg_peer_nodes(batch_tasks[i], orch, others) if sched.exchange_on else [])
+    sched.pg_partners_known, sched.pg_partners_unknown, sched.pg_partners_blinded = books
+    exch = [sched._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+    xf = [sched._pg_xf(plan[i][1]) for i in range(n)]
+    exec_s = [float(batch_tasks[i].type["executionTime"].get(plan[i][1].type["shortName"], 0.0) or 0.0) * xf[i] for i in range(n)]
+    service = [exec_s[i] + PG._approx_comm(batch_tasks[i].type) + exch[i] for i in range(n)]
+    committed: Dict[str, float] = {}
+    for i in range(n):
+        k = f"{plan[i][0].node_name}:{plan[i][1].id}"
+        committed[k] = committed.get(k, 0.0) + service[i]
+    out = dict.fromkeys(COMP_KEYS[1:], 0.0)
+    seen_type = set()
+    for i in range(n):
+        node, platform = plan[i]
+        k = f"{node.node_name}:{platform.id}"
+        dp = PG.platform_queue_drain_seconds(platform, orch, memo, exec_scale=xf[i])
+        if sched.pg_inflight:
+            dp += PG.inflight_remaining_seconds(platform)
+        cold = PG.incoming_cold_start_time(batch_tasks[i], platform)
+        tk = (k, batch_tasks[i].type["name"])
+        if tk in seen_type:
+            out["cold_dup"] += cold
+        seen_type.add(tk)
+        out["drain_platform"] += dp
+        out["drain_batch"] += committed[k] - service[i]
+        out["cold"] += cold
+        out["exec_lat"] += exec_s[i] + PG.network_latency_between(batch_tasks[i].node_name, node, nodes)
+        out["exch"] += sched.pg_exchange_scale * exch[i]
+    return out
+
+
 def _one(job):
     ds, expand, extra = Path(job[0]), job[1], (job[2] if len(job) > 2 else None) or {}
     argmin_s = bool(job[3]) if len(job) > 3 else False
+    comps_dir = job[4] if len(job) > 4 else None
     try:
         os.environ["HEROSIM_SNAPSHOT_FIDELITY"] = "1"
         prov = json.load(open(ds / "generation_provenance.json"))
@@ -105,9 +155,17 @@ def _one(job):
                 if argmin_s:
                     # the exact argmin of S over the slate: the sweep is the slate's full product, so S on every row
                     best_s, best_labels, best_plans = None, [], []
+                    comps = []
                     for r in rows:
                         pl = {int(k): v for k, v in r["placement_plan"].items()}
                         sv = s_of(pl)
+                        if comps_dir:
+                            trial = [couple[(int(pl[local_of[int(t.id)]][0]), int(pl[local_of[int(t.id)]][1]))] for t in free_tasks]
+                            c = _plan_components(self, PG, free_tasks, trial, orch, {}, self.nodes.items)
+                            tot = c["drain_platform"] + c["drain_batch"] + c["cold"] + c["exec_lat"] + c["exch"]
+                            if abs(tot - sv) > 1e-9 * max(1.0, abs(sv)):
+                                raise RuntimeError(f"S components sum {tot} != S {sv}")
+                            comps.append([float(r["rtt"])] + [c[k] for k in COMP_KEYS[1:]])
                         if best_s is None or sv < best_s - 1e-12:
                             best_s, best_labels, best_plans = sv, [float(r["rtt"])], [r["placement_plan"]]
                         elif abs(sv - best_s) <= 1e-12:
@@ -117,6 +175,9 @@ def _one(job):
                                         "ties": len(best_labels), "n": len(rows),
                                         "tied": [{"plan": [list(map(int, p[str(i)])) for i in range(len(p))], "label": lb}
                                                  for p, lb in zip(best_plans, best_labels)]}
+                    if comps_dir:
+                        with open(Path(comps_dir) / f"{ds.name}.json", "w") as fh:
+                            json.dump({"keys": COMP_KEYS, "rows": comps}, fh)
                 try:
                     sub = self._pg_decide(free_tasks, system_state)
                 finally:
@@ -172,11 +233,17 @@ def main() -> int:
     ap.add_argument("--argmin-s", action="store_true", help="also the exact argmin of S over every sweep row, at the decision")
     ap.add_argument("--extra-plans", default=None, help="JSON {dataset dir name: {label: [[node_id, platform_id] per task index]}}: "
                     "CD's whole-plan surrogate S of each is recorded at the decision, on the same state (s_extra), with s_own for its own plan")
+    ap.add_argument("--s-comps", default=None, help="with --argmin-s: DIR; writes DIR/<ds>.json with every sweep row's label and S "
+                    "split into terms (plan_rerank_v1 S_alpha), self-checked against S")
     a = ap.parse_args()
+    if a.s_comps:
+        if not a.argmin_s:
+            raise SystemExit("--s-comps needs --argmin-s")
+        os.makedirs(a.s_comps, exist_ok=True)
     dss = [l.strip() for l in open(a.listfile) if l.strip()]
     extra = json.load(open(a.extra_plans)) if a.extra_plans else {}
     with get_context("spawn").Pool(a.workers) as pool, open(a.out, "w") as fh:
-        for r in pool.imap(_one, [(d, a.expand, extra.get(Path(d).name), a.argmin_s) for d in dss], chunksize=1):
+        for r in pool.imap(_one, [(d, a.expand, extra.get(Path(d).name), a.argmin_s, a.s_comps) for d in dss], chunksize=1):
             fh.write(json.dumps(r) + "\n")
             fh.flush()
     return 0
