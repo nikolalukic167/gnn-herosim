@@ -1,12 +1,21 @@
 # link_bound_s0_v1 — does a link-bound accel seat make CD's surrogate wrong in the typical decision?
 
-**Status:** `ACTIVE` (2026-10-11). Registered 2026-10-11; every bar below was signed before any data.
+**Status:** `CLOSED` (2026-10-11) — **NO-GO LINKS-DO-NOT-BIND; live HAND-SEARCH-FASTER**. Registered 2026-10-11;
+every bar below was signed before any data.
 
-**Now.** **Screen NO-GO, LINKS-DO-NOT-BIND** (2026-10-11): at the lowest admissible core rate (3.9 MB/s), link wait is
-1.2–1.6 % of CD's latency. It passes 5 % only where CD is unhealthy, so the link is then just a load lever. The live gate
-at 3.9 MB/s is pending. Earlier: Amendment 1 (before data): the knob is a core-only cfg edit with a 1000 → 31.25 MB/s ladder.
-Only input transfers queue on links in this physics. Pre-check: the core never binds down to 31.25 MB/s (link wait
-about 0.6 % of latency). Amendment 3 extends the ladder to 0.49 MB/s with a stop rule.
+**Outcome.** Slowing the core links does not make CD's surrogate wrong in the typical decision, and it opens no learned
+gap.
+- **Screen:** at the lowest CD-healthy core rate (3.9 MB/s), link wait is 1.2–1.6 % of CD's latency. It passes 5 % only
+  where CD is unhealthy (≤ 1.95 MB/s), so the link is then a load lever.
+- **Live gate at 3.9 MB/s** (288/288 cells, 12 fresh topologies 17007–17018, all 96 CD cells healthy), median paired %,
+  moderate / heavy:
+  - GNN self-search vs CD: −1.38 % (12/12) / +1.24 % (3/12);
+  - self-search vs cd_exactS: +10.69 % / +11.14 % (0/12 each);
+  - cd_exactS vs CD: −11.13 % / −8.02 % (12/12 each).
+- Even in the gate, link wait stays ≤ 1.75 % of latency for every arm.
+- **Quote as:** "links do not bind in the accel seat before CD overloads; hand search on S stays the bar". The
+  self-search checkpoint was trained at 1000 MB/s and not retrained (as registered), so this is no claim about a GNN
+  trained on link-bound data.
 
 **Why.** After `cost_to_go_v1` (NO-WIN) and `big_groups_s0_v1` (live G8 HAND-SEARCH-FASTER), the accel seat's verdict is
 that CD's surrogate S plus a good search is the bar.
@@ -78,6 +87,32 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Live gate read once: HAND-SEARCH-FASTER; lineage CLOSED** (S7; array 858137, reader e02ad362,
+  288/288 cells finished, 0 failed, 0 killed; `/share/nikola.lukic/link_bound/gate_3p9_read.json`).
+  - **Statistic:** paired % of mean latency per topology (median over 4 windows), then the median over 12 topologies;
+    exact Wilcoxon.
+
+    | contrast | rung | median | first arm faster | p |
+    |---|---|---|---|---|
+    | self-search vs CD | moderate | −1.38 % | 12/12 | .0005 |
+    | self-search vs CD | heavy | +1.24 % | 3/12 | .0093 |
+    | self-search vs cd_exactS | moderate | +10.69 % | 0/12 | .0005 |
+    | self-search vs cd_exactS | heavy | +11.14 % | 0/12 | .0005 |
+    | cd_exactS vs CD | moderate | −11.13 % | 12/12 | .0005 |
+    | cd_exactS vs CD | heavy | −8.02 % | 12/12 | .0005 |
+
+  - **CD health, per cell:** 96/96 healthy. Queue share max 0.283 / 0.551, end/last-arrival max 1.019 / 1.044.
+  - **Link telemetry** (median link-wait share, moderate / heavy): CD 1.15 / 1.59 %, cd_exactS 1.22 / 1.75 %,
+    self-search 0.84 / 1.38 %. Core utilisation for CD is 3.8 / 8.0 %, and the busiest core link is ≤ 21 %.
+  - **Search counters:** self-search is 80 / 77 % exact (the rest ascent) and changes 39 / 41 % of batches. cd_exactS
+    falls back in 6.4 / 8.1 % of batches.
+  - **Disclosures:**
+    - the checkpoint (ra_gnn_eng s1) was trained on the 1000 MB/s corpus, as registered;
+    - the smoke cell (17007 g0 heavy) is one of the 288 and was not rerun.
+    - Compared with G8 (`big_groups_s0_v1`), the learned arm's lead over CD shrinks and its gap to cd_exactS widens.
+      Those are different seats and topologies, so no causal claim is made.
+  - **Ruling:** CLOSED. Three levers in a row (lookahead value, bigger groups, busy links) leave hand search on S as the
+    bar in the accel seat.
 - 2026-10-11 — **Live gate at 3.9 MB/s launched** (S7; array 858137, 12 tasks, 288 cells, code pinned e02ad362).
   - Topologies 17007–17018, verified unused by a token scan of /share and simulation_data plus a grep of docs, code and
     experiments. 17200–17211 was rejected because ds_172xx exists in a training corpus.
