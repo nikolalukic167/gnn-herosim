@@ -24,9 +24,36 @@ MIN_PLANS_PER_CHUNK = 4
 _LIVE_ONLY = ("HEROSIM_PROGRESS_FILE", "HEROSIM_PROGRESS_INTERVAL_S", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS", "LIVE_AUDIT_SNAPSHOT_PATH")
 
 
+def _memoize_static_inputs() -> None:
+    """The replay's cell infrastructure and simulation inputs depend on the cell config alone, not on the batch: build them once per worker.
+    `FidelityReplay` only reads them (every run deep-copies the infrastructure), so results are unchanged."""
+    import src.executesimulation as ES
+
+    prepare, load = ES.prepare_infrastructure_for_real_simulation, ES.load_simulation_inputs
+    prepared: Dict[Any, Any] = {}
+    loaded: Dict[str, Any] = {}
+
+    def prepare_memo(space_config, seed=None, sim_input_path=None):
+        key = (json.dumps(space_config, sort_keys=True), seed, str(sim_input_path))
+        if key not in prepared:
+            prepared[key] = prepare(space_config, seed=seed, sim_input_path=sim_input_path)
+        return prepared[key]
+
+    def load_memo(sim_input_path):
+        key = str(sim_input_path)
+        if key not in loaded:
+            loaded[key] = load(sim_input_path)
+        return loaded[key]
+
+    ES.prepare_infrastructure_for_real_simulation = prepare_memo
+    ES.load_simulation_inputs = load_memo
+
+
 def _init_worker() -> None:
     for name in _LIVE_ONLY:
         os.environ.pop(name, None)
+    if os.environ.get("ORACLE_NO_MEMO") != "1":
+        _memoize_static_inputs()
 
 
 def _label_chunk(spec: Mapping[str, Any], types: Sequence[str], plans: Sequence[Sequence[Tuple[int, int]]]) -> List[float]:
