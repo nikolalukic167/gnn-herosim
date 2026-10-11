@@ -13,6 +13,7 @@ after the model has learned to avoid obviously bad placements.
 import gc
 import hashlib
 import itertools
+import math
 import json
 import os
 import random
@@ -524,6 +525,62 @@ def _masked_topo_regret_for_graph(
         allow_replica_reuse=NEAR_CFG.decode_replica_reuse,
         relax_on_stuck=NEAR_CFG.decode_relax_on_stuck,
     )
+
+
+def _decode_variants(model: nn.Module, data: Data, rtt_map) -> Dict[str, Any]:
+    """Diagnostic decode variants (S6 offline screen; NEAR_RTT_EVAL_VARIANTS=1), on the masked_topo scorer and order:
+      branches   the first task (topological order) fixed to each candidate in turn, the rest greedy (argmax per step);
+      beam_k     beam search over the same order, partial plans pruned by cumulative step logit, k = 2 and 5.
+    Every completed plan carries its true RTT (sweep), its summed step logits under its own prefix and its GNN plan score
+    (_plan_scores_for_graph). Valid only where the masked_topo mask is inert -- no node cap on any node (alpha inf here) and
+    replica reuse allowed -- which is asserted, because a capped graph would need the mask replayed."""
+    alpha_key = str(NEAR_CFG.dag_alpha_key or getattr(data, "dag_primary_alpha_key", "2.0"))
+    ctx = build_partial_state_context_from_graph(data)
+    ctx.node_caps = data.partial_state_ctx["node_caps_by_alpha"][alpha_key]
+    if any(math.isfinite(float(v)) for v in ctx.node_caps.values()) or not NEAR_CFG.decode_replica_reuse:
+        raise RuntimeError("FAIL LOUD: _decode_variants assumes an inert mask (no finite node cap, reuse allowed)")
+    n = int(data.n_tasks)
+    tl = [[tuple(int(v) for v in c) for c in data.task_logit_to_placement[t]] for t in range(n)]
+    order = topological_task_order(n, data.dag_parents)
+    sf = make_partial_state_score_fn(model, data, ctx)
+
+    def step_logits(t, prefix):
+        return [float(v) for v in sf(t, dict(prefix))]
+
+    def greedy_from(prefix, start, acc):
+        prefix = dict(prefix)
+        for t in order[start:]:
+            lg = step_logits(t, prefix)
+            i = min(range(len(lg)), key=lambda j: (-lg[j], tl[t][j]))  # registered tie rule: lowest (node, platform)
+            prefix[t] = tl[t][i]
+            acc += lg[i]
+        return prefix, acc
+
+    def finish(prefix, acc):
+        combo = tuple(prefix[t] for t in range(n))
+        return {"plan": [list(c) for c in combo], "rtt": (float(rtt_map[combo]) if combo in rtt_map else None),
+                "step_logit_sum": acc, "plan_score": None}
+
+    out: Dict[str, Any] = {}
+    t0 = order[0]
+    lg0 = step_logits(t0, {})
+    out["branches"] = [finish(*greedy_from({t0: c}, 1, lg0[i])) for i, c in enumerate(tl[t0])]
+    for k in (2, 5):
+        beams = [({}, 0.0)]
+        for t in order:
+            cand = []
+            for prefix, acc in beams:
+                lg = step_logits(t, prefix)
+                for i, c in enumerate(tl[t]):
+                    cand.append((acc + lg[i], tuple(prefix[u] for u in order if u in prefix) + (c,), {**prefix, t: c}))
+            cand.sort(key=lambda r: (-r[0], r[1]))
+            beams = [(p, a) for a, _, p in cand[:k]]
+        out[f"beam{k}"] = [finish(p, a) for p, a in beams]
+    plans = [r for key in out for r in out[key]]
+    scores = _plan_scores_for_graph(model, data, [tuple(tuple(c) for c in r["plan"]) for r in plans])
+    for r, sc in zip(plans, scores):
+        r["plan_score"] = sc
+    return out
 
 
 def _plan_agreement_with_label(
@@ -1335,6 +1392,8 @@ def evaluate(
                             _sc = _plan_scores_for_graph(model, data, _combos)
                             _rec["plans"] = [[[list(map(int, c)) for c in cb], sc, float(rtt_map[cb])]
                                              for cb, sc in zip(_combos, _sc)]
+                        if os.environ.get("NEAR_RTT_EVAL_VARIANTS") == "1":
+                            _rec["variants"] = _decode_variants(model, data, rtt_map)
                         if os.environ.get("NEAR_RTT_EVAL_LABELS") == "1":
                             # Diagnostic: the CE label plans (tied set at the trained alpha key) with their sweep RTTs.
                             _tl = data.task_logit_to_placement
