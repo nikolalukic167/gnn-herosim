@@ -2,7 +2,8 @@
 
 **Status:** `ACTIVE` (2026-10-11). Registered 2026-10-11; every bar below was signed before any data.
 
-**Now.** Registered. Owners assigned. No data yet.
+**Now.** Registered. Amendment 1 (before data): the knob is a core-only cfg edit with a 1000 → 31.25 MB/s ladder.
+Only input transfers queue on links in this physics. No data yet.
 
 **Why.** After `cost_to_go_v1` (NO-WIN) and `big_groups_s0_v1` (live G8 HAND-SEARCH-FASTER), the accel seat's verdict is
 that CD's surrogate S plus a good search is the bar.
@@ -29,8 +30,9 @@ that CD's surrogate S plus a good search is the bar.
 
 - **Environment:** the accel seat unchanged (R1.1 + WF1, fastest_compatible, 160c × 24s, the current peer-group size,
   the same apps, payload model, pipelined transfers and KPA), moderate and heavy rungs.
-- **The one change:** link bandwidth via `HEROSIM_LINK_BANDWIDTH_MBPS` (`src/executesimulation.py:231`).
-  - The ladder is the default, ½, ¼ and ⅛ of the default backbone bandwidth.
+- **The one change:** core-link bandwidth, as a cfg edit of `network.backbone.bandwidth_mbps` (Amendment 1; the env
+  knob is a no-op here).
+  - The ladder is 1000 / 250 / 125 / 62.5 / 31.25 MB/s. Access classes are unchanged.
   - The owner confirms the knob reaches the live path and the replay/label path identically before any screen read.
 - **Load pre-check, before capture** (reactive is not the gate here; CD is the bar):
   - CD on the 8 development topologies × 4 windows × both rungs at each bandwidth;
@@ -73,5 +75,26 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Amendment 1, before any data: the knob is a config edit, core-only, with a deeper ladder; L1 is
+  input-transfer wait only** (coordinator, on S6's code read, verified at `src/executesimulation.py:228–245` and
+  `src/placement/infrastructure.py:1250–1275`).
+  - **Finding 1: `HEROSIM_LINK_BANDWIDTH_MBPS` is a no-op in this seat.** It only synthesises a backbone when the config
+    has none, and every accel cell config carries an explicit `network.backbone` (n_core 12, bandwidth_mbps 1000,
+    access classes wired / wifi / cellular). **Ruling:** the ladder is new cfg files per bandwidth, editing
+    `network.backbone.bandwidth_mbps`.
+  - **Finding 2: `bandwidth_mbps` sets only the 12 core ring links.** Access links keep their class rates: wired 117,
+    wifi 7–14, cellular out 4 / in 75 MB/s. At ⅛ (125 MB/s) the core is still faster than every access link.
+    - **Ruling: core-only (option a).** Scaling access rates too would add node-indexed access-link wait, which
+      `g32_peer_prefetch_s0_v1` already closed.
+    - **The ladder becomes 1000 / 250 / 125 / 62.5 / 31.25 MB/s.** The last two rungs put the core below the wired
+      access rate.
+    - If the core-only ladder cannot make L1 bind, that is the NO-GO answer, not a reason to scale access links.
+  - **Finding 3: in this physics only INPUT transfers queue on link pipes** (`linkWaitTime`, the pipelined branch).
+    - Peer exchange (`_peer_exchange_time`) is an additive charge and never waits on a pipe.
+    - L1 is therefore input-transfer link wait over batch latency at the reference plan. linkTransferTime and
+      peerExchangeTime are recorded per state for the denominator split.
+    - **Making exchange queue would be a physics change, out of scope here** (`g32_peer_fabric_s0_v1` is the prior).
+  - **L3 consequence:** S′ must price the contention that exists, input routes sharing core links, not exchange
+    sharing. S5 re-targets S′ before any read.
 - 2026-10-11 — **Registered** (coordinator, on the user's GO). The design above was fixed before any data. Owners were
   assigned.
