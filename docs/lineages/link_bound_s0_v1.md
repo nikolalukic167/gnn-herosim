@@ -3,7 +3,8 @@
 **Status:** `ACTIVE` (2026-10-11). Registered 2026-10-11; every bar below was signed before any data.
 
 **Now.** Registered. Amendment 1 (before data): the knob is a core-only cfg edit with a 1000 → 31.25 MB/s ladder.
-Only input transfers queue on links in this physics. No data yet.
+Only input transfers queue on links in this physics. Pre-check: the core never binds down to 31.25 MB/s (link wait
+about 0.6 % of latency). Amendment 3 extends the ladder to 0.49 MB/s with a stop rule.
 
 **Why.** After `cost_to_go_v1` (NO-WIN) and `big_groups_s0_v1` (live G8 HAND-SEARCH-FASTER), the accel seat's verdict is
 that CD's surrogate S plus a good search is the bar.
@@ -75,6 +76,29 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Pre-check read; Amendment 3 (before any S-regret is read): extend the ladder down, with a stop rule**
+  (S7; 320/320 cells, 0 failed, 0 hung; telemetry added at rp/link-bound-telemetry f9de3e8a, because 79ea002c carried no
+  link-wait or utilisation fields; reader `link_bound_precheck_read.py`; `/share/nikola.lukic/link_bound/precheck_read.json`).
+  - **All five rungs are admissible** (worst queue share ≤ 0.63, end/last-arrival ≤ 1.042). **The core never binds.**
+
+    | MB/s | rung | worst queue share | median busiest core link held | median per-task link wait | mean latency |
+    |---|---|---|---|---|---|
+    | 1000 = 250 = 125 | moderate / heavy | 0.39 / 0.63 | 1.8 / 3.9 % | 1.3 / 2.0 ms | 3.31 / 2.67 s |
+    | 62.5 | moderate / heavy | 0.36 / 0.59 | 1.9 / 3.9 % | 2.0 / 2.3 ms | 3.41 / 2.73 s |
+    | 31.25 | moderate / heavy | 0.34 / 0.59 | 1.9 / 4.1 % | 3.2 / 4.7 ms | 3.39 / 2.71 s |
+
+  - **1000, 250 and 125 are bit-identical.** A pipelined transfer holds its route at the minimum link rate, and the access
+    classes cap that at ≤ 117 MB/s. The mean link wait is 18–20 ms, about 0.6 % of mean latency at 31.25.
+  - **Ruling, Amendment 3:** the premise, a link-bound seat, is not reached yet, so the ladder is extended downward
+    before any screen data.
+    - New rungs: 15.6 / 7.8 / 3.9 / 1.95 / 0.98 / 0.49 MB/s, CD only, the same 64 cells per rung and the same
+      admissibility rule.
+    - **Stop rule, signed now:** CD's link-wait share is mean per-task link wait over mean latency, per rung, at both
+      load rungs.
+      - The screen runs only at admissible rungs where that share is ≥ 5 % at both load rungs (half the L1 bar, as a
+        margin for the reference plan differing from CD's), plus the 1000 reference.
+      - If no admissible rung reaches 5 %: **NO-GO, LINKS-DO-NOT-BIND**, and the ILS screen is not run.
+    - The live gate (rule 6) still runs, at the lowest admissible rung.
 - 2026-10-11 — **Amendment 2, before data: screen details** (S6's reader and scorer committed at rp/link-bound-s0 67b855f0,
   pinned; coordinator rulings).
   - L1–L4 are as registered, from the label path's own replay taskResults. The GO rule is as registered, plus: any
