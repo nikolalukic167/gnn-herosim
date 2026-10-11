@@ -16,6 +16,7 @@ import statistics as st
 RUNGS = ("moderate", "heavy")
 WINDOWS = ("g0", "g1", "g2", "g3")
 QS_MAX, EL_MAX = 0.80, 1.05
+SHARE_MIN = 0.05  # Amendment 3 stop rule: CD link-wait share = mean per-task link wait / mean latency, median over cells
 
 
 def load(d):
@@ -53,6 +54,7 @@ def read(dirs, topos):
                 if qs[k] > QS_MAX or el[k] is None or el[k] > EL_MAX:
                     bad.append({"cell": list(k), "queue_share": qs[k], "end_over_last_arrival": el[k]})
             tel = [s["link_telemetry"] for s in cs.values()]
+            shares = {k: s["link_telemetry"]["link_wait"]["mean"] / s["averageElapsedTime"] for k, s in cs.items()}
             rec["rungs"][rung] = {
                 "cells": len(cs), "queue_share_max": max(qs.values(), default=None), "end_over_last_arrival_max": max((v for v in el.values() if v), default=None),
                 "mean_latency_median_s": med([s["averageElapsedTime"] for s in cs.values()]),
@@ -60,9 +62,11 @@ def read(dirs, topos):
                 "core_util_max_max": max((t["core_util_max"] for t in tel), default=None),
                 "access_util_median": med([t["access_util_median"] for t in tel]), "access_util_max_median": med([t["access_util_max"] for t in tel]),
                 "link_wait_median_s": med([t["link_wait"]["median"] for t in tel]), "link_wait_mean_s": med([t["link_wait"]["mean"] for t in tel]),
-                "link_wait_p95_s": med([t["link_wait"]["p95"] for t in tel])}
+                "link_wait_p95_s": med([t["link_wait"]["p95"] for t in tel]),
+                "link_wait_share_median": med([sh for sh in shares.values()]), "link_wait_share_min": min(shares.values(), default=None)}
         rec["inadmissible_cells"] = bad
         rec["admissible"] = rec["finished"] == rec["expected"] and not failed and not bad
+        rec["share_ge_5pct_both_rungs"] = all((rec["rungs"][r]["link_wait_share_median"] or 0) >= SHARE_MIN for r in RUNGS)
         out[bw] = rec
     return out
 
@@ -78,13 +82,13 @@ def main():
     if a.out:
         json.dump(r, open(a.out, "w"), indent=1)
     f = lambda x, n=3: "-" if x is None else f"{x:.{n}f}"
-    print(f"{'MB/s':>6} {'rung':9} {'cells':>5} {'qs max':>7} {'e/la max':>8} {'core u med':>10} {'core u max':>10} {'acc u med':>9} {'acc u max':>9} {'lw med s':>9} {'lw mean s':>9} {'lat s':>6}  admissible")
+    print(f"{'MB/s':>6} {'rung':9} {'cells':>5} {'qs max':>7} {'e/la max':>8} {'core u med':>10} {'core u max':>10} {'acc u med':>9} {'acc u max':>9} {'lw med s':>9} {'lw mean s':>9} {'lat s':>6} {'lw share':>8}  admissible")
     for bw, rec in r.items():
         for rung, x in rec["rungs"].items():
             print(f"{bw:>6} {rung:9} {x['cells']:5d} {f(x['queue_share_max'], 2):>7} {f(x['end_over_last_arrival_max'], 3):>8} {f(x['core_util_median'], 4):>10} "
                   f"{f(x['core_util_max_max'], 4):>10} {f(x['access_util_median'], 4):>9} {f(x['access_util_max_median'], 3):>9} {f(x['link_wait_median_s'], 4):>9} "
-                  f"{f(x['link_wait_mean_s'], 4):>9} {f(x['mean_latency_median_s'], 2):>6}  {rec['admissible']}")
-        print(f"{'':>6} finished {rec['finished']}/{rec['expected']}, failed {len(rec['failed'])}, inadmissible cells {len(rec['inadmissible_cells'])}")
+                  f"{f(x['link_wait_mean_s'], 4):>9} {f(x['mean_latency_median_s'], 2):>6} {f(x['link_wait_share_median'], 4):>8}  {rec['admissible']}")
+        print(f"{'':>6} finished {rec['finished']}/{rec['expected']}, failed {len(rec['failed'])}, inadmissible cells {len(rec['inadmissible_cells'])}; admissible and share >= 5 % at both rungs: {rec['admissible'] and rec['share_ge_5pct_both_rungs']}")
 
 
 if __name__ == "__main__":
