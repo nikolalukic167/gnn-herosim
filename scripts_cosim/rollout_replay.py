@@ -453,7 +453,7 @@ def _one(job):
                     batch_detail=[{k: trs[b].get(k) for k in DETAIL} for b in fr.batch_local],
                     window_detail={str(g): {k: trs[ids[g]].get(k) for k in DETAIL} for g in window} if job.get("detail") else None,
                     scale_events=[[round(e["timestamp"], 3), e.get("action"), e.get("name"), e.get("cause")] for e in res["stats"].get("scaleEvents", [])][:300] if job.get("detail") else None,
-                    hook=seen.get("hook"), decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
+                    hook=seen.get("hook"), core_bw=((infra.get("link_topology") or {}).get("params") or {}).get("core_bandwidth_mbps"), decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
                     exact_fallbacks=int(sc.get("pg_exact_fallbacks") or 0), wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
         import traceback
