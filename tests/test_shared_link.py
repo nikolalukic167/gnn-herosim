@@ -151,3 +151,61 @@ def test_scaling_only_the_core_is_invisible_when_an_access_link_is_the_bottlenec
     slow_access = [_two_pairs_ab(monkeypatch, _real_fabric(core_mbps=c, access_mbps=10.0)) for c in (1000.0, 500.0, 250.0, 125.0)]
     assert slow_access == pytest.approx([slow_access[0]] * 4)
     assert _two_pairs_ab(monkeypatch, _real_fabric(core_mbps=5.0, access_mbps=10.0)) == pytest.approx(2 * slow_access[0])
+
+
+# ---- link_bound_s0_v1 L3, Amendment 1: INPUT routes sharing core links (HEROSIM_PG_INPUT_LINK) ----
+
+def _input_fabric(core_mbps, access_mbps):
+    """Clients X, Y on core0; servers A, B on core1; X->A and Y->B both cross core0|core1."""
+    from simpy import Environment
+    from src.placement.network_fabric import NetworkFabric, link_key
+    att = {"X": "core0", "Y": "core0", "A": "core1", "B": "core1"}
+    links = {link_key(n, c): {"bandwidth_mbps": access_mbps} for n, c in att.items()}
+    links[link_key("core0", "core1")] = {"bandwidth_mbps": core_mbps}
+    routes = {}
+    for a in att:
+        for b in att:
+            if a != b:
+                routes.setdefault(a, {})[b] = [a, att[a], att[b], b] if att[a] != att[b] else [a, att[a], b]
+    return NetworkFabric(Environment(), {"links": links, "routes": routes})
+
+
+def _input_wait(monkeypatch, mode, core_mbps, access_mbps, dests=("A", "B"), origins=("X", "Y"), input_bytes=100 * MIB):
+    monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
+    monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
+    monkeypatch.delenv(S.PG_SHARED_LINK_ENV, raising=False)
+    monkeypatch.setenv(S.PG_INPUT_LINK_ENV, mode)
+    fabric = _input_fabric(core_mbps, access_mbps)
+    names = ["A", "B", "X", "Y"]
+    nodes = {nm: SimpleNamespace(id=i, node_name=nm, fabric=fabric) for i, nm in enumerate(names)}
+    plats = {nm: SimpleNamespace(node=nodes[nm]) for nm in names}
+    app = SimpleNamespace(type={"name": "app"})
+    tasks = [SimpleNamespace(id=i, node_name=o, application=app, type={"stateSize": {"app": {"input": input_bytes}}}) for i, o in enumerate(origins)]
+    s = object.__new__(PeerGreedyNetworkCDScheduler)
+    s._pg_init()
+    plan = [(nodes[d], plats[d]) for d in dests]
+    return s._pg_input_link_wait(tasks, plan)
+
+
+def test_input_wait_is_the_other_inputs_hold_on_the_shared_core_link(monkeypatch):
+    # core 100 MB/s, access 100 MB/s, 100 MB inputs: each holds core0|core1 for 1 s, so each waits behind the other's 1 s
+    assert _input_wait(monkeypatch, "hold", 100.0, 100.0) == pytest.approx([1.0, 1.0])
+    assert _input_wait(monkeypatch, "core", 100.0, 100.0) == pytest.approx([1.0, 1.0])
+
+
+def test_hold_mode_uses_the_bottleneck_core_mode_the_core_bandwidth(monkeypatch):
+    # slow access (10 MB/s): the live pipe holds the core link for input / 10 = 10 s; the literal core-bandwidth reading says 1 s
+    assert _input_wait(monkeypatch, "hold", 100.0, 10.0) == pytest.approx([10.0, 10.0])
+    assert _input_wait(monkeypatch, "core", 100.0, 10.0) == pytest.approx([1.0, 1.0])
+
+
+def test_core_mode_scales_with_the_configured_core_bandwidth(monkeypatch):
+    base = _input_wait(monkeypatch, "core", 100.0, 1000.0)[0]
+    assert _input_wait(monkeypatch, "core", 50.0, 1000.0)[0] == pytest.approx(2 * base)
+    assert _input_wait(monkeypatch, "core", 25.0, 1000.0)[0] == pytest.approx(4 * base)
+
+
+def test_no_shared_core_link_is_zero_so_it_equals_s(monkeypatch):
+    # both tasks go to A from different... same-side origin and destination: X->A uses core0|core1, a task from A to B never leaves core1
+    assert _input_wait(monkeypatch, "core", 100.0, 100.0, dests=("A", "B"), origins=("X", "A")) == pytest.approx([0.0, 0.0])
+    assert _input_wait(monkeypatch, "hold", 100.0, 100.0, dests=("X", "A"), origins=("X", "A")) == pytest.approx([0.0, 0.0])   # co-located inputs
