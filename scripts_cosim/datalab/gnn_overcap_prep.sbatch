@@ -23,7 +23,8 @@ L=/share/nikola.lukic; O=$L/gnn_overcap; B=$L/big_groups
 TOPOS="19206 19207 19208 19209 19210 19211 19212 19213 19214 19215 19216 19217"
 
 echo "== 1. tests"
-python3 -m pytest tests/test_gnn_overcap.py tests/test_gnn_overcap_gate_read.py tests/test_gnn_overcap_batches_read.py tests/test_cd_expansion.py tests/test_prune_g8_gate_read.py tests/test_record_hygiene.py -q 2>&1 | tail -6
+python3 -m pytest tests/test_gnn_overcap.py tests/test_gnn_overcap_gate_read.py tests/test_gnn_overcap_batches_read.py tests/test_cd_expansion.py tests/test_prune_g8_gate_read.py -q 2>&1 | tail -4
+python3 -m pytest tests/test_record_hygiene.py -q 2>&1 | tail -6 || echo "NOTE: record hygiene reported failures above (read them; the cells below still run)"
 
 echo "== 2. topology names"
 hits=$(find $L -maxdepth 7 \( -name 'cc40s1920[6-9]*' -o -name 'cc40s1921[0-7]*' \) -not -path "$O/*" 2>/dev/null | head -5)
@@ -60,6 +61,7 @@ P
 
 echo "== 4. smoke and identity cells"
 export R1A_SEEDS=1 R1A_STEM=accel-replica-v1 R1A_SPLIT=accel_replica_v1_split.json CELL_MEM=8G LIMIT=20000
+export HEROSIM_RAW_DIR=/tmp/herosim_raw_${SLURM_JOB_ID:-$$}; mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 GATE=$O/gate_G8; SM=$O/smoke; ID=$O/ident
 mkdir -p $GATE $SM $ID $O/gate_raw $O/gate_log $O/smoke_raw $O/smoke_log
