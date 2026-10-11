@@ -67,6 +67,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
     "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
     "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
+    "pg_overcap_pred", "pg_overcap_gnn_batches", "pg_overcap_gnn_tasks",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -158,6 +159,10 @@ PG_CD_EXACT_GNN_ENV = "HEROSIM_PG_CD_EXACT_GNN"
 # model that seeded the refine (every other task committed at the pass plan). The expansion is run on the side, never applied, to count how often the pruned
 # optimum is the fallback plan and what it gains over it. Under the cap nothing changes.
 PG_CD_EXACT_PRUNE_ENV = "HEROSIM_PG_CD_EXACT_PRUNE"
+# gnn_overcap_v1 (HEROSIM_PG_CD_OVERCAP=gnn): an over-cap batch is served the plan the GNN seeded the refine with, unchanged (no passes, no expansion, no
+# exact search); a batch within the cap is refined and searched exactly as cd_exactS does. `pg_overcap_pred` counts over-cap batches by the slate sizes alone
+# (dry, with the flag on or off), so with the flag off it must equal pg_exact_fallbacks, and with it on pg_exact_fallbacks must read 0.
+PG_CD_OVERCAP_ENV = "HEROSIM_PG_CD_OVERCAP"
 # big_groups_s0_v1 M4 (HEROSIM_PG_SHARED_LINK=1): S' = S with each in-batch peer pair's transfer priced at the link bandwidth divided by the number of
 # the batch's cross-node pairs whose route crosses the same link (`_pg_plan_cost` only; the greedy and the passes keep S). Off: bit-identical.
 PG_SHARED_LINK_ENV = "HEROSIM_PG_SHARED_LINK"
@@ -172,7 +177,8 @@ PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_
                      "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",
                      "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
                      "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
-                     "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother")
+                     "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
+                     "pg_overcap_pred", "pg_overcap_gnn_batches", "pg_overcap_gnn_tasks")
 PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
 
 
@@ -347,6 +353,12 @@ class _PeerGreedyCore:
         if self.pg_cd_exact_gnn and not (self.pg_cd_exact and self._policy_label == "gnn_cd_refine"):
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_GNN_ENV}=1 needs {PG_CD_EXACT_ENV}=1 and is defined for gnn_cd_refine only "
                                f"(it scores plans with the GNN that seeded the refine); {self._policy_label}")
+        self.pg_cd_overcap = os.environ.get(PG_CD_OVERCAP_ENV, "").strip()
+        if self.pg_cd_overcap not in ("", "gnn"):
+            raise ValueError(f"FAIL LOUD: {PG_CD_OVERCAP_ENV} must be gnn, got {self.pg_cd_overcap!r}")
+        if self.pg_cd_overcap and (not self.pg_cd_exact or self.pg_cd_exact_prune or self._policy_label != "gnn_cd_refine"):
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_OVERCAP_ENV}=gnn serves the GNN's plan on over-cap batches: it needs {PG_CD_EXACT_ENV}=1, excludes "
+                               f"{PG_CD_EXACT_PRUNE_ENV} and is defined for gnn_cd_refine only; {self._policy_label}")
         if self.pg_cd_exact_prune and not self.pg_cd_exact:
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} needs {PG_CD_EXACT_ENV}=1")
         if self.pg_cd_exact_prune == "gnn" and self._policy_label != "gnn_cd_refine":
@@ -1213,6 +1225,17 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         exec_s = float(task.type["executionTime"].get(platform.type["shortName"], 0.0) or 0.0) * xf
         return drain + incoming_cold_start_time(task, platform) + exec_s + network_latency_between(task.node_name, node, nodes)
 
+    def _pg_overcap_batch(self, batch_tasks: List["Task"], system_state: SystemState, placements: Dict[int, Tuple[int, int]]) -> bool:
+        """Whether `_pg_exact` would find this batch above the plan cap: the product of the slate sizes (a pinned task counts 1), nothing else."""
+        n = len(batch_tasks)
+        if n < 2:
+            return False
+        cands, _couple, _keys, _plan, pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        total = 1
+        for i in range(n):
+            total *= 1 if i in pinned else min(len(cands[i]), self.pg_cd_exact_top_k)
+        return total > self.pg_cd_exact_max_plans
+
     def _pg_exact(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
                   committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
                   service_of: Dict[int, Tuple[str, float]]) -> int:
@@ -1535,6 +1558,7 @@ class GnnCdRefiner(_PeerGreedyCore):
     _pg_standalone = PeerGreedyNetworkBatchScheduler._pg_standalone
     _pg_exact = PeerGreedyNetworkBatchScheduler._pg_exact
     _pg_exact_pruned = PeerGreedyNetworkBatchScheduler._pg_exact_pruned
+    _pg_overcap_batch = PeerGreedyNetworkBatchScheduler._pg_overcap_batch
 
     def __init__(self, host) -> None:
         self._host = host
@@ -1596,6 +1620,13 @@ class GnnCdRefiner(_PeerGreedyCore):
                 raise RuntimeError(f"FAIL LOUD: seed placement {seed[idx]} of task {task.id} is not a valid replica")
             by_id[idx] = couple
             planned[int(task.id)] = couple[0].node_name
+        if self.pg_cd_exact:
+            over = self._pg_overcap_batch(batch_tasks, system_state, seed)
+            self.pg_overcap_pred += int(over)
+            if over and self.pg_cd_overcap:
+                self.pg_overcap_gnn_batches += 1
+                self.pg_overcap_gnn_tasks += len(batch_tasks)
+                return dict(seed), {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
         for idx in sorted(range(len(batch_tasks)), key=lambda i: int(batch_tasks[i].id)):
             task = batch_tasks[idx]
             node, platform, service = self._pg_choose(task, [by_id[idx]], orch, memo=memo,
