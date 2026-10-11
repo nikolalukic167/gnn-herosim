@@ -26,7 +26,7 @@ def core_bw(cfg_path: str) -> float:
 
     infra = prepare_infrastructure_for_real_simulation(json.load(open(cfg_path)), seed=None, sim_input_path=REPO / "data" / "nofs-ids")
     links = infra["link_topology"]["links"]
-    core = sorted({float(v["bandwidth_mbps"]) for k, v in links.items() if k.startswith("core")})
+    core = sorted({float(v["bandwidth_mbps"]) for k, v in links.items() if all(e.startswith("core") for e in k.split("|"))})
     if len(core) != 1:
         raise SystemExit(f"{cfg_path}: core links carry {core}, expected one rate")
     return core[0]

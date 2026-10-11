@@ -27,3 +27,13 @@ def test_fail_on_plan_latency_or_vacuous_bandwidth():
     assert P.read(*fixture(0.0), 1000.0, 1000.0, 1000.0)["verdict"] == "FAIL"
     assert P.read(*fixture(0.0, core=1000.0), 62.5, 1000.0, 62.5)["verdict"] == "FAIL"
     assert P.read(*fixture(0.0), 62.5, 1000.0, 1000.0)["verdict"] == "FAIL"
+
+
+def test_core_bw_ignores_access_links(monkeypatch):
+    import src.executesimulation as E
+
+    links = {"core0|core1": {"bandwidth_mbps": 62.5}, "core1|core2": {"bandwidth_mbps": 62.5}, "node1|core0": {"bandwidth_mbps": 117.0}}
+    monkeypatch.setattr(E, "prepare_infrastructure_for_real_simulation", lambda *a, **k: {"link_topology": {"links": links}})
+    monkeypatch.setattr(P.json, "load", lambda f: {})
+    monkeypatch.setattr("builtins.open", lambda *a, **k: None)
+    assert P.core_bw("x.json") == 62.5
