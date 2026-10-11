@@ -15,7 +15,7 @@ def cell(lat, oracle=False, cold=0.5, exch=1.0, lock=0.4):
          "schedulerCounters": {"pg_batches": 100, "pg_exact_batches": 100}}
     if oracle:
         c["schedulerCounters"].update(pg_oracle_batches=80, pg_oracle_seen_batches=100, pg_oracle_over_cap_batches=20, pg_oracle_seen_tasks=400,
-                                      pg_oracle_over_cap_tasks=160, pg_oracle_plans=8000, pg_oracle_changed=20, pg_oracle_gain_seconds=40.0,
+                                      pg_oracle_over_cap_tasks=160, pg_oracle_tasks=240, pg_oracle_plans=8000, pg_oracle_changed=20, pg_oracle_gain_seconds=40.0,
                                       pg_oracle_seconds=160.0)
     return c
 
@@ -65,6 +65,7 @@ def test_counts_books_and_buckets(monkeypatch):
     assert r["counts"][f"{P.O}|heavy"] == {"finished": 12, "failed": 0, "expected": 12, "complete": True}
     b = r["oracle_books"]["heavy"]
     assert b["books_close"] and b["over_cap_share_of_batches"] == pytest.approx(0.2) and b["over_cap_share_of_tasks"] == pytest.approx(0.4)
+    assert b["served_share_of_batches"] == pytest.approx(0.8) and b["served_share_of_tasks"] == pytest.approx(0.6)
     assert b["plans_per_served_batch"] == pytest.approx(100.0) and b["changed_share"] == pytest.approx(0.25)
     assert b["decision_wall_s_per_served_batch"] == pytest.approx(2.0)
     k = r["buckets_O_minus_E_pp"]["heavy"]
