@@ -510,8 +510,18 @@ def ghost_order_key(g: Dict[str, Any], request_time: float = None) -> Tuple:
     latency)."""
     ingress = g["stage"] == "ingress"
     t = g.get("pop", 0.0) if request_time is None else request_time
+    if g["stage"] in INFLIGHT_STAGES:
+        # Variant G: a replica's in-flight tasks queue for its compute lock, which live serves in request order. The task in its
+        # compute stage holds the lock (also while its output write waits for a pull to free the node's storage); the lock-waiters
+        # asked for it when their input ended (`order` = io_end - now). Pop order is the order they reached the replica, not the
+        # order they asked for the lock: ordering by it let a lock-waiter take the lock ahead of the computing task, so one execution
+        # per replica overlapped a pull hold (I11 heavy opening, 2026-10-10). Created after every ingress / cold ghost.
+        return (3, 0 if g["stage"] == "compute" else 1, g.get("order", 0.0), t, g["tid"], g["q"])
     return (0 if ingress and g["link_stage"] == "hold" else 1 if ingress and g["link_stage"] == "wait" else 2,
             t, g["tid"], g["q"], 0 if g["stage"] == "compute" else 1, g.get("order", 0.0))
+
+
+INFLIGHT_STAGES = ("compute", "lock_wait", "input_io", "rendezvous")
 
 
 def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation_data: Any, env: Any,
