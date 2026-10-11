@@ -18,7 +18,7 @@ CELL_CONFIG_ENV = "HEROSIM_ORACLE_CELL_CONFIG"
 SIM_INPUT_ENV = "HEROSIM_ORACLE_SIM_INPUT"
 WORKERS_ENV = "HEROSIM_ORACLE_WORKERS"
 DIAG_DIR_ENV = "ORACLE_DIAG_DIR"  # not a HEROSIM_ name on purpose (the datalab sbatch unsets those); changes no decision
-MIN_PLANS_PER_CHUNK = 4
+MIN_PLANS_PER_CHUNK = 1
 
 # Variables of the live run that must not reach a replay: the watchdog's progress file, the event cap, forced placements and the capture path.
 _LIVE_ONLY = ("HEROSIM_PROGRESS_FILE", "HEROSIM_PROGRESS_INTERVAL_S", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS", "LIVE_AUDIT_SNAPSHOT_PATH")
