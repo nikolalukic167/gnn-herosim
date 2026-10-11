@@ -76,6 +76,24 @@ that CD's surrogate S plus a good search is the bar.
 
 ## Record (newest first)
 
+- 2026-10-11 — **Knob parity: ACCEPTED with a disclosed residual; a second parity at the lowest qualifying rung, with
+  its bar signed now** (S4; topology 17100 moderate g0, 40 decisions with the live plan forced in the replay; 858098 /
+  reader 858123 at 62.5 MB/s on S6's capture code; control 858124 at 1000 MB/s; failed launches 858095 and 858097 are
+  unused).
+  - **The knob reaches both paths:** the core rate is 62.5 in the live run and the replay, against 1000 in the default
+    cfg, and the stamp check did not raise.
+    - Plans match on 172/172 tasks (62.5) and 161/161 (1000). The median |Δ latency| is 3e-13 s.
+    - Live linkWaitTime > 0 on 86 tasks, and the replay shows the same.
+  - **Residual, always replay-shorter:**
+    - **Exchange residual, present at both bandwidths:** 62.5 MB/s, 1 task up to −92.6 ms; 1000 MB/s, 2 tasks up to
+      −69.4 ms. The tasks have no link-wait difference and carry peer exchange, in 7–10-task batches.
+    - **Link-ordering residual, 62.5 MB/s only, one state (n = 1):** 3 tasks, −12.75 / −25.5 / −30.4 ms, accounted for
+      by link wait.
+    - The cause is not localised for either.
+  - **Ruling:** accepted, disclosed. The exchange residual predates the knob.
+  - **Signed bar for the second parity**, at the lowest rung that qualifies under Amendment 3, run before the screen
+    read: plans match 100 %, ≥ 95 % of tasks within 1 ms, and the max residual ≤ 5 % of that task's latency.
+    Otherwise the link-ordering residual is localised and fixed before any screen read.
 - 2026-10-11 — **Pre-check read; Amendment 3 (before any S-regret is read): extend the ladder down, with a stop rule**
   (S7; 320/320 cells, 0 failed, 0 hung; telemetry added at rp/link-bound-telemetry f9de3e8a, because 79ea002c carried no
   link-wait or utilisation fields; reader `link_bound_precheck_read.py`; `/share/nikola.lukic/link_bound/precheck_read.json`).
