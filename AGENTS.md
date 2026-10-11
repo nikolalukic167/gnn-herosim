@@ -62,9 +62,8 @@ never a message-passing win.** The seat is R1.1 + WF1, with replicas on the fast
   - Adding servers made it easier, not harder.
   - **A post-batch value does not help live** (`cost_to_go_v1`, CLOSED NO-WIN). The hand V and the MLP V both tie
     cd_exactS (≤ 0.5 %), although the MLP V captured 76 % of the headroom offline.
-- **Bigger peer groups** (`big_groups_s0_v1`): G=8 breaks exact enumeration (fallback in 48–82 % of batches, served plan
-  55–65 % above best-known). S's own error is tail-only (median per-state regret 0). The screen is NO-GO as registered,
-  and the G=8 live gate is pending.
+- **Bigger peer groups do not help** (`big_groups_s0_v1`, CLOSED). At G=8 exact enumeration fails in 28–49 % of batches,
+  yet cd_exactS still beats CD by −9.2 / −7.7 % (12/12). GNN self-search ties it at moderate and is +5.5 % slower at heavy.
 - **Knative under R1:** the key-blind arm herds and collapses on lock wait. A faithful concurrency-key Knative never
   collapses and is +48 / +68 % vs CD. Quote only the latter (`docs/gates/gate-tools.md`).
 

@@ -1,18 +1,23 @@
 # big_groups_s0_v1 — do bigger peer groups make exact search on CD's surrogate fail, at fixed load?
 
-**Status:** `ACTIVE` (2026-10-11). The screen reads **NO-GO** (registered bar not met). The live gate is pending.
-Registered 2026-10-11; every bar below was signed before its data.
+**Status:** `CLOSED` (2026-10-11) — **NO-GO; live G8: HAND-SEARCH-FASTER.** Registered 2026-10-11; every bar below was
+signed before its data.
 
-**Now.**
-- **Screen NO-GO as registered:** at G=8 the M2 clause fails in both conditions; M1, M4 and health pass.
-  - M2 fails partly by construction: in 25–32 of 56 states the top-2 plans are latency-identical equivalents.
-  - That is a design flaw of M2. It is recorded as such, not re-defined after the read.
-- Pooled S-regret is large but tail-driven: the median per-state regret is 0 in every cell. It is also large at the
-  current G on these fresh topologies.
-- M1 rises with G at heavy (7.0 → 40.8 %, no slate) and falls at moderate.
-- **cd_exactS's served plan is far off at G8** (pooled 55–65 %): its fallback binds in 48–82 % of G8 batches.
-- The S′ shared-link term does not help.
-- Stage 2 is not run. The live gate runs at G=8.
+**Outcome.**
+- **Screen NO-GO as registered:** at G=8 the M2 clause fails in both conditions. M2 fails partly by construction, a
+  recorded design flaw, not re-defined after the read.
+- **Live G=8 gate** (856483, 12 fresh topologies × 4 windows × 2 rungs, 288/288 cells, reader 1a0babe7):
+  - **cd_exactS beats CD −9.15 / −7.71 % (12/12 at both rungs)**, even though its fallback binds in 28 / 49 % of batches.
+  - **GNN self-search** (ra_gnn_eng s1, no retraining):
+    - beats CD at moderate (−9.70 %, 11/12, p .0015);
+    - is only −1.46 % at heavy (p .11);
+    - ties cd_exactS at moderate (+0.51 %);
+    - is **slower than cd_exactS at heavy (+5.52 %, 2/12, p .0024)**, where its search is 90 % coordinate ascent.
+- **Bigger groups did not open a gap for learning.** CD's own surrogate stays the better guide even when exact
+  enumeration fails. The screen's large S-regret is tail-only (median 0), and live it does not cost cd_exactS.
+- One checkpoint (s1), one environment; not a statement about other seeds or arms. No retrained big-group arm (that
+  would need a GO).
+- Stage 2 was not run. The S′ shared-link term did not help.
 
 **Why.** In the accel seat the decision is too easy for a learned model to beat search (SCIENTIST, PUBLISHER, S4–S7,
 2026-10-11; recorded in `selfsearch_confirm_v1` and `accel_nosplit_v1`).
@@ -77,6 +82,34 @@ Registered 2026-10-11; every bar below was signed before its data.
 
 ## Record (newest first)
 
+- 2026-10-11 03:30 — **Live gate read at G=8: HAND-SEARCH-FASTER; lineage CLOSED** (S7; array 856483, 288/288
+  summaries, 0 failed, nothing killed or rerun; reader 1a0babe7, written before the data; harness 79ea002c; topologies
+  16900–16911; `/share/nikola.lukic/big_groups/gate_G8_read.json`).
+  - **Paired % of mean latency** (per-topology median over 4 windows, median over 12 topologies; exact two-sided
+    Wilcoxon, uncorrected across the 6 rows; negative = first arm faster):
+
+    | contrast | rung | median | wins | p |
+    |---|---|---|---|---|
+    | self-search vs CD | moderate | −9.70 % | 11/12 | .0015 |
+    | self-search vs CD | heavy | −1.46 % | 10/12 | .110 |
+    | self-search vs cd_exactS | moderate | +0.51 % | 4/12 | .73 |
+    | self-search vs cd_exactS | heavy | +5.52 % | 2/12 | .0024 |
+    | cd_exactS vs CD | moderate | −9.15 % | 12/12 | .0005 |
+    | cd_exactS vs CD | heavy | −7.71 % | 12/12 | .0005 |
+
+  - **Per-topology outliers, self-search vs CD:** 16904 is +4.6 % (moderate) and +7.8 % (heavy); 16909 is about 0 and
+    +4.6 %. The trigger (≤ −5 % vs CD at both rungs) is False.
+  - **Search counts:**
+    - Self-search: 22 % exact / 78 % ascent at moderate (319,162 batches), 9.5 / 90.5 % at heavy (306,825). 43–44 % of
+      batches change the decoded plan.
+    - cd_exactS falls back in 28.1 / 49.2 % of batches, enumerating about 4.4 / 4.1 billion plans.
+  - The three smoke cells (16900 g0 heavy, all arms) are part of the 288, as agreed before the read.
+  - **Ruling (coordinator):** CLOSED. The screen stands NO-GO, and the live gate confirms there is no learned lever at
+    G=8.
+    - The hand search on S beats CD at both rungs even with its fallback binding in half the heavy batches.
+    - The GNN's own search, mostly coordinate ascent at G=8, falls behind it at heavy.
+    - No retrained big-group arm is registered (it needed a GO).
+    - Group size is not the missing hardness. Larger groups make enumeration fail, but S-guided expansion recovers.
 - 2026-10-11 16:50 — **Live gate at G=8 set up** (S7).
   - Topologies 16900–16911, from a clean scan; selection `selected_gate.json`, verdict asserted.
   - Inputs 856368: the rate matches the current G (moderate 5.3470, heavy 12.7173 tasks/s), 6,250 groups of 8 per
