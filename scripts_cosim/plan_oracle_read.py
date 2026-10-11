@@ -5,7 +5,7 @@ Arms on the 6 fresh topologies 19300-19305, windows g0 and g1, both rungs, all s
                  batches run cd_exactS unchanged and are counted)
   E  cd_exactS   the hand bar            C  cd
 Counts first (summaries and failures per arm and rung against the expected 12 cells; a failed.json is a count, never a rerun). Then the oracle's
-books per rung: batches seen / served / over the cap (and the task share of the over-cap batches), plans per served batch, how often it changed
+books per rung: batches seen / served / over the cap / unlabellable (a partner outside the batch not yet placed: the corpus builder rejects the same snapshots), with task shares, plans per served batch, how often it changed
 cd_exactS's plan, the single-batch RTT it saved per served batch, decision wall seconds per batch. Then, per rung, the paired % of mean latency per
 topology (median over its windows), its median over topologies, the sign count (wins = topologies where the first arm is faster) and the exact
 two-sided Wilcoxon (n = 6 gives p >= 0.031; p is reported and is not part of the bar). Negative = the first arm faster.
@@ -39,7 +39,7 @@ GO_MEDIAN_PCT = -4.0
 GO_MIN_WINS = 5
 BOOKS = ("pg_batches", "pg_exact_batches", "pg_exact_fallbacks", "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed",
          "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks",
-         "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks")
+         "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks")
 
 
 def check(cells, failed, topos):
@@ -75,7 +75,9 @@ def books(cells, rung):
     t = {n: _tot(cs, n) for n in BOOKS}
     served, seen = t["pg_oracle_batches"], t["pg_oracle_seen_batches"]
     return {"cells": len(cs), **t,
-            "books_close": seen == served + t["pg_oracle_over_cap_batches"],
+            "books_close": seen == served + t["pg_oracle_over_cap_batches"] + t["pg_oracle_unplaced_batches"],
+            "unplaced_share_of_batches": t["pg_oracle_unplaced_batches"] / seen if seen else None,
+            "unplaced_share_of_tasks": t["pg_oracle_unplaced_tasks"] / t["pg_oracle_seen_tasks"] if t["pg_oracle_seen_tasks"] else None,
             "served_share_of_batches": served / seen if seen else None,
             "served_share_of_tasks": t["pg_oracle_tasks"] / t["pg_oracle_seen_tasks"] if t["pg_oracle_seen_tasks"] else None,
             "over_cap_share_of_batches": t["pg_oracle_over_cap_batches"] / seen if seen else None,
@@ -204,7 +206,7 @@ def print_report(r):
     print("-- oracle books")
     for rung, b in r["oracle_books"].items():
         keep = {n: (round(v, 4) if isinstance(v, float) else v) for n, v in b.items()
-                if n in ("cells", "pg_oracle_seen_batches", "pg_oracle_batches", "books_close", "served_share_of_batches", "served_share_of_tasks", "over_cap_share_of_batches", "over_cap_share_of_tasks",
+                if n in ("cells", "pg_oracle_seen_batches", "pg_oracle_batches", "books_close", "served_share_of_batches", "served_share_of_tasks", "unplaced_share_of_batches", "unplaced_share_of_tasks", "over_cap_share_of_batches", "over_cap_share_of_tasks",
                          "plans_per_served_batch", "changed_share", "saved_single_batch_rtt_s_per_served_batch", "decision_wall_s_per_served_batch")}
         print(f"  {rung:9s} {keep}")
     print("-- paired % per topology (median over windows), median over topologies; negative = first arm faster")

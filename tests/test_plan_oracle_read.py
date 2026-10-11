@@ -15,7 +15,7 @@ def cell(lat, oracle=False, cold=0.5, exch=1.0, lock=0.4):
          "schedulerCounters": {"pg_batches": 100, "pg_exact_batches": 100}}
     if oracle:
         c["schedulerCounters"].update(pg_oracle_batches=80, pg_oracle_seen_batches=100, pg_oracle_over_cap_batches=20, pg_oracle_seen_tasks=400,
-                                      pg_oracle_over_cap_tasks=160, pg_oracle_tasks=240, pg_oracle_plans=8000, pg_oracle_changed=20, pg_oracle_gain_seconds=40.0,
+                                      pg_oracle_over_cap_tasks=160, pg_oracle_tasks=240, pg_oracle_unplaced_batches=0, pg_oracle_unplaced_tasks=0, pg_oracle_plans=8000, pg_oracle_changed=20, pg_oracle_gain_seconds=40.0,
                                       pg_oracle_seconds=160.0)
     return c
 

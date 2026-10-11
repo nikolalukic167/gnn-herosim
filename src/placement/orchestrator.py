@@ -248,7 +248,7 @@ class Orchestrator:
             "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
             "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
             # plan_rerank_v1 Phase 0: the live oracle (HEROSIM_PG_ORACLE=1)
-            "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks",
+            "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",

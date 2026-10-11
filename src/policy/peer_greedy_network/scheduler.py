@@ -68,7 +68,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
     "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
     "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
-    "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks",
+    "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -181,7 +181,7 @@ PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_
                      "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
                      "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
                      "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
-                     "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks")
+                     "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks")
 PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
 
 
@@ -1295,8 +1295,10 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
         keep_pass = best_cost >= cur - 1e-9
         if self.pg_oracle and total <= self.pg_oracle_max_plans:
-            return self._pg_oracle_apply(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of,
-                                         slates, plan, plan if keep_pass else best_plan)
+            moved = self._pg_oracle_apply(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of,
+                                          slates, plan, plan if keep_pass else best_plan)
+            if moved is not None:
+                return moved
         if gnn and abs(best_cost - cur) <= 1e-9 or (gnn and not keep_pass and len(tied) > 1):
             # S-tie: the candidates are every enumerated plan at the optimum, and the pass plan when it sits at the optimum too
             cands_t = list(tied)
@@ -1346,7 +1348,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                          service_of: Dict[int, Tuple[str, float]], slates: List[List], plan: List, s_plan: List) -> int:
         """The live oracle (HEROSIM_PG_ORACLE=1): every plan of the slate product, and the pass plan, scored by the real single-batch RTT of a
         fidelity replay of this very state; the argmin is applied. `s_plan` is what cd_exactS would apply. A plan replaces it only when strictly
-        cheaper, so a replay tie keeps cd_exactS's choice. Returns the number of tasks moved off the pass plan."""
+        cheaper, so a replay tie keeps cd_exactS's choice. Returns the number of tasks moved off the pass plan, or None when the batch cannot be
+        labelled (the caller then runs cd_exactS's own choice)."""
         from itertools import product
 
         from src.placement import plan_oracle
@@ -1361,6 +1364,14 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         if getattr(self, "_plan_oracle", None) is None:
             self._plan_oracle = plan_oracle.PlanOracle()
         snapshot = capture_batch_snapshot(self, system_state, batch_tasks, self._live_audit_policy_name)
+        fid = snapshot["fidelity"]
+        future = fid.get("future") or {}
+        if any(node is None and str(other) not in future for row in (fid.get("peers") or {}).values() for other, node, _p in row):
+            # a partner outside the batch the live run had not placed yet is a rendezvous whose time no snapshot gives: the replay cannot label
+            # the batch (the corpus builder rejects the same snapshots, UNPLACED_PARTNER_REASON); cd_exactS's choice stands, counted
+            self.pg_oracle_unplaced_batches += 1
+            self.pg_oracle_unplaced_tasks += n
+            return None
         order = sorted(range(n), key=lambda i: int(batch_tasks[i].id))
         types = [batch_tasks[i].type["name"] for i in order]
         labels = self._plan_oracle.labels(snapshot, types, [[(int(c[i][0].id), int(c[i][1].id)) for i in order] for c in combos])
