@@ -139,7 +139,7 @@ def test_harness_serves_cd_expand_as_a_named_diagnostic_arm():
     assert "cd_expand" in G.R1A_DIAG and "cd_expand" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_expand":\n            env["HEROSIM_PG_CD_EXPANSION"] = "1"' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_CD_OVERCAP_DRY", "HEROSIM_OVERCAP_LOG", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV' in src   # scrubbed per cell before the kind sets it
 
 
 # ---- cdxapply: the CD refine of a seeded (learned) plan, with the expansion ----
@@ -220,14 +220,14 @@ def test_harness_serves_cdxapply_as_a_named_learned_diagnostic():
     src = open(G.__file__).read()
     assert 'if kind.endswith("_cdxapply"):\n            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")' in src
     assert 'R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + R1A_OVERCAP)' in src   # out of the default grid
-    assert 'expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo")) or kind == "cd_expand"' in src
+    assert 'expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_ovg", "_ovo", "_ovd")) or kind == "cd_expand"' in src
     # the check reads the flag back from run_provenance, which records a whitelist of env keys
     import inspect
 
     from src import executesimulation
 
     assert '"HEROSIM_PG_CD_EXPANSION"' in inspect.getsource(executesimulation.build_run_provenance)
-    assert 'kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch", "_ovg", "_ovo"))' in src
+    assert 'kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch", "_ovg", "_ovo", "_ovd"))' in src
 
 
 # ---- cd_exactS: exact search over S on the top-K slate ----
@@ -344,7 +344,7 @@ def test_harness_serves_cd_exactS_as_a_named_diagnostic_arm():
     assert "cd_exactS" in G.R1A_DIAG and "cd_exactS" in G.R1A_ARMS
     src = open(G.__file__).read()
     assert 'if kind == "cd_exactS":\n            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")' in src
-    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV' in src   # scrubbed per cell
+    assert '"HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_CD_OVERCAP_DRY", "HEROSIM_OVERCAP_LOG", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV' in src   # scrubbed per cell
     assert 'if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1"' in src
 
 

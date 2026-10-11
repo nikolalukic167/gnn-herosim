@@ -108,8 +108,35 @@ def test_harness_serves_the_overcap_arms():
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
     import fresh_topo_burst_v1_gate as G
 
-    assert {"ra_gnn_eng_ovg", "ra_twin_eng_ovg", "ra_gnn_eng_ovo"} <= set(G.R1A_ARMS) and not set(G.R1A_OVERCAP) & set(G.RA_KINDS)
+    assert {"ra_gnn_eng_ovg", "ra_twin_eng_ovg", "ra_gnn_eng_ovo", "ra_gnn_eng_ovd"} <= set(G.R1A_ARMS) and not set(G.R1A_OVERCAP) & set(G.RA_KINDS)
     assert "_ovg" in G.SUFFIXES and "_ovo" in G.SUFFIXES
     src = open(G.__file__).read()
     assert 'if kind.endswith("_ovg"):\n            env["HEROSIM_PG_CD_OVERCAP"] = "gnn"' in src
-    assert '"HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_CD_OVERCAP", ' in src   # scrubbed per cell
+    assert '"HEROSIM_PG_CD_OVERCAP", "HEROSIM_PG_CD_OVERCAP_DRY", "HEROSIM_OVERCAP_LOG", ' in src   # scrubbed per cell
+    assert "ra_gnn_eng_ovd" in G.R1A_OVERCAP and "_ovd" in G.SUFFIXES
+
+
+def test_dry_mode_serves_the_seed_compares_s_and_restores_every_other_counter(monkeypatch, tmp_path):
+    log = tmp_path / "ov.jsonl"
+    _env(monkeypatch, 8, "gnn")
+    monkeypatch.setenv(S.PG_CD_OVERCAP_DRY_ENV, "1")
+    monkeypatch.setenv(S.PG_OVERCAP_LOG_ENV, str(log))
+    r, tasks, state = _refiner_ov(monkeypatch)
+    plan, info = r.refine(tasks, state, SEED, passes=3)
+    assert plan == SEED and info["moved"] == 0
+    # the fallback reaches the pair on C (16 s cheaper); the seed is the split pair
+    assert (r.pg_overcap_pred, r.pg_overcap_gnn_batches, r.pg_overcap_dry_batches, r.pg_overcap_dry_worse, r.pg_overcap_dry_better, r.pg_overcap_dry_differs) == (1, 1, 1, 1, 0, 1)
+    assert r.pg_overcap_dry_gain_seconds == pytest.approx(-16.0)
+    assert (r.pg_exact_fallbacks, r.pg_expand_batches, r.pg_cd_passes, r.pg_exact_batches) == (0, 0, 0, 0)
+    import json
+
+    rec = json.loads(log.read_text())
+    assert rec["n"] == 2 and rec["s_gnn"] - rec["s_expansion"] == pytest.approx(16.0) and rec["differs"] and rec["tasks_moved"] == 2
+
+
+def test_dry_mode_needs_the_path(monkeypatch):
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_OVERCAP_DRY_ENV, "1")
+    monkeypatch.delenv(S.PG_CD_OVERCAP_ENV, raising=False)
+    with pytest.raises(RuntimeError, match="needs"):
+        _shell(monkeypatch)
