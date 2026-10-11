@@ -11,8 +11,8 @@ topologies, the sign count (wins = topologies where the first arm is faster) and
 
 Registered families (Holm within each family, exact Wilcoxon p; every other contrast is descriptive and labelled so):
   PRIMARY    A vs E at moderate and heavy                                  Holm over 2
-  SECONDARY  A vs B (learned order vs cost order), A vs T (message passing vs MP-OFF), at both rungs     Holm over 4
-Descriptive: A, B, T, E each vs C; B vs E; T vs E; T vs B.
+  SECONDARY  A vs B (learned order vs cost order), A vs T (message passing vs MP-OFF), A vs C (the CD bar), at both rungs     Holm over 6
+Descriptive: B, T, E each vs C; B vs E; T vs E; T vs B.
 Flags (printed, not interpreted here; the node holds the rules): PRIMARY_BOTH_RUNGS_FASTER = A's median < 0 against E at both rungs,
 PRIMARY_HOLM_SIG = both Holm-adjusted p < 0.05 AND A faster at both rungs (a significant loss is not a signal). A topology outside --topos is refused, and so is a window set other than g0-g3.
 
@@ -32,8 +32,8 @@ PRUNE_ARMS = (A, B, T)
 RUNGS = ("moderate", "heavy")
 WINDOWS = ("g0", "g1", "g2", "g3")
 PRIMARY = ((A, E),)
-SECONDARY = ((A, B), (A, T))
-DESCRIPTIVE = ((A, C), (B, C), (T, C), (E, C), (B, E), (T, E), (T, B))
+SECONDARY = ((A, B), (A, T), (A, C))
+DESCRIPTIVE = ((B, C), (T, C), (E, C), (B, E), (T, E), (T, B))
 ALPHA = 0.05
 PRUNE_BOOKS = ("pg_batches", "pg_exact_batches", "pg_exact_fallbacks", "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs",
                "pg_exact_prune_better", "pg_exact_prune_worse", "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved",
