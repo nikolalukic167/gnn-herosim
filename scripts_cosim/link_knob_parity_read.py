@@ -19,6 +19,7 @@ from statistics import median
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 TOL = 1.0e-3 + 1e-6
+BAR_WITHIN, BAR_REL = 0.95, 0.05  # signed bar of the lowest-qualifying-rung parity: >= 95 % of tasks within TOL, max residual <= 5 % of its task latency
 
 
 def core_bw(cfg_path: str) -> float:
@@ -41,7 +42,7 @@ def read(rows, tab, raw, snaps, bw_low: float, bw_default: float, live_cfg_bw: f
         shape[int(r["snapshot_id"])] = dict(t0=r["time"], batch=len(batch[int(r["snapshot_id"])]), queued=len(r["fidelity"].get("queued") or []),
                                             ghosts=len(r["fidelity"].get("ghosts") or []))
     rows = list({r["tag"]: r for r in rows}.values())  # the build manifest can list an id twice
-    out = {"states": 0, "errors": [], "plan_mismatch": [], "n_tasks": 0, "diffs": [], "link_wait_live_nonzero": 0,
+    out = {"max_rel_residual": 0.0, "states": 0, "errors": [], "plan_mismatch": [], "n_tasks": 0, "diffs": [], "link_wait_live_nonzero": 0,
            "link_wait_replay_nonzero": 0, "link_wait_diffs": [], "core_bw_replay": set(), "residual_tasks": []}
     for r in rows:
         if "error" in r:
@@ -61,6 +62,7 @@ def read(rows, tab, raw, snaps, bw_low: float, bw_default: float, live_cfg_bw: f
                 out["plan_mismatch"].append([r["tag"], g, live, [d["executionNode"], d["executionPlatform"]]])
             out["n_tasks"] += 1
             out["diffs"].append(abs(lat - (tab["done"][g] - tab["scheduled"][g])))
+            out["max_rel_residual"] = max(out["max_rel_residual"], out["diffs"][-1] / max(tab["done"][g] - tab["scheduled"][g], 1e-9))
             lw_live, lw_rep = float(trs[g].get("linkWaitTime") or 0.0), float(d.get("linkWaitTime") or 0.0)
             if out["diffs"][-1] > TOL:
                 out["residual_tasks"].append(dict(snapshot=sid, gid=g, d_latency_ms=1e3 * (lat - (tab["done"][g] - tab["scheduled"][g])),
@@ -82,6 +84,9 @@ def read(rows, tab, raw, snaps, bw_low: float, bw_default: float, live_cfg_bw: f
     ok = (out["states"] > 0 and not out["errors"] and not out["plan_mismatch"] and out["tasks_within_tol"] == out["n_tasks"]
           and non_vacuous and live_cfg_bw == bw_low and out["core_bw_replay"] == [bw_low])
     out["control"] = control
+    bar = (out["states"] > 0 and not out["errors"] and not out["plan_mismatch"] and out["tasks_within_tol"] >= BAR_WITHIN * out["n_tasks"]
+           and out["max_rel_residual"] <= BAR_REL and non_vacuous and live_cfg_bw == bw_low and out["core_bw_replay"] == [bw_low])
+    out["verdict_signed_bar"] = "PASS" if bar else "FAIL"
     out["verdict"] = "PASS" if ok else "FAIL"
     return out
 
