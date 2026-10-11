@@ -38,6 +38,13 @@ if str(REPO) not in sys.path:
 
 CONTINUATION = {
     "cd_exacts": ("peer_greedy_network_cd_peer_greedy_network_cd", {"HEROSIM_PG_CD_EXACT": "1", "HEROSIM_PG_CD_EXPANSION": "1"}),
+    # prune_g8_s0_v1 screen: the cd_exactS decision with its over-cap batches pruned to the top-k of the cost order (HEROSIM_PG_CD_EXACT_PRUNE=cost)
+    "cd_exacts_prc": ("peer_greedy_network_cd_peer_greedy_network_cd", {"HEROSIM_PG_CD_EXACT": "1", "HEROSIM_PG_CD_EXPANSION": "1",
+                                                                       "HEROSIM_PG_CD_EXACT_PRUNE": "cost"}),
+    # the same with the GNN order (HEROSIM_PG_CD_EXACT_PRUNE=gnn): the gnn_eng policy under GNN_CD_REFINE=apply and the no-split decode, as the live arm
+    # ra_gnn_eng_cdxpra serves it. The checkpoint and contract variables (GNN_MODEL_PATH, PARTIAL_STATE_*, GNN_PREFIX_ALPHA_KEY) come from the caller's environment.
+    "cd_exacts_prg": ("gnn_gnn", {"GNN_CD_REFINE": "apply", "HEROSIM_PG_CD_EXPANSION": "1", "HEROSIM_PG_CD_EXACT": "1",
+                                  "HEROSIM_PG_CD_EXACT_PRUNE": "gnn", "GNN_SLATE_NO_SPLIT": "1", "GNN_SERVE_CANDIDATE_SLATE": "declared_pruning_v1"}),
     "cd": ("peer_greedy_network_cd_peer_greedy_network_cd", {}),
     "live": ("peer_greedy_network_batch_peer_greedy_network_batch", {}),
 }
@@ -195,7 +202,7 @@ def _one(job):
                 os.environ.setdefault(k, str(v))
         os.environ.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1", PYTHONHASHSEED="0", SIM_FORCE_FULL_STATS="1")
         for k in ("GNN_SERVE_CANDIDATE_SLATE", "HEROSIM_PG_EXCHANGE_SCALE", "HEROSIM_PG_CD_PASSES", "HEROSIM_PG_BATCH_BLIND",
-                  "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "GNN_SLATE_NO_SPLIT", "HEROSIM_MAX_EVENTS"):
+                  "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_PRUNE", "GNN_SLATE_NO_SPLIT", "GNN_CD_REFINE", "HEROSIM_MAX_EVENTS"):
             os.environ.pop(k, None)
         strategy, extra_env = CONTINUATION[job["continuation"]]
         os.environ.update(extra_env)
@@ -464,7 +471,8 @@ def _one(job):
                     window_detail={str(g): {k: trs[ids[g]].get(k) for k in DETAIL} for g in window} if job.get("detail") else None,
                     scale_events=[[round(e["timestamp"], 3), e.get("action"), e.get("name"), e.get("cause")] for e in res["stats"].get("scaleEvents", [])][:300] if job.get("detail") else None,
                     hook=seen.get("hook"), decisions=seen["decisions"], exact_batches=int(sc.get("pg_exact_batches") or 0),
-                    exact_fallbacks=int(sc.get("pg_exact_fallbacks") or 0), wall=time.time() - t_start)
+                    exact_fallbacks=int(sc.get("pg_exact_fallbacks") or 0),
+                    prune={k: sc.get(k) for k in sc if k.startswith("pg_exact_prune_")}, wall=time.time() - t_start)
     except Exception as e:  # recorded, never swallowed
         import traceback
         return dict(base, error=f"{type(e).__name__}: {str(e)[:300]}", tb=traceback.format_exc()[-1500:])
