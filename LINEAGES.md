@@ -36,6 +36,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**link_bound_s0_v1**](docs/lineages/link_bound_s0_v1.md) | `ACTIVE` | Screen: does lowering link bandwidth (load fixed, CD healthy) move S’s error from the tail to the median? Prior NO-GO (4 earlier link screens). Live gate runs either way. |
 | [**mixed_dispatch_v1**](docs/lineages/mixed_dispatch_v1.md) | `ACTIVE` | Reservations win 11/16 observed comparisons, but the trained DAG successor loses to hand search; dag_resume_s0_v1 also closes its bounded continuation recipe with no relative gain. |
 | [**radical_physics_v1**](docs/lineages/radical_physics_v1.md) | `ACTIVE` | One-shot and pair-selector pilots are negative; execution-order successor mixed_dispatch_v1 passes stronger-control headroom screens, without a GNN result. |
 | [**transfer_physics_v1**](docs/lineages/transfer_physics_v1.md) | `ACTIVE` | 2×2 read: CD is fastest in every condition and topology; held replicas made queues dominate (released: queue share 0.05–0.08); Knative's gap shrinks; zero-shot GNN falls further behind. Scale-out factor registered as kpa_scaleout_v1. |
