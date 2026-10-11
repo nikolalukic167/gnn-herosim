@@ -39,6 +39,7 @@ json.dump(s, open("$O/selected.json", "w"), indent=1)
 P
 
 echo "== 3. inputs"
+export BASECFG=/share/nikola.lukic/accel_confirm/basecfg_fastest.json
 export M_MODERATE=11.6139 M_HEAVY=27.622665025860204 REPLICA_RULE=fastest_compatible
 for G in 8 0; do
   WT=$WT EXPECT_HEAD=$EXPECT_HEAD ROOT=$O/inputs_G$G X1=$B/x1_G$G TOPOS="$TOPOS" bash scripts_cosim/datalab/big_groups_inputs.sbatch 2>&1 | tee $O/inputs_G$G.log | grep -E "^\[(rate|check)\]|inputs ready"
