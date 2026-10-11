@@ -96,6 +96,15 @@ The model is SCIENTIST's version, not the top-10 reranker.
 
 ## Record
 
+- 2026-10-11 — **Amendment before any read: Phase 0 oracle on g0 only (cost cut, coordinator).** Measured on the sealed launch (pin c7ceec53, job 859987,
+  24 oracle cells, 4 per node): replay 0.63–0.90 s per plan in heavy (0.25 s in a single-cell smoke), 0.23–0.35 s in moderate; 3.2–5.3 s (heavy) and
+  1.5–3.1 s (moderate) of wall per served batch at ~95–170 plans, ~11k batches per cell. Projection: heavy 12–20 h, moderate 5–8 h per cell, past the
+  watchdog's 1.5 × LIMIT. 859987 was cancelled after 10 minutes and its output is not read; the oracle is relaunched at the same pin on g0 only
+  (860018, 12 cells, 6 nodes × 2 cells, 60 replay workers). A cost cut before any read, not a rerun.
+  - All O contrasts (O vs cd_exactS, the GO bar, ≥ 5 of 6 signs) pair on g0 cells only.
+  - Classical g1 cells stay as descriptive. The a0 and ib0 contrasts vs cd_exactS are read on g0 for the headline and on g0+g1 as a sensitivity.
+  - Oracle g1 cells, if run afterwards, are a sensitivity that cannot change the GO verdict.
+
 - 2026-10-11 — Signed (53381522). Amendment before data: sign condition ≥ 5 of 6 topologies at each rung added to the Phase 0 GO bar. Overnight
   autonomy: the cost smoke needs no sign-off. It becomes a gate cell only on the gate code with the gate settings, otherwise it is labelled a smoke and kept
   out of the read. The coordinator is consulted only for the cell-size cut (with plans per core-hour measured) or a physics-touching hook change; a fidelity

@@ -1,5 +1,9 @@
 """plan_rerank_v1 Phase 0 reader (live oracle screen). Written before the data lands; the bars are the node's.
 
+AMENDMENT (coordinator, before the read; a cost cut, not a rerun): the oracle arm runs on g0 only, so every headline contrast pairs on g0 cells; classical g1
+cells stay descriptive. The a0 / ib0 contrasts are read on g0 for the headline and on g0+g1 as a sensitivity (keys "...|g0+g1"). Oracle g1 cells, if run
+afterwards, are a sensitivity that cannot change the GO verdict.
+
 Arms on the 6 fresh topologies 19300-19305, windows g0 and g1, both rungs, all seed 0:
   O  cd_oracle   cd_exactS with the exact search scored by the real single-batch RTT of a fidelity replay (batches of <= 625 slate plans; larger
                  batches run cd_exactS unchanged and are counted)
@@ -38,6 +42,8 @@ A0, IB0 = "cd_exactS_a0", "cd_exactS_ib0"  # descriptive S_alpha arms (no bar): 
 ARMS = (O, E, C, A0, IB0)
 RUNGS = ("moderate", "heavy")
 WINDOWS = ("g0", "g1")
+HEADLINE_WINDOWS = ("g0",)  # amendment (coordinator, before the read): the oracle runs on g0 only (cost cut); every headline contrast pairs on g0, g0+g1 is a sensitivity
+EXPECTED_WINDOWS = {O: ("g0",), E: WINDOWS, C: WINDOWS, A0: WINDOWS, IB0: WINDOWS}
 CONTRASTS = ((O, E), (O, C), (E, C), (A0, E), (IB0, E), (A0, O), (IB0, O), (A0, C), (IB0, C), (A0, IB0))
 GO_MEDIAN_PCT = -4.0
 GO_MIN_WINS = 5
@@ -60,9 +66,9 @@ def check(cells, failed, topos):
 
 
 def counts(cells, failed, topos):
-    exp = len(topos) * len(WINDOWS)
     out = {}
     for kind in ARMS:
+        exp = len(topos) * len(EXPECTED_WINDOWS[kind])
         for rung in RUNGS:
             fin = sum(1 for k in cells if k[0] == kind and k[4] == rung)
             bad = sum(1 for k in failed if k[0] == kind and k[4] == rung)
@@ -105,7 +111,7 @@ def buckets(cells, rung, topos, arm=O):
     """Paired (arm) - E per cell, in pp of E's mean latency, median over the cells of the rung."""
     rows = {k: [] for k in ("elapsed", "cold_start", "exchange", "lock_wait", "rest")}
     for t in topos:
-        for w in WINDOWS:
+        for w in HEADLINE_WINDOWS:
             o, e = cells.get((arm, 0, t, w, rung)), cells.get((E, 0, t, w, rung))
             if o is None or e is None:
                 continue
@@ -175,7 +181,10 @@ def read(gates, topos, raw_dir=None):
     failed = {k: v for k, v in failed.items() if k[4] in RUNGS}
     check(cells, failed, topos)
     sel = sorted(topos)
-    contrasts = {f"{a} vs {b}|{r}": R.contrast(cells, a, b, r, sel) for a, b in CONTRASTS for r in RUNGS}
+    g0 = {k: v for k, v in cells.items() if k[3] in HEADLINE_WINDOWS}
+    contrasts = {f"{a} vs {b}|{r}": R.contrast(g0, a, b, r, sel) for a, b in CONTRASTS for r in RUNGS}
+    # sensitivity: g0+g1 where both arms have both windows (the oracle has g1 cells only if they were run afterwards)
+    contrasts.update({f"{a} vs {b}|{r}|g0+g1": R.contrast(cells, a, b, r, sel) for a, b in CONTRASTS for r in RUNGS if (a, b) != (O, E) and O not in (a, b)})
     prim = [contrasts[f"{O} vs {E}|{r}"] for r in RUNGS]
     go = {r: (c["median_pct"] is not None and c["median_pct"] <= GO_MEDIAN_PCT and (c["wins"] or 0) >= GO_MIN_WINS) for r, c in zip(RUNGS, prim)}
     out = {"gate": list(gates), "topologies": sel, "n_summaries": len(cells), "n_failed": len(failed),
