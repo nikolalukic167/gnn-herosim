@@ -45,7 +45,8 @@ If not, no learner trained on batch labels can beat `cd_exactS` in this seat.
 - **Bars (sealed; reader committed first):** O vs `cd_exactS` and O vs CD, per rung: per topology the median over its 2 windows of the
   paired % of mean latency; median over 6 topologies; sign count; exact Wilcoxon (n = 6 gives p ≥ 0.031, disclosed).
   Negative = O faster.
-  - **GO:** O is ≥ 4 % faster than `cd_exactS` (median paired ≤ −4 %) at **both** rungs.
+  - **GO:** O is ≥ 4 % faster than `cd_exactS` (median paired ≤ −4 %) at **both** rungs, **and** O is faster on ≥ 5 of 6 topologies at each rung
+    (coordinator amendment, signed before data: one odd topology must not decide a lineage). p is reported, not part of the bar.
   - **Otherwise** plan_rerank is closed **`SUPERVISED-CEILING-AT-BAR`**, and the record says no batch-label learner can beat
     `cd_exactS` in this seat. Phase 1 and the gate are not run for the screen's sake; the lineage still gets its closing note.
 - **Prediction, written before any data:** O is 1–3 % faster than `cd_exactS`, short of 4 %. `cd_exactS` reaches the label optimum in
@@ -84,5 +85,9 @@ The model is SCIENTIST's version, not the top-10 reranker.
 
 ## Record
 
+- 2026-10-11 — Signed (53381522). Amendment before data: sign condition ≥ 5 of 6 topologies at each rung added to the Phase 0 GO bar. Overnight
+  autonomy: the cost smoke needs no sign-off. It becomes a gate cell only on the gate code with the gate settings, otherwise it is labelled a smoke and kept
+  out of the read. The coordinator is consulted only for the cell-size cut (with plans per core-hour measured) or a physics-touching hook change; a fidelity
+  snapshot must add no SimPy event to the live run, and flag-off identity is shown on 2 cells.
 - 2026-10-11 — Registered. Phase 0 added by the coordinator's amendment after SCIENTIST's review; the original top-10 reranker is replaced
   by the Phase 1 design above.
