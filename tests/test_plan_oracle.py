@@ -175,3 +175,18 @@ def test_harness_serves_the_alpha_arms(monkeypatch):
     for kind, env in (("cd_exactS_a0", {"HEROSIM_PG_DRAIN_ALPHA": "0"}), ("cd_exactS_ib0", {"HEROSIM_PG_BATCH_ALPHA": "0"})):
         assert G.RULE_POLICY[kind] == "peer_greedy_network_cd" and kind in G.R1A_DIAG and kind in G.R1A_ARMS and G.EXACT_ALPHA[kind] == env
     assert {"HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"} <= set(G.ORACLE_ENV)
+
+
+def test_worker_builds_the_cell_infrastructure_once_per_config(monkeypatch):
+    import src.executesimulation as ES
+    from src.placement import plan_oracle
+
+    calls = []
+    monkeypatch.setattr(ES, "prepare_infrastructure_for_real_simulation", lambda cfg, seed=None, sim_input_path=None: calls.append(("p", seed)) or {"cfg": cfg})
+    monkeypatch.setattr(ES, "load_simulation_inputs", lambda path: calls.append(("l", str(path))) or {"path": str(path)})
+    plan_oracle._memoize_static_inputs()
+    a = ES.prepare_infrastructure_for_real_simulation({"x": 1}, seed=None, sim_input_path="d")
+    b = ES.prepare_infrastructure_for_real_simulation({"x": 1}, seed=None, sim_input_path="d")
+    c = ES.prepare_infrastructure_for_real_simulation({"x": 2}, seed=None, sim_input_path="d")
+    assert a is b and a != c and ES.load_simulation_inputs("d") is ES.load_simulation_inputs("d")
+    assert calls == [("p", None), ("p", None), ("l", "d")]
