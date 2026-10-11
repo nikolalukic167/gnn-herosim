@@ -101,11 +101,15 @@ CAP_KEEP_ALIVE = "1e9"
 CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
 # gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
 # accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
 # cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
 # WITH exact-move expansion (GNN_CD_REFINE=apply + HEROSIM_PG_CD_EXPANSION=1): does a learned seed still help the strongest search?
+# cd_exactS_gnn: "_cdxexg" = the cdxapply seed (no-split learned plan) into the CD refine with the EXACT search over S (HEROSIM_PG_CD_EXACT=1, expansion as the
+# over-cap fallback), exact S-ties broken by the GNN's plan score (HEROSIM_PG_CD_EXACT_GNN=1)
+# cdxprune: "_cdxpra" / "_cdxprb" = the cdxapply seed into the CD refine with the exact search over S, and in over-cap batches the slate cut to its top-k (largest k
+# that fits 100k plans) and enumerated exactly (HEROSIM_PG_CD_EXACT_PRUNE=gnn by the model's logit / cost by the slate's standalone-cost order); no GNN tie-break
 # replica_guard_v1: "_selfrefkw" = self-refine plus the GNN_REPLICA_KEEPWARM serving guard (registered parameters)
 KEEPWARM_ENV = {"GNN_REPLICA_KEEPWARM": "1", "GNN_REPLICA_KEEPWARM_MAX_REPLICAS": "4", "GNN_REPLICA_KEEPWARM_MARGIN_S": "5"}
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
@@ -143,7 +147,7 @@ R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outs
 R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
-R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
+R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
@@ -326,8 +330,13 @@ def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
 def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
     """r1_attribution_v1 live gate cells: R1A_TOPOS (default the selection's 19 test topologies) x the WF1_RUNGS rungs x R1A_WINDOWS
     x R1A_ARMS. R1A_SHARD="i/n" keeps every n-th cell (array shards; the list is ordered rung, topology, window, arm, seed)."""
-    need = {"HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "1", "HEROSIM_SCALEOUT": "kpa",
-            "GATE_FIXED_POLICY_TIME_SCALE": "1.0", "HEROSIM_SHARED_AUTOSCALER": "0"}
+    # knative_diag: R1A_KNATIVE_DIAG=1 lets the replica-release physics be switched off for a diagnostic cell (reactive only, not a gate)
+    need = {"HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "0" if os.environ.get("R1A_KNATIVE_DIAG") == "1" else "1",
+            "HEROSIM_SCALEOUT": "kpa", "GATE_FIXED_POLICY_TIME_SCALE": "1.0", "HEROSIM_SHARED_AUTOSCALER": "0"}
+    if os.environ.get("R1A_KNATIVE_DIAG") == "1" and os.environ.get("HEROSIM_REPLICA_RELEASE") not in ("0", "1"):
+        raise SystemExit("FAIL LOUD: R1A_KNATIVE_DIAG=1 needs HEROSIM_REPLICA_RELEASE set to 0 or 1")
+    if os.environ.get("R1A_KNATIVE_DIAG") == "1":
+        need["HEROSIM_REPLICA_RELEASE"] = os.environ["HEROSIM_REPLICA_RELEASE"]
     bad = {k: os.environ.get(k) for k, v in need.items() if os.environ.get(k) != v}
     if bad or not WF1_LADDER:
         raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
@@ -695,7 +704,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
               "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
-              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV):
+              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -785,6 +794,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_CD_REFINE"] = "apply"
         if kind.endswith("_cdxapply"):
             env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")
+        if kind.endswith("_cdxexg"):
+            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXACT_GNN="1", GNN_SLATE_NO_SPLIT="1")
+        if kind.endswith(("_cdxpra", "_cdxprb")):
+            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1", GNN_SLATE_NO_SPLIT="1",
+                       HEROSIM_PG_CD_EXACT_PRUNE="gnn" if kind.endswith("_cdxpra") else "cost")
         if kind.endswith(("_nosplit", "_selfsearch")):
             env["GNN_SLATE_NO_SPLIT"] = "1"
         if kind.endswith("_selfsearch"):
@@ -944,18 +958,39 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
     if not kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
-    if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply")) and int(c.get("cdr_batches") or 0) == 0:
+    if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
-    if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
+    if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
-    expands = kind.endswith("_cdxapply") or kind == "cd_expand"
-    if expands and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) == 0):
+    expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) or kind == "cd_expand"
+    prune_kind = kind.endswith(("_cdxpra", "_cdxprb"))
+    if prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) != 0):
+        # the prune arms run the expansion only as a dry counterfactual whose counters are restored; applied expansion must read 0
+        problems.append(f"prune arm expansion flag/counter wrong: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')} (want 0)")
+    if expands and not prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) == 0):
         problems.append(f"expansion instrument off: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')}")
     if not expands and kind != "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXPANSION") or int(c.get("pg_expand_batches") or 0)):
         problems.append("a non-expansion arm expanded")
     if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
-    if kind != "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") or int(c.get("pg_exact_batches") or 0)):
+    exact_arm = kind == "cd_exactS" or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb"))
+    prune_arm = kind.endswith(("_cdxpra", "_cdxprb"))
+    if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
+        problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+    want_prune = "gnn" if kind.endswith("_cdxpra") else "cost"
+    if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT_PRUNE") != want_prune or int(c.get("pg_exact_prune_batches") or 0) == 0):
+        problems.append(f"prune instrument off: HEROSIM_PG_CD_EXACT_PRUNE={out['env'].get('HEROSIM_PG_CD_EXACT_PRUNE')!r} (want {want_prune}), pg_exact_prune_batches {c.get('pg_exact_prune_batches')}")
+    if prune_arm and int(c.get("pg_exact_prune_batches") or 0) != int(c.get("pg_exact_fallbacks") or 0):
+        problems.append(f"pruned {c.get('pg_exact_prune_batches')} batches but {c.get('pg_exact_fallbacks')} were over the cap")
+    if not prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT_PRUNE") or int(c.get("pg_exact_prune_batches") or 0)):
+        problems.append("a non-prune arm pruned the slate")
+    if kind.endswith("_cdxexg") and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
+        problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+    if kind.endswith("_cdxexg") and (out["env"].get("HEROSIM_PG_CD_EXACT_GNN") != "1" or int(c.get("pg_exact_gnn_scored") or 0) == 0):
+        problems.append(f"exact-GNN instrument off: HEROSIM_PG_CD_EXACT_GNN={out['env'].get('HEROSIM_PG_CD_EXACT_GNN')!r}, pg_exact_gnn_scored {c.get('pg_exact_gnn_scored')}")
+    if not kind.endswith("_cdxexg") and (out["env"].get("HEROSIM_PG_CD_EXACT_GNN") or int(c.get("pg_exact_gnn_scored") or 0)):
+        problems.append("a non-exact-GNN arm scored plans with the GNN")
+    if not exact_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") or int(c.get("pg_exact_batches") or 0)):
         problems.append("a non-exact arm ran the exact search")
     if kind == "cd_random_seed":
         if int(c.get("pg_random_seed_batches") or 0) == 0 or int(c.get("cdr_batches") or 0) != int(c.get("pg_random_seed_batches") or 0):
@@ -1006,9 +1041,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                               or int(c.get("pg_pull_charged") or 0) == 0):
         problems.append("pull-hold instrument off: HEROSIM_PG_PULL_HOLD / HEROSIM_PULL_LEDGER not served or pg_pull_charged == 0")
     unsplit, sub_b = int(c.get("slate_declared_unsplit") or 0), int(c.get("slate_declared_sub_batched") or 0)
-    if kind.endswith(("_nosplit", "_cdxapply", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
+    if kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
         problems.append(f"no-split instrument off: GNN_SLATE_NO_SPLIT={out['env'].get('GNN_SLATE_NO_SPLIT')!r}, unsplit {unsplit} of {sub_b} sub-batched")
-    if not kind.endswith(("_nosplit", "_cdxapply", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
+    if not kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
         problems.append("a split arm decoded a batch whole")
     ss = int(c.get("ss_batches") or 0)
     if kind.endswith("_selfsearch") and (out["env"].get("GNN_SELF_SEARCH") != "1" or ss == 0 or ss != int(c.get("slate_declared_batches") or -1)):

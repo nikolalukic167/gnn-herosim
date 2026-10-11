@@ -105,6 +105,14 @@ class KnativeScheduler(StarvedDeferMixin, Scheduler):
                 task.queue_snapshot_at_scheduling = self._capture_queue_snapshot_for_replicas(valid_replicas)
                 task.full_queue_snapshot = self._capture_full_queue_snapshot()
                 task.temporal_state_at_scheduling = self._capture_temporal_state_for_replicas(valid_replicas)
+            elif os.environ.get("HEROSIM_DIAG_QSNAP", "0") == "1":
+                # knative_diag: what the least-connected key sees at placement, and the lock backlog it cannot see. State reads only.
+                snap = {}
+                for r_node, r_platform in valid_replicas:
+                    key = f"{r_node.node_name}:{r_platform.id}"
+                    snap[key] = len(r_platform.queue.items)
+                    snap[key + "#lock"] = len(r_platform.compute_lock.queue) + len(r_platform.compute_lock.users)
+                task.queue_snapshot_at_scheduling = snap
 
             # Use parent's placement method which will call our placement() method
             from timeit import default_timer

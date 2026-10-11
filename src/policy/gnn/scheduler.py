@@ -977,16 +977,47 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
 
+    def _exact_plan_scorer(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
+        """cd_exactS_gnn: a plan scorer for the exact search's tie-break. The live graph of this batch over the exact search's own slates
+        (`allowed`, per batch index), the same prefix block and partial-state scorer the decode uses; a plan's score is the sum over its
+        tasks of the model's logit for that task's placement with every other task committed where the plan puts it (the `_self_refine`
+        convention, so the score does not depend on a decode order)."""
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, allowed)
+        n = len(batch_tasks)
+
+        def score(plan: List[Tuple[int, int]]) -> float:
+            total = 0.0
+            with torch.no_grad():
+                for t in range(n):
+                    committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
+                    logits = score_fn(t, committed)
+                    total += float(logits[[(int(c[0]), int(c[1])) for c in tl[t]].index((int(plan[t][0]), int(plan[t][1])))])
+            return total
+
+        return score
+
+    def _exact_task_logits(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any],
+                           plan: List[Tuple[int, int]]) -> List[Dict[Tuple[int, int], float]]:
+        """cdxprune (a): per task, the model's logit for every couple in `allowed` with every other task committed where `plan` puts it
+        (the same convention as the plan score)."""
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, allowed)
+        n = len(batch_tasks)
+        out: List[Dict[Tuple[int, int], float]] = []
+        with torch.no_grad():
+            for t in range(n):
+                committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
+                logits = score_fn(t, committed)
+                out.append({(int(c[0]), int(c[1])): float(logits[k]) for k, c in enumerate(tl[t])})
+        return out
+
     def _exact_score_fn(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
-        """Copied from rp/cd-exacts 8ddd1b8b (cd_exactS_gnn): the live graph of this batch over `allowed` (batch index -> set of (node_id, platform_id)),
-        the same prefix block and partial-state scorer the decode uses. Returns (score_fn(t, committed) -> logits over tl[t], tl)."""
         from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
         from src.policy.gnn.prefix_serving import PrefixServingError, attach_live_prefix_block, build_partial_state_context_from_graph
 
         queue_snapshot, temporal_state = self._cd_snap
         graph, tl = self._build_inference_graph(batch_tasks, system_state, queue_snapshot, temporal_state, allowed)
         if graph is None:
-            raise RuntimeError("FAIL LOUD: gnn_selfsearch: the live graph builder returned no feasible edges")
+            raise RuntimeError("FAIL LOUD: cd_exactS_gnn: the live graph builder returned no feasible edges")
         graph.queue_snapshot = dict(queue_snapshot)
         graph.task_logit_to_placement = tl
         graph._task_logit_to_placement = tl
@@ -1289,6 +1320,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             if _sibling_spread_on():
                 placements = self._spread_over_siblings(decodable, placements, system_state)
             refine_mode = _cd_refine_mode()
+            self._cd_snap = (queue_snapshot, temporal_state)
             if refine_mode:
                 placements = self._cd_refine(decodable, placements, system_state, refine_mode)
             keepwarm = _keepwarm_params()
