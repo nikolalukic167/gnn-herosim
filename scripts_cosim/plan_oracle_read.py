@@ -76,6 +76,8 @@ def books(cells, rung):
     served, seen = t["pg_oracle_batches"], t["pg_oracle_seen_batches"]
     return {"cells": len(cs), **t,
             "books_close": seen == served + t["pg_oracle_over_cap_batches"],
+            "served_share_of_batches": served / seen if seen else None,
+            "served_share_of_tasks": t["pg_oracle_tasks"] / t["pg_oracle_seen_tasks"] if t["pg_oracle_seen_tasks"] else None,
             "over_cap_share_of_batches": t["pg_oracle_over_cap_batches"] / seen if seen else None,
             "over_cap_share_of_tasks": t["pg_oracle_over_cap_tasks"] / t["pg_oracle_seen_tasks"] if t["pg_oracle_seen_tasks"] else None,
             "plans_per_served_batch": t["pg_oracle_plans"] / served if served else None,
@@ -202,7 +204,7 @@ def print_report(r):
     print("-- oracle books")
     for rung, b in r["oracle_books"].items():
         keep = {n: (round(v, 4) if isinstance(v, float) else v) for n, v in b.items()
-                if n in ("cells", "pg_oracle_seen_batches", "pg_oracle_batches", "books_close", "over_cap_share_of_batches", "over_cap_share_of_tasks",
+                if n in ("cells", "pg_oracle_seen_batches", "pg_oracle_batches", "books_close", "served_share_of_batches", "served_share_of_tasks", "over_cap_share_of_batches", "over_cap_share_of_tasks",
                          "plans_per_served_batch", "changed_share", "saved_single_batch_rtt_s_per_served_batch", "decision_wall_s_per_served_batch")}
         print(f"  {rung:9s} {keep}")
     print("-- paired % per topology (median over windows), median over topologies; negative = first arm faster")
