@@ -39,6 +39,7 @@ peer-free physics would score a term the simulator never charges.
 """
 from __future__ import annotations
 
+import json
 import os
 from typing import Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
@@ -126,6 +127,7 @@ PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves"
 # slate, is kept when it is strictly cheaper on S (counted). Offline on the exact label tables this reaches the optimum in
 # 72.6-79 % of batches against the expansion's 62.8 %, at ~1.6k S-evaluations per batch (S6, 2026-10-10). 0 (the default) is
 # the registered CD rule, byte-identical.
+CDR_LOG_ENV = "HEROSIM_CDR_LOG"  # selfsearch_gap_v1: per-batch jsonl of the CD refiner's seed plan, refined plan and their S (diagnostic, read-only)
 PG_CD_EXACT_ENV = "HEROSIM_PG_CD_EXACT"
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
 PG_CD_EXACT_TOP_K_ENV = "HEROSIM_PG_CD_EXACT_TOP_K"  # default 5, the declared pruning's slate width
@@ -1282,6 +1284,26 @@ class GnnCdRefiner(_PeerGreedyCore):
             if moved == 0:
                 break
 
+    def _cdr_log(self, batch_tasks, system_state, orch, memo, seed, placements, by_id, exact_before) -> None:
+        """selfsearch_gap_v1 diagnostic (HEROSIM_CDR_LOG=<jsonl>): one record per refined batch with the seed plan, the refined plan and the
+        rule's S of each, as `_pg_plan_cost` charges a whole plan. Read-only: nothing here feeds a decision or a counter."""
+        n = len(batch_tasks)
+        couples = {}
+        for idx, task in enumerate(batch_tasks):
+            for node, platform in self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task):
+                couples[(idx, int(node.id), int(platform.id))] = (node, platform)
+        refined = [couples[(i, int(placements[i][0]), int(placements[i][1]))] for i in range(n)]
+        nodes = self.nodes.items
+        s_seed = self._pg_plan_cost(batch_tasks, [by_id[i] for i in range(n)], orch, memo, nodes)[0]
+        s_ref = self._pg_plan_cost(batch_tasks, refined, orch, memo, nodes)[0]
+        after = (self.pg_exact_batches, self.pg_exact_fallbacks, self.pg_exact_tasks_moved)
+        rec = {"tasks": [int(t.id) for t in batch_tasks], "t": float(self._host.env.now) if hasattr(self._host, "env") else None,
+               "seed": [[int(x) for x in seed[i]] for i in range(n)], "refined": [[int(x) for x in placements[i]] for i in range(n)],
+               "s_seed": float(s_seed), "s_refined": float(s_ref),
+               "exact_ran": after[0] - exact_before[0], "exact_fallback": after[1] - exact_before[1]}
+        with open(os.environ[CDR_LOG_ENV], "a") as fh:
+            fh.write(json.dumps(rec) + "\n")
+
     def refine(self, batch_tasks: List["Task"], system_state: SystemState,
                seed: Dict[int, Tuple[int, int]], passes: int) -> Tuple[Dict[int, Tuple[int, int]], Dict[str, int]]:
         orch = self._pg_orchestrator()
@@ -1290,6 +1312,7 @@ class GnnCdRefiner(_PeerGreedyCore):
         planned: Dict[int, str] = {}
         service_of: Dict[int, Tuple[str, float]] = {}
         placements: Dict[int, Tuple[int, int]] = dict(seed)
+        exact_before = (self.pg_exact_batches, self.pg_exact_fallbacks, self.pg_exact_tasks_moved)
         self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
         by_id = {}
         for idx, task in enumerate(batch_tasks):
@@ -1319,6 +1342,8 @@ class GnnCdRefiner(_PeerGreedyCore):
         new_load: Dict[Tuple[int, int], int] = {}
         for v in placements.values():
             new_load[tuple(v)] = new_load.get(tuple(v), 0) + 1
+        if os.environ.get(CDR_LOG_ENV):
+            self._cdr_log(batch_tasks, system_state, orch, memo, seed, placements, by_id, exact_before)
         info = {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
         for idx, before in seed.items():
             after = placements[idx]
