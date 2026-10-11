@@ -30,7 +30,7 @@ def _platform(pid, node, fabric):
                            _payload_transfer_time=transfer, peer_link_latency=lambda peer, context="": 0.0)
 
 
-def _shell(monkeypatch, flag, pairs, n_tasks=4, bw=100.0):
+def _shell(monkeypatch, flag, pairs, n_tasks=4, bw=100.0, fabric=None):
     monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
     if flag:
         monkeypatch.setenv(S.PG_SHARED_LINK_ENV, "1")
@@ -40,7 +40,7 @@ def _shell(monkeypatch, flag, pairs, n_tasks=4, bw=100.0):
     monkeypatch.setattr(S, "incoming_cold_start_time", lambda task, platform: 0.0)
     monkeypatch.setattr(S, "network_latency_between", lambda src, node, nodes: 0.0)
     monkeypatch.setattr(S, "_approx_comm", lambda task_type: 0.0)
-    fabric = _Fabric(bw)
+    fabric = fabric or _Fabric(bw)
     nodes = {nm: SimpleNamespace(id=i, node_name=nm, fabric=fabric) for i, nm in enumerate("ABC")}
     plats = {nm: _platform(10 + i, nodes[nm], fabric) for i, nm in enumerate("ABC")}
     tasks = [SimpleNamespace(id=i, type={"name": "cnn", "executionTime": {p.type["shortName"]: 0.0 for p in plats.values()}}, node_name="client0")
@@ -109,3 +109,45 @@ def test_flag_needs_a_batched_flavour(monkeypatch):
     monkeypatch.setenv(S.PG_SHARED_LINK_ENV, "2")
     with pytest.raises(ValueError, match=S.PG_SHARED_LINK_ENV):
         object.__new__(PeerGreedyNetworkCDScheduler)._pg_init()
+
+
+def _real_fabric(core_mbps, access_mbps):
+    """A, B, C hang off core0 / core1 / core1; A->B crosses A|core0, core0|core1, B|core1. Real NetworkFabric, so hops() is what
+    the live path and the surrogate both read."""
+    from simpy import Environment
+    from src.placement.network_fabric import NetworkFabric, link_key
+    acc = {n: ("core0" if n == "A" else "core1") for n in "ABC"}
+    links = {link_key(n, c): {"bandwidth_mbps": access_mbps} for n, c in acc.items()}
+    links[link_key("core0", "core1")] = {"bandwidth_mbps": core_mbps}
+    routes = {}
+    for a in "ABC":
+        for b in "ABC":
+            if a == b:
+                continue
+            path = [a, acc[a], acc[b], b] if acc[a] != acc[b] else [a, acc[a], b]
+            routes.setdefault(a, {})[b] = path
+    return NetworkFabric(Environment(), {"links": links, "routes": routes})
+
+
+def _two_pairs_ab(monkeypatch, fabric):
+    monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
+    s, tasks, nodes, plats, orch = _shell(monkeypatch, True, [(0, 1), (2, 3)], fabric=fabric)
+    plan = [(nodes["A"], plats["A"]), (nodes["B"], plats["B"]), (nodes["A"], plats["A"]), (nodes["B"], plats["B"])]
+    return _service(s, tasks, plan, orch)[0]
+
+
+def test_s_prime_reads_the_fabric_bandwidth_not_a_constant(monkeypatch):
+    """Halving the bandwidth of the bottleneck link doubles S''s pair transfer, on the real fabric (pipelined, as in the accel seat)."""
+    base = _two_pairs_ab(monkeypatch, _real_fabric(core_mbps=100.0, access_mbps=100.0))
+    half = _two_pairs_ab(monkeypatch, _real_fabric(core_mbps=50.0, access_mbps=50.0))
+    quarter = _two_pairs_ab(monkeypatch, _real_fabric(core_mbps=25.0, access_mbps=25.0))
+    assert base == pytest.approx(2.0)   # 2 pairs share every link of the route: 100/2 Mbps
+    assert half == pytest.approx(2 * base)
+    assert quarter == pytest.approx(4 * base)
+
+
+def test_scaling_only_the_core_is_invisible_when_an_access_link_is_the_bottleneck(monkeypatch):
+    """The surrogate prices the route's bottleneck, as the live pipelined path does: a core ladder that stays above the access rate moves nothing."""
+    slow_access = [_two_pairs_ab(monkeypatch, _real_fabric(core_mbps=c, access_mbps=10.0)) for c in (1000.0, 500.0, 250.0, 125.0)]
+    assert slow_access == pytest.approx([slow_access[0]] * 4)
+    assert _two_pairs_ab(monkeypatch, _real_fabric(core_mbps=5.0, access_mbps=10.0)) == pytest.approx(2 * slow_access[0])
