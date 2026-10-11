@@ -108,20 +108,20 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--scores", nargs="+", required=True)
     ap.add_argument("--argmin", required=True)
-    ap.add_argument("--cd", required=True)
+    ap.add_argument("--cd", default=None, help="plain CD plans (held-out read only)")
     ap.add_argument("--view", default="/share/nikola.lukic/accel_prod/20261010_061132/cache_run/view")
     ap.add_argument("--out-dir", required=True)
     a = ap.parse_args()
     view = Path(a.view)
-    pre = "gnn_datasets_wf1_heldout/"
+    dskey = lambda p: "/".join(p.rstrip("/").split("/")[-2:])
     argm, cd = {}, {}
     for l in open(a.argmin):
         r = json.loads(l)
         if "error" not in r and r.get("decisions") == 1:
-            argm[pre + r["ds"].rsplit("/", 1)[-1]] = r
-    for l in open(a.cd):
+            argm[dskey(r["ds"])] = r
+    for l in (open(a.cd) if a.cd else []):
         r = json.loads(l)
-        cd[pre + r["ds"].rsplit("/", 1)[-1]] = r
+        cd[dskey(r["ds"])] = r
     print(f"argmin-S tables with decisions == 1: {len(argm)}; CD rows {len(cd)}")
     os.makedirs(a.out_dir, exist_ok=True)
     summary = {}
