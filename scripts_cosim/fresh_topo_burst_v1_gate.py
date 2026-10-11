@@ -837,10 +837,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if kind == "cd_oracle":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
                        HEROSIM_ORACLE_SIM_INPUT=os.path.join(REPO, "data/nofs-ids"),
-                       HEROSIM_ORACLE_WORKERS=os.environ.get("GATE_ORACLE_WORKERS", "8"))
+                       HEROSIM_ORACLE_WORKERS=os.environ.get("R1A_ORACLE_WORKERS", "8"))
             env["ORACLE_DIAG_DIR"] = os.path.join(out_dir, "oracle_diag", name)
-            if os.environ.get("GATE_ORACLE_MAX_PLANS"):
-                env["HEROSIM_PG_ORACLE_MAX_PLANS"] = os.environ["GATE_ORACLE_MAX_PLANS"]
+            if os.environ.get("R1A_ORACLE_MAX_PLANS"):
+                env["HEROSIM_PG_ORACLE_MAX_PLANS"] = os.environ["R1A_ORACLE_MAX_PLANS"]
         if kind in DECIMA_TUNE_ALPHAS:
             env["HEROSIM_DECIMA_ALPHA"] = repr(DECIMA_TUNE_ALPHAS[kind])
         if kind == "decima":
