@@ -1335,6 +1335,13 @@ def evaluate(
                             _sc = _plan_scores_for_graph(model, data, _combos)
                             _rec["plans"] = [[[list(map(int, c)) for c in cb], sc, float(rtt_map[cb])]
                                              for cb, sc in zip(_combos, _sc)]
+                        if os.environ.get("NEAR_RTT_EVAL_LABELS") == "1":
+                            # Diagnostic: the CE label plans (tied set at the trained alpha key) with their sweep RTTs.
+                            _tl = data.task_logit_to_placement
+                            _lab = [tuple(tuple(int(v) for v in _tl[t][int(pl[t])]) for t in range(int(data.n_tasks)))
+                                    for pl in data.tied_optimal_logit_plans[str(NEAR_CFG.dag_alpha_key or getattr(data, "dag_primary_alpha_key", "2.0"))]]
+                            _rec["label_plans"] = [[list(c) for c in cb] for cb in _lab]
+                            _rec["label_rtts"] = [None if cb not in rtt_map else float(rtt_map[cb]) for cb in _lab]
                         _PER_DATASET_RECORDS.append(_rec)
                     agree, n_choice, exact = _plan_agreement_with_label(mt_combo, data)
                     mt_choice_correct += agree
@@ -2383,10 +2390,15 @@ if _eval_ckpt:
     if _smoke:
         # Timing smoke for the re-ranker cost estimate: score every k-th TRAIN table (k = len // N), same code path as val. Train is read
         # here on purpose and only here; the output is never used to select anything.
-        _step = max(1, len(train_ids) // _smoke)
-        _pick = list(range(0, len(train_ids), _step))[:_smoke]
-        _sub_ids = [train_ids[i] for i in _pick]
-        _sub_loader = create_loader(GraphRttDataset([train_graphs[i] for i in _pick], _sub_ids, DATA_OPTIMAL_RTT), shuffle=False)
+        # NEAR_RTT_EVAL_SMOKE_SPLIT=val runs the same construction on the validation bucket (diagnostic: train-smoke vs val-path agreement).
+        _sm_split = os.environ.get("NEAR_RTT_EVAL_SMOKE_SPLIT", "train")
+        if _sm_split not in ("train", "val"):
+            raise SystemExit(f"FAIL LOUD: NEAR_RTT_EVAL_SMOKE_SPLIT={_sm_split!r} (train|val only; never test)")
+        _sm_graphs, _sm_ids = (train_graphs, train_ids) if _sm_split == "train" else (val_graphs, val_ids)
+        _step = max(1, len(_sm_ids) // _smoke)
+        _pick = list(range(0, len(_sm_ids), _step))[:_smoke]
+        _sub_ids = [_sm_ids[i] for i in _pick]
+        _sub_loader = create_loader(GraphRttDataset([_sm_graphs[i] for i in _pick], _sub_ids, DATA_OPTIMAL_RTT), shuffle=False)
         _sub_full = build_full_sweep_rtt_by_dataset(CACHE_CTX.cache_dir, keep_ids=_sub_ids)
         import time as _time
         _t0 = _time.time()
