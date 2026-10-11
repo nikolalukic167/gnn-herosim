@@ -28,7 +28,8 @@ def synth(o_pct, topo_pct=None):
                 p = (topo_pct or {}).get(t, o_pct)
                 cells[(P.C, 0, t, w, r)] = cell(3.3)
                 cells[(P.E, 0, t, w, r)] = cell(3.0)
-                cells[(P.O, 0, t, w, r)] = cell(3.0 * (1 + p / 100), oracle=True, cold=0.4)
+                if w in P.HEADLINE_WINDOWS:
+                    cells[(P.O, 0, t, w, r)] = cell(3.0 * (1 + p / 100), oracle=True, cold=0.4)
     return cells
 
 
@@ -62,7 +63,8 @@ def test_the_bar_is_per_rung(monkeypatch):
 
 def test_counts_books_and_buckets(monkeypatch):
     r = run(monkeypatch, synth(-5.0))
-    assert r["counts"][f"{P.O}|heavy"] == {"finished": 12, "failed": 0, "expected": 12, "complete": True}
+    assert r["counts"][f"{P.O}|heavy"] == {"finished": 6, "failed": 0, "expected": 6, "complete": True}
+    assert r["counts"][f"{P.E}|heavy"] == {"finished": 12, "failed": 0, "expected": 12, "complete": True}
     b = r["oracle_books"]["heavy"]
     assert b["books_close"] and b["over_cap_share_of_batches"] == pytest.approx(0.2) and b["over_cap_share_of_tasks"] == pytest.approx(0.4)
     assert b["served_share_of_batches"] == pytest.approx(0.8) and b["served_share_of_tasks"] == pytest.approx(0.6)
@@ -70,7 +72,7 @@ def test_counts_books_and_buckets(monkeypatch):
     assert b["decision_wall_s_per_served_batch"] == pytest.approx(2.0)
     k = r["buckets_O_minus_E_pp"]["heavy"]
     assert k["elapsed"] == pytest.approx(-5.0) and k["cold_start"] == pytest.approx(100 * (-0.1) / 3.0)
-    assert k["exchange"] == pytest.approx(0.0) and k["n_cells"] == 12
+    assert k["exchange"] == pytest.approx(0.0) and k["n_cells"] == 6
 
 
 def test_failed_cells_are_counted_not_dropped(monkeypatch):
@@ -78,7 +80,7 @@ def test_failed_cells_are_counted_not_dropped(monkeypatch):
     gone = (P.O, 0, 19300, "g0", "heavy")
     del cells[gone]
     r = run(monkeypatch, cells, {gone: {"why": "watchdog: stalled"}})
-    assert r["counts"][f"{P.O}|heavy"] == {"finished": 11, "failed": 1, "expected": 12, "complete": False} and r["n_failed"] == 1
+    assert r["counts"][f"{P.O}|heavy"] == {"finished": 5, "failed": 1, "expected": 6, "complete": False} and r["n_failed"] == 1
 
 
 def test_foreign_topology_window_or_arm_is_refused(monkeypatch):
@@ -120,3 +122,15 @@ def test_descriptive_alpha_arms_are_read_against_e_and_o_and_never_move_go(monke
     assert r["contrasts"][f"{P.A0} vs {P.O}|moderate"]["median_pct"] == pytest.approx(100 * (0.97 / 0.95 - 1))
     assert r["buckets_alpha_arms_minus_E_pp"][P.A0]["heavy"]["elapsed"] == pytest.approx(-3.0)
     assert r["GO"]   # the bar is O's alone
+
+
+def test_headline_pairs_on_g0_and_the_alpha_sensitivity_adds_g1(monkeypatch):
+    cells = synth(-5.0)
+    for t in TOPOS:
+        for r in P.RUNGS:
+            cells[(P.A0, 0, t, "g0", r)] = cell(3.0 * 0.95)
+            cells[(P.A0, 0, t, "g1", r)] = cell(3.0 * 1.05)
+    r = run(monkeypatch, cells)
+    assert r["contrasts"][f"{P.A0} vs {P.E}|heavy"]["median_pct"] == pytest.approx(-5.0)              # g0 headline
+    assert r["contrasts"][f"{P.A0} vs {P.E}|heavy|g0+g1"]["median_pct"] == pytest.approx(0.0)           # g0+g1 sensitivity
+    assert f"{P.O} vs {P.E}|heavy|g0+g1" not in r["contrasts"]                                           # the oracle has no g1 sensitivity
