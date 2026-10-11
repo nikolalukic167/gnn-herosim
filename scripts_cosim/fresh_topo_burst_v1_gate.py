@@ -282,6 +282,32 @@ def lock_wait_profile(task_results: Optional[List[dict]]) -> Optional[Dict[str, 
             "queue_share_same_tasks": queue / elapsed if elapsed > 0 else None}
 
 
+def link_telemetry(st: dict) -> Optional[Dict[str, object]]:
+    """link_bound_s0_v1: per-task link wait (n, mean, median, p95, max) and per-link utilisation (held seconds over the run's end time),
+    split into core and access links. None when the run has no fabric."""
+    busy, bw = st.get("fabricLinkBusy"), st.get("fabricLinkBandwidth")
+    end = st.get("endTime")
+    if bw is None or not end:
+        return None
+    from src.placement.network_fabric import is_core_link
+
+    def med(v):
+        v = sorted(v)
+        return v[len(v) // 2] if len(v) % 2 else 0.5 * (v[len(v) // 2 - 1] + v[len(v) // 2])
+
+    util = {k: float(busy.get(k, 0.0)) / float(end) for k in bw}
+    core = [u for k, u in util.items() if is_core_link(k)]
+    acc = [u for k, u in util.items() if not is_core_link(k)]
+    w = sorted(float(r.get("linkWaitTime", 0.0) or 0.0) for r in (st.get("taskResults") or [])
+               if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    n = len(w)
+    stats = {"n": n, "mean": sum(w) / n, "median": med(w), "p95": w[min(n - 1, max(0, math.ceil(0.95 * n) - 1))], "max": w[-1]} if n else None
+    return {"link_wait": stats, "core_links": len(core), "access_links": len(acc),
+            "core_util_median": med(core) if core else None, "core_util_max": max(core) if core else None,
+            "access_util_median": med(acc) if acc else None, "access_util_max": max(acc) if acc else None,
+            "core_bandwidth_mbps": sorted({bw[k] for k in bw if is_core_link(k)}), "util_by_link": util}
+
+
 def arrival_end(workload_path: str, end_time: Optional[float]) -> Optional[Dict[str, object]]:
     """load_recalibration_v1: the run's end time against the last arrival in its workload file."""
     last = max(float(e["timestamp"]) for e in json.load(open(workload_path))["events"])
@@ -906,6 +932,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["backlog_profile_v2"] = backlog_profile(st.get("taskResults"), with_lock_wait=True)
     out["lock_wait"] = lock_wait_profile(st.get("taskResults"))
     out["arrival_end"] = arrival_end(wl, st.get("endTime"))
+    out["link_telemetry"] = link_telemetry(st)
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
         want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,

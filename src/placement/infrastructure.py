@@ -1550,6 +1550,8 @@ class Platform:
                                     task.link_wait_time += link_wait
                                     task.link_transfer_time += hold
                                     task.link_hops += len(route)
+                                    for busy_key in {k for k, _bw in route}:
+                                        self.node.fabric.link_busy[busy_key] = self.node.fabric.link_busy.get(busy_key, 0.0) + hold
                                     self.node.fabric.link_wait_total += link_wait
                                     if FIDELITY:
                                         task._fid.update(link_stage="hold", hold_end=self.env.now + hold)
@@ -1585,6 +1587,7 @@ class Platform:
                                     task.link_wait_time += link_wait
                                     task.link_transfer_time += hold
                                     task.link_hops += 1
+                                    self.node.fabric.link_busy[link_key_] = self.node.fabric.link_busy.get(link_key_, 0.0) + hold
                                     self.node.fabric.link_wait_total += link_wait
                                     yield self.env.timeout(hold)
                     else:
