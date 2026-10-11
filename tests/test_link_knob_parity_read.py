@@ -49,3 +49,11 @@ def test_duplicate_rows_count_once_and_residuals_carry_features():
 
 def test_control_run_skips_the_reduced_vs_default_check():
     assert P.read(*fixture(0.0, core=1000.0), 1000.0, 1000.0, 1000.0, control=True)["verdict"] == "PASS"
+
+
+def test_signed_bar_allows_a_few_small_residuals_the_strict_verdict_does_not():
+    r = P.read(*fixture(0.5), 62.5, 1000.0, 62.5)  # 0.5 s of 10 s = 5 %, one task of one: 0 % within 1 ms
+    assert r["verdict"] == "FAIL" and r["verdict_signed_bar"] == "FAIL"
+    r = P.read(*fixture(0.4), 62.5, 1000.0, 62.5)
+    assert r["verdict"] == "FAIL" and r["max_rel_residual"] < 0.05 and r["verdict_signed_bar"] == "FAIL"  # 1 of 1 tasks over 1 ms < 95 %
+    assert P.read(*fixture(0.0005), 62.5, 1000.0, 62.5)["verdict_signed_bar"] == "PASS"
