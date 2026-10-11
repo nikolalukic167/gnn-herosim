@@ -105,3 +105,18 @@ def test_first_quarter_share_of_the_gap(tmp_path):
     b = raw("b.json", [1, 1, 1, 1, 1, 1, 1, 1])
     g = P.quarter_gap(a, b)
     assert g["gap_s"] == 8.0 and g["first_quarter_gap_s"] == 8.0 and g["first_quarter_share"] == 1.0
+
+
+def test_descriptive_alpha_arms_are_read_against_e_and_o_and_never_move_go(monkeypatch):
+    cells = synth(-5.0)
+    for t in TOPOS:
+        for r in P.RUNGS:
+            for w in P.WINDOWS:
+                cells[(P.A0, 0, t, w, r)] = cell(3.0 * 0.97)
+                cells[(P.IB0, 0, t, w, r)] = cell(3.0 * 1.02)
+    r = run(monkeypatch, cells)
+    assert r["contrasts"][f"{P.A0} vs {P.E}|heavy"]["median_pct"] == pytest.approx(-3.0)
+    assert r["contrasts"][f"{P.IB0} vs {P.E}|heavy"]["median_pct"] == pytest.approx(2.0)
+    assert r["contrasts"][f"{P.A0} vs {P.O}|moderate"]["median_pct"] == pytest.approx(100 * (0.97 / 0.95 - 1))
+    assert r["buckets_alpha_arms_minus_E_pp"][P.A0]["heavy"]["elapsed"] == pytest.approx(-3.0)
+    assert r["GO"]   # the bar is O's alone
