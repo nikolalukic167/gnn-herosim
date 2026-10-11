@@ -9,7 +9,7 @@ import link_knob_parity_read as P  # noqa: E402
 def fixture(lat_shift=0.0, node="n1", core=62.5):
     raw = {"stats": {"taskResults": [{"taskId": 0, "executionNode": "n1", "executionPlatform": 0, "linkWaitTime": 0.5}]}}
     tab = {"scheduled": [10.0], "done": [20.0]}
-    snaps = [json.dumps({"snapshot_id": 3, "fidelity": {"batch": [{"gid": 0}]}})]
+    snaps = [json.dumps({"snapshot_id": 3, "time": 5.0, "fidelity": {"batch": [{"gid": 0}]}})]
     row = {"tag": "x|3", "batch_lat": [10.0 + lat_shift], "core_bw": core,
            "batch_detail": [{"executionNode": node, "executionPlatform": 0, "linkWaitTime": 0.5}]}
     return [row], tab, raw, snaps
@@ -37,3 +37,15 @@ def test_core_bw_ignores_access_links(monkeypatch):
     monkeypatch.setattr(P.json, "load", lambda f: {})
     monkeypatch.setattr("builtins.open", lambda *a, **k: None)
     assert P.core_bw("x.json") == 62.5
+
+
+def test_duplicate_rows_count_once_and_residuals_carry_features():
+    rows, tab, raw, snaps = fixture(0.01)
+    snaps = [json.dumps({"snapshot_id": 3, "time": 5.0, "fidelity": {"batch": [{"gid": 0}], "queued": [], "ghosts": [1, 2]}})]
+    r = P.read(rows + rows, tab, raw, snaps, 62.5, 1000.0, 62.5)
+    assert r["states"] == 1 and r["n_tasks"] == 1 and r["tasks_over_tol"] == 1 and r["states_with_residual"] == 1
+    assert r["residual_tasks"][0]["ghosts"] == 2 and r["verdict"] == "FAIL"
+
+
+def test_control_run_skips_the_reduced_vs_default_check():
+    assert P.read(*fixture(0.0, core=1000.0), 1000.0, 1000.0, 1000.0, control=True)["verdict"] == "PASS"

@@ -1,6 +1,7 @@
 #!/bin/bash
 # link_bound_s0_v1 knob parity: one live CD run on the reduced-bandwidth cell, 40 captured decisions replayed with the live plan
 # forced (rollout_replay plan "live", H 0), compared per task with the live run (link_knob_parity_read.py).
+#   CONTROL=1 with CFG == CFG_DEFAULT and BW the default rate runs the same procedure at the default bandwidth.
 #   sbatch --export=ALL,WT=<pinned>,CFG=<reduced cfg>,CFG_DEFAULT=<default cfg>,WL=<workload>,BW=62.5,OUT=<dir> link_knob_parity.sbatch
 #SBATCH --job-name=lb-parity
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/lb-parity-%j.out
@@ -32,6 +33,7 @@ python3 - $OUT <<'PY'
 import json, sys, glob
 out = sys.argv[1]
 ids = [int(json.loads(l)["snapshot_id"]) for l in open(glob.glob(out + "/ds/warm_manifest.*.jsonl")[0]) if json.loads(l).get("status") == "dry-run"]
+ids = list(dict.fromkeys(ids))  # the manifest can list an id twice
 snaps = {int(json.loads(l)["snapshot_id"]): json.loads(l) for l in open(out + "/snap.jsonl")}
 ref = sorted(glob.glob(out + "/ds/ds_*"))[0]
 assert json.load(open(ref + "/infrastructure.json"))["live_snapshot_seed"]["fidelity_replay"].get("backbone"), "FAIL LOUD: reference dataset carries no backbone stamp"
@@ -51,4 +53,4 @@ export HEROSIM_LINK_BANDWIDTH_MBPS=   # explicit: the cfg, not the env var, carr
 unset HEROSIM_LINK_BANDWIDTH_MBPS
 python3 scripts_cosim/rollout_replay.py $OUT/rows.jsonl $OUT/jobs.jsonl --workers 30 > $OUT/replay.log 2>&1
 python3 scripts_cosim/link_knob_parity_read.py --rows $OUT/rows.jsonl --table $OUT/table.json --raw $OUT/live.raw.json --snaps $OUT/snap.jsonl \
-  --cfg-low $CFG --cfg-default $CFG_DEFAULT --bw $BW --out $OUT/parity.json
+  --cfg-low $CFG --cfg-default $CFG_DEFAULT --bw $BW ${CONTROL:+--control} --out $OUT/parity.json
