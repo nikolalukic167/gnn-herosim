@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""cost_to_go_v1 rung 1: the hand V and the reader that fits its single lambda.
+
+V(state, plan) prices what a plan leaves behind for the next H seconds, beyond the batch's own cost (that is already in S).
+Two terms in seconds, no free weights, one lambda that scales their sum in the policy  argmin_plans  S + lambda * V :
+
+  load  = sum_p need[p] * load_after[p]
+          load_after[p]: platform p's committed backlog after the plan commits (queue drain + in-flight remainder + the plan's
+          own service on p). need[p]: expected arrivals in (t0, t0 + H] that would be served on p, i.e. for each task type its
+          arrival rate * H spread evenly over the platforms that can serve it (p's share is 1/|candidates(type)| if p is one).
+  cold  = sum over replicas the plan leaves idle whose idle time + H reaches the scale-in time:
+          rate(type) * H * (1 / replicas(type)) * cold_s(replica)   (a type's next arrival lands on a scaled-in replica with
+          probability ~ its share, and pays that replica's cold start: task.type["coldStartDuration"][platform shortName], the
+          quantity S's own cold term charges, scheduling_cost.incoming_cold_start_time).
+
+Arrival rates use trace events with timestamp <= t0 only; nothing after t0 is read (tested).
+
+The V target is PAIRED, never a separate return: A_k = Q_H(plan_k) - Q_H(policy plan) on the same (ds, H) future, where the policy
+plan is cd_exactS's own decision. The reader never forms a score from a single plan's return.
+
+  cost_to_go_handv.py read --s0 ROWS.jsonl --tops TOPS.jsonl --features FEATS.jsonl
+                           [--gate-topos 16369-16392] [--lookback 60]
+
+The split is fixed (coordinator ruling, declared before S0 was read): sort the distinct topology ids of the S0 rows; the 1st, 3rd, ...
+are FIT and the 2nd, 4th, ... are EVAL. lambda is fit on FIT only and every number is reported on EVAL. The gate topologies
+(16369-16392 by default) must be absent from the S0 rows; the reader refuses any overlap.
+
+FEATURES (one JSON row per (ds, slot), written by cost_to_go_handv_features.py from a replay of the batch decision):
+  {ds, slot, t0, workload (the cell's trace JSON path), load_after: {"node:platform": seconds},
+   type_platforms: {type: ["node:platform", ...]}, replicas: [{key, type, idle_s, used, cold_s}],
+   scale_in_after_s: seconds}
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import re
+import sys
+from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cost_to_go_s0 import _plan_set, spearman  # noqa: E402
+
+CELL_RE = re.compile(r"cc40s(\d+)_(heavy|moderate)_(g\d+)")
+HS = (5.0, 15.0, 30.0)
+
+
+def event_type(ev):
+    return next(iter(ev["application"]["dag"]))
+
+
+def type_rates(events, t0, lookback_s):
+    """Arrivals per second by task type from events with timestamp <= t0, over (t0 - lookback, t0]. No event after t0 is read."""
+    lo = max(0.0, t0 - lookback_s)
+    span = t0 - lo
+    if span <= 0:
+        return {}
+    n = defaultdict(int)
+    for ev in events:
+        ts = float(ev["timestamp"])
+        if lo < ts <= t0:
+            n[event_type(ev)] += 1
+    return {t: c / span for t, c in n.items()}
+
+
+def hand_v(feat, rates, H, load_key="load_after"):
+    """{'v', 'load', 'cold'} in seconds for one plan's post-commit features and the pre-t0 type rates. load_key picks the backlog:
+    "load_after" (as S sees it) or "load_after_inflight" (plus the in-flight remaining seconds the live state holds)."""
+    need = defaultdict(float)
+    for typ, keys in feat["type_platforms"].items():
+        if not keys:
+            continue
+        exp = rates.get(typ, 0.0) * H
+        for k in keys:
+            need[k] += exp / len(keys)
+    raw = feat[load_key]
+    load = float(raw) if not isinstance(raw, dict) else sum(need[k] * float(v) for k, v in raw.items())
+    n_rep = defaultdict(int)
+    for r in feat["replicas"]:
+        n_rep[r["type"]] += 1
+    cold = 0.0
+    for r in feat["replicas"]:
+        if r["used"] or float(r["idle_s"]) + H < float(feat["scale_in_after_s"]):
+            continue
+        cold += rates.get(r["type"], 0.0) * H / n_rep[r["type"]] * float(r["cold_s"])
+    return {"v": load + cold, "load": load, "cold": cold}
+
+
+def choose(cands, lam):
+    """cands: {slot: (dS, dV)} paired against the policy plan (policy is (0, 0)). argmin dS + lam*dV; ties go to the policy, then slot order."""
+    return min(cands, key=lambda s: (cands[s][0] + lam * cands[s][1], s != "policy", s))
+
+
+def build_states(rows, tops_by_ds, feats, rates_of, cell_of, load_key="load_after"):
+    """-> {(ds, H): {'cell','cands':{slot:(dS,dV)},'dq':{slot:A}}} over the 6-plan set minus the GNN slot (its S is not recorded)."""
+    by = defaultdict(dict)
+    for r in rows:
+        if "error" in r:
+            continue
+        if float(r.get("eps") or 0.0) != 0.0 or r.get("continuation") != "cd_exacts":
+            raise ValueError(f"{r['ds']}: only eps=0 / cd_exacts rows pair on the same future, got eps={r.get('eps')} {r.get('continuation')}")
+        by[(r["ds"], float(r["H"]))][r["tag"].split("|", 1)[1]] = r
+    out = {}
+    for (ds, H), slots in by.items():
+        ps = _plan_set(slots)
+        if ps is None or ds not in tops_by_ds:
+            continue
+        top = tops_by_ds[ds]
+        s_of = {"policy": float(top["s"])}
+        for slot in ps:
+            if slot.startswith("s") and slot != "policy":
+                s_of[slot] = float(top["top_s"][int(slot[1:])]["s"])
+        keep = [s for s in ps if s in s_of]
+        if len(keep) < 2 or any((ds, s) not in feats for s in keep):
+            continue
+        rates = rates_of(ds)
+        vv = {s: hand_v(feats[(ds, s)], rates, H, load_key)["v"] for s in keep}
+        q0 = ps["policy"]["q"]
+        out[(ds, H)] = {"cell": cell_of(ds),
+                        "cands": {s: (s_of[s] - s_of["policy"], vv[s] - vv["policy"]) for s in keep},
+                        "dq": {s: ps[s]["q"] - q0 for s in keep}}
+    return out
+
+
+def lam_grid():
+    return [0.0] + [10 ** (e / 4.0) for e in range(-16, 17)]
+
+
+def score(states, lam):
+    """Held-out numbers for one lambda over a set of states."""
+    n = hit = hit0 = 0
+    got = head = 0.0
+    for st in states:
+        c, dq = st["cands"], st["dq"]
+        pick = choose(c, lam)
+        best = min(dq, key=lambda s: (dq[s], s != "policy", s))
+        n += 1
+        hit += pick == best
+        hit0 += choose(c, 0.0) == best
+        got += -dq[pick]
+        head += -dq[best]
+    return {"n": n, "hit": hit / n if n else float("nan"), "hit_lambda0": hit0 / n if n else float("nan"),
+            "captured_q": got, "headroom_q": head, "captured_share": got / head if head > 0 else float("nan")}
+
+
+def fit_lambda(fit_states):
+    """lambda maximising summed Q_H saved on FIT states (ties -> smallest), and the near-tie-breaker lambda: the largest on the
+    grid that changes the lambda=0 pick on at most 10 % of fit states."""
+    grid = lam_grid()
+    best_l, best_v = None, None
+    for lam in grid:
+        v = score(fit_states, lam)["captured_q"]
+        if best_v is None or v > best_v + 1e-12:
+            best_l, best_v = lam, v
+    small = 0.0
+    for lam in grid:
+        changed = sum(choose(s["cands"], lam) != choose(s["cands"], 0.0) for s in fit_states)
+        if fit_states and changed / len(fit_states) <= 0.10:
+            small = lam
+    return best_l, small
+
+
+def spearmans(states):
+    """Pooled and mean per-state Spearman of dV vs dQ over the non-policy slots."""
+    xs, ys, per = [], [], []
+    for st in states:
+        slots = [s for s in st["cands"] if s != "policy"]
+        x = [st["cands"][s][1] for s in slots]
+        y = [st["dq"][s] for s in slots]
+        xs += x
+        ys += y
+        if len(slots) >= 3 and len(set(y)) > 1 and len(set(x)) > 1:
+            per.append(spearman(x, y))
+    return {"pooled": spearman(xs, ys) if len(xs) > 2 else float("nan"),
+            "per_state_mean": sum(per) / len(per) if per else float("nan"), "per_state_n": len(per)}
+
+
+GATE_TOPOS = tuple(range(16369, 16393))
+
+
+def default_split(topos):
+    """Sorted distinct topology ids -> (FIT = positions 1, 3, ...; EVAL = positions 2, 4, ...). Fixed, not a flag."""
+    t = sorted(set(topos))
+    return t[0::2], t[1::2]
+
+
+def check_split(fit, ev, gate):
+    fit, ev, gate = set(fit), set(ev), set(gate)
+    if not fit:
+        raise ValueError("FAIL LOUD: empty --fit-topos; lambda is fit on states disjoint from the ones reported")
+    if not ev:
+        raise ValueError("FAIL LOUD: empty --eval-topos")
+    for name, other in (("eval", ev), ("gate", gate)):
+        both = fit & other
+        if both:
+            raise ValueError(f"FAIL LOUD: --fit-topos overlaps {name} topologies {sorted(both)}")
+
+
+def topo_of_cell(cell):
+    m = CELL_RE.search(cell)
+    if not m:
+        raise ValueError(f"cannot read a topology from cell {cell!r}")
+    return int(m.group(1))
+
+
+def read(a):
+    rows = [json.loads(l) for l in open(a.s0) if l.strip()]
+    tops = {}
+    for l in open(a.tops):
+        r = json.loads(l)
+        if "error" not in r and r.get("argmin_s"):
+            tops[r["ds"]] = r["argmin_s"]
+    feats = {}
+    for l in open(a.features):
+        r = json.loads(l)
+        feats[(r["ds"], r["slot"])] = r
+    wl_cache = {}
+
+    def cell_of(ds):
+        argv = json.load(open(os.path.join(ds, "generation_provenance.json")))["argv"]
+        return os.path.basename(argv[argv.index("--snapshots") + 1])
+
+    def rates_of(ds):
+        f = feats[(ds, "policy")]
+        if ds not in wl_cache:
+            wl_cache[ds] = json.load(open(f["workload"]))["events"]
+        return type_rates(wl_cache[ds], float(f["t0"]), a.lookback)
+
+    all_topos = {topo_of_cell(cell_of(ds)) for ds in {r["ds"] for r in rows if "error" not in r}}
+    fit_t, ev_t = default_split(all_topos)
+    gate_t = list(GATE_TOPOS) if a.gate_topos is None else [int(x) for x in a.gate_topos.split(",") if x]
+    both = all_topos & set(gate_t)
+    if both:
+        raise ValueError(f"FAIL LOUD: S0 rows contain gate topologies {sorted(both)}")
+    check_split(fit_t, ev_t, gate_t)
+    print(f"{len(all_topos)} S0 topologies: FIT {fit_t} / EVAL {ev_t} (fixed odd/even split of the sorted ids)")
+    ds_all = sorted({d for d, slot in feats if slot == "policy"})
+    nz_drain = sum(any(v > 0 for v in feats[(d, "policy")].get("drain", {}).values()) for d in ds_all)
+    fly_key = "inflight_b1" if "inflight_b1" in feats[(ds_all[0], "policy")] else "inflight"
+    nz_fly = sum(any(v > 0 for v in feats[(d, "policy")].get(fly_key, {}).values()) for d in ds_all)
+    print(f"states with features: {len(ds_all)}; nonzero queue drain on some platform: {nz_drain}; nonzero in-flight remaining: {nz_fly}")
+    views = [("(a) load_after as S sees it", "load_after")]
+    if all("backlog_v1" in f for f in feats.values()):
+        views = [("(ref) load_after, the old own-service-only V in effect (drain and in-flight cancel in the paired dV)", "load_after"),
+                 ("(v1) sum over touched platforms of (drain + in-flight b1 + committed service)", "backlog_v1"),
+                 ("(v2) sum over tasks of own service x (drain + in-flight b1 + other committed work on its platform)", "backlog_v2")]
+        choice = ("backlog_v1", "backlog_v2")
+    elif all("load_after_b1" in f for f in feats.values()):
+        views += [("(b1) load_after + in-flight remaining, sum over a platform's tasks", "load_after_b1"),
+                  ("(b2) load_after + in-flight remaining, largest single task", "load_after_b2")]
+        choice = ("load_after_b1", "load_after_b2")
+    else:
+        views.append(("(b) load_after plus in-flight remaining (accessor-based; 0 in replay)", "load_after_inflight"))
+        choice = None
+    fit_score = {}
+    for label, key in views:
+        states = build_states(rows, tops, feats, rates_of, cell_of, key)
+        print(f"\n===== hand V {label}: {len(states)} (state, H) pairs with a paired S, V and Q_H for >= 2 plans")
+        _report(states, fit_t, ev_t)
+        fit_score[key] = fit_spearman(states, fit_t)
+    if choice:
+        x, y = choice
+        pick = x if fit_score[x] >= fit_score[y] else y
+        print(f"\nvariant choice on FIT topologies only (mean over H of pooled Spearman of dV vs dQ_H; tie -> first): "
+              f"{x} {fit_score[x]:+.3f}, {y} {fit_score[y]:+.3f} -> {pick}")
+
+
+def fit_spearman(states, fit_t):
+    """Mean over H of the pooled Spearman of dV vs dQ_H on FIT-topology states: the declared rule for choosing between b1 and b2."""
+    vals = []
+    for H in sorted({k[1] for k in states}):
+        fit = [s for k, s in states.items() if k[1] == H and topo_of_cell(s["cell"]) in fit_t]
+        if fit:
+            vals.append(spearmans(fit)["pooled"])
+    return sum(vals) / len(vals) if vals else float("nan")
+
+
+def _report(states, fit_t, ev_t):
+    for H in sorted({k[1] for k in states}):
+        fit = [s for k, s in states.items() if k[1] == H and topo_of_cell(s["cell"]) in fit_t]
+        ev = [s for k, s in states.items() if k[1] == H and topo_of_cell(s["cell"]) in ev_t]
+        print(f"\nH = {H:g} s: fit states {len(fit)}, eval states {len(ev)}")
+        if not fit or not ev:
+            print("  no fit or no eval states at this H: nothing reported")
+            continue
+        lam, small = fit_lambda(fit)
+        print(f"  lambda fit on fit topologies only: best {lam:.4g}, near-tie breaker {small:.4g}")
+        sp = spearmans(ev)
+        print(f"  held-out Spearman of dV vs dQ_H: pooled {sp['pooled']:+.3f}, per-state mean {sp['per_state_mean']:+.3f} (n={sp['per_state_n']})")
+        for name, l in (("lambda=0 (argmin S)", 0.0), ("small lambda (tie breaker)", small), ("best lambda", lam)):
+            m = score(ev, l)
+            print(f"  [{name}, lambda {l:.4g}] picks the Q_H-best plan on {100 * m['hit']:.1f} % of states "
+                  f"(argmin S alone {100 * m['hit_lambda0']:.1f} %); Q_H saved vs policy {m['captured_q']:.2f} s of {m['headroom_q']:.2f} s "
+                  f"available ({100 * m['captured_share']:.1f} %)")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    r = sub.add_parser("read")
+    r.add_argument("--s0", required=True)
+    r.add_argument("--tops", required=True)
+    r.add_argument("--features", required=True)
+    r.add_argument("--gate-topos", default=None, help="comma list; default 16369-16392")
+    r.add_argument("--lookback", type=float, default=60.0)
+    a = ap.parse_args()
+    read(a)
+
+
+if __name__ == "__main__":
+    main()
