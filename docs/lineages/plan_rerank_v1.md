@@ -96,6 +96,17 @@ The model is SCIENTIST's version, not the top-10 reranker.
 
 ## Record
 
+- 2026-10-12 — **Amendment before any oracle read: every oracle heavy cell runs with >= 60 replay workers (coordinator ruling, launch-resource fault).** The g0
+  relaunch (860732-860736) gave shards 1-5 28 replay workers per cell (two cells per 60-CPU node), about half the throughput the design was costed on;
+  shard 0 (60 workers) passed the same watchdog. Shards 1 and 2 heavy cells were killed by the watchdog as "projected": 19301 heavy 67/3933 arrivals at
+  765 s (finish 55,791 s > 1.5 x 36,000 s), 19302 heavy 74/3933 at 915 s (56,561 s). The kill came from the launch's worker count, not from the arm;
+  a failed launch is not a rerun. This holds only because no output of these cells, or of any oracle cell, has been read, and none has been.
+  - Heavy cells 19301-19305 are (re)launched at 60 workers, one per job. Shards 3-5 were cancelled a few minutes in, before any watchdog verdict, and
+    their cells relaunched (heavy at 60; moderate 19303-19305 together in one job). Shards 1-2 moderate cells continue at 28.
+  - If a cell at 60 workers is killed by the watchdog, that is a real failure: counted, not rerun, and heavy is read at the surviving n
+    (NO-GO or INCONCLUSIVE-AT-HEAVY only; the n = 6 sign condition cannot be met).
+  - Worker count changes no decision: replays are separate read-only simulations.
+
 - 2026-10-11 — **Amendment before any read: Phase 0 oracle on g0 only (cost cut, coordinator).** Measured on the sealed launch (pin c7ceec53, job 859987,
   24 oracle cells, 4 per node): replay 0.63–0.90 s per plan in heavy (0.25 s in a single-cell smoke), 0.23–0.35 s in moderate; 3.2–5.3 s (heavy) and
   1.5–3.1 s (moderate) of wall per served batch at ~95–170 plans, ~11k batches per cell. Projection: heavy 12–20 h, moderate 5–8 h per cell, past the
