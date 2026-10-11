@@ -521,3 +521,16 @@ def test_harness_serves_the_prune_arms_and_the_flag_is_in_provenance():
         assert k in G.R1A_CDX and k in G.R1A_ARMS and next((k[:-len(x)] for x in G.SUFFIXES if k.endswith(x)), k) in G.RA_KINDS
     src = open(G.__file__).read()
     assert '"HEROSIM_PG_CD_EXACT_PRUNE"' in src and '"gnn" if kind.endswith("_cdxpra") else "cost"' in src
+
+
+def test_harness_serves_the_twin_prune_arm_with_message_passing_off():
+    """prune_g8_s0_v1 arm T: the MP-OFF twin under the GNN-order prune (RA_MP_OFF sets GNN_DISABLE_MESSAGE_PASSING for the twin base kind)."""
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
+    import fresh_topo_burst_v1_gate as G
+
+    assert "ra_twin_eng_cdxpra" in G.R1A_CDX and "ra_twin_eng_cdxpra" in G.R1A_ARMS
+    assert "ra_twin_eng" in G.RA_MP_OFF
+    base = next(("ra_twin_eng_cdxpra"[:-len(s)] for s in G.SUFFIXES if "ra_twin_eng_cdxpra".endswith(s)), None)
+    assert base == "ra_twin_eng"
