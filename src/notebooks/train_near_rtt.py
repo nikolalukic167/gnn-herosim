@@ -2407,7 +2407,7 @@ if _eval_ckpt:
             if not _r:
                 continue
             _ei = _g.edge_index
-            _xs.append(_g.x[_ei[1, _r]].float())
+            _xs.append(_g.platform_features[_ei[1, _r] - int(_g.n_tasks)].float())
             if getattr(_g, "edge_attr", None) is not None and _g.edge_attr.numel():
                 _es.append(_g.edge_attr[_r].float())
         _xs = torch.cat(_xs); _es = torch.cat(_es) if _es else None
@@ -2449,7 +2449,7 @@ if _eval_ckpt:
                         _div = {"step": _st, "task": t, "same_prefix": True, "logit_chosen": _ld[_ci], "logit_opt": _ld[_oi],
                                 "margin": _ld[_ci] - _ld[_oi], "exact_tie": _ld[_ci] == _ld[_oi],
                                 "ps_chosen": _ps_dec[_ci], "ps_opt": _ps_dec[_oi],
-                                "x_chosen": data.x[_ei[1, _rows[t][_ci]]].tolist(), "x_opt": data.x[_ei[1, _rows[t][_oi]]].tolist(),
+                                "x_chosen": data.platform_features[int(_ei[1, _rows[t][_ci]]) - _n].tolist(), "x_opt": data.platform_features[int(_ei[1, _rows[t][_oi]]) - _n].tolist(),
                                 "ea_chosen": data.edge_attr[_rows[t][_ci]].tolist() if getattr(data, "edge_attr", None) is not None and data.edge_attr.numel() else None,
                                 "ea_opt": data.edge_attr[_rows[t][_oi]].tolist() if getattr(data, "edge_attr", None) is not None and data.edge_attr.numel() else None}
                     _pref_dec[t] = tuple(_combo[t]); _pref_opt[t] = tuple(_opt[t])
