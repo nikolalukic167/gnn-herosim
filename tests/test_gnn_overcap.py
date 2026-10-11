@@ -36,10 +36,14 @@ def _env(monkeypatch, cap, overcap):
         monkeypatch.delenv(S.PG_CD_OVERCAP_ENV, raising=False)
 
 
-def test_over_cap_with_the_path_on_serves_the_seed_and_runs_no_search(monkeypatch):
+def test_over_cap_with_the_path_on_serves_the_seed_and_runs_no_search(monkeypatch, tmp_path):
     _env(monkeypatch, 8, "gnn")
+    monkeypatch.setenv(S.PG_OVERCAP_LOG_ENV, str(tmp_path / "ov.jsonl"))
     r, tasks, state = _refiner_ov(monkeypatch)
     plan, info = r.refine(tasks, state, SEED, passes=3)
+    import json
+
+    assert json.loads((tmp_path / "ov.jsonl").read_text()) == {"tasks": [0, 1], "n": 2, "over": True}
     assert plan == SEED and info == {"moved": 0, "node_change": 0, "platform_only": 0, "unstack": 0}
     assert (r.pg_overcap_pred, r.pg_overcap_gnn_batches, r.pg_overcap_gnn_tasks) == (1, 1, 2)
     assert (r.pg_exact_fallbacks, r.pg_exact_batches, r.pg_expand_batches, r.pg_cd_passes) == (0, 0, 0, 0)
