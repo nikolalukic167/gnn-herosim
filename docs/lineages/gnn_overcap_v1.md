@@ -1,9 +1,25 @@
 # gnn_overcap_v1 — does the GNN's own plan beat the hand expansion on batches too big to enumerate?
 
-**Status:** `REGISTERED` (2026-10-11). Drafted by S7 on the coordinator's ruling. Every bar below is fixed before any live data; the reader
-(`scripts_cosim/gnn_overcap_gate_read.py`, tests in `tests/test_gnn_overcap_gate_read.py`; by-batch readout `scripts_cosim/gnn_overcap_batches_read.py`) is committed before any cell runs.
+**Status:** `CLOSED` (2026-10-12) — **HAND-FALLBACK-FASTER** (LOSS as registered). Registered 2026-10-11 by S7 on the coordinator's ruling; every bar below was fixed before any live data. The reader
+(`scripts_cosim/gnn_overcap_gate_read.py`, tests in `tests/test_gnn_overcap_gate_read.py`; by-batch readout `scripts_cosim/gnn_overcap_batches_read.py`) was committed before any cell ran. Gate pin 9d19aebf (amendment below).
 
-**Now.** Node, reader, over-cap path and tests committed on `rp/gnn-overcap`; topologies 19206–19217 chosen. No live data yet.
+**Outcome.** At G = 8 (160 clients × 24 servers, 12 fresh topologies 19206–19217, 4 windows, 384/384 cells, 0 failed), serving the GNN's own self-search plan on over-cap batches (H = `ra_gnn_eng_ovg`; the within-cap path is `cd_exactS`'s)
+is **not faster than `cd_exactS`**: **+0.24 %** at moderate (5/12 topologies ahead, Holm p = 0.30, a tie) and **+2.47 %** at heavy (1/12, Holm p = 0.0049, H slower). `WIN False, LOSS True, E_FASTER_RUNGS = both`.
+The expansion fallback `cd_exactS` runs on over-cap batches beats the GNN's plan there. H ties its MP-OFF twin (−0.29 % / −0.45 %, 8/12 each, Holm p = 0.47), so there is **no message-passing effect**. H beats `cd` (−9.06 % / −4.79 %); `cd_exactS` beats `cd` by −8.84 % / −7.41 %.
+The deficit scales with the over-cap share served (28.0 % of batches at moderate, 49.6 % at heavy; 0 fallbacks, served == predicted in every H cell): +0.2 % at 28 %, +2.5 % at 50 %. The secondary seat (current group size, g0, 5–7 % of batches over cap) ties: +0.46 % / +0.64 % (Holm p = 0.94).
+The prediction written before data (H beats `cd_exactS` by about 1–2 % at heavy, under 1 % at moderate, P(WIN) about 0.25) **missed in sign at heavy**.
+
+**Slate caveat.** H serves the declared top-5 slate (`declared_pruning_v1`) everywhere, within the cap and over it, and the checkpoint was trained on that slate. The declared slate sets cold = 0 on initialised platforms where the simulator charges the table cold cost, and its recall of the true best plan falls with batch size; this result is about
+this checkpoint on that slate and says nothing about a model trained on the uncapped slate (`slate_fix_v1`, `rp/corpus-uncap`).
+
+**By-batch readout (descriptive, g0 cells, buckets from H's over-cap log, applied to both arms; no 9+ batches exist at G = 8).** Gap in pp of `cd_exactS`'s mean latency, median over topologies:
+- Heavy (+3.35 pp in all): over-cap batches +1.92 pp (62 % of the gap), within-cap batches +1.90 pp (38 %). Batches of 5–8 tasks carry +1.81 pp, of ≤ 4 tasks +1.51 pp.
+- Moderate (+0.69 pp in all): over-cap batches **−1.45 pp** (H ahead; 5–8 tasks −1.45), within-cap batches +2.16 pp; batches of ≤ 4 tasks +2.42 pp, of 5–8 −1.87 pp.
+- So at moderate the GNN plan is faster than the expansion on over-cap batches and the loss sits on small within-cap batches; at heavy it is slower on both. The within-cap loss (the exact search is the same in both arms) is probably a trajectory effect of H's earlier over-cap choices (not tested here).
+- Stacking and cold starts, over-cap batches (H vs `cd_exactS`): stacked 99.5 % vs 90.4 % (heavy), 99.8 % vs 90.5 % (moderate); cold starts per batch 0.124 vs 0.160 and 0.233 vs 0.277. H co-locates more and cold-starts less on those batches yet is not faster.
+- Disclosed: per-topology signs are mixed (heavy over-cap bucket ahead in 4/12 topologies, moderate in 9/12); the arms follow different trajectories, so a bucket's gap is not a per-decision effect.
+
+Outputs on datalab `/share/nikola.lukic/gnn_overcap/`: `read_G8.{txt,json}`, `read_G0.{txt,json}`, `batches_g0_{heavy,moderate}.json`, `batches_read.txt`, per-cell summaries in `gate_G8`, `gate_G0`, over-cap logs in `gate_log`. The raw per-task results were deleted after the read.
 
 **Why.** `selfsearch_gap_v1` (raw kept, 4 confirm-pool topologies, heavy g0, 1000 MB/s) split the loss of GNN self-search against `cd_exactS` by batch size.
 - Self-search **wins** on batches of 9+ tasks (−0.39 pp opening, −0.80 pp rest, of `cd_exactS`'s latency, median over topologies); on those batches 72.5 % of
@@ -79,6 +95,8 @@ Different mechanism, different claim; neither result transfers to the other. Bot
   a few hours on 12 shards.
 
 ## Record (newest first)
+
+- 2026-10-12 — **CLOSED, HAND-FALLBACK-FASTER (S7; coordinator's ruling).** Read once at pin 9d19aebf, when gate array 862627 (G8, 384 cells) and 862649 (g0 secondary, 72 cells) had finished, 0 failed, nothing killed. Numbers in the head. The three slowest cells (topology 19217, 2–2.7 h) were checked for stall and left to finish; walls were below 1.5 × the heavy median (7079 s). Prediction missed in sign at heavy. By-batch readout run once on the g0 cells (head), then the raw cells deleted.
 
 - 2026-10-12 — **Amendment before any gate data (S7; pin accepted by the coordinator).** The live gate pins **9d19aebf**, not the signed d555e01a. Between them: the reader was made self-contained, a test expectation and the prep's base cfg were fixed (reader, tests, prep script only), and two code fixes came out of the smoke cells of prep 860573, which failed the harness's own checks before any gate cell was kept: (1) run provenance did not list `HEROSIM_PG_CD_OVERCAP` / `_DRY`, so the check read the env as unset (`src/executesimulation.py`); (2) the over-cap predicate counted a forced-placement task as 1, but the refine passes re-choose it, so it disagreed with the exact search on 5 of ~3150 batches (6 with the path off); it now counts slate sizes alone, and the predicate is also counted in the cd_exactS shell (it read 0 there). The scoring path and H's serving path are unchanged. **Prep submissions: 9** (3 test runs, 860531, 860542, 860549, 860573, 861711) against the limit of 6; every one before 861711 failed on my code or setup. Smoke 861711 passed: cd_exactS on 16900 g0 moderate reproduces the recorded G8 cell to the digit; rate +0.00 % vs the G8 gate; ovd == ovg in mean latency and every non-dry counter; with the path off predicted == exact fallbacks (3408, cd_exactS 3165); H served 3147 over-cap batches (25176 tasks), 0 fallbacks. **Seen before the gate, descriptive, one cell (19206 g0 heavy):** H 2.165 vs cd_exactS 2.069 (+4.6 %); on the 3147 over-cap batches H's plan is cheaper than the expansion plan on S in 193 (6 %), equal in 1189 (38 %), dearer in 1765 (56 %); median S gain -0.36 s, mean -10.9 s. The prediction above was written before this and is not revised.
 - 2026-10-11 — **Registered** (S7), after the coordinator's ruling on `selfsearch_gap_v1` (self-search wins on batches of 9+, where `cd_exactS` falls back to the expansion 72.5 % of the time).
