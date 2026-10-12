@@ -174,16 +174,28 @@ def check_alias(kind: str) -> str:
         if kind.endswith(suffix):
             return kind[:-len(suffix)] + "_cdxapply"
     return kind
-# decision_cost_s0_v1: a cell kind "<arm>_dc<micro>" serves <arm> with HEROSIM_DECISION_COST_MS = micro / 1000 (the scheduler's decision time charged as simulated time;
-# src/placement/decision_cost.py). The file name keeps the suffix; every arm check runs on the base arm.
-DC_COSTS = {"dc100": "0.1", "dc250": "0.25", "dc500": "0.5", "dc1000": "1.0"}
+# decision_cost_s0_v1 (Amendment 3): a cell kind "<arm>_k<centi>" serves <arm> with the scheduler's decision time charged as simulated time, arm-calibrated:
+# t_batch = k * w[arm][rung] ms * plans_evaluated, so HEROSIM_DECISION_COST_MS = k * w (src/placement/decision_cost.py). w is the measured wall ms per plan,
+# fixed in scripts_cosim/decision_cost_w.json before any cell counts. The file name keeps the suffix; every arm check runs on the base arm.
+DC_K = {"k025": 0.25, "k050": 0.5, "k100": 1.0, "k200": 2.0}
+DC_W_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decision_cost_w.json")
 
 
-def split_dc(kind: str) -> Tuple[str, Optional[str]]:
-    for tag, ms in DC_COSTS.items():
+def split_dc(kind: str) -> Tuple[str, Optional[float]]:
+    for tag, k in DC_K.items():
         if kind.endswith("_" + tag):
-            return kind[:-len(tag) - 1], ms
+            return kind[:-len(tag) - 1], k
     return kind, None
+
+
+def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[str]:
+    """The per-plan cost (ms, as the env string) cell `kind` at rung serves under k: k x the arm's calibrated w. None when k is not set."""
+    if k is None:
+        return None
+    w = json.load(open(DC_W_FILE))["w_ms_per_plan"]
+    if kind not in w or rung not in w[kind]:
+        raise SystemExit(f"FAIL LOUD: no calibrated w (ms per plan) for {kind!r} at rung {rung!r} in {DC_W_FILE}")
+    return repr(k * float(w[kind][rung]))
 
 
 R1A_DIAG = ("cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
@@ -712,7 +724,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if os.path.exists(summary) or os.path.exists(failed):
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
-    kind, dc_ms = split_dc(kind)
+    kind, dc_k = split_dc(kind)
+    dc_ms = dc_cost_ms(kind, dc_k, window[2:])
     if R1A_ON:
         state = pw.rung_state(out_dir, window[2:])
         if pw.paused(state):
@@ -1055,7 +1068,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append(f"{name} served {out['env'].get(name)!r}, want {want!r} for {kind}")
     # decision_cost_s0_v1: the cost served is the cost named, the plan counter always runs, the scheduler server's books exist exactly when c > 0
     served_dc = out["env"].get("HEROSIM_DECISION_COST_MS")
-    if (float(served_dc) if served_dc else None) != (float(dc_ms) if dc_ms else None):
+    if (float(served_dc) if served_dc else None) != (float(dc_ms) if dc_ms else None):  # dc_ms is k x w for this arm and rung
         problems.append(f"HEROSIM_DECISION_COST_MS served {served_dc!r}, want {dc_ms!r}")
     if int(c.get("sched_plan_evals") or 0) == 0 and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
         problems.append("plan-evaluation meter off: sched_plan_evals == 0")
