@@ -42,6 +42,6 @@ case "$MODE" in
     [[ -z "${LIMIT:-}" ]] || { OUT="$ROOT/smoke_rows.jsonl"; EXTRA="--repeat ${REPEAT:-0} --limit $LIMIT"; }
     [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
     python3 scripts_cosim/slate_bar_v1_recall.py run "$OUT" "$ROOT/jobs.jsonl" --workers "${WORKERS:-15}" $EXTRA
-    python3 scripts_cosim/slate_bar_v1_recall.py read "$OUT" --json "${OUT%.jsonl}.read.json" | head -1;;
+    python3 scripts_cosim/slate_bar_v1_recall.py read "$OUT" --json "${OUT%.jsonl}.read.json" > "${OUT%.jsonl}.read.txt"; head -1 "${OUT%.jsonl}.read.txt";;
   *) echo "FAIL LOUD: MODE=$MODE"; exit 1;;
 esac

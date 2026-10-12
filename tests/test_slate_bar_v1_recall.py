@@ -16,6 +16,7 @@ def test_top5_top6_are_standalone_prefixes():
     sl = R.slates_for(_ranked(8), {(i, 100 + i): 0.0 for i in range(8)}, [])
     assert sl["top5"] == {(i, 100 + i) for i in range(5)}
     assert sl["top6"] == {(i, 100 + i) for i in range(6)}
+    assert sl["top5cd"] == sl["top5"]
 
 
 def test_union_takes_top3_then_cheapest_exchange_from_the_rest():
@@ -56,12 +57,12 @@ def _row(src, rung, n, cont, tasks, fb=0, rep=False, ident="x", plan=None):
 
 
 def _task(nv, ins, sizes=None):
-    return {"n_valid": nv, "rank": 1, "in": ins, "size": sizes or {r: min(5, nv) if r != "top6" else min(6, nv) for r in R.RULES}}
+    return {"n_valid": nv, "rank": 1, "pick": [1, 2], "in": ins, "size": sizes or {r: min(5, nv) if r != "top6" else min(6, nv) for r in R.RULES}}
 
 
 def test_summarise_recall_and_ratio_and_population_weights():
     allin = {r: True for r in R.RULES}
-    miss5 = {"top5": False, "union": True, "top6": True, "partner": False}
+    miss5 = {"top5": False, "top5cd": False, "union": True, "top6": True, "partner": False}
     rows = [
         _row("accel", "heavy", 2, "cd", [_task(8, allin), _task(8, miss5)]),
         _row("accel", "heavy", 2, "cd", [_task(3, allin), _task(3, allin)]),
@@ -83,11 +84,13 @@ def test_checks_count_repeat_pairs_and_errors():
             {"src": "g8", "rung": "heavy", "n": 8, "cont": "cd", "id": "b", "error": "boom"}]
     c = R.checks(rows)
     assert c["repeat_pairs"] == 1 and c["repeat_identical"] == 1 and c["errors"] == 1
+    assert c["pick_not_final"] == 0
 
 
 def test_recommend_rule():
     def pooled(top5, union, partner, top6):
-        return {f"g8|{r}|cd_exacts": {"batch_top5": top5, "batch_union": union, "batch_partner": partner, "batch_top6": top6}
+        return {f"g8|{r}|cd_exacts": {"batch_top5": top5, "batch_top5cd": top5, "batch_union": union, "batch_partner": partner,
+                                      "batch_top6": top6}
                 for r in ("moderate", "heavy")}
     assert R.recommend(pooled(0.6, 0.61, 0.6, 0.62))["pick"] == "top5"
     assert R.recommend(pooled(0.6, 0.65, 0.63, 0.66))["pick"] == "union"

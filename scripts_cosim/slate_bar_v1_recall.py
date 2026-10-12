@@ -29,7 +29,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts_cosim"))
 
 SEED = 20261012
-RULES = ("top5", "union", "top6", "partner")
+RULES = ("top5", "top5cd", "union", "top6", "partner")
 CONTINUATIONS = ("cd", "cd_exacts")
 CAP = 100_000
 
@@ -56,7 +56,8 @@ def slates_for(ranked, exch, anchors):
             break
         if key(c) not in partner:
             partner.append(key(c))
-    return {"top5": {key(c) for c in ranked[:5]}, "union": set(union), "top6": {key(c) for c in ranked[:6]}, "partner": set(partner)}
+    top5 = {key(c) for c in ranked[:5]}
+    return {"top5": top5, "top5cd": set(top5), "union": set(union), "top6": {key(c) for c in ranked[:6]}, "partner": set(partner)}
 
 
 # ---- the decision hook (runs inside the replay, at the batch decision) ------------------------------------------------------------
@@ -93,9 +94,18 @@ def hook(sched, batch_tasks, chosen, system_state, ctx):
             continue
         ranked = ranked_of[tid]
         rc = [(int(n.id), int(p.id), n.node_name) for n, p in ranked]
-        decl = declared_slate.prune_candidates([_candidate_payload(sched, t, n, p) for n, p in valid_of[tid]])
-        if {(int(c["node_id"]), int(c["platform_id"])) for c in decl} != {(c[0], c[1]) for c in rc[:5]}:
+        payloads = [_candidate_payload(sched, t, n, p) for n, p in valid_of[tid]]
+        decl = declared_slate.prune_candidates(payloads)
+        decl_set = {(int(c["node_id"]), int(c["platform_id"])) for c in decl}
+        mism = None
+        if decl_set != {(c[0], c[1]) for c in rc[:5]}:
             decl_mismatch += 1
+            pc = {(int(c["node_id"]), int(c["platform_id"])): c for c in payloads}
+            sa = {(int(n.id), int(p.id)): sched._pg_standalone(t, n, p, orch, memo, nodes) for n, p in ranked}
+            diff = sorted(decl_set ^ {(c[0], c[1]) for c in rc[:5]})
+            mism = [{"c": list(k), "decl_cost": declared_slate.standalone_cost(pc[k]), "cd_cost": sa[k], "in_decl": k in decl_set,
+                     "initialized": bool(pc[k].get("initialized")), "payload_cold": float(pc[k].get("cold_start_time") or 0.0),
+                     "payload_drain": float(pc[k].get("queue_drain_seconds") or 0.0)} for k in diff]
         partners = []  # (payload, anchor node, candidate node set M_j)
         unknown = 0
         for pid, payload in sorted((table.get(tid) or {}).items(), key=lambda kv: (-float(kv[1]), int(kv[0]))):
@@ -119,6 +129,7 @@ def hook(sched, batch_tasks, chosen, system_state, ctx):
             if a not in anchors:
                 anchors.append(a)
         sl = slates_for(rc, exch, anchors)
+        sl["top5"] = decl_set  # the declared function itself; top5cd keeps the rule's own standalone order (cd_exactS's slate)
         pick = (int(chosen[i][0].id), int(chosen[i][1].id))
         ids = [(c[0], c[1]) for c in rc]
         cd_cands = sched._pg_candidates(t, system_state)
@@ -126,7 +137,7 @@ def hook(sched, batch_tasks, chosen, system_state, ctx):
             "tid": tid, "n_valid": len(rc), "n_cd_cands": len(cd_cands), "init_only": len(cd_cands) < len(rc),
             "pick": list(pick), "rank": ids.index(pick) + 1 if pick in ids else 0,
             "in": {r: pick in sl[r] for r in RULES}, "size": {r: len(sl[r]) for r in RULES},
-            "partners": len(partners), "partners_unknown": unknown,
+            "partners": len(partners), "partners_unknown": unknown, "decl_mismatch": mism,
         })
     return {"tasks": tasks_out, "n_batch": len(batch_tasks), "n_queued_in_batch": len(batch_tasks) - len(free_ids),
             "decl_mismatch": decl_mismatch}
@@ -309,7 +320,10 @@ def checks(rows):
             "decl_mismatch_tasks": sum(r["hook"]["decl_mismatch"] for r in rows if "error" not in r),
             "tasks": sum(len(r["hook"]["tasks"]) for r in rows if "error" not in r),
             "rank0_picks": sum(1 for r in rows if "error" not in r for t in r["hook"]["tasks"] if t["rank"] == 0),
-            "multi_decision": sum(1 for r in rows if "error" not in r and r["decisions"] != 1)}
+            "multi_decision": sum(1 for r in rows if "error" not in r and r["decisions"] != 1),
+            # the replay's final plan (later decisions overwrite it) against the picks the hook read at the batch decision
+            "pick_not_final": sum(1 for r in rows if "error" not in r
+                                  and sorted(tuple(t["pick"]) for t in r["hook"]["tasks"]) != sorted(tuple(p) for p in r["plan"] if p is not None))}
 
 
 def recommend(pooled):
@@ -318,10 +332,10 @@ def recommend(pooled):
     def g8(rule):
         v = [pooled.get(f"g8|{r}|cd_exacts", {}).get(f"batch_{rule}") for r in ("moderate", "heavy")]
         return st.mean(v) if all(x is not None for x in v) else None
-    cheap = {r: g8(r) for r in ("top5", "union", "partner")}
+    cheap = {r: g8(r) for r in ("top5", "top5cd", "union", "partner")}
     if any(v is None for v in cheap.values()):
         return {"pick": None, "why": "G8 cd_exactS rows missing", "g8": cheap}
-    best = max(cheap, key=lambda r: (cheap[r], r == "top5"))
+    best = max(cheap, key=lambda r: (cheap[r], r == "top5"))  # top5cd is cd_exactS's own slate, a ratio-1 rule like the others
     pick = best if cheap[best] >= cheap["top5"] + 0.02 else "top5"
     t6 = g8("top6")
     if t6 is not None and t6 >= max(cheap.values()) + 0.05:

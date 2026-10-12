@@ -56,6 +56,20 @@ pruning ranks. The hook checks that its top 5 equals `declared_slate.prune_candi
   - Rule (4) needs no exchange model; it asks whether co-location alone is the gap.
   - The rationale is that argmin-S misses are under-co-location (plan_rerank_v1).
 
+**Amendment 1 (2026-10-12, after the smoke, before any recall number was read).**
+- **Finding:** the 16-replay smoke (863470) found the two standalone orders disagreeing on the top-5 set in 28 of 98 tasks.
+  - The declared function (`declared_slate.prune_candidates` on `_candidate_payload`) is what the GNN is served.
+  - `_pg_standalone` is what cd_exactS ranks its own slate by.
+- **Change:** rule (1) splits in two.
+  - **top5** is now the declared function itself.
+  - **top5cd** is cd_exactS's own top 5 by `_pg_standalone`. It is a ratio-1 rule and enters the recommendation like union and partner.
+  - Rules (2)–(4) keep the `_pg_standalone` order.
+- **Diagnostics:** the hook records both costs, the payload cold and drain, and the initialized flag for every couple in the
+  symmetric difference, so the cause can be named.
+- **Re-decision check:** the read also counts batches whose final replayed plan differs from the picks at the batch decision
+  (`pick_not_final`). In 6 of 16 smoke replays the decision hook fired on a batch decision that was followed by further
+  decisions. Recall is scored on the picks at the batch decision.
+
 **Read** (`slate_bar_v1_recall.py read`), per source × rung × batch size n, and pooled per rung with population weights:
 - **Task recall:** the share of the batch's undecided tasks whose chosen couple lies in the rule's slate. It is also reported on the
   tasks with more than 5 candidates, the only ones where the top 5 can miss.
