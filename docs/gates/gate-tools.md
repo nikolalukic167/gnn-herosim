@@ -32,7 +32,7 @@ One row per change after which earlier numbers no longer mean what they said. Ea
 | 2026-10-10 | Multiplier convention: double scaling at 160 × 24 | "CD saturated at m0" (retracted) | [scale_160_v1](../lineages/scale_160_v1.md) |
 | 2026-10-10 | Hand bar moves above CD: `cd_expand` (α-expansion) and `cd_exactS` (exact S over the slate), −7 to −11 % vs CD | "Beats CD" as "beats the best hand search" | [accel_replica_v1 post-close diagnostics](../lineages/accel_replica_v1/post_close_diagnostics.md) |
 | 2026-10-12 | Declared top-5 slate charges cold 0 on initialized platforms; `cd_exactS` is not slate-restricted | GNN-vs-hand-search contrasts as scorer verdicts: matched-slate, the GNN self-search wins −4.85 / −1.94 % | [slate_bar_v1](../lineages/slate_bar_v1.md); the section below |
-| 2026-10-12 | Hand bar moves to `cd_exactS_ib0` (S without in-batch stacking): −4.73 / −2.27 % vs `cd_exactS`, 12/12 | `cd_exactS` as the bar | `ib0_confirm_v1` (branch `rp/plan-rerank`, not yet merged) |
+| 2026-10-12 | Hand bar moves to `cd_exactS_ib0` (S without in-batch stacking): −4.73 / −2.27 % vs `cd_exactS`, 12/12 | `cd_exactS` as the bar | [`ib0_confirm_v1`](../lineages/ib0_confirm_v1.md) |
 
 ## 2026-10-12 — The declared slate charges no cold start on an `initialized` platform; the simulation does
 
