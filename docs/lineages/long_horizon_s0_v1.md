@@ -4,8 +4,8 @@
 below was signed before its data. Placed by S6 on branch `rp/long-horizon` at the expert's instruction, with a branch-only
 index row (authorised; the expert reconciles it on reference-physics).
 
-**Outcome (2026-10-12; the registered single read, all 7 cells, 0 failed).** Over a 24 h stationary window the GNN's lead over CD
-does not erode, and its deficit to `cd_exactS` grows.
+**Outcome (2026-10-12; the registered single read, all 7 cells, 0 failed).** Over a 24 h stationary window the GNN stays 5–11 %
+ahead of CD in every 4 h block, and its deficit to `cd_exactS` at moderate grows.
 - No GNN-favourable contrast reaches the −2 pp bar, and three hand-favourable contrasts exceed +2 pp, so the node closes under the
   registered bar. No multi-day gate.
 - S = the OLS slope of the hourly paired gap over bins 2–24, × 24 h; g = the paired gap, negative = GNN faster.
@@ -25,8 +25,9 @@ does not erode, and its deficit to `cd_exactS` grows.
   - One topology (16900, spent), one seed per cell: a direction, never a magnitude.
   - Stationary trace by construction: it tests accumulation, not daily peaks.
   - Heavy `cd_exactS` was not run (worst projected cell ~25 h), so the bar at heavy is CD only.
-  - Heavy cdxapply's +2.32 pp slope is driven by g_1 (−1.56 %) being its smallest gap; its blocks over bins 2–24 sit at −8.6 to
-    −11.9 %, so it is not a reversal.
+  - Heavy cdxapply's +2.32 pp slope is a narrowing lead, not a reversal: its 4 h blocks over bins 2–24 go from −11.4 to −8.6 %.
+    (S excludes bin 1, so g_1 = −1.56 % plays no part in it.) The GNN's lead over CD erodes there by about 2 pp in 24 h and stays
+    ≥ 8.6 %.
   - Hour-to-hour SD of g is 2.8–3.5 pp on every contrast, above the 2 pp the bar calls weak, so each slope is a weak band.
   - A user-ordered interim read of 4 cells preceded this read (Record); it changed no bar.
 - **What this does not test (expert's ruling, 2026-10-12): no daily-cycle trace is downloaded.**
