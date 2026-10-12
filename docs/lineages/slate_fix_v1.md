@@ -9,8 +9,12 @@
 
 **What the fix does not touch: read this first if the gap does not move.**
 - **54 over-cap train datasets** (> 100,000 full plans) keep their capped top-5 labels: `untouched_over_cap` in `extend_manifest.*.jsonl`.
-- **648 sub-batched train datasets** are tables cut from a batch whose pruned plan space exceeded the cap. Each is extended within its sub-batch of ≤ 4 tasks, but the peer cut across sub-batches stays in the label.
-- Both counts were given by the expert; their source is not yet established, and S7 has not computed a sub-batched count. S7 and S6 re-count both from the final manifests and the census when the build completes. On 2026-10-12, 1,609 train manifest rows were in: 1,067 extended, 507 already full, 35 `untouched_over_cap`.
+  - Source: S7's census of `gnn_datasets_wf1_train` before launch, as relayed by the expert on 2026-10-12. Of 2,731 datasets, 1,767 were to be extended, 910 were never pruned and 54 are over the cap.
+  - The held-out manifest is complete with 9 over-cap.
+- **648 sub-batched datasets** are tables cut from a batch whose pruned plan space exceeded the cap. Each is extended within its sub-batch of ≤ 4 tasks, but the peer cut across sub-batches stays in the label.
+  - Source: S5's accel_replica_v1 corpus read on 2026-10-10 (jobs 855783 / 855785 / 855788; `/share/nikola.lukic/workload_fix_v1/accel_state_stats/summary.json`): 648 of 3,169 datasets, 20.4 %, 4.3 % of plans.
+  - Split by `sub` in `full_rank_rows.jsonl` in the same directory (S6, 2026-10-12): **556 train** (heavy 364 of 1,415 = 25.7 %; moderate 192 of 1,316 = 14.6 %) and **92 held-out** (heavy 54, moderate 38).
+- Both are re-counted from the final extend manifests when the build completes. On 2026-10-12 it was partial: 1,609 train rows, of which 1,067 extended, 507 already full and 35 `untouched_over_cap`.
 - The heavy deficit to `cd_exactS` sits in exactly these large, split groups:
   - the accel GNN's loss is on split 9–10-task groups, about 22 % of tasks;
   - `selfsearch_gap_v1` found self-search loses on batches ≤ 8 and wins on 9+;
