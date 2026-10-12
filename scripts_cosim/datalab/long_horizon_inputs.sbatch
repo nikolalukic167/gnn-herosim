@@ -34,10 +34,10 @@ python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 HEAD=$(git rev-parse HEAD)
 echo "HEAD $HEAD node $(hostname) job=${SLURM_JOB_ID:-} ROOT=$ROOT TOPO=$TOPO"
 [[ "$HEAD" == "$EXPECT_HEAD"* ]] || { echo "FAIL LOUD: worktree HEAD $HEAD is not $EXPECT_HEAD"; exit 1; }
-[[ ! -e "$ROOT" ]] || { echo "FAIL LOUD: $ROOT exists"; exit 1; }
+[[ ! -e "$ROOT/inputs/wf1_moderate" && ! -e "$ROOT/inputs/wf1_heavy" ]] || { echo "FAIL LOUD: $ROOT already holds minted windows"; exit 1; }
 mkdir -p "$ROOT/inputs"
 for r in moderate heavy; do
-  python3 scripts_cosim/long_horizon_mint.py --rung $r --manifest "$ACC/manifest_$r.json" --gate-wl "$ACC/wf1_$r/wl" --x1 "$X1" \
+  python3 scripts_cosim/long_horizon_mint.py --rung $r --manifest "$ACC/manifest_$r.json" --gate-wl "$ACC/wf1_$r/wl" --w2-wl "$ACC/../inputs_w24/wf1_$r/wl" --x1 "$X1" \
     --lib-dir "$WT/docs/lineages/grounded_workload_v1" --base-dir "$BASE" --cfg "$BG/wf1_$r/cfg/cc40s$TOPO.json" --out "$ROOT/inputs/wf1_$r"
 done
 ln -s "$ACC/accel_replica_v1_split.json" "$ROOT/inputs/accel_replica_v1_split.json"

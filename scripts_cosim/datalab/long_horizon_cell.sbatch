@@ -6,6 +6,7 @@
 #   OUT               result directory (shared by the 7 cells)
 #   RUNG ARM          moderate|heavy and one of cd, cd_exactS (moderate only), ra_gnn_eng_nosplit, ra_gnn_eng_cdxapply
 #   TOPO LIMIT        default 16900 and 72000 s
+#   /home is near quota: submit with --output=/share/nikola.lukic/long_horizon/logs/lh-cell-%j.out (the cell's own log is in OUT)
 #SBATCH --job-name=lh-cell
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/lh-cell-%j.out
 #SBATCH --partition=CPU-amd

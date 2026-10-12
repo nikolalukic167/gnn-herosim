@@ -1,7 +1,8 @@
 # long_horizon_s0_v1 — does the GNN-vs-hand gap change with horizon?
 
 **Status:** `REGISTERED` (signed by the expert 2026-10-12, with a directional bar). Every bar below was signed before its data.
-Placed by S6 on branch `rp/long-horizon` at the expert's instruction; the index row is the expert's.
+Placed by S6 on branch `rp/long-horizon` at the expert's instruction, with a branch-only index row (authorised; the
+expert reconciles it on reference-physics at close).
 
 **Question (user, 2026-10-12):** "workloads are less than one day; what if they were seven days?" In the accel seat, does the
 gap between the GNN and the hand search change with horizon? A longer trace can change the gap only if something
@@ -145,6 +146,12 @@ t, a longer trace only adds n.
 
 ## Record (newest first)
 
+- 2026-10-12 — **Inputs job 863303 FAILED in 3 s, before minting anything.** The mint checked the accel manifest's sha256
+  against the final gate files. The manifest describes the W2 stage (`inputs_w24`, before the 160-client remap), so the
+  check could never pass.
+  - Code fix: the manifest is now checked against `inputs_w24`. The final gate files are still checked by equality with
+    cycles 0–3.
+  - Nothing was produced, and the inputs are re-minted at the fix commit.
 - 2026-10-12 — **Signed** by the expert with a directional bar (HORIZON-FLAT / GNN-GAINS / HAND-GAINS, above).
   - Daily-cycle traces: no downloads until L24 reads.
   - If L24 reads FLAT or HAND-GAINS, the next question is daily peaks. The cheapest check comes first: one day of
