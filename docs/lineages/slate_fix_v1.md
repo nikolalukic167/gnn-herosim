@@ -196,6 +196,13 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Training done; gate inputs built and wired.**
+  - Training 863951: gnn_eng 2 h 04 m, twin_eng 1 h 19 m; 0 failures; 100/100 epochs each; post-training sidechecks PASS.
+    - best_val regret_masked_topo on the UNCAPPED val labels (not comparable to the capped 0.7807; the screen compares like with like): gnn_eng 0.9633 / 0.7720, twin_eng 0.9163 / 1.0645 (seeds 1 / 2); last improvement at epochs 96 (gnn s2), 90 / 82 (twin s1 / s2).
+    - md5 (.pt): gnn s1 8bbaead3, s2 ff7b4946; twin s1 2c609b75, s2 7aa3a51c.
+  - Screen 863952 started on the `afterok` (tasks 0–7, 4 at a time).
+  - Gate inputs 864094 (34 s): `s160_gate_inputs.sbatch` with ib0_confirm_v1's arguments (M_MODERATE 11.6139, M_HEAVY 27.622665025860204, REPLICA_RULE fastest_compatible, BASECFG `accel_nosplit/inputs/cfg_src/cc40s16345.json`) and `SELECTION=scripts_cosim/slate_fix_v1_selected.json`, into `/share/nikola.lukic/slate_fix/inputs_12/inputs`; split copied in (sha f5bc4f51). No overlap with sparse_obs_s0_v1's 19440–19451.
+  - `slate_fix_v1_gate_models.sh` wired 12 model links (old gnn md5 0f915a36 / 446f99fd confirmed; 6 sidechecks PASS) and `SMOKE_IN=/share/nikola.lukic/slate_fix/smoke_inputs`.
 - 2026-10-12 — **Identity PASS** (job 863950, 43 s): the old gnn_eng seed-1 checkpoint through the eval-only path on its own capped g4 cache gives regret_masked_topo **0.7807019727098458**, bit-equal to its training's recorded best_val (n = 438 val datasets; plan_exact 0.626). Training 863951 started on the `afterok`; both tasks' cache checks PASSED at 4d90119c (3,169 graphs; RTT rows 10,668,160 vs 5,227,936; split 2,674 / 438 / 57).
 - 2026-10-12 — **Identity task 863945 FAILED on a launch defect, before any number:** `OSError: [Errno 24] Too many open files` in the eval DataLoader 33 s in. `slate_fix_v1_eval.sbatch` lacked `ulimit -n 65536` (datalab-pitfalls #11; the training sbatch had it). The `afterok` chain dropped 863946 and 863947, so nothing trained. Fixed in code at 4d90119c and relaunched in worktree `~/gnn-herosim-wt/sf_4d90119c`: identity 863950, training 863951, screen 863952 (`/share/nikola.lukic/slate_fix/screen_4d90119c`), same `afterok` chain.
 - 2026-10-12 — **Launched, by user-ordered amendment** (relayed by the expert): training no longer waits for the `slate_bar_v1` read; the gate order is unchanged.
