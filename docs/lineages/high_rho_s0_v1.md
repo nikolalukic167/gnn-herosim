@@ -1,6 +1,6 @@
 # high_rho_s0_v1 — is there a high-but-stable utilisation rung above `heavy`, and how much live headroom does CD leave there?
 
-**Status:** `STAGE-1-READ` (2026-10-11). Draft by S5 for the coordinator to sign. Every bar below was fixed before any data. This node is the rung search only; the oracle step is S4's and pre-registered below.
+**Status:** `CLOSED` — `RHO-UNREACHABLE-STABLE` (2026-10-12) (2026-10-11). Draft by S5 for the coordinator to sign. Every bar below was fixed before any data. This node is the rung search only; the oracle step is S4's and pre-registered below.
 
 **Why.** The user asks for a shot at a ~20 % win over the hand bar. At `heavy` (accel seat, 160 clients × 24 servers) CD runs with end/last-arrival 1.008 and queue share 0.20 (smoke cell cc40s18700 g0 heavy, `prune_g8_s0_v1`), so the cluster is far from its capacity and the hand rules leave little to win. The one defensible regime is a *high-but-stable* utilisation rung: load high enough that placement quality moves the queue, low enough that CD does not diverge. This is not the ×3/×5 overload regime, where reactive saturates and every number is load-contingent; an unstable rung is inadmissible.
 
@@ -26,6 +26,18 @@
 - A rung with ρ below 0.70 is reported but is not the oracle rung.
 
 ## Record (newest first)
+- 2026-10-12 — **CLOSED `RHO-UNREACHABLE-STABLE` (S5; live measurement, rule 6).** Stage 1 completed on 6 topologies (19310–19315, g0, CD, traced; 11 new cells plus 19310 ×4 from the first read; the traced cells' latencies equal the untraced ones).
+
+  | ×heavy | n | median end/last | cells end/last > 1.05 | median queue share | median last/mid queue | median ρ (busiest type) | max ρ | median latency s | max compute ρ | other-I/O share | queue share of latency |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | 4 | 6 | **1.047** | 2 (19313 1.113, 19314 1.167) | 0.204 | 1.01 | **0.662** | 0.711 (19315, FPGA) | 5.65 | 0.43 | 0.64 | 0.19 |
+  | 5 | 6 | **1.046** | 2 (19310 3.298 collapsed, 19314 1.143) | 0.181 | 0.98 | **0.638** | 0.670 | 7.72 | 0.54 | 0.70 | 0.17 |
+
+  Per-cell ρ at ×4: 19310 .657 / 19311 .601 / 19312 .682 / 19313 .620 / 19314 .667 / 19315 .711; at ×5: .562 / .661 / .670 / .638 / .637 / .602. Queue share is 0.07–0.22 in every cell and the last-quarter queue never grows (last/mid ≤ 1.07).
+  **Rule as ruled by the coordinator:** the highest multiplier whose 6-topology median end/last ≤ 1.05 is **×5** (1.046); its median ρ is **0.638 < 0.70**, so the node closes. (×6 failed on 19310 in the first read, end/last 1.144; ×8 collapsed.)
+  **Disclosed:** the signed per-rung rule also allowed at most 1 failing cell; 2 of 6 fail at both ×4 and ×5, so under the stricter reading neither is stable and the result is the same (no stable rung reaches ρ 0.70). Only g0 was run, so "24 cells" was 6. 19310 at ×5 collapsed (end/last 3.3) next to five stable ×5 cells, so the ×5 boundary is topology-dependent.
+  **Mechanism:** the busiest class never gets near saturation (ρ 0.56–0.71 at any multiplier, falling as load rises past ×4); the compute lock is at most 0.54 in any cell (0.37 at ×6 on 19310); and latency is 63–71 % storage and input/output ("other"), 17–20 % queue, 1–3 % exec. The rung where instability appears is set by the I/O path, not by platform utilisation, so a ρ ≥ 0.70 stable rung does not exist on this seat. No stage 2, no oracle. The oracle step registered for S4 does not run.
+  **Not claimed:** other seats, other windows, a ×4.5 or other fractional multiplier, a capacity-based ρ definition (ρ here is the occupied fraction of replica life; replicas scale to 120).
 - 2026-10-12 — **Coordinator correction (before the ×5 data landed):** one more traced CD cell, 19310 g0 at heavy ×5 (inputs job in `/share/nikola.lukic/high_rho/s2b`), so the ×5 median is over the same 6 topologies as ×4. The earlier "no ×5 cell on 19310" meant extending 19310 on its own, not the signed rule; a 5-topology median would not meet it. All 11 cells are read together, once, under the same rule. The pinned code worktree for these cells is 0a597e1e (the docs-only commit after it changes no code).
 - 2026-10-12 — **Amendment before launch (coordinator ruling): stage 1 completed on 6 topologies, because the signed stability rule is a 6-topology median.** No ×5 cell on 19310 and no ×4 CD-vs-`cd_exactS` stage 2.
   CD only, traced, heavy ×4 and ×5 on 19311–19315 (10 cells, g0; inputs one job, `big_groups_inputs.sbatch` with the moderate tag = ×4 and the heavy tag = ×5). The ×4 median is therefore over 6 topologies (19310 from stage 1 plus these five) and the ×5 median over 5 (19311–19315), disclosed (superseded by the correction above: ×5 on 19310 is added).
