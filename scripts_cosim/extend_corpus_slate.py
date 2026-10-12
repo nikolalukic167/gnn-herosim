@@ -103,7 +103,7 @@ def rebuild_checks(v: Dict[str, Any]) -> None:
     for g in ok:
         if not ok[g] <= fk[g]:
             raise RuntimeError(f"FAIL LOUD: task {g}: the stored slate is not a subset of the raw candidates ({sorted(ok[g] - fk[g])})")
-    if flag_candidates_per_task(raw, ok) != ws["snapshot"]:
+    if flag_candidates_per_task(raw, ok) != {k: val for k, val in ws["snapshot"].items() if not k.startswith("_")}:
         raise RuntimeError("FAIL LOUD: flag_candidates_per_task(raw snapshot, stored slate) does not reproduce warm_snapshot.json's snapshot")
     tids = [int(g) for g in v["wl"]["trace_task_ids"]]
     by_gid = {int(t["task_id"]): t for t in ws["snapshot"]["tasks"]}
@@ -132,6 +132,7 @@ def build_new_infra(v: Dict[str, Any], prov: Dict[str, Any], sim_input: Path) ->
 
     infra, raw = v["infra"], v["raw"]
     flagged = flag_candidates_per_task(raw, full_kept(raw))
+    flagged.update({k: val for k, val in v["ws"]["snapshot"].items() if k.startswith("_")})   # the stored snapshot keeps its _source_file
     base = {k: infra[k] for k in ("network_maps", "compute_slots_per_node", "ingress_bandwidth_mbps", "link_topology", "replica_placement_rule") if k in infra}
     base["metadata"] = {k: val for k, val in infra["metadata"].items() if k != "warm_snapshot"}
     new = build_infrastructure(base, {k: val for k, val in flagged.items() if k != "fidelity"}, prov, None)
