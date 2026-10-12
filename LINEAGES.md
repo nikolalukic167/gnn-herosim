@@ -56,6 +56,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**high_rho_s0_v1**](docs/lineages/high_rho_s0_v1.md) | `CLOSED` | RHO-UNREACHABLE-STABLE: no stable rung reaches ρ 0.70 in the accel seat (CD, 6 topologies; highest stable ×5 heavy, median ρ 0.64); instability is I/O-bound, so the oracle step for a ~20 % win does not run. |
 | [**link_bound_s0_v1**](docs/lineages/link_bound_s0_v1.md) | `CLOSED` | NO-GO, links do not bind (≤ 1.6 % of latency at 3.9 MB/s, the lowest CD-healthy rate); live: self-search vs CD −1.4/+1.2 %, cd_exactS −11.1/−8.0 % vs CD (12/12). Hand search stays the bar. |
 | [**big_groups_s0_v1**](docs/lineages/big_groups_s0_v1.md) | `CLOSED` | NO-GO; live G8 HAND-SEARCH-FASTER: cd_exactS −9.2/−7.7 % vs CD (12/12); GNN self-search −9.7/−1.5 % vs CD, +0.5/+5.5 % vs cd_exactS. Bigger groups open no learned gap. |
 | [**cost_to_go_v1**](docs/lineages/cost_to_go_v1.md) | `CLOSED` | NO-WIN: hand V and MLP V on cd_exactS tie it live (+0.04/−0.05 %, +0.20/+0.50 %, 24 fresh); MLP V’s 76 % offline capture does not carry; GNN-V rung not run, so no MP claim. |

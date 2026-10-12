@@ -65,6 +65,7 @@ never a message-passing win.** The seat is R1.1 + WF1, with replicas on the fast
 - **Bigger peer groups do not help** (`big_groups_s0_v1`, CLOSED). At G=8 exact enumeration fails in 28–49 % of batches,
   yet cd_exactS still beats CD by −9.2 / −7.7 % (12/12). GNN self-search ties it at moderate and is +5.5 % slower at heavy.
 - **Busy links do not help** (`link_bound_s0_v1`, CLOSED). Down to the lowest CD-healthy core rate (3.9 MB/s), link wait
+- **No high-but-stable load rung** (`high_rho_s0_v1`, CLOSED). In the accel seat, CD stays stable up to heavy ×5 at most, where median busiest-type ρ is only 0.64. Instability there is I/O-bound (latency 63–71 % storage/I/O, compute lock ≤ 0.54), so the high-ρ route to a ~20 % win has no rung to test.
   stays ≤ 1.75 % of latency. Live there, GNN self-search is −1.4 / +1.2 % vs CD and +10.7 / +11.1 % vs cd_exactS (0/12).
 - **Knative under R1:** the key-blind arm herds and collapses on lock wait. A faithful concurrency-key Knative never
   collapses and is +48 / +68 % vs CD. Quote only the latter (`docs/gates/gate-tools.md`).
