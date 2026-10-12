@@ -16,7 +16,7 @@ directions were written before any condition run was read.
   - releasing the replica cuts queue share from 0.78–0.96 to **0.05–0.08**;
   - pipelining alone leaves it at **0.69–0.78** (absolute queue about 2 s instead of 6.7–55 s).
 - **Absolute latency falls 4–70×** (CD at ×2: 8.62 s → 2.89 s pipelined, 1.99 s released, 0.97 s both).
-- **Knative's gap to CD shrinks** from +90 / +126 / +151 % to +15–72 %.
+- **Knative's (`reactive`, the queue-keyed arm; see gate-tools 2026-10-11) gap to CD shrinks** from +90 / +126 / +151 % to +15–72 %.
 - **`so1load`, zero-shot, falls further behind CD** (+12.7 / +7.4 / −3.3 % → +17 to +27 %); it exchanges more than
   every rule except Knative.
 - **The load ladder no longer orders load:** under the new physics latency *falls* from ×2 to ×5 (pipelined CD 2.89 →
