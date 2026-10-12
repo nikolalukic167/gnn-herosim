@@ -695,10 +695,25 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
 
 
 def _single_candidate_slate(all_datasets: Mapping[str, Mapping[str, Any]]) -> Optional[str]:
+    """The cache's candidate-slate rule. One rule across the datasets is that rule. The one mixed set allowed is a corpus part-extended by
+    scripts_cosim/extend_corpus_slate.py, {declared_pruning_v1, declared_pruning_v1_uncapped}: it is cached (and a checkpoint trained on it is
+    served) as the uncapped rule, and `_candidate_slate_rules` records both. Any other mixture fails loudly."""
     rules = {d.get('candidate_slate') for d in all_datasets.values()}
     if len(rules) > 1:
-        raise RuntimeError(f"datasets were built under different candidate slates {sorted(map(str, rules))}; a cache has one")
+        if rules != set(_MIXED_SLATE_RULES):
+            raise RuntimeError(f"datasets were built under different candidate slates {sorted(map(str, rules))}; a cache has one "
+                               f"(the only mixture allowed is {sorted(_MIXED_SLATE_RULES)})")
+        return "declared_pruning_v1_uncapped"
     return next(iter(rules)) if rules else None
+
+
+_MIXED_SLATE_RULES = ("declared_pruning_v1", "declared_pruning_v1_uncapped")
+
+
+def _candidate_slate_rules(all_datasets: Mapping[str, Mapping[str, Any]]) -> Optional[List[str]]:
+    """Both rules of a mixed corpus, sorted; None when the corpus has one rule (its metadata is then unchanged)."""
+    rules = {d.get('candidate_slate') for d in all_datasets.values()}
+    return sorted(rules) if len(rules) > 1 and rules == set(_MIXED_SLATE_RULES) else None
 
 
 def _declared_slate_of(dataset_dir: Path) -> Dict[str, Any]:
@@ -2245,6 +2260,8 @@ def main():
         'physics_env': current_physics_env(),
         # the candidate-slate rule every dataset was built under (None: the sweep's own slate); serving must run the same one
         'candidate_slate': _single_candidate_slate(all_datasets),
+        # a corpus part-extended to the uncapped slate: both rules, so the cache says what was mixed (absent otherwise)
+        **({'candidate_slate_rules': _candidate_slate_rules(all_datasets)} if _candidate_slate_rules(all_datasets) else {}),
         # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk
         # trainer refuses a cache without partial_state_contract, so a legacy cache
         # can never silently serve a stage-2 arm.
