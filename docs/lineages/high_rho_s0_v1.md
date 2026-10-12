@@ -1,6 +1,6 @@
 # high_rho_s0_v1 — is there a high-but-stable utilisation rung above `heavy`, and how much live headroom does CD leave there?
 
-**Status:** `REGISTERED-DRAFT` (2026-10-11). Draft by S5 for the coordinator to sign. Every bar below is fixed before any data. This node is the rung search only; the oracle step is S4's and pre-registered below.
+**Status:** `STAGE-1-READ` (2026-10-11). Draft by S5 for the coordinator to sign. Every bar below was fixed before any data. This node is the rung search only; the oracle step is S4's and pre-registered below.
 
 **Why.** The user asks for a shot at a ~20 % win over the hand bar. At `heavy` (accel seat, 160 clients × 24 servers) CD runs with end/last-arrival 1.008 and queue share 0.20 (smoke cell cc40s18700 g0 heavy, `prune_g8_s0_v1`), so the cluster is far from its capacity and the hand rules leave little to win. The one defensible regime is a *high-but-stable* utilisation rung: load high enough that placement quality moves the queue, low enough that CD does not diverge. This is not the ×3/×5 overload regime, where reactive saturates and every number is load-contingent; an unstable rung is inadmissible.
 
@@ -26,5 +26,26 @@
 - A rung with ρ below 0.70 is reported but is not the oracle rung.
 
 ## Record (newest first)
+- 2026-10-12 — **Stage 1 read (S5), topology 19310, g0, CD, one cell per multiplier (heavy × k); ρ = occupied fraction of the busiest platform type.**
+  Multipliers 1 and 1.5 / 2 / 3 / 6 ran on the `moderate` tag and 1.25 / 1.75 / 2.5 / 4 / 8 on the `heavy` tag of five input pairs (jobs 860861–860870). ρ was measured on traced reruns of six
+  cells (jobs 861451–861456: `HEROSIM_AUDIT_TRACE` through a copy of `r1a_gate.sbatch` at `/share/nikola.lukic/high_rho/r1a_gate_trace.sbatch`, the only change; the traced cells' mean latencies equal the untraced ones to 3 decimals, so the trace is inert).
+  The harness raw results carry no per-platform utilisation, so the node's "from the kept raw results" is amended to "from the audit trace".
+
+  | ×heavy | mean lat s | queue share | end/last | last/mid queue | ρ busiest (type) | compute ρ max (type) | stable |
+  |---|---|---|---|---|---|---|---|
+  | 1 | 2.379 | 0.175 | 1.021 | 0.99 | 0.46 (pynqFpga 0.49) | 0.12 (DLA) | yes |
+  | 1.25 | 2.526 | 0.194 | 1.015 | 0.80 | not traced | | yes |
+  | 1.5 | 2.387 | 0.217 | 1.037 | 1.00 | not traced | | yes |
+  | 1.75 | 2.498 | 0.228 | 1.003 | 1.04 | not traced | | yes |
+  | 2 | 3.732 | 0.182 | 1.004 | 1.00 | 0.60 (DLA) | 0.35 (DLA) | yes |
+  | 2.5 | 3.336 | 0.224 | 1.075 | 1.02 | 0.53 (DLA/FPGA) | 0.31 (DLA) | end/last > 1.05 on this cell |
+  | 3 | 3.877 | 0.232 | 1.014 | 1.09 | 0.61 (xavierGpu) | 0.28 (DLA) | yes |
+  | 4 | 5.625 | 0.198 | 1.046 | 1.02 | **0.66 (xavierGpu)** | 0.31 (DLA) | yes (end/last 1.046 is 0.004 under the bar) |
+  | 6 | 7.589 | 0.186 | **1.144** | 0.98 | 0.61 (xavierGpu) | 0.37 (DLA) | **no** (end/last) |
+  | 8 | 46.273 | 0.514 | **2.185** | 0.90 | not traced | | **no** (collapsed) |
+
+  Latency breakdown (traced cells, share of mean latency; queue / cold / exec / exchange / other-I/O): ×1 .135/.022/.035/.536/.232; ×2 .156/.004/.039/.233/.541; ×4 .180/.001/.019/.126/.656; ×6 .171/.001/.015/.090/.708.
+  "Other" (storage and input/output beyond exchange) is 66–71 % of latency at ×4–×6; queue stays 0.17–0.21.
+  **Reading, under the signed rules:** the first unstable multiplier is ×6; the highest stable one is ×4 at ρ = 0.66 (busiest type xavierGpu), so the targets 0.70 / 0.80 / 0.85 are **unreachable stably** on this cell, and ρ falls (0.66 → 0.61) from ×4 to ×6 while end/last crosses 1.05, so the instability is not a busiest-class saturation (replicas peak at 120 from ×1 upward; alive mean 100 at ×4). Stage 2 is not run. Caveats: one topology, one window, one cell per multiplier (the signed stability rule is a median over 6 topologies); ×5 and the interval 4–6 are untested; ×2.5 shows an isolated end/last 1.075.
 - 2026-10-11 — Signed (bda1e9d2) with the calibration extension above, before data.
 - 2026-10-11 — Drafted (S5) on the coordinator's request.
