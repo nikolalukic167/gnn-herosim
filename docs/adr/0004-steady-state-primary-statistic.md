@@ -17,8 +17,9 @@ pulls and sandbox colds onto an empty cluster, not placement quality.
   decile; moderate 2.98 / 2.69 / 5.57 s. About 40 % of heavy mean latency is the deploy transient
   (SCIENTIST's estimate, `slate_fix_v2.md:5`).
 - **Where the oracle's room sits.** 84 % (heavy) / 68 % (moderate) of the label oracle's gain over
-  `cd_exactS_ib0` falls in the first 5 % of the run (SCIENTIST, oracle_diag). **Not yet recorded in a
-  node**; it needs a home before this ADR can be accepted.
+  `cd_exactS_ib0` falls in the first 5 % of the run; after it, the batch-level label gain is 5.35 % /
+  2.75 % of hand seconds (`docs/lineages/ib0_confirm_v1/oracle_loss_diag.md`, "Time split", within-cap
+  batches on 6 cells per rung; scripts in `docs/lineages/ib0_confirm_v1/scripts/`).
 - **Training does not see the opening.** The accel corpus drops states before t = 360 s (MIN_TIME), so
   no accel-seat GNN was trained on the regime that carries ~40 % of the heavy statistic.
 - **Surges started cold as well.** The ×k rungs of `peak_load_v1` and `peak_controls_v1` rescale time,
