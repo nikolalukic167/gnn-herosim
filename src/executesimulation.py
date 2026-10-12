@@ -1228,6 +1228,8 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "HEROSIM_TRANSFER_MODEL",
             "HEROSIM_REPLICA_RELEASE",
             "HEROSIM_SHARED_AUTOSCALER",
+            # audit M3: warmth physics is part of the recorded environment (node_disk_v2 vs platform_reuse_v1, ~100x in live RTT)
+            "HEROSIM_WARMTH_PHYSICS",
             # kpa_scaleout_v1: scale-out rule (legacy | kpa); kpa's resolved target and windows are in stats.scaleOut
             SCALEOUT_ENV,
             "INFERENCE_FEATURE_LAYOUT",
