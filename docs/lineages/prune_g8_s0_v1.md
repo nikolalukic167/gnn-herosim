@@ -9,8 +9,7 @@ reading rules, and both attribution clauses fail: GNN order against cost order �
 The plain reading: **top-k pruning, by any order, of the over-cap batches beats the hand expansion fallback by 1.4–2.1 % at G=8. It is a hand-search improvement, not a GNN
 result.** The cost order alone (arm B, no model) beats `cd_exactS` by −1.89 % / −2.11 %, so *`cd_exactS` plus a top-k prune on over-cap batches* is a new hand-bar candidate.
 **My prediction, a tie with `cd_exactS`, missed.** `cd_exactS` beats `cd` by −9.55 % / −8.15 % (12/12), so the environment is the one `big_groups_s0_v1` measured.
-**Standing slate caveat:** the declared top-5 slate the GNN is trained and served on misprices cold starts (cold = 0 on initialized platforms, where CD's cost charges the table cold
-start), so any GNN-versus-CD statement carries a candidate handicap of unknown size; `slate_bar_v1` is pending.
+**Slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win.
 
 **Why.** `cdxprune` cuts each task's top-5 slate to its top-k in over-cap batches and enumerates the cut slate exactly on S.
 It was run at the current group size (`accel_replica_v1`, 12 topologies, g0, seed 1; harness fix e1cbffa8) and tied live.

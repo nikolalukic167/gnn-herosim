@@ -2,7 +2,7 @@
 
 **Status:** `CLOSED` (2026-10-11) — **NO-WIN** (both arms). Registered 2026-10-10; every bar below was signed before any data.
 
-> ⚠ **Declared-slate defect (caveat added 2026-10-12).** The MLP V was trained on accel corpus tables, which are declared-slate tables: the slate charges no cold start on an initialized platform, the simulation does. Its offline capture and live result are confounded until `slate_bar_v1` (branch `rp/slate-bar`) reads.
+> **Declared-slate caveat (2026-10-12):** `slate_bar_v1` read SLATE-HANDICAP for the GNN (matched-slate, the GNN self-search wins −4.85 / −1.94 %); it did not re-test this MLP V, whose training tables are declared-slate tables.
 
 **Outcome (2026-10-11, gate 856599, 24 fresh topologies × 4 windows × 2 rungs, 768/768 cells, reader 579f7346).**
 - **Neither value term moves cd_exactS live.**
