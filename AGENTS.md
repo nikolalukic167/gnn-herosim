@@ -36,7 +36,7 @@ compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm na
 - **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 %
   (regret 6 %); platforms 95–99 % idle; one-step lookahead headroom 3–5 %; more servers made it easier.
 - **Closed levers:** post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links
-  (`link_bound_s0_v1`), a high-but-stable rung (`high_rho_s0_v1`), supervised plan reranking (`plan_rerank_v1`). Numbers in
+  (`link_bound_s0_v1`), a high-but-stable rung (`high_rho_s0_v1`), supervised plan reranking (`plan_rerank_v1`), GNN-ordered pruning of over-cap batches (`prune_g8_s0_v1`: pruning beats the expansion fallback −1.4 / −2.1 %, but any top-k order does; not learned, not MP). Numbers in
   their index rows.
 - **Knative under R1:** quote only the concurrency-key arm (+48 / +68 % vs CD); the queue-keyed arm herds (gate-tools,
   2026-10-11).
