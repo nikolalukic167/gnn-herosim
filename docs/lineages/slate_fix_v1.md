@@ -196,6 +196,7 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Identity PASS** (job 863950, 43 s): the old gnn_eng seed-1 checkpoint through the eval-only path on its own capped g4 cache gives regret_masked_topo **0.7807019727098458**, bit-equal to its training's recorded best_val (n = 438 val datasets; plan_exact 0.626). Training 863951 started on the `afterok`; both tasks' cache checks PASSED at 4d90119c (3,169 graphs; RTT rows 10,668,160 vs 5,227,936; split 2,674 / 438 / 57).
 - 2026-10-12 — **Identity task 863945 FAILED on a launch defect, before any number:** `OSError: [Errno 24] Too many open files` in the eval DataLoader 33 s in. `slate_fix_v1_eval.sbatch` lacked `ulimit -n 65536` (datalab-pitfalls #11; the training sbatch had it). The `afterok` chain dropped 863946 and 863947, so nothing trained. Fixed in code at 4d90119c and relaunched in worktree `~/gnn-herosim-wt/sf_4d90119c`: identity 863950, training 863951, screen 863952 (`/share/nikola.lukic/slate_fix/screen_4d90119c`), same `afterok` chain.
 - 2026-10-12 — **Launched, by user-ordered amendment** (relayed by the expert): training no longer waits for the `slate_bar_v1` read; the gate order is unchanged.
   - Datalab worktree `~/gnn-herosim-wt/sf_438fa161` (code 438fa161), with `models/` → `~/gnn-herosim/models` and the g4 cache path → `accel_prod/20261010_061132/cache_run/cache` (the identity task's own capped cache).
