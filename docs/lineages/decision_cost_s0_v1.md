@@ -50,7 +50,7 @@ all arms of the seat run through it), after the placements are computed:
 Accel seat as in `ib0_confirm_v1` (160×24, p .6, `fastest_compatible`, KPA, pipelined, `HEROSIM_REPLICA_RELEASE=1`), rungs moderate / heavy, windows
 **g0–g1**, 12 topologies **19405–19416** (reuse the `ib0_confirm_v1` inputs if byte-identical by md5; otherwise mint 12 fresh).
 
-Arms (6, 7 if `ib0` confirms): `cd`, `cd_exactS`, `cd_exactS_ib0` (**only if `ib0_confirm_v1` reads WIN**), GNN self-search s1, `cdxapply` s1, plain
+Arms (7: `ib0_confirm_v1` read PRIMARY WIN, so `cd_exactS_ib0` is in): `cd`, `cd_exactS`, `cd_exactS_ib0`, GNN self-search s1, `cdxapply` s1, plain
 `nosplit` s1. c in {0, 0.1, 0.25, 0.5, 1.0} ms per plan.
 
 ## Hypotheses and bars
@@ -96,3 +96,32 @@ c ≤ 0.5, so the cut reads it at c = 0.25 only; the 0.5 point is the follow-up.
 
 
 2026-10-12 — drafted (558abed3); code not yet written.
+
+2026-10-12 — `ib0_confirm_v1` classical stage read PRIMARY WIN (e7966896): `cd_exactS_ib0` is in the arm list (7 arms; cut grid 7 × 3 × 48 = 1,008 cells, 912 new since `c = 0` of `cd`
+and `cd_exactS` is reused, ≈ 290 cell-hours, a little over a day). Heavy flag-off identity of the oracle-stage code closed IDENT (33dcfe1f).
+
+2026-10-12 — **Amendment 2 (SCIENTIST's review, adopted by the coordinator; committed before any c > 0 data):**
+
+1. **The bar is the hand anytime frontier at equal decision time**, not exact `ib0` paying full c × plans. Hand arms:
+   (a) `cd_ib0` = CD greedy on the ib0 surrogate (`peer_greedy_network_cd`, `HEROSIM_PG_BATCH_ALPHA=0`, no exact search: a flag combination that exists, since the alpha check
+   accepts plain CD; it needs a harness kind, additive); (b) `cd_exactS_ib0` (exact, already in); (c) `cd_exactS_ib0_prune` (ib0 exact with cost-ordered top-k
+   pruning of over-cap batches): **NOT RUN.** The alpha check refuses `HEROSIM_PG_BATCH_ALPHA` together with `HEROSIM_PG_CD_EXACT_PRUNE`, so it is not an existing flag combination; lifting that
+   refusal is a code change that would need its own identity test, and it is listed here as not run rather than added. (Coordinator: say if you want the relaxation as a registered change.)
+   Read: for each c > 0 the best hand arm's latency (per topology, then as the paired contrast) is the bar; a GNN arm WINS only if it beats the best hand arm at that c
+   with the same rule (median ≤ −2 %, Holm p < .05, both rungs, the same arm). The best hand arm is chosen per c at the arm level (the one with the lower
+   median over topologies at that rung), not per topology. Arm list is therefore: `cd`, `cd_ib0`, `cd_exactS`, `cd_exactS_ib0`, GNN self-search s1, `cdxapply` s1, plain `nosplit` s1 (7 arms,
+   `cd_exactS` kept as the old bar). Cut grid c ∈ {0, 0.25, 1.0}: 7 × 3 × 48 = 1,008 cells, 912 new.
+2. **Ground c.** Registered before any read, in `read_plan` of this node:
+   - **Measured:** per-plan wall from the calibration table (wall per batch ÷ `sched_plan_evals` per arm, on the smoke cells), reported per arm, with the 3× rule from the signature.
+   - **External anchor 1 (Kubernetes default scheduler):** kube-scheduler is expected to sustain ≥ 100 pods/s in a 5,000-node cluster (the scheduler_perf target), i.e. ≤ 10 ms per pod,
+     and about 1,000 pods/s (≈ 1 ms per pod) isolated from etcd (kubernetes/kubernetes issue 78208 and the Preferred Networks scheduler benchmark write-up, found by search 2026-10-12).
+   - **External anchor 2 (a research cluster scheduler):** Firmament (Gog et al., OSDI 2016, "Firmament: Fast, Centralized Cluster Scheduling at Scale"): task placement latency about 5 ms on a 40-machine
+     cluster and hundreds of ms at ten-thousand-machine scale.
+   - **Conversion, fixed now:** an anchor is a per-task decision budget B. Our c is per plan, so the anchor in c is `c_anchor(arm) = B / (plans_evaluated per task of that arm at the crossover)`,
+     with plans per task taken from the arm's own `sched_plan_evals / tasks` in the c = 0 cells. Both B values (1 ms and 10 ms from anchor 1, 5 ms from anchor 2) are reported; the decision line uses the
+     largest. These are budgets of production schedulers on hardware and code unlike ours: a reference-CPU model, as already disclosed. **Before the read, each figure is re-read at its source
+     (the figures above come from search result text, not yet from the papers' pages) and the node's numbers are corrected if they differ.**
+   - **Crossover c per GNN arm** = the smallest c in the grid (interpolated linearly between grid points on the paired contrast vs the best hand arm) at which the arm WINS. **If the crossover lies above every
+     anchor (c_anchor of the arm), the result is NO-GO regardless of the Holm result.** If no grid point shows a win, the crossover is "above 1.0 ms" and the result is NO-GO.
+3. **Signed arms stay** (the existing checkpoints). An **ib0-labelled GNN** (labels = argmin of ib0's surrogate; cheap, can cover over-cap batches; built only on the uncapped candidate set) is a registered
+   **SUCCESSOR**, run only if s0 shows a crossover at or below an anchor. Nothing is trained in this node.
