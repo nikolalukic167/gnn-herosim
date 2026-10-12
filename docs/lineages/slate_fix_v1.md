@@ -1,10 +1,22 @@
 # slate_fix_v1 — does the GNN trained and served on the uncapped candidate set close its heavy gap to `cd_exactS`?
 
-**Status:** DRAFT for the expert's signature (2026-10-12, S6). Becomes `REGISTERED` when signed. The LINEAGES.md row is the expert's to write.
-No training, no gate cell, no data yet.
+**Status:** `REGISTERED` (signed by the expert 2026-10-12 at d66ab923; drafted by S6). No training, no gate cell, no data yet.
 
-**Now (2026-10-12).** Code and configs are on `rp/slate-fix`, branched off `rp/corpus-uncap` 9acac361, with the selfsearch_confirm_v1 harness
-merged in. Tests pass. It launches only after three things: S7's recache of the uncapped corpus, the slate_bar_v1 read, and the expert's signature.
+**Now (2026-10-12).** Code and configs are on `rp/slate-fix`. The launch is gated, in this order:
+1. S7's recache and the cache check (`scripts_cosim/slate_fix_v1_cache_check.py`) must pass.
+2. Training waits for the `slate_bar_v1` read, by the user's order. If that read is SLATE-IRRELEVANT, the expert decides whether training still runs.
+3. The eval-only path's end-to-end identity task must pass before the screen; a failure is fixed in code, never rerun.
+
+**What the fix does not touch: read this first if the gap does not move.**
+- **54 over-cap train datasets** (> 100,000 full plans) keep their capped top-5 labels: `untouched_over_cap` in `extend_manifest.*.jsonl`.
+- **648 sub-batched train datasets** are tables cut from a batch whose pruned plan space exceeded the cap. Each is extended within its sub-batch of ≤ 4 tasks, but the peer cut across sub-batches stays in the label.
+- Both counts are from S7's census as relayed by the expert. They are to be re-counted from the final manifests when the build completes; on 2026-10-12, 1,607 train manifest rows were in, with 35 `untouched_over_cap`.
+- The heavy deficit to `cd_exactS` sits in exactly these large, split groups:
+  - the accel GNN's loss is on split 9–10-task groups, about 22 % of tasks;
+  - `selfsearch_gap_v1` found self-search loses on batches ≤ 8 and wins on 9+;
+  - `slate_bar_v1`'s recall falls from 96.7 % (n = 2) to 56.7 % (n = 10) at heavy.
+- So the fix reaches the small and mid batches, where the declared slate's recall was already 85–97 %, and leaves the part of the corpus where the gap lives.
+- A gap that does not move says that part, not the cold-cost defect, is the binding constraint.
 
 ## Question and why
 
@@ -181,4 +193,7 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Signed** by the expert at d66ab923.
+  - The two-config deviation is confirmed: one checkpoint, two serving modes, as the parent did; the byte-equality test is the guard.
+  - Rulings: (1) the launch gating above; (2) the untouched corpus goes in the head; (3) the eval identity task is a prerequisite and a failure is fixed in code; (4) the expert writes the LINEAGES.md row.
 - 2026-10-12 — Drafted (S6) on the expert's request. Code, configs, reader and tests are on `rp/slate-fix`; nothing has run.
