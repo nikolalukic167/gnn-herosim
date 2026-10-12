@@ -136,6 +136,11 @@ class _Stop(Exception):
     pass
 
 
+class _Captured(Exception):
+    """Raised inside the GNN decision replay once the plan scores are taken: the rest of that replay is not needed (and cannot hold the recorded
+    queued tasks, which the GNN policy does not pin)."""
+
+
 def budgeted_search(table, cands, start, kmax):
     """ICM + alpha-expansion from `start` on the true labels. Returns (best-so-far label after each distinct evaluation, evaluations used, converged)."""
     n = len(cands)
@@ -298,6 +303,7 @@ def _gnn_pass(ds, ckpt):
             with torch.no_grad():
                 cap["scores"] = [float(score([combo[pos[i]] for i in range(len(tasks))])) for combo in combos]
             cap["wall"] = time.time() - t0
+            raise _Captured
         return orig_refine(self, tasks, placements, system_state, mode)
 
     fidelity_replay.FidelityReplay.__init__, GNNScheduler._cd_refine = init, refine
@@ -305,10 +311,10 @@ def _gnn_pass(ds, ckpt):
         dec = rollout_replay._one(dict(ds=ds, plan="policy", H=-1.0, continuation="cd_exacts_prg", table=None, eps=0.0))
     finally:
         fidelity_replay.FidelityReplay.__init__, GNNScheduler._cd_refine = orig_init, orig_refine
-    if "error" in dec:
-        raise RuntimeError(dec["error"] + "\n" + dec.get("tb", ""))
     if "scores" not in cap:
-        raise RuntimeError("the GNN refine call never saw the whole batch")
+        raise RuntimeError("the GNN refine call never saw the whole batch: " + str(dec.get("error")) + "\n" + dec.get("tb", ""))
+    if "_Captured" not in str(dec.get("error")):
+        raise RuntimeError(f"the GNN decision replay ended for another reason: {dec.get('error')}")
     return cap["scores"], cap["wall"]
 
 
@@ -492,10 +498,11 @@ def read(a):
     for (rung, n), c in agg.items():
         print(f"\n== {rung} n={n}: {c['states']} states, plans median {c['plans_median']:.0f}, multi-node optimum {100 * c['multi_node_opt']:.0f} %, "
               f"top-2 gap median {100 * c['top2_gap_median']:.2f} %, optimal ties median {c['opt_ties_median']:.0f}")
-        print("   regret % of optimum, median (mean)   [k = 0: pick with no exact evaluation; search arms: k = 1 is the start]")
-        print("  " + hdr)
-        for arm, v in c["arms"].items():
-            print(f"  {arm:9s} " + "".join(f"{100 * v[k]['median']:5.2f}({100 * v[k]['mean']:4.1f})"[:8].rjust(8) for k in (0,) + KS) + f"   [{v['n']} states]")
+        for what, key in (("median", "median"), ("mean", "mean")):
+            print(f"   regret % of optimum, {what}   [k = 0: pick with no exact evaluation; search arms: k = 1 is the start]")
+            print("  " + hdr)
+            for arm, v in c["arms"].items():
+                print(f"  {arm:9s} " + "".join(f"{100 * v[k][key]:8.2f}" for k in (0,) + KS) + f"   [{v['n']} states]")
         print("   share of states within 1 % / 3 %")
         for arm, v in c["arms"].items():
             print(f"  {arm:9s} " + "".join(f"{100 * v[k]['within1']:3.0f}/{100 * v[k]['within3']:<3.0f} " for k in (0,) + KS))
@@ -535,7 +542,7 @@ def main():
     s.set_defaults(fn=select)
     r = sub.add_parser("run")
     r.add_argument("out"); r.add_argument("states")
-    r.add_argument("--ckpt", default=None); r.add_argument("--gnn-max-plans", type=int, default=20000); r.add_argument("--workers", type=int, default=8)
+    r.add_argument("--ckpt", default=None); r.add_argument("--gnn-max-plans", type=int, default=CAP); r.add_argument("--workers", type=int, default=8)
     r.set_defaults(fn=run)
     w = sub.add_parser("walls")
     w.add_argument("out"); w.add_argument("states")
