@@ -1,6 +1,6 @@
-# siv1_full_corpus — ACTIVE
+# siv1_full_corpus — PARKED
 
-> **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-20 → 2026-08-21
+> **Status:** `PARKED` (2026-10-12: no entry since 2026-08-21; the corrected-cache retrain, job 709234, was never gated, and the program moved on) &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-20 → 2026-08-21
 
 **Outcome.** First real live-gate FAILED, then **SUPERSEDED the same day** — it measured an uncommitted code diff, not the model. The synced-code re-gate (job 709163) wins **5/5 on `workload-150-100` and `workload-175-100`**, 2W/1T/2L on `workload-125-225`. Corrected-cache retrain (job 709234) is ungated.
 

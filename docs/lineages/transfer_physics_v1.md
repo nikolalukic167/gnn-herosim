@@ -1,6 +1,6 @@
 # transfer_physics_v1 — do the transfer model and replica holding decide the single-origin ranking?
 
-**Status:** `ACTIVE` (2026-10-07). The 2×2 is read; the third factor (autoscaler scale-out) is registered as its own node,
+**Status:** `SUPERSEDED` (2026-10-08) by the R1 reference physics ([`physics_audit_v1`](physics_audit_v1.md), [`kpa_scaleout_v1`](kpa_scaleout_v1.md)); read 2026-10-07. The 2×2 is read; the third factor (autoscaler scale-out) is registered as its own node,
 [`kpa_scaleout_v1`](kpa_scaleout_v1.md), node 1 of [`reference_physics_programme`](reference_physics_programme.md).
 **Since then (2026-10-08):** under KPA scale-out, self-predict beats CD in both released conditions
 (`kpa_scaleout_v1`); everything below is under the legacy scale-out, where it still holds (a shared-autoscaler control
