@@ -146,6 +146,26 @@ t, a longer trace only adds n.
 
 ## Record (newest first)
 
+- 2026-10-12 — **User-ordered interim read, before the registered single read** (disclosed by the expert; it changes no bar).
+  - At the user's direct instruction, the expert read the `hourlyBins` of the 4 cells finished at that time:
+    CD moderate and heavy, nosplit moderate, and cdxapply moderate.
+  - Interim at moderate, paired % against CD per hour, bins 2–24:
+
+    | contrast | mean | sd | OLS slope × 24 h | bin 1 (warm-up) |
+    |---|---|---|---|---|
+    | nosplit | −5.19 | 2.96 | −0.40 pp | −5.7 |
+    | cdxapply | −4.83 | 3.31 | −0.56 pp | −3.5 |
+
+  - Heavy contrasts were not read; the GNN heavy cells were still running.
+  - The registered single read (`long_horizon_s0_v1_read.py` on all 7 cells, at 0605a5d2) still stands and is the one
+    that closes the node.
+  - These are contrasts against CD; the reader's registered contrasts are against the hand arms it names.
+- 2026-10-12 — **Launched.** Inputs 863306 (moderate 462,166 tasks, 10 cycles; heavy 1,098,577 tasks, 22 cycles; prefix
+  equalities passed).
+  - Smoke 863309 (CD moderate): wall 438 s, MaxRSS 8.0 GB, 24 bins summing to num_tasks.
+  - Cells 863323 (cd_exactS mod), 863324 (nosplit mod), 863325 (cdxapply mod), 863326 (CD heavy), 863327 (nosplit heavy),
+    863328 (cdxapply heavy).
+  - Out `/share/nikola.lukic/long_horizon/probe_0605a5d2`, worktree `~/lh_0605a5d2`.
 - 2026-10-12 — **Inputs job 863303 FAILED in 3 s, before minting anything.** The mint checked the accel manifest's sha256
   against the final gate files. The manifest describes the W2 stage (`inputs_w24`, before the 160-client remap), so the
   check could never pass.
