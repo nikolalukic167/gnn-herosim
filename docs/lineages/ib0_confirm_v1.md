@@ -1,7 +1,8 @@
 # ib0_confirm_v1 — does the hand `ib0` surrogate beat `cd_exactS` on fresh topologies, and does a GNN seed add anything on top of it?
 
-**Status:** `ACTIVE` — classical stage read: PRIMARY WIN, GNN-SEED WIN no; oracle stage read: FAMILY-CLOSES (moderate −2.82 %, borderline) (2026-10-12, signed by the coordinator at 62e51229 with the amendment below). Owner S4. Parent: `plan_rerank_v1`
-(`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record, read once, 12 oracle cells).
+**Status:** `CLOSED` (2026-10-12) — `IB0-NEW-BAR` / `ORACLE-ROOM-UNDER-3 %`. Owner S4. Parent: `plan_rerank_v1` (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record).
+
+**Outcome.** Classical stage: `cd_exactS_ib0` beats `cd_exactS` **−4.73 % / −2.27 %** (moderate / heavy, 12/12) on fresh topologies — the new hand bar. The GNN seed does not clear it. Oracle stage (registered 12-cell read, job 864107): the full-coverage oracle beats `ib0` by only **−2.82 % moderate** (6/6, p .031; 0.18 pp inside the 3 % closing line) and **−1.96 % heavy** (4/6, p .31), coverage 96.0 % / 98.4 % of seen tasks. Consequence: no supervised re-ranker over the declared slate can beat the bar by more than this, so the supervised batch-label family closes; what is left is outside the slate (`slate_fix_v1`) or in decision cost (`decision_cost_s0_v1`).
 
 ## Why
 
