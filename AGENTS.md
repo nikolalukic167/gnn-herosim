@@ -17,33 +17,13 @@ pointwise control. **The MLP is a control, not a straw man** — the program's r
 finding is that it ties, so treat "the MLP cannot match this" as a hypothesis to test, never
 an assumption to write from.
 
-Three routes to a positive answer. All three have been answered; route 2 was later reopened.
-
-1. **Generate better co-sim data** so a GNN beats Knative and the MLP on latency.
-   **Closed by measurement** (`program_verdict_v1`): the co-sim target is
-   pointwise-separable, so the MLP is the *correctly specified* model class and more data
-   cannot change that. Do not restart without reading that node.
-2. **Change the environment** so exploitable joint structure exists. `route_b_env_pivot_v1`
-   is `PARKED` (could not measure S0 on its overlap rungs). **Reopened** via
-   `peer_affinity_v1`: a cost indexed by *pairs of task instances* under a binding cap is
-   neither node-indexed nor routable-around. Before proposing any contention physics, read
-   that node and `dag_fabric_contention_v1` — the one untried non-node-indexed lever, DAG
-   output over the link fabric, is NO-GO before any code, and node-indexed CPU/memory
-   contention is closed by the count theorem it cites.
-3. **Change the training objective, not the environment** (`objective_pivot_v1`).
-   **CLOSED 2026-09-03.** Phase 1 PASSED (reliability, scope-limited to severe collapse),
-   Phase 2 CLOSED (horizon labels are deterministic chaos), Phase 3 MEASURED-NEGATIVE at
-   n = 120 (−0.85 %, p = 0.928, powered). Do not restart without reading that node.
-
-Options 1 and 2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep the
-numbering. What a GNN needs to have anything to learn from a *supervised* target is
-**multi-task placements under contention**: route A proved coupling alone is not enough, and
-route B proved contention alone is not enough either, which is why option 3 changed the
-objective instead.
+Routes 1–3 to a positive answer — better co-sim data, a changed environment, a changed objective — are all answered;
+lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `docs/lineages/throughline.md` → "Routes 1–3".
 
 **Where the research question stands (rewritten 2026-10-12).**
 
-**The bar is `cd_exactS` — exact search on CD's own surrogate S over the top-5 slate, −10 % vs CD. No learned arm beats
+**The bar is `cd_exactS` — exact search on CD's own surrogate S over the top-5 slate, −7 to −11 % vs CD across the accel
+gates (24 topologies −8.6 / −6.8 %, `link_bound_s0_v1` −11.1 / −8.0 %, G8 −9.2 / −7.7 %). No learned arm beats
 it, and no learned win in this programme is a message-passing win.** Seat: R1.1 + WF1, replicas on the fastest
 compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm names: `CONTEXT.md` → Arms.
 - **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 %

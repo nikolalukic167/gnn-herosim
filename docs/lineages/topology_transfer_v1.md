@@ -2,6 +2,8 @@
 
 > **Status:** `FAILED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-18 → 2026-08-21
 
+**Retired 2026-09-01.** The remaining ~14 GPU-h partial gate was cancelled: `link_mp_v1` showed this corpus's 1000 MB/s fabric makes link features label-irrelevant, so no gate on it can answer the question. The serving-port verification and checkpoint-contract machinery stay in force.
+
 **Outcome.** Changed the win condition from per-plan accuracy to inductive generalization across topology sizes — and **all four arms FAILED**, including `gnn_topo`, the only arm that ever had backbone topology in the graph. ⚠ Never live-gated; checkpoints were not persisted until the 2026-08-21 unblock.
 
 **Entry points:** `src/placement/topology_features.py`, `src/placement/network_graph.py`, `scripts_cosim/test_topology_features.py`, `scripts_cosim/test_network_graph.py`, grid `topo_transfer_v1`

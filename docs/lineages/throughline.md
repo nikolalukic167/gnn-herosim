@@ -2,6 +2,8 @@
 
 > **Status:** `SYNTHESIS` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-18 → 2026-09-09
 
+**Now (2026-10-12).** The count-shaped-or-negligible conclusion below covers the supervised single-batch targets it measured. Nothing since overturns it as a message-passing claim: the learned scorers that beat CD in the accel seat are not MP wins (`selfsearch_confirm_v1` ties its MP-OFF twin; `accel_nosplit_v1` trained none), and the instance-pair exception is offline only (2026-09-12 section). Routes 1–3, moved from AGENTS.md, are the last section.
+
 **Outcome.** Cross-lineage synthesis: four mechanisms, one collapse. **In this simulator, coupling is either count-shaped or negligible** — and the negligible half is demonstrated, not assumed. **Closed as a question 2026-09-09:** a graph-reasoning win over a pointwise scorer is not available on this simulator's supervised targets — by the structure of what the simulator computes, not by a shortfall of data, epochs or architecture; the 2026-09-09 section below says why in plain language and what would change the answer.
 
 **Related:** [graph_structure_physics](graph_structure_physics.md) · [network_contention_v1](network_contention_v1.md) · [link_contention_v1](link_contention_v1.md) · [shallow_longexec_v1](shallow_longexec_v1.md)
@@ -313,3 +315,33 @@ every batch is scored into the state it was labelled in; live, 45,375 batches la
 queues. Relabelling on realistic loaded snapshots does not close that gap either — measured, 4,400
 live-visited states, additive R² 0.99999 (`cosim_deepdive_v1`). Full record:
 `docs/lineages/peer_affinity_v1.md`, `serving_gap_v1.md`, `serving_gap_v2.md`.
+
+---
+
+## Routes 1–3 (moved from AGENTS.md, 2026-10-12)
+
+Nodes cite these as "CLAUDE.md option 1/2/3"; the numbering is kept.
+
+Three routes to a positive answer. All three have been answered; route 2 was later reopened.
+
+1. **Generate better co-sim data** so a GNN beats Knative and the MLP on latency.
+   **Closed by measurement** (`program_verdict_v1`): the co-sim target is
+   pointwise-separable, so the MLP is the *correctly specified* model class and more data
+   cannot change that. Do not restart without reading that node.
+2. **Change the environment** so exploitable joint structure exists. `route_b_env_pivot_v1`
+   is `PARKED` (could not measure S0 on its overlap rungs). **Reopened** via
+   `peer_affinity_v1`: a cost indexed by *pairs of task instances* under a binding cap is
+   neither node-indexed nor routable-around. Before proposing any contention physics, read
+   that node and `dag_fabric_contention_v1` — the one untried non-node-indexed lever, DAG
+   output over the link fabric, is NO-GO before any code, and node-indexed CPU/memory
+   contention is closed by the count theorem it cites.
+3. **Change the training objective, not the environment** (`objective_pivot_v1`).
+   **CLOSED 2026-09-03.** Phase 1 PASSED (reliability, scope-limited to severe collapse),
+   Phase 2 CLOSED (horizon labels are deterministic chaos), Phase 3 MEASURED-NEGATIVE at
+   n = 120 (−0.85 %, p = 0.928, powered). Do not restart without reading that node.
+
+Options 1 and 2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep the
+numbering. What a GNN needs to have anything to learn from a *supervised* target is
+**multi-task placements under contention**: route A proved coupling alone is not enough, and
+route B proved contention alone is not enough either, which is why option 3 changed the
+objective instead.
