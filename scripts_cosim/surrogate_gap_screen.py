@@ -490,8 +490,8 @@ def aggregate(rows):
 
 def read(a):
     rows = [json.loads(l) for f in a.rows for l in open(f) if l.strip()]
-    if a.source:                    # error rows carry no `source`; the dataset path does
-        rows = [r for r in rows if f"/{a.source}/" in r["ds"]]
+    if a.source:                    # error rows carry no `source`; their dataset's parent directory names it (heldout / gnn_datasets_wf1_heldout)
+        rows = [r for r in rows if r.get("source", a.source if f"{a.source}" in r["ds"].split("/")[-2] else None) == a.source]
     errs = [r for r in rows if "error" in r]
     agg = aggregate(rows)
     print(f"{len(rows)} rows, {len(errs)} errors; sources {dict(defaultdict(int, {s: sum(1 for r in rows if r.get('source') == s) for s in {r.get('source') for r in rows}}))}")
