@@ -202,6 +202,8 @@ def test_every_mlp_trainer_seeds_torch(trainer):
         "src/notebooks/train.py",
         "src/notebooks/train_ram.py",
         "src/notebooks/train_seq.py",
+        # plan_rerank_v1 Phase 1; its run-twice test is tests/test_plan_selector.py (synthetic cache)
+        "src/policy/plan_rerank/train_selector.py",
     ],
 )
 def test_every_gnn_trainer_pins_deterministic_algorithms(trainer):

@@ -1238,6 +1238,10 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_SERVE_CANDIDATE_SLATE",
             "GNN_SLATE_NO_SPLIT",
             "GNN_SELF_SEARCH",
+            # plan_rerank_v1 Phase 1: the learned plan selector and its smoke permission
+            "GNN_PLAN_SELECTOR",
+            "GNN_PLAN_SELECTOR_SMOKE",
+            "PRSEL_MAX_PLANS",
             "GNN_ARM_KIND",
             # r1_attribution_v1: the seeded-CD arms (CD refine of a plan; the random plan's cell seed)
             "GNN_CD_REFINE",

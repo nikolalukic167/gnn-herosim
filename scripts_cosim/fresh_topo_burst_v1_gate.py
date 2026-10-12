@@ -104,7 +104,15 @@ CAP_KEEP_ALIVE = "1e9"
 CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch",
+            "_prsela", "_prselb", "_prselatw", "_prselbtw")
+# plan_rerank_v1 Phase 1: "_prsel<variant>[tw]" = the no-split learned plan, then the learned plan selector over the step-0 branches U argmin-S
+# (GNN_PLAN_SELECTOR, src/policy/plan_rerank/live.py); variant a = S + learned residual, b = direct scorer, "tw" = the MP-OFF twin. The base
+# is the seed-1 checkpoint the training pool was built with (the selector refuses any other base); the selector checkpoint is
+# models/plan-rerank-v1-<arm>-sel<variant>[twin]-seed<seed>.pt. Over-cap batches serve cd_exactS's plan (HEROSIM_PG_CD_EXACT=1 + expansion).
+PRSEL = {"_prsela": ("a", False), "_prselb": ("b", False), "_prselatw": ("a", True), "_prselbtw": ("b", True)}
+PRSEL_ENV = ("GNN_PLAN_SELECTOR", "GNN_PLAN_SELECTOR_SMOKE", "PRSEL_DIAG_DIR", "PRSEL_MAX_PLANS")  # scrubbed per cell; the prsel arms set them
+R1A_PRSEL = tuple(f"{b}{s}" for b in ("ra_gnn_eng", "ra_gnn_eng_physmp") for s in PRSEL)  # plan_rerank_v1 Phase 1; name them in R1A_ARMS
 # gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
 # accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
 # cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
@@ -153,7 +161,7 @@ R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_e
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + R1A_PRSEL
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
 _LAST_ARRIVAL: Dict[str, float] = {}
@@ -347,7 +355,7 @@ def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
         raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
     topos = [int(x) for x in os.environ.get("R1A_TOPOS", "").split(",") if x] or list(selection["topologies"])
     wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
-    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX)).split(",") if k]
+    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_PRSEL and k not in R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX)).split(",") if k]
     seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
     unknown = [k for k in arms if k not in R1A_ARMS]
     if unknown:
@@ -711,6 +719,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
               "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV, *ORACLE_ENV):
         env.pop(k, None)
+    for k in PRSEL_ENV:
+        env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
@@ -762,7 +772,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = f"joint-burst-v2-{base_kind}"
         # checkpoints and the split file sit at the inputs root (r1a: one set for every rung); an older layout kept them in the rung directory
         mroot = inputs_root if os.path.isdir(os.path.join(inputs_root, "models")) else inputs
-        ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
+        prsel = next((v for s, v in PRSEL.items() if kind.endswith(s)), None)
+        if prsel and base_kind not in ("ra_gnn_eng", "ra_gnn_eng_physmp"):
+            raise SystemExit(f"FAIL LOUD: {kind}: the plan selector exists for ra_gnn_eng and ra_gnn_eng_physmp only")
+        # plan_rerank_v1: the base is the seed-1 checkpoint the pool was built with; `seed` names the selector's draw
+        ck = os.path.join(mroot, "models", f"{stem}-seed{1 if prsel else seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind)
         split = (os.environ.get("R1A_SPLIT", "r1_attribution_v1_split.json") if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
@@ -806,6 +820,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                        HEROSIM_PG_CD_EXACT_PRUNE="gnn" if kind.endswith("_cdxpra") else "cost")
         if kind.endswith(("_nosplit", "_selfsearch")):
             env["GNN_SLATE_NO_SPLIT"] = "1"
+        if prsel:
+            variant, twin = prsel
+            env.update(GNN_SLATE_NO_SPLIT="1", HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1",
+                       GNN_PLAN_SELECTOR=os.path.join(mroot, "models", f"plan-rerank-v1-{base_kind[3:].replace('_', '-')}-sel{variant}{'twin' if twin else ''}-seed{seed}.pt"))
+            if os.environ.get("R1A_PRSEL_SMOKE") == "1":  # a smoke cell may serve a smoke selector; never set for a gate
+                env["GNN_PLAN_SELECTOR_SMOKE"] = "1"
+            if os.environ.get("R1A_PRSEL_DIAG") == "1":
+                env["PRSEL_DIAG_DIR"] = os.path.join(out_dir, "prsel_diag", name)
         if kind.endswith("_selfsearch"):
             env["GNN_SELF_SEARCH"] = "1"
         if kind.endswith(("_selfref", "_selfrefkw")):
@@ -983,7 +1005,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"prune arm expansion flag/counter wrong: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')} (want 0)")
     if expands and not prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) == 0):
         problems.append(f"expansion instrument off: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')}")
-    if not expands and kind != "cd_exactS" and kind != "cd_oracle" and kind not in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXPANSION") or int(c.get("pg_expand_batches") or 0)):
+    if not expands and kind != "cd_exactS" and kind != "cd_oracle" and kind not in EXACT_ALPHA and not kind.endswith(tuple(PRSEL)) and (out["env"].get("HEROSIM_PG_CD_EXPANSION") or int(c.get("pg_expand_batches") or 0)):
         problems.append("a non-expansion arm expanded")
     if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
@@ -993,7 +1015,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         want = EXACT_ALPHA.get(kind, {}).get(name)
         if out["env"].get(name) != want:
             problems.append(f"{name} served {out['env'].get(name)!r}, want {want!r} for {kind}")
-    exact_arm = kind in ("cd_exactS", "cd_oracle", *EXACT_ALPHA) or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb"))
+    exact_arm = kind in ("cd_exactS", "cd_oracle", *EXACT_ALPHA) or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb", *PRSEL))
     prune_arm = kind.endswith(("_cdxpra", "_cdxprb"))
     if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
@@ -1070,10 +1092,22 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                               or int(c.get("pg_pull_charged") or 0) == 0):
         problems.append("pull-hold instrument off: HEROSIM_PG_PULL_HOLD / HEROSIM_PULL_LEDGER not served or pg_pull_charged == 0")
     unsplit, sub_b = int(c.get("slate_declared_unsplit") or 0), int(c.get("slate_declared_sub_batched") or 0)
-    if kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
+    if (kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) or kind.endswith(tuple(PRSEL))) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
         problems.append(f"no-split instrument off: GNN_SLATE_NO_SPLIT={out['env'].get('GNN_SLATE_NO_SPLIT')!r}, unsplit {unsplit} of {sub_b} sub-batched")
-    if not kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
+    if not (kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) or kind.endswith(tuple(PRSEL))) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
         problems.append("a split arm decoded a batch whole")
+    psel = next((v for s, v in PRSEL.items() if kind.endswith(s)), None)
+    if psel:
+        pb, pf, decl = int(c.get("prsel_batches") or 0), int(c.get("prsel_fallback_batches") or 0), int(c.get("slate_declared_batches") or -1)
+        if not out["env"].get("GNN_PLAN_SELECTOR") or int(c.get("prsel_armed") or 0) != 1 or pb == 0 or pb + pf != decl:
+            problems.append(f"plan-selector instrument off: GNN_PLAN_SELECTOR={out['env'].get('GNN_PLAN_SELECTOR')!r}, armed {c.get('prsel_armed')}, "
+                            f"pooled {pb} + fallback {pf} of {decl} declared batches")
+        if int(c.get("prsel_mp_off") or 0) != int(psel[1]):
+            problems.append(f"plan selector served prsel_mp_off={c.get('prsel_mp_off')}, {kind} needs {int(psel[1])}")
+        if out["env"].get("GNN_PLAN_SELECTOR_SMOKE") and os.environ.get("R1A_PRSEL_SMOKE") != "1":
+            problems.append("a smoke selector served outside a smoke run")
+    elif out["env"].get("GNN_PLAN_SELECTOR") or int(c.get("prsel_batches") or 0):
+        problems.append("a non-selector arm ran the plan selector")
     ss = int(c.get("ss_batches") or 0)
     if kind.endswith("_selfsearch") and (out["env"].get("GNN_SELF_SEARCH") != "1" or ss == 0 or ss != int(c.get("slate_declared_batches") or -1)):
         problems.append(f"self-search instrument off: GNN_SELF_SEARCH={out['env'].get('GNN_SELF_SEARCH')!r}, searched {ss} of {c.get('slate_declared_batches')} batches")
