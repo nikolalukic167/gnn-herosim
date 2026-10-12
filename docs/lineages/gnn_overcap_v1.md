@@ -44,7 +44,7 @@ Different mechanism, different claim; neither result transfers to the other. Bot
   - **Checkpoints:** `accel-replica-v1-gnn-eng-seed1.pt` (`/share/nikola.lukic/accel_prod/gate_inputs/models`, the one `big_groups_s0_v1` served as `ra_gnn_eng_selfsearch`) and the twin in
     `/share/nikola.lukic/selfsearch/twin_inputs_8c8ebc7f/models`; the inputs' `models/` directory symlinks both sets (as `prune_g8`'s). The harness sidecar check runs at every cell start; if T fails it, H vs T is "not run" and no
     message-passing claim is made. The two sidecars differ only in `cache_dir`, `disable_message_passing`, `mp_bipartite_edge_attr_zero` and `mp_bipartite_edge_conv` (checked 2026-10-11); corpus-build equality is **unverified**.
-  - **Mechanism and code:** `rp/gnn-overcap` (off `rp/prune-g8` 8301f267). `HEROSIM_PG_CD_OVERCAP=gnn` makes `GnnCdRefiner.refine` test the batch's slate product (task slates of min(candidates, 5), a pinned task counting 1)
+  - **Mechanism and code:** `rp/gnn-overcap` (off `rp/prune-g8` 8301f267). `HEROSIM_PG_CD_OVERCAP=gnn` makes `GnnCdRefiner.refine` test the batch's slate product (task slates of min(candidates, 5), a held-out task counting like any other, since the passes re-choose it)
     against the cap before the passes run, and return the seed when it is above. The predicate `pg_overcap_pred` is a dry counter that runs with the flag on or off.
   - **Learned arms use `R1A_SEEDS=1`; the rule arms seed 0.** The statement is about this checkpoint.
 - **Identity, before the gate (one job, smoke cells, all counted and read):**
