@@ -29,10 +29,12 @@ compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm na
 - **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 %
   (`accel_nosplit_v1`), `gnn_selfsearch` −8.5 / −10.1 % (`selfsearch_confirm_v1`). Heavy: −1 to −4 %, under the −5 % bar.
   `gnn_selfsearch` ties its MP-OFF twin.
-- **Against hand search** (`cd_exactS`, `cdxapply`): tie at moderate, 1.8–3.7 % slower at heavy. ⚠ **Every learned-vs-hand-
-  search verdict in this seat is confounded until `slate_bar_v1` (branch `rp/slate-bar`) reads:** the declared top-5 slate
-  the GNN was trained and served on charges no cold start on an initialized platform, the simulation does, and the top 5
-  differs from CD's on 26 % of tasks (gate-tools, 2026-10-12, on that branch).
+- **Against hand search** (`cd_exactS`, `cdxapply`): tie at moderate, 1.8–3.7 % slower at heavy, **but that deficit is a candidate-set
+  handicap, not a scorer deficit** (`slate_bar_v1`, 2026-10-12): the GNN is trained and served on a declared top-5 slate whose cost charges
+  no cold start on an initialized platform (the simulation does; gate-tools 2026-10-12), while `cd_exactS` may use any candidate. Restricting
+  `cd_exactS` to that slate costs it +4.9 / +5.0 %; with matched information the GNN self-search beats it −4.85 % moderate (21/24, Holm .0003)
+  / −1.94 % heavy (16/24, Holm .04). Still not an MP win (ties its twin). Whether the GNN reaches full-information `cd_exactS` on the uncapped
+  candidate set is `slate_fix_v1` (training). The new hand bar is `cd_exactS_ib0` (`ib0_confirm_v1`: −4.7 / −2.3 % vs `cd_exactS`).
 - **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 %
   (regret 6 %); platforms 95–99 % idle; one-step lookahead headroom 3–5 %; more servers made it easier.
 - **Closed levers:** post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links

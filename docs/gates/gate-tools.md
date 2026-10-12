@@ -10,6 +10,40 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## 2026-10-12 — The declared slate charges no cold start on an `initialized` platform; the simulation does
+
+**Where.** `declared_slate.standalone_cost` (`src/placement/declared_slate.py:46`) sets cold = 0 whenever the candidate payload's
+`initialized` flag is true. That flag is `platform.initialized.triggered` (`src/placement/live_audit.py:197`), a platform-level
+event.
+
+**What the simulation does.** The live simulation applies the table cold start unless the platform's **previous task was the
+same function type** (`sandbox_is_warm`, `src/placement/infrastructure.py:1616`, applied at `:1623–1627`).
+- CD's `_pg_standalone` charges `incoming_cold_start_time` (`src/placement/scheduling_cost.py:71`), which follows the
+  simulation here, so the defect is in the slate, not in CD.
+
+**Replayed proof** (`slate_bar_v1_recall.py cold-probe`, job 863493 at ddc3b5cd). Five batch tasks were forced onto couples the
+two costs price differently.
+- Every target platform was `initialized`, with no previous or current task.
+- The simulation cold-started all five, at exactly the table value.
+- Example: `cc40s16223_heavy_g2` snapshot 287, a cnn task forced to platform 887 on node 176 (xavier).
+  - Declared cost 0.60 s; CD cost 38.60 s.
+  - Simulated `coldStarted = true`, `coldStartTime = 38.0` s.
+- The other four: 0.98, 0.98, 10.62 and 0.096 s, each equal to the table value.
+
+**Consequences.**
+- **Every artifact on `declared_pruning_v1` ranks with this cost:** the accel corpus, `candidate_slate` in the checkpoint
+  sidecars, the GNN's served slate, and `cd_declared`.
+  - On the accel snapshots the declared top 5 differs from CD's own top 5 on 26 % of tasks.
+  - It loses about 10 pp of batch recall of the hand rules' picks at G=8 (`slate_bar_v1`, recall audit).
+- **v1 stays as it is.** The existing artifacts keep it, since it is what the GNN saw, and the matched-information live bar uses it.
+- **A future capped build uses `declared_pruning_v2`** (`slate_bar_v1`): the simulation's cold charge plus the partner composition.
+
+**A second, smaller deviation, in CD's cost.** `incoming_cold_start_time` returns 0 whenever the platform has a `current_task`
+(`scheduling_cost.py:73`). Under `HEROSIM_REPLICA_RELEASE=1`, though, `previous_task` is set to the in-flight task right after its
+cold start (`infrastructure.py:1651`). An incoming task of a different type therefore cold-starts on a busy platform.
+- Not measured here.
+- It is a hand-rule finding for whichever node next changes CD's cost.
+
 ## 2026-10-11 — Under replica release, the Knative arm's least-connected key is blind
 
 `knative_network/scheduler.py:211–213` ranks replicas by `len(queue.items)`. Under `HEROSIM_REPLICA_RELEASE=1` (R1),
