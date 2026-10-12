@@ -196,6 +196,16 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Offline screen (863952; ordering only, never a bar) and smokes submitted.**
+  - Val `regret_masked_topo` (s) on the uncapped cache's 438 held-out tables, seeds 1 / 2 (mean); plan_exact in brackets:
+
+    | arm | new (uncapped-trained) | old (capped g4, scored over the full set) |
+    |---|---|---|
+    | gnn_eng | 0.9633 / 0.7720 (0.868) [0.591 / 0.605] | 1.0625 / 0.8560 (0.959) [0.594 / 0.568] |
+    | twin_eng | 0.9163 / 1.0645 (0.990) [0.580 / 0.580] | 0.8380 / 0.7824 (0.810) [0.573 / 0.559] |
+
+  - Directions only (2 seeds): the new GNN is ahead of the old GNN on the new labels by ~0.09 s on both seeds; the new twin is behind the old twin on both seeds; the new GNN is ahead of the new twin on the mean, while the old twin was ahead of the old GNN. The new checkpoints reproduce their training best_val exactly through this path.
+  - Smokes on 16490 g0, both rungs, at 4d90119c, `SMOKE_IN=/share/nikola.lukic/slate_fix/smoke_inputs`: **B** 864098 (`cd_exactS` + old `ra_gnn_eng_selfsearch` s1, `R1A_SLATE` unset, 4 cells; identity against `selfsearch_confirm/gate_79ea002c`) and **A** 864099 (the 5 new kinds s1 under `declared_pruning_v1_uncapped`, 10 cells).
 - 2026-10-12 — **Training done; gate inputs built and wired.**
   - Training 863951: gnn_eng 2 h 04 m, twin_eng 1 h 19 m; 0 failures; 100/100 epochs each; post-training sidechecks PASS.
     - best_val regret_masked_topo on the UNCAPPED val labels (not comparable to the capped 0.7807; the screen compares like with like): gnn_eng 0.9633 / 0.7720, twin_eng 0.9163 / 1.0645 (seeds 1 / 2); last improvement at epochs 96 (gnn s2), 90 / 82 (twin s1 / s2).
