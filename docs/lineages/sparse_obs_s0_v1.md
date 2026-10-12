@@ -83,6 +83,12 @@ With none set `Observation.from_env()` is None and every score site runs its reg
 Books (`schedulerCounters`): `obs_drain_degraded`, `obs_drain_exact`, `obs_exec_degraded`, `obs_inflight_degraded`, `obs_partner_hidden`, `obs_partner_predicted`. The gate checks that a degraded channel's book is non-zero, that the in-flight book is 0, that the exact queue walk
 is never used by a queue-degraded arm, and that every other arm's books are zero. Arms: `cd_obs_queue_{naive,ec}`, `cd_obs_bundle_{naive,ec}` (stage 1), `cd_obs_exec`, `cd_obs_partners_{naive,ec}` (stage 2).
 
+## Rulings after the smoke (2026-10-12)
+
+- **Partner row = NOT-TESTABLE-IN-SEAT.** The scheduler batches whole peer groups: cross-batch pairs are 438 (moderate) / 86 (heavy) against about 66,000 in-batch pairs in the smoke cells (19405 g0). Nothing is "unarrived and known" in this seat, so the EC two-step estimate has no inputs (`obs_partner_predicted` is 158,388 / 112 evaluations of those few pairs) and EC = NAIVE on partners by construction.
+  The arrival view still hides the batch plan the exact search prices in-batch partners from: it removes A0's in-batch co-location signal. The bundle is therefore a **mixed read dominated by the hidden batch plan**; its VoI is reported as the measured price of removing the batch plan (the smoke cell reads about +100 % at moderate), not as a pass/kill input. The stronger EC (a batch-derived estimate for an unplaced in-batch partner) is not built (ruled).
+- **The kill rule (VoI < 10 % or R < 5 %) applies per channel**: drain on the queue arms in stage 1, exec on the exec arm in stage 2. Warmth is stage 2 and its flag is not written.
+
 ## Rules, written before data
 
 - Statistic: the paired % of mean latency per topology (median over windows), median over topologies, exact Wilcoxon, Holm within VoI and within R (the `prune_g8_gate_read.py` shape). Negative = the first arm faster; here "VoI" = NAIVE slower than A0, reported as a positive loss.

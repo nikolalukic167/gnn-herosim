@@ -8,8 +8,10 @@ and an exact two-sided Wilcoxon (r1_attribution_v1_read.contrast). Negative = th
   R(D)   = EC(D) vs A0      what a hand rule on the same observation cannot recover (the residual a learned scorer could take)
   descriptive: EC(D) vs NAIVE(D)
 
-Registered flags per D and rung: VOI_GE_10 (VoI median >= +10 %), R_GE_5 (R median >= +5 %), D_PASS (both). PHASE0_PASS = some D passes at some rung; otherwise the node closes
-HAND-RECOVERS-UNDER-SPARSITY. Holm over the (D x rung) VoI family and over the R family, reported with the exact p. Counts first (12 per arm and rung), then the instrument
+Registered flags per D and rung: VOI_GE_10 (VoI median >= +10 %), R_GE_5 (R median >= +5 %), D_PASS (both). The kill rule applies per CHANNEL (drain here; exec in stage 2): STAGE1_PASS =
+the queue channel passes at some rung; otherwise the drain channel closes HAND-RECOVERS-UNDER-SPARSITY. The bundle (queue + exec noise + the batch plan hidden) is a MIXED read dominated by
+the hidden batch plan: its VoI is the measured price of removing the batch plan (how much of the hand search's margin is in-batch co-location), reported and not a pass/kill input; its EC arm
+is vacuous on partners (cross-batch pairs are ~0.1-0.4 % of pairs, so the two-step estimate has no inputs) and the partner row is NOT-TESTABLE-IN-SEAT. Holm over the (D x rung) VoI family and over the R family, reported with the exact p. Counts first (12 per arm and rung), then the instrument
 books (degraded channels used, exact queue walks 0 where the queue is degraded, every other book 0).
 
   sparse_obs_v1_gate_read.py --gate <dir> [<dir> ...] --topos t1,...,t12 [--out read.json]
@@ -107,7 +109,8 @@ def read(gates, topos):
     return {"gate": list(gates), "topologies": sel, "n_summaries": len(cells), "n_failed": len(failed),
             "failed_why": sorted({str(f.get("why", "?"))[:80] for f in failed.values()}),
             "counts": counts(cells, failed, topos), "books": bk, "instrument_ok": inst, "INSTRUMENT_OK": all(inst.values()),
-            "contrasts": contrasts, "flags": flags, "PHASE0_PASS": any(f["D_PASS"] for f in flags.values())}
+            "contrasts": contrasts, "flags": flags, "STAGE1_PASS": any(v["D_PASS"] for k, v in flags.items() if k.startswith("queue|")),
+            "BUNDLE_VOI_PCT": {r: contrasts[f"VoI bundle|{r}"]["median_pct"] for r in RUNGS}}
 
 
 def print_report(r):
@@ -128,7 +131,7 @@ def print_report(r):
             print("      " + " ".join(f"{t}:{v:+.1f}" for t, v in c["per_topology"].items()))
     for k, v in r["flags"].items():
         print(f"  flags {k:16s} {v}")
-    print(f"-- INSTRUMENT_OK {r['INSTRUMENT_OK']}   PHASE0_PASS {r['PHASE0_PASS']}")
+    print(f"-- INSTRUMENT_OK {r['INSTRUMENT_OK']}   STAGE1_PASS {r['STAGE1_PASS']}   BUNDLE_VOI_PCT {r['BUNDLE_VOI_PCT']}")
 
 
 def main():

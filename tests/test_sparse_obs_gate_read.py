@@ -42,16 +42,21 @@ def test_counts_instrument_and_pass(monkeypatch):
     patch(monkeypatch, synth(pct(30.0, 8.0)))
     r = G.read(["x"], TOPOS)
     assert all(c["complete"] and c["expected"] == 12 for c in r["counts"].values())
-    assert r["INSTRUMENT_OK"] and r["PHASE0_PASS"]
+    assert r["INSTRUMENT_OK"] and r["STAGE1_PASS"]
     assert r["contrasts"]["VoI bundle|heavy"]["median_pct"] == pytest.approx(30.0, abs=0.3)
     assert r["flags"]["queue|heavy"]["D_PASS"] and "p_holm" in r["contrasts"]["R queue|moderate"]
 
 
 def test_kill_when_the_channel_is_worth_little_or_the_residual_is_small(monkeypatch):
     patch(monkeypatch, synth(pct(30.0, 2.0)))
-    assert not G.read(["x"], TOPOS)["PHASE0_PASS"]
+    assert not G.read(["x"], TOPOS)["STAGE1_PASS"]
+    d = pct(5.0, 1.0)
+    d[G.arm("bundle", "naive")], d[G.arm("bundle", "ec")] = 100.0, 60.0   # a big bundle does not pass the drain channel
+    patch(monkeypatch, synth(d))
+    r = G.read(["x"], TOPOS)
+    assert not r["STAGE1_PASS"] and r["BUNDLE_VOI_PCT"]["heavy"] == pytest.approx(100.0, abs=0.3)
     patch(monkeypatch, synth(pct(5.0, 1.0)))
-    assert not G.read(["x"], TOPOS)["PHASE0_PASS"]
+    assert not G.read(["x"], TOPOS)["STAGE1_PASS"]
 
 
 def test_instrument_fails_on_an_exact_queue_walk_or_a_degraded_reference(monkeypatch):
