@@ -174,6 +174,22 @@ def slate_counts(cells: dict) -> dict:
     return out
 
 
+def code_commits(dirs: Sequence[str]) -> Dict[str, List[str]]:
+    """Audit M1: the commits the cells ran at, per gate directory (A/B at 4d90119c, B2 at d192081f), and the reader's own."""
+    import glob
+    import subprocess
+    out = {}
+    for d in dirs:
+        shas = set()
+        for f in glob.glob(os.path.join(d, "*.summary.json")):
+            shas.add(((json.load(open(f)).get("code") or {}).get("commit")) or "unrecorded")
+        out[d] = sorted(shas)
+    here = os.path.dirname(os.path.abspath(__file__))
+    rc = subprocess.run(["git", "rev-parse", "HEAD"], cwd=here, capture_output=True, text=True)
+    out["reader"] = [rc.stdout.strip() if rc.returncode == 0 else "unknown"]
+    return out
+
+
 def read(new: Sequence[str], old: Sequence[str]) -> dict:
     cells, failed = load(new, old)
     cells = {k: v for k, v in cells.items() if k[4] in RUNGS}
@@ -182,7 +198,7 @@ def read(new: Sequence[str], old: Sequence[str]) -> dict:
     bad = sorted({k[2] for k in failed})
     sens = {k: v for k, v in cells.items() if k[2] not in bad}
     new, old = ([d] if isinstance(d, str) else list(d) for d in (new, old))
-    return {"new": new, "old": old, "topologies": topos, "n_summaries": len(cells), "n_failed": len(failed),
+    return {"new": new, "old": old, "code_commits": code_commits(list(new) + list(old)), "topologies": topos, "n_summaries": len(cells), "n_failed": len(failed),
             "arm_table": R.arm_table(cells, failed, {}), "slate": slate_counts(cells), "main": families(cells, topos),
             "sensitivity": {"excluded_topologies": bad, "families": families(sens, [t for t in topos if t not in bad])}}
 
@@ -192,6 +208,7 @@ def print_report(r: dict) -> None:
     m = r["main"]
     print(f"{r['n_summaries']} summaries, {r['n_failed']} failed, {len(r['topologies'])} topologies"
           + (" | NOT-COMPARABLE: cd_exactS is not faster than CD at both rungs" if not m["comparable"] else ""))
+    print("-- code: " + "; ".join(f"{os.path.basename(k.rstrip('/'))} {','.join(c[:8] for c in v)}" for k, v in r["code_commits"].items()))
     print("-- cells per arm and rung (finished/failed, median wall s)")
     for k, a in r["arm_table"].items():
         print(f"  {k:40s} {a['finished']:4d}/{a['failed']:<3d} wall {f(a['median_wallclock_s'], 0)}")
