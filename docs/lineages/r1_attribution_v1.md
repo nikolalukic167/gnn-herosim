@@ -17,7 +17,8 @@
   - CD←random is slower than CD: +1.35 / +4.28 / +3.91 %.
 - **Other arms:**
   - Random placement (fixed, 454 of 456 cells): +32.8 / +119.6 / +154.9 %.
-  - Knative: +26 % at light and collapses at moderate and heavy.
+  - Knative (the queue-keyed arm, blind under replica release; gate-tools 2026-10-11): +26 % at light and collapses at
+    moderate and heavy. The concurrency-key arm does not collapse (`accel_nosplit_v1`).
   - CD decides 10× faster than any learned arm (prediction 7).
 - **gnn_raw addendum (S1, does not change the verdict).** Message passing helps the raw-plan arm: gnn_raw vs twin_raw
   −4.75 / −4.62 / −7.99 %, Holm-confirmed at every rung (19/17/18 of 19). Prediction 2 holds in direction, below its

@@ -154,7 +154,8 @@ window, uncapped, Q = 100, cells s7901 / s9001 / s9002. Do not re-run this confi
 
 **Why.** The guardrail is not broken and not unsafe — it bound on **84–90 %** of decisions and
 produced **0 hangs**, where `GNN_PREFIX_PLATFORM_CAP` deadlocks 3/16 seeds in this same regime.
-It simply does not deliver: **0/3 cells beat reactive Knative** (−35.2 %, −5.1 %, −216.3 %),
+It simply does not deliver: **0/3 cells beat reactive Knative** (−35.2 %, −5.1 %, −216.3 %; unpaired, pre-2026-09-20 —
+the stop stands either way, since no cell wins),
 and its paired effect runs the wrong way across cells — **+36.0 %** on s7901, **+1.5 %** on
 s9001, **−13.6 %** on s9002, which is the cell where the arms were *least* stable. "Stabilise
 the runaway arm and it recovers" predicts the opposite of what s9002 did.
