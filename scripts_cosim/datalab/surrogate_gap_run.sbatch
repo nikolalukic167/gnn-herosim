@@ -12,7 +12,7 @@
 #SBATCH --time=24:00:00
 set -euo pipefail
 WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}; O=${O:?FAIL LOUD: set O}
-PER_N=${PER_N:-60}; GAPGNN_MAX=${GAPGNN_MAX:-20000}; WALLS=${WALLS:-3}; WORKERS=${WORKERS:-30}
+PER_N=${PER_N:-60}; GAPGNN_MAX=${GAPGNN_MAX:-100000}; WALLS=${WALLS:-3}; WORKERS=${WORKERS:-30}
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|WF1_)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
@@ -28,6 +28,6 @@ CK=/share/nikola.lukic/accel_prod/gate_inputs/models/accel-replica-v1-gnn-eng-se
 mkdir -p "$O"
 python3 -m pytest tests/test_surrogate_gap_screen.py -q 2>&1 | tail -3
 python3 scripts_cosim/surrogate_gap_screen.py select $O/states.tsv $U/heldout:heldout $U/train:train --per-n $PER_N
-python3 scripts_cosim/surrogate_gap_screen.py walls $O/walls.jsonl $O/states.tsv --per-cell $WALLS --plans 5 --workers 16
-python3 scripts_cosim/surrogate_gap_screen.py run $O/rows.jsonl $O/states.tsv --ckpt $CK --gnn-max-plans $GAPGNN_MAX --workers $WORKERS
+python3 scripts_cosim/surrogate_gap_screen.py walls $O/walls.jsonl $O/states.tsv --per-cell $WALLS --plans 5 --workers 16 > $O/walls.log 2>&1
+python3 scripts_cosim/surrogate_gap_screen.py run $O/rows.jsonl $O/states.tsv --ckpt $CK --gnn-max-plans $GAPGNN_MAX --workers $WORKERS > $O/run.log 2>&1
 python3 scripts_cosim/surrogate_gap_screen.py read $O/rows.jsonl --walls $O/walls.jsonl --json $O/read.json | tee $O/read.txt
