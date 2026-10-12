@@ -2,6 +2,8 @@
 
 > **Status:** `CLOSED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Registered:** 2026-08-30, before any arm existed &nbsp;·&nbsp; **Closed:** 2026-08-31
 
+**Newest (2026-09-03, exploration pilot, not a gate).** A corpus-matched MLP (4 seeds) ties the frozen GNN: −43.9 to −50.6 % vs Knative against the GNN's −44.8 %. So "GNN −44.8 % vs MLP −29.2 %" is a corpus effect, not a model-class result. Every vs-Knative number in this node is unpaired (pre-2026-09-20).
+
 **Question.** [mp_ablation_v1](mp_ablation_v1.md) closed with a null whose every
 descriptive line pointed at MP-OFF ≥ MP-ON, and explicitly could not distinguish
 **(a)** "message passing is unhelpful here" from **(b)** "message passing runs over the

@@ -2,6 +2,8 @@
 
 > **Status:** `PARKED` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md)
 
+**Newest (2026-08-29).** The three route_b co-sim corpora (588 datasets, 55 GB) were deleted from datalab to free `/home`; none was in `REGISTRY.json`. Resuming means regenerating them.
+
 **Outcome.** **PARKED 2026-08-28** (user decision; closing entry below). The screen could
 not measure S0 on either `replica_overlap` rung — **NOT** "no exploitable joint structure
 exists": Arm S's bars were never read on H2/H3 and the same grid shape passed all four
