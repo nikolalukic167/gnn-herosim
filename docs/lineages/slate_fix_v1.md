@@ -198,6 +198,28 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **SINGLE READ: E-FASTER for both new arms against both references; the uncapped retrain does not close the heavy gap.** Read job 864248 from `rp/slate-fix-int` bd22e31c (`--new gate_A_4d90119c --old gate_B_4d90119c gate_B2_d192081f`). 816/816 summaries, 0 failed, 12 topologies; cells at 4d90119c (A, B) and d192081f (B2). Report: `slate_fix_v1/read_bd22e31c.txt`; JSON `/share/nikola.lukic/slate_fix/read_bd22e31c.json` (md5 fbfc444f).
+  - Comparable: `cd_exactS` beats CD −8.20 % (12/12) / −6.98 % (11/12). `cd_exactS_ib0` beats `cd_exactS` −4.68 % (12/12) / −1.34 % (11/12).
+  - **Primary (Holm over 8)**, per-topology median of the paired %, + = the hand search faster:
+
+    | new arm | vs `cd_exactS_ib0` (the bar) mod / heavy | vs `cd_exactS` mod / heavy |
+    |---|---|---|
+    | self-search | +2.62 % (3/12, Holm .028) / **+5.34 %** (0/12, .004) | −2.08 % (9/12, .26) / +3.70 % (1/12, .005) |
+    | no-split | +2.78 % (1/12, .005) / **+7.38 %** (0/12, .004) | −1.21 % (9/12, .26) / +4.14 % (0/12, .004) |
+
+    Labels: **E-FASTER** for both arms against both references. Against `cd_exactS` at moderate the GNN is ahead only in direction.
+  - **Gap change** (new vs `cd_exactS` minus old vs `cd_exactS`): heavy **grew**, +0.95 pp self-search (shrank on 2/12) and +1.36 pp no-split (4/12); moderate shrank −1.32 / −1.18 pp (10/12 each).
+  - **Data effect** (new vs old checkpoint, Holm over 4): moderate −1.70 % self-search, −0.79 % no-split (p .03 each, Holm .11, DIRECTION-ONLY); heavy +1.10 / +0.58 %, NOT-SEPARATED. So uncapping helped at moderate in direction only and did not help at heavy.
+  - **MP** (new gnn vs new twin, Holm over 4): no-split **−2.57 % heavy (12/12, Holm .002, CONFIRMED)**, −1.55 % moderate (11/12, Holm .004; below the −2 % bar, so DIRECTION-ONLY); self-search −0.65 / −0.62 %, n.s. Two training seeds per arm. A message-passing direction on the no-split decode only, not a win over any hand arm.
+  - Descriptive: new cdxapply ties `cd_exactS` (+0.17 / +0.63 %, n.s.) and beats CD −7.01 / −7.67 % (12/12). Old self-search vs `cd_exactS` is −1.14 / +3.30 % on these topologies, close to selfsearch_confirm_v1's −1.03 / +3.51 %.
+  - **Served slate (M4):** the uncapped slate raises the sub-batched task share from 10.3–10.6 % to 14.8–16.1 % at moderate and from 15.4–15.7 % to 22.7–23.9 % at heavy. Self-search's ascent share rises 15.6 → 22.5 % (moderate) and 20.3 → 33.5 % (heavy). Pruned batches 0 (old: 0.30–0.40 M). So uncapping moved more heavy batches into sub-batching and into coordinate ascent, the regime the head named as the binding constraint.
+  - Queue proxy (queue component only, Q1 dropped, outside every family): self-search's mean queue over Q2–Q4 is +40 / +45 % vs `cd_exactS_ib0` (0/12); no-split's is +5.4 / +1.4 % (n.s.).
+  - No failed cells, so there is no sensitivity pass. **No steady-state latency is available for this gate** (raw per-task results deleted before c81f0e88).
+  - **Predictions scored:**
+    - Expert (heavy gap shrinks 2–4 pp, NOT-SEPARATED): missed; it grew 1–1.4 pp and stays E-FASTER.
+    - S6, missed: the heavy gap shrinking by 0.5–2 pp (it grew); heavy data effect −0.5 to −2 % (+1.10 / +0.58 %); MP NOT-SEPARATED (no-split separates).
+    - S6, partly right: heavy self-search +1.5 to +3 % (+3.70 %, just outside).
+    - S6, right: E-FASTER at heavy for both arms; no WIN; no-split +3.5 to +5 % (+4.14 %); moderate no-split within ±1.5 %.
 - 2026-10-12 — **Audit items done before the read (no physics change; the gates keep running at 4d90119c / d192081f).** The expert relayed an independent audit: no cited number wrong; four MAJOR, two minor items on this branch.
   - M2 (5a1255ff): `experiments/accel_replica_v1_split.json` tracked (sha f5bc4f51, equal at `sf_4d90119c` and `accel_uncap/4f41b771/cache_run/split.json`). `tests/test_split_artifacts_tracked.py` checks configs, and with `HEROSIM_SIDECAR_DIRS` every sidecar. Run on datalab: 90 sidecars naming this split resolve with the recorded sha. Four other untracked splits named by older configs are listed (joint_burst_v2, r1_attribution_v1 and its smoke, scale_160_v1); that list may only shrink.
   - M1: integration branch **`rp/slate-fix-int`** = rp/slate-fix + merge of d192081f. One conflict, the arm lists in `fresh_topo_burst_v1_gate.py`, resolved as the union. 355 tests pass across the serving, contract, ib0, oracle, declared-slate and r1a suites. The 3 failures were present before the merge: `test_pg_inflight` ×2 (a stale `exec_scale` lambda) and `test_skew_warmth_v2_grid` (a missing local trace).
