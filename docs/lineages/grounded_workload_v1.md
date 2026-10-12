@@ -4,6 +4,8 @@
 Registered 2026-09-27; every bar below was signed before any gate datum existed (the only runs seen before
 signing were a 3,000-event smoke of three rules on one cell, disclosed below).
 
+> ⚠ **Origin model (caveat added 2026-10-12).** Measured on the grounded mint with scattered request origins (97 % of multi-task groups span clients). With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
+
 **Outcome** (job 810898, 1,046/1,058 runs, 43/48 cells admissible, witness passed, no reliability flag):
 - **G1** `xs1load_selfref` vs CD **+0.43 %**, p = 0.57, 6/12 — a tight tie (per topology −5.6 to +3.0 %).
 - **G2** vs self-predict −0.91 %, p = 0.76 — tie.

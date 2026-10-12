@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-11) — **NO-GO; live G8: HAND-SEARCH-FASTER.** Registered 2026-10-11; every bar below was
 signed before its data.
 
+> ⚠ **Declared-slate defect (caveat added 2026-10-12).** The GNN's declared top-5 slate charges no cold start on an initialized platform; the simulation does. Learned-vs-hand-search contrasts here (`cd_exactS`, `cd_expand`, `cdxapply`, label-optimal plans) are confounded until `slate_bar_v1` (branch `rp/slate-bar`) reads. Contrasts against plain `cd` are not affected in the GNN's favour.
+
 **Outcome.**
 - **Screen NO-GO as registered:** at G=8 the M2 clause fails in both conditions. M2 fails partly by construction, a
   recorded design flaw, not re-defined after the read.

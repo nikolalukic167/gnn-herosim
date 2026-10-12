@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-10) — **NOT-SEPARATED** (no WIN). Registered 2026-10-10; every bar below was signed before
 its data.
 
+> ⚠ **Declared-slate defect (caveat added 2026-10-12).** The GNN's declared top-5 slate charges no cold start on an initialized platform; the simulation does. Learned-vs-hand-search contrasts here (`cd_exactS`, `cd_expand`, `cdxapply`, label-optimal plans) are confounded until `slate_bar_v1` (branch `rp/slate-bar`) reads. Contrasts against plain `cd` are not affected in the GNN's favour.
+
 **Outcome.** Putting replicas on the fastest platform moves the GNN from behind CD to ahead of it at moderate, but not
 at heavy, so it is no registered win.
 - **Gate:** learned arms 855703 at 9e5ee729, classical 855432 at fcd47841, paired on identity. 12 fresh topologies;
