@@ -1,6 +1,6 @@
 # warm_surge_s0_v1 — does a surge onto a warm, loaded accel cluster move the hand headroom or the GNN gap?
 
-**Status:** `REGISTERED` (2026-10-12; designed by SCIENTIST, signed by the coordinator as drafted, with the two notes applied below). Phase 0, live, no training. Owner S5;
+**Status:** `ACTIVE` (0a read 2026-10-12; registered the same day as `REGISTERED` (2026-10-12; designed by SCIENTIST, signed by the coordinator as drafted, with the two notes applied below). Phase 0, live, no training. Owner S5;
 S5 implements it after the `sparse_obs_s0_v1` stage-2 read. Parents read: `ib0_confirm_v1` (the bar, and its post-close time split
 `ib0_confirm_v1/oracle_loss_diag.md` § Time split), `peak_load_v1`, `cd_gap_v1`, `sparse_obs_s0_v1`, ADR 0004.
 
