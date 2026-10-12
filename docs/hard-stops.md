@@ -380,3 +380,23 @@ on the right workload."
 **Measurement:** retrained, `so1load` vs CD +13.1 / +7.3 % (CD Holm-faster) and −3.5 % (not separated), within 1–2 % of the
 scattered-trained checkpoint served zero-shot; the raw-plan GNN retrained the same way loses to CD +19 / +18 / +13 %.
 Revive only with a different input or objective, not with more of the same corpus.
+
+## Two-level Alibaba fan-out as a hidden-partner lever for a learned scheduler (2026-10-12)
+
+**Closed by:** `two_level_fanout_probe` (S7; `scripts_cosim/two_level_fanout_probe.py` at `7c074a15` on `rp/surrogate-gap`), offline on the four Alibaba MSCallGraph shards behind the grounded
+fan-out libraries (0, 50, 100, 130; md5 and row counts checked against each library; first 40,000 requests by arrival, the library's trace ids). Outputs
+`/share/nikola.lukic/surrogate_gap/alibaba_fanout/probe_{0,50,130,100}.json` (the raw shards are kept beside them as source data). Kill line agreed with SCIENTIST before the run: if the joint
+first-level features reduce held-out width error by < 10 % relative to the per-service table, stop before code. Ruled STOP by the coordinator (`expert`).
+
+**Direction:** "a two-level workload from the MSCallGraph trees, where a child fan-out (which services, what width) is revealed only when its parent completes, gives a learned scheduler hidden
+partner information a hand rule lacks."
+
+**Measurement:** unit = a call in a first-level fan-out (≥ 2 siblings); its second level is the calls under its rpcid (width, callee-service set). Held-out (5-fold by request and a temporal split)
+width RMSE of a gradient-boosted model on the joint first-level features (callee, caller, call type, sibling count, sibling multiset, rank) against the per-service table:
+shard 0 −2.6 % (temporal −4.9 %), shard 50 −4.8 % (−7.7 %), shard 130 −7.7 % (−5.6 %), shard 100 −6.8 % (−9.4 %); MAE is 20–35 % **worse** than the table's median in every shard (83 % of
+members are leaves, the median is 0). Every figure is under the 10 % line. The service-set signal is real but is a request template: held-out cross-entropy of the set falls 25 % (shard 0: 1.15 → 0.86
+bits) and exact-set match among members with children rises 26 → 45 % (shards: 20-28 → 36-46 %), almost all of it from the sibling-multiset context, i.e. a table keyed on the realised first-level set.
+Base rates: 82–89 % of requests have a second level, 82–84 % of first-level members are leaves, median second-level width 2 (p90 9). The second level is recoverable from the first by a static table,
+so there is no learnable residual that a hidden-information policy could exploit.
+
+Do not revive unless the lever is something the first level does not identify (an unrevealed attribute, not a repeated template), or the sibling-set template is shown not to repeat in the target workload.
