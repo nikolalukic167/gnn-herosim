@@ -463,8 +463,9 @@ def aggregate(rows):
     for r in rows:
         if "error" not in r:
             cells[(r["rung"], int(r["n"]))].append(r)
+            cells[(r["rung"], 0)].append(r)            # n = 0: the rung pooled over every batch size
     out = {}
-    for key, rs in sorted(cells.items()):
+    for key, rs in sorted(cells.items(), key=lambda kv: (kv[0][0], kv[0][1] == 0, kv[0][1])):
         cell = {"states": len(rs), "plans_median": st.median(r["plans"] for r in rs),
                 "multi_node_opt": sum(r["multi_node_opt"] for r in rs) / len(rs),
                 "top2_gap_median": st.median(r["top2_gap_rel"] for r in rs if r["top2_gap_rel"] is not None),
@@ -496,7 +497,7 @@ def read(a):
         print("  ERROR", e["ds"], e["error"])
     hdr = "k:        " + "".join(f"{k:>8d}" for k in (0,) + KS)
     for (rung, n), c in agg.items():
-        print(f"\n== {rung} n={n}: {c['states']} states, plans median {c['plans_median']:.0f}, multi-node optimum {100 * c['multi_node_opt']:.0f} %, "
+        print(f"\n== {rung} n={n if n else '2-6 pooled'}: {c['states']} states, plans median {c['plans_median']:.0f}, multi-node optimum {100 * c['multi_node_opt']:.0f} %, "
               f"top-2 gap median {100 * c['top2_gap_median']:.2f} %, optimal ties median {c['opt_ties_median']:.0f}")
         for what, key in (("median", "median"), ("mean", "mean")):
             print(f"   regret % of optimum, {what}   [k = 0: pick with no exact evaluation; search arms: k = 1 is the start]")
