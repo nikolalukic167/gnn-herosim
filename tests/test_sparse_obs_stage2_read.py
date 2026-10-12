@@ -68,5 +68,5 @@ def test_steady_state_lines_are_labelled_descriptive_and_outside_the_flags(monke
     r = G.read(["x"], TOPOS)
     ss = r["steady_state_descriptive"]
     assert ss[f"{G.WN} vs {G.AP}|heavy|after_360s"]["median_pct"] == pytest.approx(r["contrasts"][f"{G.WN} vs {G.AP}|heavy"]["median_pct"], abs=0.5)
-    assert all(c["family"].startswith("steady:") for c in ss.values()) and len(ss) == 2 * 4 * 2
+    assert all(c["family"].startswith("steady:") for c in ss.values()) and len(ss) == 3 * 2 * 2
     assert "steady" not in str(r["flags"])
