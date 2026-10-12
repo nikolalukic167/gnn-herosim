@@ -1,0 +1,20 @@
+{
+ "verdict": "DESIGN-READY",
+ "lineage": "plan_rerank_v1",
+ "phase": 0,
+ "clients": 160,
+ "servers": 24,
+ "connection_probability": 0.6,
+ "topologies": [
+  19300,
+  19301,
+  19302,
+  19303,
+  19304,
+  19305
+ ],
+ "windows": [
+  "g0",
+  "g1"
+ ]
+}

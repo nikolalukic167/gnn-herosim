@@ -339,3 +339,30 @@ def maybe_capture_batch_live_audit_snapshot(
     with open(output_path, "a") as f:
         f.write(json.dumps(snapshot, separators=(",", ":")) + "\n")
     scheduler._audit_snapshots_written = written + 1
+
+
+def capture_batch_snapshot(
+    scheduler: Any,
+    system_state: "SystemState",
+    batch_tasks: List["Task"],
+    policy_name: str,
+) -> Dict[str, Any]:
+    """The snapshot `maybe_capture_batch_live_audit_snapshot` would write for this batch, returned instead of written and with none of its
+    filters (plan_rerank_v1: the live oracle replays every batch). A read of the live state: no SimPy event, no counter, no file."""
+    scheduler._drain_memo = {}
+    try:
+        snapshot = {
+            "snapshot_id": 0,
+            "time": float(scheduler.env.now),
+            "policy": policy_name,
+            "horizon": len(batch_tasks),
+            "trigger_task_id": int(batch_tasks[0].id),
+            "chosen": None,
+            "full_queue_snapshot": scheduler._capture_full_queue_snapshot(),
+            "tasks": [_task_payload(scheduler, system_state, task) for task in batch_tasks],
+            "replicas_by_type": _replicas_by_type_payload(system_state, orchestrator_of(scheduler), scheduler._drain_memo),
+        }
+        snapshot["fidelity"] = snapshot_fidelity.capture(scheduler, system_state, batch_tasks)
+    finally:
+        scheduler._drain_memo = None
+    return snapshot
