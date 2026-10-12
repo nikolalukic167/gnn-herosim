@@ -1008,6 +1008,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                        HEROSIM_PG_ORACLE_SEARCH="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
                        HEROSIM_ORACLE_SIM_INPUT=os.path.join(REPO, "data/nofs-ids"), HEROSIM_ORACLE_WORKERS=os.environ.get("R1A_ORACLE_WORKERS", "8"), **ib0_alpha(kind))
             env["ORACLE_DIAG_DIR"] = os.path.join(out_dir, "oracle_diag", name)
+            if os.environ.get("R1A_ORACLE_TERMS") == "1":
+                env["ORACLE_DIAG_TERMS"] = "1"
             for src_env, dst in (("R1A_ORACLE_MAX_PLANS", "HEROSIM_PG_ORACLE_MAX_PLANS"), ("R1A_ORACLE_SEARCH_BUDGET", "HEROSIM_PG_ORACLE_SEARCH_BUDGET")):
                 if os.environ.get(src_env):
                     env[dst] = os.environ[src_env]
