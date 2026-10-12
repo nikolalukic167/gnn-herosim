@@ -2,12 +2,12 @@
   "schema_version": "1.0.0",
   "generated_at": "2026-08-26T14:44:00.186959Z",
   "summary": {
-    "total_collections": 22,
-    "active_collections": 21,
+    "total_collections": 23,
+    "active_collections": 22,
     "deprecated_collections": 1,
     "archived_collections": 0,
-    "total_datasets": 4233,
-    "completed_datasets": 4029
+    "total_datasets": 7402,
+    "completed_datasets": 7198
   },
   "collections_by_status": {
     "active": [
@@ -31,7 +31,8 @@
       "gnn_datasets_dag4_route_b_smoke_s",
       "hetero_large_knative_eval_20260606",
       "hetero_small_knative_eval_20260606",
-      "hetero_small_knative_eval_5tasks_20260606"
+      "hetero_small_knative_eval_5tasks_20260606",
+      "accel_uncap_4f41b771"
     ],
     "deprecated": [
       "gnn_datasets_1task"
@@ -74,6 +75,9 @@
       "gnn_datasets_dag4_route_b_pilot_v1_arm_s",
       "gnn_datasets_dag4_route_b_smoke_b0",
       "gnn_datasets_dag4_route_b_smoke_s"
+    ],
+    "accel_corpus": [
+      "accel_uncap_4f41b771"
     ]
   },
   "collections": {
@@ -1834,6 +1838,57 @@
         "queue_depth_mean": 27.86,
         "queue_depth_stddev": 9.43,
         "avg_placements_per_dataset": 3674.7
+      }
+    },
+    "accel_uncap_4f41b771": {
+      "collection_name": "accel_uncap_4f41b771",
+      "version": "v1",
+      "status": "active",
+      "created_date": "2026-10-12",
+      "grid_preset": null,
+      "problem_category": "accel_corpus",
+      "generation_params": {
+        "tool": "scripts_cosim/extend_corpus_slate.py",
+        "code_commit": "4f41b771",
+        "max_plans": 100000,
+        "link_untouched": true,
+        "parent_corpus": "/share/nikola.lukic/workload_fix_v1/accel_replica_corpus/gnn_datasets_wf1_{train,heldout}",
+        "location": "/share/nikola.lukic/accel_uncap/4f41b771/{train,heldout}"
+      },
+      "physics": {
+        "warmth_model": "node_disk_v2",
+        "queue_feature_contract": "legacy_v0",
+        "candidate_slate": "declared_pruning_v1_uncapped",
+        "candidate_slate_rules": [
+          "declared_pruning_v1",
+          "declared_pruning_v1_uncapped"
+        ]
+      },
+      "purpose": "The accel corpus with the declared top-5 candidate cap lifted on every dataset whose full plan space is within 100,000 plans; stored plans are kept verbatim (not re-simulated), only the missing plans are replay-scored.",
+      "hypothesis": "",
+      "results": {
+        "total_datasets": 3169,
+        "completed_datasets": 3169,
+        "train": {
+          "extended": 1767,
+          "untouched_already_full": 910,
+          "untouched_over_cap": 54,
+          "plans_before": 1490170,
+          "plans_after": 6152545,
+          "old_best_beaten": 417
+        },
+        "heldout": {
+          "extended": 258,
+          "untouched_already_full": 171,
+          "untouched_over_cap": 9,
+          "plans_before": 347885,
+          "plans_after": 1125734,
+          "old_best_beaten": 49
+        },
+        "check_job": 863723,
+        "check_json": "/share/nikola.lukic/accel_uncap/4f41b771/check_{train,heldout}.json",
+        "cache": "/share/nikola.lukic/accel_uncap/4f41b771/cache_run/cache (job 863752, rp/corpus-uncap 836e469d; split f5bc4f51)",
+        "drivers": "23.6 % / 19.0 % of extended tables have a strictly better plan; ~62 / 49 % of those from the declared-slate cold mispricing, ~28 / 39 % from the cap; a correct-cost top-10 would hold every new-best candidate (extend_corpus_drivers.py, job 863777, drivers_{train,heldout}.json)"
       }
     }
   }
