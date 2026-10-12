@@ -21,6 +21,7 @@ import bisect
 import json
 import math
 import os
+import shutil
 import shlex
 import subprocess
 import sys
@@ -29,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
 
 from capped_log import cap_bytes, run_logged
+import progress_watchdog as pw
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WINDOWS = ("w0", "w1", "w2", "w3")
@@ -49,7 +51,15 @@ RULE_POLICY = {
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
+    "cd_pull": "peer_greedy_network_cd",  # accel pull-hold control: HEROSIM_PG_PULL_HOLD=1 + HEROSIM_PULL_LEDGER=1
+    "cd_ledger": "peer_greedy_network_cd",  # identity check: the pull ledger alone (HEROSIM_PULL_LEDGER=1) must leave CD bit-identical
     "cd_declared": "peer_greedy_network_cd",  # r1_attribution_v1: CD over the learned arms' declared slate (GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1); descriptive
+    "cd_expand": "peer_greedy_network_cd",  # cd_expand: CD + exact-move alpha-expansion in its refine (HEROSIM_PG_CD_EXPANSION=1); descriptive, the stronger hand control
+    "cd_exactS": "peer_greedy_network_cd",  # cd_exactS: CD + exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1, expansion as the over-cap fallback); the hand bar
+    "cd_exactS_a0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with S's whole queue term scaled to 0 (HEROSIM_PG_DRAIN_ALPHA=0, S6's S_alpha)
+    "cd_exactS_ib0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with only the in-batch stacking term zeroed (HEROSIM_PG_BATCH_ALPHA=0)
+    "cd_oracle": "peer_greedy_network_cd",  # plan_rerank_v1 Phase 0: cd_exactS with the exact search scored by the real single-batch RTT (HEROSIM_PG_ORACLE=1); a measurement arm
+    "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
     "drain": "drain_greedy_network",  # rule_baselines_v1: least-loaded (drain-time shortest queue, per arrival, no exchange term)
@@ -94,7 +104,15 @@ CAP_KEEP_ALIVE = "1e9"
 CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_selfref", "_selfrefkw", "_se")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
+# gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
+# accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
+# cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
+# WITH exact-move expansion (GNN_CD_REFINE=apply + HEROSIM_PG_CD_EXPANSION=1): does a learned seed still help the strongest search?
+# cd_exactS_gnn: "_cdxexg" = the cdxapply seed (no-split learned plan) into the CD refine with the EXACT search over S (HEROSIM_PG_CD_EXACT=1, expansion as the
+# over-cap fallback), exact S-ties broken by the GNN's plan score (HEROSIM_PG_CD_EXACT_GNN=1)
+# cdxprune: "_cdxpra" / "_cdxprb" = the cdxapply seed into the CD refine with the exact search over S, and in over-cap batches the slate cut to its top-k (largest k
+# that fits 100k plans) and enumerated exactly (HEROSIM_PG_CD_EXACT_PRUNE=gnn by the model's logit / cost by the slate's standalone-cost order); no GNN tie-break
 # replica_guard_v1: "_selfrefkw" = self-refine plus the GNN_REPLICA_KEEPWARM serving guard (registered parameters)
 KEEPWARM_ENV = {"GNN_REPLICA_KEEPWARM": "1", "GNN_REPLICA_KEEPWARM_MAX_REPLICAS": "4", "GNN_REPLICA_KEEPWARM_MARGIN_S": "5"}
 GATE_RULES = ("selfpredict", "cd", "batched", "reactive")
@@ -120,9 +138,25 @@ BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KIND
 LOAD_KINDS = V4_KINDS + BC1_KINDS
 # r1_attribution_v1: the seven learned arms, retrained on R1 + WF1 under partial_state_v5. The checkpoint each arm serves is the
 # configuration chosen on validation topologies only, copied to <inputs>/models/r1-attribution-v1-<arm>-seed<N>.pt by the selection step.
+# scale_160_v1 reuses the arms: R1A_STEM / R1A_SPLIT name its checkpoint prefix and split file, R1A_TOPOS its topologies.
 RA_ARMS = ("gnn_eng", "twin_eng", "mlp_same", "gnn_raw", "twin_raw", "gnn_eng_physmp", "set_transformer")
 RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS)
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
+# phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
+# to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
+R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
+R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
+R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
+EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}}  # plan_rerank_v1 S_alpha arms
+ORACLE_ENV = ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
+R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
+R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
+R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
+R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
+R1A_LIMIT_S = 8100
+_LAST_ARRIVAL: Dict[str, float] = {}
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS + RA_KINDS
 SERVICE_END = "service_end_v1"
 # grounded_workload_v1: study windows whose group sizes, sibling offsets and arrival process come from Alibaba's
@@ -298,6 +332,38 @@ def task(topo: int, window: str, kind: str, seed: int = 0) -> Dict[str, object]:
     return {"topo": topo, "window": window, "kind": kind, "seed": seed}
 
 
+def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
+    """r1_attribution_v1 live gate cells: R1A_TOPOS (default the selection's 19 test topologies) x the WF1_RUNGS rungs x R1A_WINDOWS
+    x R1A_ARMS. R1A_SHARD="i/n" keeps every n-th cell (array shards; the list is ordered rung, topology, window, arm, seed)."""
+    # knative_diag: R1A_KNATIVE_DIAG=1 lets the replica-release physics be switched off for a diagnostic cell (reactive only, not a gate)
+    need = {"HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "0" if os.environ.get("R1A_KNATIVE_DIAG") == "1" else "1",
+            "HEROSIM_SCALEOUT": "kpa", "GATE_FIXED_POLICY_TIME_SCALE": "1.0", "HEROSIM_SHARED_AUTOSCALER": "0"}
+    if os.environ.get("R1A_KNATIVE_DIAG") == "1" and os.environ.get("HEROSIM_REPLICA_RELEASE") not in ("0", "1"):
+        raise SystemExit("FAIL LOUD: R1A_KNATIVE_DIAG=1 needs HEROSIM_REPLICA_RELEASE set to 0 or 1")
+    if os.environ.get("R1A_KNATIVE_DIAG") == "1":
+        need["HEROSIM_REPLICA_RELEASE"] = os.environ["HEROSIM_REPLICA_RELEASE"]
+    bad = {k: os.environ.get(k) for k, v in need.items() if os.environ.get(k) != v}
+    if bad or not WF1_LADDER:
+        raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
+    topos = [int(x) for x in os.environ.get("R1A_TOPOS", "").split(",") if x] or list(selection["topologies"])
+    wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
+    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX)).split(",") if k]
+    seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
+    unknown = [k for k in arms if k not in R1A_ARMS]
+    if unknown:
+        raise SystemExit(f"FAIL LOUD: R1A_ARMS {unknown}; arms are {R1A_ARMS}")
+    single = R1A_CLASSICAL + R1A_DIAG
+    cells = [task(t, f"{w}{tag}", k, 0 if k in single else sd)
+             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if k in single else seeds)]
+    shard = os.environ.get("R1A_SHARD", "")
+    if shard:
+        i, n = (int(x) for x in shard.split("/"))
+        if not 0 <= i < n:
+            raise SystemExit(f"FAIL LOUD: R1A_SHARD={shard!r}")
+        cells = cells[i::n]
+    return cells
+
+
 def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     if phase in ("screen", "rp2screen"):
         pool = RP2C_POOL if phase == "rp2screen" else CANDIDATES
@@ -322,7 +388,7 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             if not cal:
                 raise SystemExit("FAIL LOUD: wf1cal needs WF1_TOPOS")
             kinds = [k for k in os.environ.get("WF1_CAL_KINDS", "cd").split(",") if k]
-            if any(k not in ("cd", "reactive", "cd_declared") + RA_KINDS for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
+            if any(k not in ("cd", "reactive", "cd_declared") + RA_KINDS + R1A_SEEDED_CD for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
                 raise SystemExit(f"FAIL LOUD: WF1_CAL_KINDS={kinds!r}")
             return [task(t, f"{w}{tag}", k) for tag in WF1_TAGS for t in cal for w in wins for k in kinds]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
@@ -336,6 +402,8 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             raise SystemExit(f"FAIL LOUD: WF1_ARRIVAL_WINDOWS={only_w!r} selects no window")
         return [task(t, w, k) for k in rules if not only or k in only for t in selection["topologies"] for w in ladder]
     topos = selection["topologies"]
+    if phase == "r1a":
+        return r1a_tasks(selection)
     if phase == "d1":
         return [task(t, w, "cd_blind") for t in topos for w in WINDOWS]
     if phase == "a":
@@ -607,12 +675,17 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if os.path.exists(summary) or os.path.exists(failed):
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
+    if R1A_ON:
+        state = pw.rung_state(out_dir, window[2:])
+        if pw.paused(state):
+            return f"[PAUSED rung {window[2:]}: {state['hung']} of {state['decided']} decided cells hung, line {pw.PAUSE_SHARE:.0%}] {name}"
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
     wl_dir = None
+    inputs_root = inputs
     if window in GROUNDED_LADDER or window in SCALE_LADDER or window in WF1_LADDER:
         wl_name, sub = GROUNDED_LADDER.get(window) or SCALE_LADDER.get(window) or WF1_LADDER[window]
-        inputs = os.path.join(inputs, sub)
+        inputs_root, inputs = inputs, os.path.join(inputs, sub)
     elif window in GROUNDED_X15:
         wl_name = GROUNDED_X15[window]
         inputs = os.path.join(inputs, "grounded_x15")
@@ -635,7 +708,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", *KEEPWARM_ENV):
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
+              "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV, *ORACLE_ENV):
         env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
@@ -683,16 +757,18 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
         elif base_kind in RA_KINDS:
-            stem = "r1-attribution-v1-" + base_kind[3:].replace("_", "-")
+            stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")
         else:
             stem = f"joint-burst-v2-{base_kind}"
-        ck = os.path.join(inputs, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
+        # checkpoints and the split file sit at the inputs root (r1a: one set for every rung); an older layout kept them in the rung directory
+        mroot = inputs_root if os.path.isdir(os.path.join(inputs_root, "models")) else inputs
+        ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind)
-        split = ("r1_attribution_v1_split.json" if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
+        split = (os.environ.get("R1A_SPLIT", "r1_attribution_v1_split.json") if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
-                                  os.path.join(inputs, split), "inf"], env=env, cwd=REPO)
+                                  os.path.join(mroot, split), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
@@ -721,6 +797,17 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_CD_REFINE"] = "shadow"
         if kind.endswith("_cdapply"):
             env["GNN_CD_REFINE"] = "apply"
+        if kind.endswith("_cdxapply"):
+            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")
+        if kind.endswith("_cdxexg"):
+            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXACT_GNN="1", GNN_SLATE_NO_SPLIT="1")
+        if kind.endswith(("_cdxpra", "_cdxprb")):
+            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1", GNN_SLATE_NO_SPLIT="1",
+                       HEROSIM_PG_CD_EXACT_PRUNE="gnn" if kind.endswith("_cdxpra") else "cost")
+        if kind.endswith(("_nosplit", "_selfsearch")):
+            env["GNN_SLATE_NO_SPLIT"] = "1"
+        if kind.endswith("_selfsearch"):
+            env["GNN_SELF_SEARCH"] = "1"
         if kind.endswith(("_selfref", "_selfrefkw")):
             env["GNN_PREFIX_SELF_REFINE"] = "3"
         if kind.endswith("_selfrefkw"):
@@ -728,10 +815,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_declared", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
+        if kind == "cd_random_seed":
+            env.update(GNN_SERVE_CANDIDATE_SLATE="declared_pruning_v1", GNN_CD_REFINE="apply", HEROSIM_CD_RANDOM_SEED=str(seed))
         if kind == "locality":
             env["HEROSIM_PG_EXCHANGE_SCALE"] = repr(LOCALITY_SCALE)
         if kind == "cdext":
@@ -740,6 +829,23 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / rate_scale)
         if kind == "cd_inflight":
             env["HEROSIM_PG_INFLIGHT"] = "1"
+        if kind == "cd_pull":
+            env.update(HEROSIM_PG_PULL_HOLD="1", HEROSIM_PULL_LEDGER="1")
+        if kind == "cd_ledger":
+            env["HEROSIM_PULL_LEDGER"] = "1"
+        if kind == "cd_expand":
+            env["HEROSIM_PG_CD_EXPANSION"] = "1"
+        if kind == "cd_exactS":
+            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")
+        if kind in EXACT_ALPHA:
+            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", **EXACT_ALPHA[kind])
+        if kind == "cd_oracle":
+            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
+                       HEROSIM_ORACLE_SIM_INPUT=os.path.join(REPO, "data/nofs-ids"),
+                       HEROSIM_ORACLE_WORKERS=os.environ.get("R1A_ORACLE_WORKERS", "8"))
+            env["ORACLE_DIAG_DIR"] = os.path.join(out_dir, "oracle_diag", name)
+            if os.environ.get("R1A_ORACLE_MAX_PLANS"):
+                env["HEROSIM_PG_ORACLE_MAX_PLANS"] = os.environ["R1A_ORACLE_MAX_PLANS"]
         if kind in DECIMA_TUNE_ALPHAS:
             env["HEROSIM_DECIMA_ALPHA"] = repr(DECIMA_TUNE_ALPHAS[kind])
         if kind == "decima":
@@ -758,8 +864,28 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     cmd = scope + ["timeout", str(timeout_s)] + PY + [os.path.join(REPO, "src/executesimulation.py"), "--config", cfg,
                                                       "--workload", wl, "--policy", policy, "--output", raw]
     start = time.time()
-    rc = run_logged(cmd, env, REPO, log, cap_bytes())  # capped: a hung run's log used to reach several GB
+    dog = None
+    if R1A_ON:
+        prog = os.path.join(os.environ.get("HEROSIM_RAW_DIR") or out_dir, name + ".progress")
+        env["HEROSIM_PROGRESS_FILE"] = prog
+        if wl not in _LAST_ARRIVAL:
+            _LAST_ARRIVAL[wl] = max(float(e["timestamp"]) for e in json.load(open(wl))["events"])
+        rule = {k: float(os.environ[e]) for k, e in (("warmup_s", "R1A_GRACE_S"), ("stall_s", "R1A_STALL_S")) if e in os.environ}
+        dog = pw.Watchdog(prog, _LAST_ARRIVAL[wl], float(timeout_s), poll_s=float(os.environ.get("R1A_POLL_S", pw.POLL_S)), **rule)
+        if "R1A_POLL_S" in os.environ:  # a test run with short cells: report as often as the watchdog polls
+            env["HEROSIM_PROGRESS_INTERVAL_S"] = os.environ["R1A_POLL_S"]
+    rc = run_logged(cmd, env, REPO, log, cap_bytes(), on_start=dog.attach if dog else None)  # capped: a hung run's log used to reach several GB
     wall = int(time.time() - start)
+    if dog:
+        dog.stop()
+        if os.path.exists(prog):
+            os.remove(prog)
+    if dog and dog.verdict:
+        json.dump({"arm": name, "returncode": rc, "wallclock_s": wall, "why": f"watchdog: {dog.verdict['reason']}",
+                   "watchdog": dog.verdict, "limit_s": timeout_s, "last_arrival_s": _LAST_ARRIVAL[wl]}, open(failed, "w"))
+        if os.path.exists(raw):
+            os.remove(raw)
+        return f"[FAILED watchdog {dog.verdict['reason']} projected={dog.verdict.get('projected_s')} {wall}s] {name}"
     if rc != 0 or not os.path.exists(raw):
         json.dump({"arm": name, "returncode": rc, "wallclock_s": wall,
                    "why": "timeout" if rc == 124 else ("memory cap or crash" if rc != 0 else "no output")},
@@ -773,7 +899,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out = {k: st.get(k) for k in ("num_tasks", "total_rtt", "averageElapsedTime", "averageQueueTime",
                                   "averageWaitTime", "totalPeerExchangeTime", "totalPeerRendezvousWait", "endTime",
                                   "schedulerCounters", "offloadingRate", "total_rtt_plus_inference",
-                                  "requestFailures", "requestTimeoutS")}
+                                  "requestFailures", "requestTimeoutS", "decisionTiming")}
     if WF1_LADDER:  # workload_fix_v1: the latency decomposition needs the stage times; other phases keep their keys
         for k in ("averageColdStartTime", "averageInitializationTime", "averagePullTime", "averageExecutionTime",
                   "averageComputeTime", "averageCommunicationsTime", "averageNetworkLatency"):
@@ -785,7 +911,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     for k in ("residence_tasks", "residence_batches", "queue_range_records"):
         c.pop(k, None)
     arm_kind = RULE_POLICY.get(kind, kind)
-    out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=40,
+    out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=int(json.load(open(cfg))["nodes"]["client_nodes"]["count"]),
                servers=int(json.load(open(cfg))["nodes"]["server_nodes"]["count"]),
                rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "r1a" if base_kind in RA_KINDS else "bc1" if base_kind in BC1_KINDS else "jb2") if base_kind in LEARNED_KINDS else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
@@ -846,10 +972,62 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
     if not kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
-    if kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0) == 0:
+    if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
-    if not kind.endswith(("_cdshadow", "_cdapply")) and int(c.get("cdr_batches") or 0):
+    if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
+    expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) or kind == "cd_expand"
+    prune_kind = kind.endswith(("_cdxpra", "_cdxprb"))
+    if prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) != 0):
+        # the prune arms run the expansion only as a dry counterfactual whose counters are restored; applied expansion must read 0
+        problems.append(f"prune arm expansion flag/counter wrong: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')} (want 0)")
+    if expands and not prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) == 0):
+        problems.append(f"expansion instrument off: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')}")
+    if not expands and kind != "cd_exactS" and kind != "cd_oracle" and kind not in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXPANSION") or int(c.get("pg_expand_batches") or 0)):
+        problems.append("a non-expansion arm expanded")
+    if kind == "cd_exactS" and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
+        problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+    if kind in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
+        problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+    for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
+        want = EXACT_ALPHA.get(kind, {}).get(name)
+        if out["env"].get(name) != want:
+            problems.append(f"{name} served {out['env'].get(name)!r}, want {want!r} for {kind}")
+    exact_arm = kind in ("cd_exactS", "cd_oracle", *EXACT_ALPHA) or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb"))
+    prune_arm = kind.endswith(("_cdxpra", "_cdxprb"))
+    if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
+        problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+    want_prune = "gnn" if kind.endswith("_cdxpra") else "cost"
+    if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT_PRUNE") != want_prune or int(c.get("pg_exact_prune_batches") or 0) == 0):
+        problems.append(f"prune instrument off: HEROSIM_PG_CD_EXACT_PRUNE={out['env'].get('HEROSIM_PG_CD_EXACT_PRUNE')!r} (want {want_prune}), pg_exact_prune_batches {c.get('pg_exact_prune_batches')}")
+    if prune_arm and int(c.get("pg_exact_prune_batches") or 0) != int(c.get("pg_exact_fallbacks") or 0):
+        problems.append(f"pruned {c.get('pg_exact_prune_batches')} batches but {c.get('pg_exact_fallbacks')} were over the cap")
+    if not prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT_PRUNE") or int(c.get("pg_exact_prune_batches") or 0)):
+        problems.append("a non-prune arm pruned the slate")
+    if kind.endswith("_cdxexg") and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
+        problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+    if kind.endswith("_cdxexg") and (out["env"].get("HEROSIM_PG_CD_EXACT_GNN") != "1" or int(c.get("pg_exact_gnn_scored") or 0) == 0):
+        problems.append(f"exact-GNN instrument off: HEROSIM_PG_CD_EXACT_GNN={out['env'].get('HEROSIM_PG_CD_EXACT_GNN')!r}, pg_exact_gnn_scored {c.get('pg_exact_gnn_scored')}")
+    if not kind.endswith("_cdxexg") and (out["env"].get("HEROSIM_PG_CD_EXACT_GNN") or int(c.get("pg_exact_gnn_scored") or 0)):
+        problems.append("a non-exact-GNN arm scored plans with the GNN")
+    if not exact_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") or int(c.get("pg_exact_batches") or 0)):
+        problems.append("a non-exact arm ran the exact search")
+    if kind == "cd_oracle":
+        if out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0:
+            problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+        if out["env"].get("HEROSIM_PG_ORACLE") != "1" or int(c.get("pg_oracle_batches") or 0) == 0:
+            problems.append(f"oracle instrument off: HEROSIM_PG_ORACLE={out['env'].get('HEROSIM_PG_ORACLE')!r}, pg_oracle_batches {c.get('pg_oracle_batches')}")
+        if int(c.get("pg_oracle_seen_batches") or 0) != int(c.get("pg_oracle_batches") or 0) + int(c.get("pg_oracle_over_cap_batches") or 0) + int(c.get("pg_oracle_unplaced_batches") or 0):
+            problems.append(f"oracle books do not close: seen {c.get('pg_oracle_seen_batches')} != served {c.get('pg_oracle_batches')} + over cap {c.get('pg_oracle_over_cap_batches')} + unplaced {c.get('pg_oracle_unplaced_batches')}")
+    elif out["env"].get("HEROSIM_PG_ORACLE") or int(c.get("pg_oracle_batches") or 0):
+        problems.append("a non-oracle arm ran the live oracle")
+    if kind == "cd_random_seed":
+        if int(c.get("pg_random_seed_batches") or 0) == 0 or int(c.get("cdr_batches") or 0) != int(c.get("pg_random_seed_batches") or 0):
+            problems.append(f"random-seed instrument off: seeded {c.get('pg_random_seed_batches')} batches, refined {c.get('cdr_batches')}")
+        if out["env"].get("HEROSIM_CD_RANDOM_SEED") != str(seed):
+            problems.append(f"served HEROSIM_CD_RANDOM_SEED={out['env'].get('HEROSIM_CD_RANDOM_SEED')!r}, cell seed {seed}")
+    elif int(c.get("pg_random_seed_batches") or 0):
+        problems.append("a non-random-seed arm drew a random seed plan")
     if kind.endswith("_slate") and int(c.get("slate_batches") or 0) == 0:
         problems.append("slate instrument off: slate_batches == 0")
     if not kind.endswith("_slate") and int(c.get("slate_batches") or 0):
@@ -859,14 +1037,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("decima instrument off: decima_batches == 0")
         if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
             problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
-    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
     # cd_declared: the slate must have been applied to every batch, and nowhere else
     declared = int(c.get("pg_declared_batches") or 0)
     if kind == "cd_declared":
         if out["env"].get("GNN_SERVE_CANDIDATE_SLATE") != "declared_pruning_v1" or declared == 0 or int(c.get("pg_declared_groups") or 0) < declared:
             problems.append("declared-slate instrument off: GNN_SERVE_CANDIDATE_SLATE not served or no batch went through declared_slate")
-    elif declared and not kind.startswith("ra_"):
+    elif declared and not kind.startswith("ra_") and kind != "cd_random_seed":
         problems.append("a non-declared arm applied the declared slate")
     want_scale = repr(LOCALITY_SCALE) if kind == "locality" else None
     if out["env"].get("HEROSIM_PG_EXCHANGE_SCALE") != want_scale:
@@ -888,6 +1066,23 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("inflight instrument off: HEROSIM_PG_INFLIGHT not served or pg_inflight_charged == 0")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
         problems.append("a non-inflight arm charged the in-flight task")
+    if kind == "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") != "1" or out["env"].get("HEROSIM_PULL_LEDGER") != "1"
+                              or int(c.get("pg_pull_charged") or 0) == 0):
+        problems.append("pull-hold instrument off: HEROSIM_PG_PULL_HOLD / HEROSIM_PULL_LEDGER not served or pg_pull_charged == 0")
+    unsplit, sub_b = int(c.get("slate_declared_unsplit") or 0), int(c.get("slate_declared_sub_batched") or 0)
+    if kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") != "1" or unsplit != sub_b):
+        problems.append(f"no-split instrument off: GNN_SLATE_NO_SPLIT={out['env'].get('GNN_SLATE_NO_SPLIT')!r}, unsplit {unsplit} of {sub_b} sub-batched")
+    if not kind.endswith(("_nosplit", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfsearch")) and (out["env"].get("GNN_SLATE_NO_SPLIT") or unsplit):
+        problems.append("a split arm decoded a batch whole")
+    ss = int(c.get("ss_batches") or 0)
+    if kind.endswith("_selfsearch") and (out["env"].get("GNN_SELF_SEARCH") != "1" or ss == 0 or ss != int(c.get("slate_declared_batches") or -1)):
+        problems.append(f"self-search instrument off: GNN_SELF_SEARCH={out['env'].get('GNN_SELF_SEARCH')!r}, searched {ss} of {c.get('slate_declared_batches')} batches")
+    if not kind.endswith("_selfsearch") and (out["env"].get("GNN_SELF_SEARCH") or ss):
+        problems.append("a non-self-search arm ran the plan search")
+    if kind != "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") or int(c.get("pg_pull_charged") or 0)):
+        problems.append("a non-pull arm charged the pull hold")
+    if (out["env"].get("HEROSIM_PULL_LEDGER") == "1") != (kind in ("cd_pull", "cd_ledger")):
+        problems.append(f"HEROSIM_PULL_LEDGER={out['env'].get('HEROSIM_PULL_LEDGER')!r} served for {kind}")
     if kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0) == 0:
         problems.append("spread instrument off: prefix_sibling_moves == 0")
     want_capture = SERVICE_END if (base_kind in BC1_KINDS or kind.endswith("_se")) else None
@@ -925,13 +1120,19 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     json.dump(out, open(summary + ".partial", "w"), indent=1)
     os.replace(summary + ".partial", summary)
-    os.remove(raw)
+    keep = os.environ.get("KEEP_RAW_DIR")
+    if keep:
+        # regime decomposition (accel_replica_v1 idea 1): the per-task result outlives the summary, on /share, never on /home
+        os.makedirs(keep, exist_ok=True)
+        shutil.move(raw, os.path.join(keep, os.path.basename(raw)))
+    else:
+        os.remove(raw)
     return f"[done {wall}s] {name} elapsed={e:.3f} share={out['queue_share']:.3f}"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "wf1cal") + RAW_V2)
+    ap.add_argument("phase", choices=("screen", "rp2screen", "parity", "gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "wf1cal", "r1a") + RAW_V2)
     ap.add_argument("--inputs", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--selection", default=None)
@@ -940,10 +1141,11 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     ap.add_argument("--no-scope", action="store_true", help="no per-run systemd scope (SLURM nodes)")
     a = ap.parse_args()
-    global NO_SCOPE
+    global NO_SCOPE, R1A_ON
     NO_SCOPE = a.no_scope
+    R1A_ON = a.phase == "r1a"
     selection = None
-    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1") + RAW_V2:
+    if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "r1a") + RAW_V2:
         selection = json.load(open(a.selection))
         if selection.get("verdict") != "DESIGN-READY":
             raise SystemExit(f"FAIL LOUD: selection verdict {selection.get('verdict')!r}")

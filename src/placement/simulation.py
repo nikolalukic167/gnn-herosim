@@ -24,8 +24,9 @@ import sys
 from datetime import datetime
 from typing import Dict, Tuple, Type, Set, Any, List, Optional
 
-from src.placement.infrastructure import FIDELITY, Node, Platform, Storage, Application, Task
+from src.placement.infrastructure import PULL_LEDGER, Node, Platform, Storage, Application, Task
 from src.placement.network_fabric import build_fabric
+from src.placement.progress import start_progress_reporter
 from src.placement.replica_rule import order_platforms
 from src.placement import replica_rule
 
@@ -97,6 +98,7 @@ from src.policy.peer_greedy_network.scheduler import (
     PeerGreedyOracleNetworkScheduler,
     PeerGreedySelfPredictNetworkScheduler,
     PeerGreedyNetworkBatchScheduler,
+    PeerGreedyNetworkCDRandomSeedScheduler,
     PeerGreedyNetworkCDScheduler,
     PeerGreedyNetworkScheduler,
 )
@@ -189,7 +191,7 @@ def create_nodes(
 
             storage_id += 1
 
-        if FIDELITY:
+        if PULL_LEDGER:
             # a pull checks its storage out of the FilterStore for its whole duration; keep the full list
             current_node._fid_storages = list(storage_store.items)
 
@@ -749,6 +751,7 @@ def start_simulation(
         "peer_greedy_network_batch_peer_greedy_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkBatchScheduler),
         "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyLearnedNetworkBatchScheduler),
         "peer_greedy_network_cd_peer_greedy_network_cd": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDScheduler),
+        "peer_greedy_network_cd_random_seed_peer_greedy_network_cd_random_seed": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDRandomSeedScheduler),
         # decima_rule_v1: Decima's tuned weighted-fair baseline in the burst seat
         "decima_wfair_network_decima_wfair_network": (GNNOrchestrator, GNNAutoscaler, DecimaWeightedFairBatchScheduler),
         "offload_network_offload_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, OffloadNetworkScheduler),
@@ -807,6 +810,7 @@ def start_simulation(
         if snapshot_fidelity.apply_orchestrator(orchestrator, live_snapshot_seed["fidelity"]):
             raise RuntimeError("fidelity replay: a partner the live run had not placed yet has no placement time "
                                "(snapshot['fidelity']['future']); the replay would wait on it for ever")
+    start_progress_reporter(env)
     env.run(until=finished)
     logging.info(f"[ {orchestrator.end_time} ] ✨ Simulation finished")
 

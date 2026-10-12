@@ -560,6 +560,7 @@ scheduling_strategies: Dict[str, str] = {
     "peer_greedy_network_batch_peer_greedy_network_batch": "PEER-GREEDY-NETWORK-BATCH",
     "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": "PEER-GREEDY-LEARNED-NETWORK-BATCH",
     "peer_greedy_network_cd_peer_greedy_network_cd": "PEER-GREEDY-NETWORK-CD",
+    "peer_greedy_network_cd_random_seed_peer_greedy_network_cd_random_seed": "PEER-GREEDY-NETWORK-CD-RANDOM-SEED",
     "decima_wfair_network_decima_wfair_network": "DECIMA-WFAIR-NETWORK",
     "offload_network_offload_network": "OFFLOAD-NETWORK-OFFLOAD-NETWORK",
     "local_first_network_local_first_network": "LOCAL-FIRST-NETWORK",

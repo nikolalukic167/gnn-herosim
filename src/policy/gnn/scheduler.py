@@ -45,6 +45,7 @@ from src.policy.gnn.seq_decode import (
 from src.policy.tabular.feature_builder import build_pyg_inference_graph
 from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot
 from src.placement.physics_audit import AUDIT as _AUDIT
+from src.placement.decision_timing import log_of
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -167,6 +168,23 @@ def _cd_refine_mode() -> str:
     if raw not in ("", "shadow", "apply"):
         raise ValueError(f"FAIL LOUD: GNN_CD_REFINE must be unset, 'shadow' or 'apply', got {raw!r}")
     return raw
+
+
+SELF_SEARCH_ENV = "GNN_SELF_SEARCH"
+SELF_SEARCH_EXACT_MAX = 625  # exact enumeration up to this many slate plans, coordinate ascent above
+SELF_SEARCH_SWEEPS = 5
+
+
+def _self_search_on() -> bool:
+    """gnn_selfsearch (accel_nosplit_v1): per batch, the slate plan with the highest GNN plan score. Needs the declared slate served whole."""
+    raw = os.environ.get(SELF_SEARCH_ENV, "0").strip() or "0"
+    if raw not in ("0", "1"):
+        raise ValueError(f"FAIL LOUD: {SELF_SEARCH_ENV} must be 0 or 1, got {raw!r}")
+    if raw == "1":
+        from src.placement import declared_slate
+        if not declared_slate.serving_no_split():
+            raise ValueError(f"FAIL LOUD: {SELF_SEARCH_ENV}=1 scores whole-batch plans; it needs {declared_slate.NO_SPLIT_ENV}=1 (and the declared slate)")
+    return raw == "1"
 
 
 def _corpus_slate_on() -> bool:
@@ -838,13 +856,25 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.slate_declared_batches = getattr(self, "slate_declared_batches", 0) + 1
         self.slate_declared_pruned = getattr(self, "slate_declared_pruned", 0) + int(sl.pruned)
         self.slate_declared_sub_batched = getattr(self, "slate_declared_sub_batched", 0) + int(sl.sub_batched)
+        self.slate_declared_groups = getattr(self, "slate_declared_groups", 0) + len(sl.groups)
+        self.slate_declared_tasks = getattr(self, "slate_declared_tasks", 0) + len(batch_tasks)
+        self.slate_declared_sub_batched_tasks = getattr(self, "slate_declared_sub_batched_tasks", 0) + (len(batch_tasks) if sl.sub_batched else 0)
+        self.slate_declared_max_tasks = max(getattr(self, "slate_declared_max_tasks", 0), len(batch_tasks))
+        self.slate_declared_max_group = max(getattr(self, "slate_declared_max_group", 0), max(len(g) for g in sl.groups))
+        groups = sl.groups
+        if sl.sub_batched and declared_slate.serving_no_split():
+            # declared serving variant: the same pruned candidates, one sequential decode over the whole batch
+            groups = [list(range(len(batch_tasks)))]
+            self.slate_declared_unsplit = getattr(self, "slate_declared_unsplit", 0) + 1
         placements: Dict[int, Tuple[int, int]] = {}
-        for group in sl.groups:
+        for group in groups:
             sub_tasks = [batch_tasks[i] for i in group]
             allowed = {k: {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for k, i in enumerate(group)}
             sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
             for k, i in enumerate(group):
                 placements[i] = sub[k]
+        if _self_search_on():
+            placements = self._self_search(batch_tasks, system_state, queue_snapshot, temporal_state, sl, placements)
         return placements
 
     def _prefix_inference_core(
@@ -947,6 +977,127 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 pickle.dump(record, fh)
         return {idx: combo[idx] for idx in range(len(combo))}
 
+    def _exact_plan_scorer(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
+        """cd_exactS_gnn: a plan scorer for the exact search's tie-break. The live graph of this batch over the exact search's own slates
+        (`allowed`, per batch index), the same prefix block and partial-state scorer the decode uses; a plan's score is the sum over its
+        tasks of the model's logit for that task's placement with every other task committed where the plan puts it (the `_self_refine`
+        convention, so the score does not depend on a decode order)."""
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, allowed)
+        n = len(batch_tasks)
+
+        def score(plan: List[Tuple[int, int]]) -> float:
+            total = 0.0
+            with torch.no_grad():
+                for t in range(n):
+                    committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
+                    logits = score_fn(t, committed)
+                    total += float(logits[[(int(c[0]), int(c[1])) for c in tl[t]].index((int(plan[t][0]), int(plan[t][1])))])
+            return total
+
+        return score
+
+    def _exact_task_logits(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any],
+                           plan: List[Tuple[int, int]]) -> List[Dict[Tuple[int, int], float]]:
+        """cdxprune (a): per task, the model's logit for every couple in `allowed` with every other task committed where `plan` puts it
+        (the same convention as the plan score)."""
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, allowed)
+        n = len(batch_tasks)
+        out: List[Dict[Tuple[int, int], float]] = []
+        with torch.no_grad():
+            for t in range(n):
+                committed = {j: (int(plan[j][0]), int(plan[j][1])) for j in range(n) if j != t}
+                logits = score_fn(t, committed)
+                out.append({(int(c[0]), int(c[1])): float(logits[k]) for k, c in enumerate(tl[t])})
+        return out
+
+    def _exact_score_fn(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
+        from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
+        from src.policy.gnn.prefix_serving import PrefixServingError, attach_live_prefix_block, build_partial_state_context_from_graph
+
+        queue_snapshot, temporal_state = self._cd_snap
+        graph, tl = self._build_inference_graph(batch_tasks, system_state, queue_snapshot, temporal_state, allowed)
+        if graph is None:
+            raise RuntimeError("FAIL LOUD: cd_exactS_gnn: the live graph builder returned no feasible edges")
+        graph.queue_snapshot = dict(queue_snapshot)
+        graph.task_logit_to_placement = tl
+        graph._task_logit_to_placement = tl
+        attach_live_prefix_block(graph, batch_tasks, nodes=list(self.nodes.items),
+                                 peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
+                                 options=self._prefix_options, backlog_seconds=self._v4_backlog_seconds(tl, system_state))
+        graph = move_graph_tensors_(graph, self.device)
+        ctx = build_partial_state_context_from_graph(graph)
+        caps = graph.partial_state_ctx["node_caps_by_alpha"]
+        if self._prefix_options.alpha_key not in caps:
+            raise PrefixServingError(f"alpha_key {self._prefix_options.alpha_key!r} not in node_caps_by_alpha")
+        ctx.node_caps = caps[self._prefix_options.alpha_key]
+        return make_partial_state_score_fn(self.gnn_model, graph, ctx), tl
+
+    def _self_search(self, batch_tasks: List[Task], system_state: SystemState, queue_snapshot, temporal_state, sl,
+                     start_plan: Dict[int, Tuple[int, int]]) -> Dict[int, Tuple[int, int]]:
+        """gnn_selfsearch: the slate plan with the highest GNN plan score (the sum over tasks of the model's logit for the task's choice, every
+        other task committed at the plan; no S, no CD, no hand term). Exact enumeration when the batch has at most SELF_SEARCH_EXACT_MAX slate
+        plans; otherwise coordinate ascent on the same score from the no-split decode (tasks in id order, each moved to its best slate
+        candidate given the rest, until no change or SELF_SEARCH_SWEEPS sweeps). A score tie keeps the incumbent."""
+        from itertools import product
+
+        t0 = default_timer()
+        n = len(batch_tasks)
+        cands = [[(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]] for i in range(n)]
+        start = [(int(start_plan[i][0]), int(start_plan[i][1])) for i in range(n)]
+        for i in range(n):
+            if start[i] not in cands[i]:
+                raise RuntimeError(f"FAIL LOUD: gnn_selfsearch: the decode placed task {batch_tasks[i].id} outside its slate")
+        self._cd_snap = (queue_snapshot, temporal_state)
+        score_fn, tl = self._exact_score_fn(batch_tasks, system_state, {i: set(cands[i]) for i in range(n)})
+        index = [[(int(c[0]), int(c[1])) for c in tl[i]] for i in range(n)]
+        scored = 0
+
+        def score(plan) -> float:
+            nonlocal scored
+            scored += 1
+            total = 0.0
+            with torch.no_grad():
+                for t in range(n):
+                    logits = score_fn(t, {j: plan[j] for j in range(n) if j != t})
+                    total += float(logits[index[t].index(plan[t])])
+            return total
+
+        best, best_score = list(start), score(start)
+        if sl.plans <= SELF_SEARCH_EXACT_MAX:
+            self.ss_exact_batches = getattr(self, "ss_exact_batches", 0) + 1
+            for combo in product(*cands):
+                sc = score(list(combo))
+                if sc > best_score + 1e-9:
+                    best, best_score = list(combo), sc
+        else:
+            self.ss_ascent_batches = getattr(self, "ss_ascent_batches", 0) + 1
+            order = sorted(range(n), key=lambda i: int(batch_tasks[i].id))
+            for _ in range(SELF_SEARCH_SWEEPS):
+                self.ss_ascent_sweeps = getattr(self, "ss_ascent_sweeps", 0) + 1
+                moved = False
+                for t in order:
+                    top, top_score = best[t], best_score
+                    for c in cands[t]:
+                        if c == best[t]:
+                            continue
+                        trial = list(best)
+                        trial[t] = c
+                        sc = score(trial)
+                        if sc > top_score + 1e-9:
+                            top, top_score = c, sc
+                    if top != best[t]:
+                        best[t], best_score, moved = top, top_score, True
+                if not moved:
+                    break
+        self.ss_batches = getattr(self, "ss_batches", 0) + 1
+        self.ss_tasks = getattr(self, "ss_tasks", 0) + n
+        self.ss_scored = getattr(self, "ss_scored", 0) + scored
+        changed = sum(1 for i in range(n) if best[i] != start[i])
+        self.ss_changed_batches = getattr(self, "ss_changed_batches", 0) + int(changed > 0)
+        self.ss_changed_tasks = getattr(self, "ss_changed_tasks", 0) + changed
+        self.ss_seconds = getattr(self, "ss_seconds", 0.0) + (default_timer() - t0)
+        return {i: best[i] for i in range(n)}
+
     def _cd_refine(self, tasks: List[Task], placements: Dict[int, Tuple[int, int]],
                    system_state: SystemState, mode: str) -> Dict[int, Tuple[int, int]]:
         """cd_gap_v1 D5 (GNN_CD_REFINE=shadow|apply): run the CD greedy's refine passes from the
@@ -956,6 +1107,12 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
             self._cd_refiner = GnnCdRefiner(self)
         refined, info = self._cd_refiner.refine(tasks, system_state, placements, passes=3)
+        if self._cd_refiner.pg_cd_expansion or getattr(self._cd_refiner, "pg_cd_exact", False):
+            # cdxapply: the refiner's search books, mirrored on the host the orchestrator reads counters from
+            from src.policy.peer_greedy_network.scheduler import PG_SEARCH_COUNTERS
+
+            for name in PG_SEARCH_COUNTERS:
+                setattr(self, name, getattr(self._cd_refiner, name))
         self.cdr_batches += 1
         self.cdr_batches_changed += 1 if info["moved"] else 0
         self.cdr_tasks += len(tasks)
@@ -1154,6 +1311,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         placements: Dict[int, Tuple[int, int]] = {}
         inference_time = 0.0
         if decodable:
+            moves_before = int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0))
             inference_start = default_timer()
             decode_state = self._corpus_slate_view(decodable, system_state) if _corpus_slate_on() else system_state
             placements = self._prefix_inference(
@@ -1162,12 +1320,15 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             if _sibling_spread_on():
                 placements = self._spread_over_siblings(decodable, placements, system_state)
             refine_mode = _cd_refine_mode()
+            self._cd_snap = (queue_snapshot, temporal_state)
             if refine_mode:
                 placements = self._cd_refine(decodable, placements, system_state, refine_mode)
             keepwarm = _keepwarm_params()
             if keepwarm is not None:
                 placements = self._keep_replicas_warm(decodable, placements, system_state, *keepwarm)
             inference_time = default_timer() - inference_start
+            log_of(self).add(len(decodable), inference_time,
+                             int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0)) - moves_before)
             if _AUDIT is not None:
                 _AUDIT.decision(self.env, audit_t0, self.env.now, inference_time, len(decodable),
                                 self._live_audit_policy_name)

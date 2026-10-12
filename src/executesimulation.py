@@ -25,6 +25,7 @@ import math
 import os
 import random
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 
@@ -36,6 +37,7 @@ from src.generate_infrastructure import (
 from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH, RECONCILE_INTERVAL
 from src.placement.scaleout import KPA, KPA_TARGET, SCALEOUT_ENV, policy_time_scale, scaleout_mode
 from src.placement.executor import execute_sim
+from src.placement.decision_timing import set_model_load
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.placement.network_graph import (
     NETWORK_GRAPH_CONTRACT_ENV,
@@ -922,7 +924,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                     f"{decode_mode!r}. Any other decode would score against an all-zero "
                     "prefix block."
                 )
-            model, options, _sidecar = load_prefix_conditioned_gnn(model_path, device=device)
+            model, options, _sidecar = load_prefix_conditioned_gnn(model_path, device=device, space_config=space_config)
             model.prefix_serving_options = options
             if device.type == 'cuda':
                 torch.cuda.empty_cache()
@@ -1234,7 +1236,26 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_MODEL_PATH",
             # r1_attribution_v1: the serving slate (declared pruning) and the arm the serving environment asked for
             "GNN_SERVE_CANDIDATE_SLATE",
+            "GNN_SLATE_NO_SPLIT",
+            "GNN_SELF_SEARCH",
             "GNN_ARM_KIND",
+            # r1_attribution_v1: the seeded-CD arms (CD refine of a plan; the random plan's cell seed)
+            "GNN_CD_REFINE",
+            "HEROSIM_CD_RANDOM_SEED",
+            # accel pull-hold control: the pull ledger and the hand rule's pull-hold term
+            "HEROSIM_PULL_LEDGER",
+            "HEROSIM_PG_PULL_HOLD",
+            # cd_expand / cdxapply: exact-move expansion in the CD refine; cd_exactS: exact search over S; the parked swap / fusion flags
+            "HEROSIM_PG_CD_EXPANSION",
+            "HEROSIM_PG_CD_EXACT",
+            "HEROSIM_PG_ORACLE",
+            "HEROSIM_PG_DRAIN_ALPHA",
+            "HEROSIM_PG_BATCH_ALPHA",
+            "HEROSIM_PG_CD_EXACT_GNN",
+            "HEROSIM_PG_CD_EXACT_PRUNE",
+            "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK",
+            "HEROSIM_PG_CD_SWAP",
+            "HEROSIM_PG_FUSE",
             "MLP_MODEL_PATH",
             "TOPOLOGY_FEATURE_CONTRACT",
             "NETWORK_GRAPH_CONTRACT",
@@ -1369,6 +1390,7 @@ def run_simulation(
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'peer_greedy_network_cd_random_seed',
         'decima_wfair_network',
         'offload_network',
         'local_first_network',
@@ -1535,6 +1557,9 @@ def run_simulation(
             models = None
         elif policy == 'peer_greedy_network_cd':
             scheduling_strategy = 'peer_greedy_network_cd_peer_greedy_network_cd'
+            models = None
+        elif policy == 'peer_greedy_network_cd_random_seed':
+            scheduling_strategy = 'peer_greedy_network_cd_random_seed_peer_greedy_network_cd_random_seed'
             models = None
         elif policy == 'decima_wfair_network':
             scheduling_strategy = 'decima_wfair_network_decima_wfair_network'
@@ -1852,7 +1877,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|decima_wfair_network|offload_network|local_first_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|peer_greedy_network_cd_random_seed|decima_wfair_network|offload_network|local_first_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1863,7 +1888,7 @@ def main():
             "Usage: python -m src.executesimulation "
             "--config <space_config.json> --workload <workload.json> "
             "--policy <knative|gnn|gnn_hetero|roundrobin|knative_network|knative_network_ect|knative_network_ect_pull|knative_network_batch|herocache_network|"
-            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|decima_wfair_network|offload_network|local_first_network> "
+            "herocache_network_batch|random_network|peer_greedy_network|drain_greedy_network|peer_greedy_network_batch|peer_greedy_network_cd|peer_greedy_network_cd_random_seed|decima_wfair_network|offload_network|local_first_network> "
             "[--seed <seed>] [--output <output.json>]"
         )
         sys.exit(1)
@@ -1889,6 +1914,7 @@ def main():
         'peer_greedy_network_batch',
         'peer_greedy_learned_network_batch',
         'peer_greedy_network_cd',
+        'peer_greedy_network_cd_random_seed',
         'decima_wfair_network',
         'offload_network',
         'local_first_network',
@@ -1926,9 +1952,11 @@ def main():
         # corpus-compatibility check needs it before the model is constructed.
         with open(config_file, 'r') as _f:
             space_config_for_checkpoint = json.load(_f)
+        _load_t0 = time.perf_counter()
         gnn_model, gnn_device = load_gnn_model(
             gnn_model_path, space_config=space_config_for_checkpoint
         )
+        set_model_load(time.perf_counter() - _load_t0)
         task_types_data = load_task_types_data(sim_input_path)
     elif policy == 'gnn_hetero':
         if not gnn_hetero_model_path.exists():
