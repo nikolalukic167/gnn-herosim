@@ -58,6 +58,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
     "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
+    "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -141,8 +142,21 @@ class _PeerGreedyCore:
     _policy_label: str = "peer_greedy"
     _pg_batched: bool = False
     _pg_batch_ids: Set[int] = frozenset()
+    # cd_declared: {task id -> {(node_id, platform_id)}} while a declared-pruning group is being decided, else None (inert)
+    _pg_allowed: Optional[Dict[int, Set[Tuple[int, int]]]] = None
+
+    def _pg_restrict(self, task, valid):
+        """The declared slate's top-5 for this task, or `valid` unchanged when no slate is being applied."""
+        if self._pg_allowed is None:
+            return valid
+        allowed = self._pg_allowed[int(task.id)]
+        return [r for r in valid if (r[0].id, r[1].id) in allowed]
 
     def _pg_init(self) -> None:
+        self.pg_declared_batches = 0
+        self.pg_declared_pruned = 0
+        self.pg_declared_sub_batched = 0
+        self.pg_declared_groups = 0
         self.pg_decisions = 0
         self.pg_partners_known = 0
         self.pg_partners_unknown = 0
@@ -664,7 +678,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         for idx in order:
             task = batch_tasks[idx]
             tid = int(task.id)
-            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+            valid = self._pg_restrict(task, self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task))
             if not valid:
                 raise RuntimeError(
                     f"{self._policy_label}: task {task.id} reached the decoder without a "
@@ -697,6 +711,46 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         queue_snapshot: Dict[str, int],
         temporal_state: Optional[Dict[str, Dict[str, float]]],
     ) -> Dict[int, Tuple[int, int]]:
+        from src.placement import declared_slate
+
+        if declared_slate.serving_slate() is None:
+            return self._pg_decide(batch_tasks, system_state)
+        return self._pg_decide_declared(batch_tasks, system_state)
+
+    def _pg_decide_declared(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[int, Tuple[int, int]]:
+        """cd_declared (GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1): the rule over exactly the slate the learned arms are served --
+        each task's top-5 candidates by standalone cost, a batch above 100,000 pruned plans cut into sub-batches of <= 4 tasks
+        (declared_slate.slate, the function GNNScheduler._prefix_inference calls) -- each sub-batch decided on its own, as the
+        learned arms decide theirs. A descriptive arm: it measures what the pruning costs, not a bar."""
+        from src.placement import declared_slate
+        from src.placement.live_audit import _candidate_payload
+
+        payloads = []
+        for task in batch_tasks:
+            valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+            payloads.append({"task_id": int(task.id), "candidates": [_candidate_payload(self, task, n, p) for n, p in valid]})
+        ids = {int(t.id) for t in batch_tasks}
+        peers = getattr(self._pg_orchestrator(), "peer_exchange", None) or {}
+        pairs = [(int(t.id), int(j)) for t in batch_tasks for j in (peers.get(int(t.id)) or {}) if int(j) in ids]
+        sl = declared_slate.slate(payloads, pairs)
+        self.pg_declared_batches += 1
+        self.pg_declared_pruned += int(sl.pruned)
+        self.pg_declared_sub_batched += int(sl.sub_batched)
+        placements: Dict[int, Tuple[int, int]] = {}
+        try:
+            for group in sl.groups:
+                self._pg_allowed = {
+                    int(batch_tasks[i].id): {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for i in group
+                }
+                sub = self._pg_decide([batch_tasks[i] for i in group], system_state)
+                for k, i in enumerate(group):
+                    placements[i] = sub[k]
+                self.pg_declared_groups += 1
+        finally:
+            self._pg_allowed = None
+        return placements
+
+    def _pg_decide(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[int, Tuple[int, int]]:
         orch = self._pg_orchestrator()
         memo: Dict[str, float] = {}
         committed_service: Dict[str, float] = {}
@@ -733,7 +787,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             name = task.type["name"]
             if name not in share:
                 continue
-            valid = self._get_valid_replicas(system_state.replicas.get(name, set()), task)
+            valid = self._pg_restrict(task, self._get_valid_replicas(system_state.replicas.get(name, set()), task))
             initialized = [r for r in valid if r[1].initialized.triggered]
             pool = initialized if initialized else valid
             if not pool:
