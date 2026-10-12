@@ -157,11 +157,13 @@ def test_alpha_one_is_the_registered_s_and_scaling_prices_the_queue_term(monkeyp
     monkeypatch.delenv(S.PG_BATCH_ALPHA_ENV, raising=False)
 
 
-def test_alpha_is_refused_outside_the_plain_exact_cd(monkeypatch):
+def test_alpha_is_refused_outside_cd_and_the_cd_refiner(monkeypatch):
+    from src.policy.peer_greedy_network.scheduler import PeerGreedyNetworkBatchScheduler
+
     monkeypatch.delenv(S.PG_CD_EXACT_ENV, raising=False)
     monkeypatch.setenv(S.PG_DRAIN_ALPHA_ENV, "0")
     with pytest.raises(RuntimeError, match="FAIL LOUD"):
-        _shell(monkeypatch)
+        _shell(monkeypatch, cls=PeerGreedyNetworkBatchScheduler)   # the plain batch greedy has no CD refine
     monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
     monkeypatch.setenv(S.PG_DRAIN_ALPHA_ENV, "1.5")
     with pytest.raises(ValueError, match="FAIL LOUD"):

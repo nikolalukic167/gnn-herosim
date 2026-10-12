@@ -373,8 +373,13 @@ class _PeerGreedyCore:
                                f"(it scores plans with the GNN that seeded the refine); {self._policy_label}")
         if self.pg_cd_exact_prune and not self.pg_cd_exact:
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} needs {PG_CD_EXACT_ENV}=1")
-        if self.pg_alpha_on and not (self.pg_cd_exact and self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune):
-            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1 alone; {self._policy_label}")
+        # ib0_confirm_v1: also the expansion refines on the surrogate -- plain CD (cd_expand flow) and the GNN-seeded refiner (cdxapply) -- never with the
+        # exact search under the refiner, the GNN-scored exact search or the prune
+        alpha_ok = (self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune) or (
+            self._policy_label == "gnn_cd_refine" and not self.pg_cd_exact and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune)
+        if self.pg_alpha_on and not alpha_ok:
+            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd (not with the GNN-scored exact search or the prune) "
+                               f"and for gnn_cd_refine without the exact search; {self._policy_label}")
         if self.pg_oracle and (not self.pg_cd_exact or self._policy_label != "peer_greedy_network_cd" or self.pg_cd_exact_gnn or self.pg_cd_exact_prune):
             raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_ENV}=1 is defined for peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1 alone; {self._policy_label}")
         if self.pg_cd_exact_prune == "gnn" and self._policy_label != "gnn_cd_refine":
@@ -1677,6 +1682,19 @@ class GnnCdRefiner(_PeerGreedyCore):
             self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
             if self._pg_exact(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
                 self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        finally:
+            for name, value in saved.items():
+                setattr(self, name, value)
+        return {i: tuple(v) for i, v in placements.items()}
+
+    def hand_seed(self, batch_tasks, system_state) -> Dict[int, Tuple[int, int]]:
+        """ib0_confirm_v1 hand-seed control (GNN_CD_SEED=hand): the plan the CD greedy's first pass builds on this batch (task-id order, no refine), for the
+        refiner to start from in place of the GNN's plan. Every book it touches is restored, as `_cd_native_plan` does."""
+        saved = {name: getattr(self, name) for name in PEER_GREEDY_COUNTERS if hasattr(self, name)}
+        placements: Dict[int, Tuple[int, int]] = {}
+        try:
+            self._pg_batch_pass(batch_tasks, system_state, self._pg_orchestrator(), memo={}, committed_service={}, planned={},
+                                placements=placements, service_of={}, refine=False)
         finally:
             for name, value in saved.items():
                 setattr(self, name, value)
