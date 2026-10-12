@@ -73,13 +73,13 @@ def test_a_single_task_batch_is_never_over_the_cap(monkeypatch):
     assert r.pg_overcap_pred == 0 and r.pg_overcap_gnn_batches == 0 and plan == {0: (1, 11)}
 
 
-def test_a_pinned_task_counts_one_in_the_product(monkeypatch):
-    _env(monkeypatch, 3, "gnn")   # 3 x 1 = 3 plans is within a cap of 3 once one task is pinned; 3 x 3 = 9 is not
+def test_a_forced_placement_does_not_shrink_the_product(monkeypatch):
+    _env(monkeypatch, 3, "gnn")   # the refine passes re-choose a held-out task, so the product is the slate sizes alone: 3 x 3 = 9 > 3
     r, tasks, state = _refiner_ov(monkeypatch)
-    monkeypatch.setattr(r, "_pg_plan_objects", lambda bt, st, pl: ([[1, 2, 3], [1, 2, 3]], {}, [set(), set()], [], {1}))
+    monkeypatch.setattr(r, "_pg_candidates", lambda t, st: [1, 2, 3])
+    assert r._pg_overcap_batch(tasks, state, {0: (9, 9), 1: (1, 11)}) is True
+    monkeypatch.setattr(r, "_pg_candidates", lambda t, st: [1])
     assert r._pg_overcap_batch(tasks, state, SEED) is False
-    monkeypatch.setattr(r, "_pg_plan_objects", lambda bt, st, pl: ([[1, 2, 3], [1, 2, 3]], {}, [set(), set()], [], set()))
-    assert r._pg_overcap_batch(tasks, state, SEED) is True
 
 
 def test_bad_values_and_the_wrong_shell_fail_loudly(monkeypatch):

@@ -1237,14 +1237,15 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         return drain + incoming_cold_start_time(task, platform) + exec_s + network_latency_between(task.node_name, node, nodes)
 
     def _pg_overcap_batch(self, batch_tasks: List["Task"], system_state: SystemState, placements: Dict[int, Tuple[int, int]]) -> bool:
-        """Whether `_pg_exact` would find this batch above the plan cap: the product of the slate sizes (a pinned task counts 1), nothing else."""
+        """Whether `_pg_exact` would find this batch above the plan cap: the product of the slate sizes, nothing else. A task held outside its candidates is
+        pinned only until the refine passes re-choose it, so a pin does not shrink the product; `placements` is unused."""
         n = len(batch_tasks)
         if n < 2:
             return False
-        cands, _couple, _keys, _plan, pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        cands = [self._pg_candidates(batch_tasks[i], system_state) for i in range(n)]
         total = 1
         for i in range(n):
-            total *= 1 if i in pinned else min(len(cands[i]), self.pg_cd_exact_top_k)
+            total *= min(len(cands[i]), self.pg_cd_exact_top_k)
         return total > self.pg_cd_exact_max_plans
 
     def _pg_exact(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
@@ -1468,6 +1469,8 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
         passes = int(raw)
         if passes < 1:
             raise ValueError(f"FAIL LOUD: HEROSIM_PG_CD_PASSES must be >= 1, got {raw!r}")
+        if self.pg_cd_exact:
+            self.pg_overcap_pred += int(self._pg_overcap_batch(batch_tasks, system_state, placements))
         self._pg_cd_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         if not (self.pg_cd_expansion or self.pg_cd_exact):
             return
