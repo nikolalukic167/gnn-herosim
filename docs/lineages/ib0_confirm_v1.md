@@ -1,6 +1,6 @@
 # ib0_confirm_v1 — does the hand `ib0` surrogate beat `cd_exactS` on fresh topologies, and does a GNN seed add anything on top of it?
 
-**Status:** `DRAFT` (2026-10-12), for the coordinator's signature. Owner S4. Nothing launches before it is signed. Parent: `plan_rerank_v1`
+**Status:** `REGISTERED` (2026-10-12, signed by the coordinator at 62e51229 with the amendment below). Owner S4. Parent: `plan_rerank_v1`
 (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record, read once, 12 oracle cells).
 
 ## Why
@@ -125,6 +125,21 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
 3. Reader committed first, with the arms, expected windows (`EXPECTED_WINDOWS`), coverage books and the bars above; its tests green.
 
 ## Record
+
+- 2026-10-12 — **Signed (62e51229), three notes added before any code runs on data (coordinator).**
+  1. The oracle stage runs whatever the classical read shows, an ib0 NO-WIN included. Its closing rule is against ib0 as served. If ib0 does not confirm,
+     the oracle vs `cd_exactS` on the same cells is also reported, descriptive.
+  2. **`cdx_ib0`'s hand seed, named exactly:** the plan the CD greedy's first pass builds on the batch (`_pg_batch_pass(refine=False)` in task-id order, the plan
+     `_cd_native_plan` starts from), on the ib0 surrogate. `cdx_ib0` is the plain CD scheduler with `HEROSIM_PG_CD_EXPANSION=1` and batch α = 0 (the `cd_expand`
+     flow: that first pass, `HEROSIM_PG_CD_PASSES` = 3 refine passes, one expansion phase, the passes again). `cdxapply_ib0` is the GNN scheduler's seed refined
+     by `GnnCdRefiner` (3 passes, one expansion phase with the same sweep and mover limits, the passes again). The budget is identical by construction: the same
+     env limits are read in `_pg_cd_expansion()` by both, and the counters `pg_expand_batches`, the expansion sweeps and `pg_cd_passes` are exported per cell and compared.
+     **Identity smoke before launch:** `GNN_CD_SEED=hand` replaces the GNN's plan by that hand seed inside the refiner (kind `_cdxhib0`); on one cell
+     (a topology outside the 12) `<gnn>_cdxhib0` must equal `cdx_ib0` bit for bit (total RTT, task results, search counters). If it does not, the difference is reported
+     and `cdx_ib0` is redefined as the `_cdxhib0` path itself, with the reason in the node, before any gate cell.
+  3. The alpha-validation relaxation (`gnn_cd_refine` and plain CD without the exact search) gets a flag-off identity test for `gnn_cd_refine` and for plain CD
+     (alphas at 1 reproduce the unrelaxed result byte for byte). A worktree is pinned at the launch commit.
+  - Cell windows as recommended: g0–g3 for the primary and secondary families, g0–g1 for the descriptive arms.
 
 - 2026-10-12 — Drafted from the coordinator's brief and SCIENTIST's review (λ frozen at 0 with an α = 0.5 control, a hand-seed control `cdx_ib0`, the MP-OFF twin,
   the full-coverage oracle with a pre-registered closing rule). Not signed.
