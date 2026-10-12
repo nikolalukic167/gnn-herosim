@@ -84,9 +84,31 @@ carried), about 1,150–1,750 cells. `cd_exactS_ib0`-class cells run about 3 ks 
   (GNN vs CD, slate_bar) stay on the whole-run statistic.
 - **C. Re-run the headline contrasts on steady state.** B, plus a re-run of the minimum set above at
   pinned commits, with the bit-equal identity per cell so that whole-run and steady-state come from the
-  same cells. Cost: about 1,150–1,750 cells (one 24-shard array per gate, as for `slate_bar_v1`) and
-  checkpoints and inputs that must still exist on datalab (not verified here). Gives the paper a
-  steady-state line for every claim it makes.
+  same cells. Cost: about 1,150–1,750 cells (one 24-shard array per gate, as for `slate_bar_v1`).
+  Gives the paper a steady-state line for every claim it makes. The old gate commits do not carry the
+  c81f0e88 summarizer, so each re-run worktree is the gate's commit plus c81f0e88 (summary-only; its
+  existing keys were bit-identical in smoke 864169), or a later base that passes the identity.
+
+  **Artifacts on datalab (checked read-only 2026-10-12; md5 = first 8 hex).** Everything the minimum
+  set needs is present.
+
+  | artifact | path | present | md5 (recorded → found) |
+  |---|---|---|---|
+  | GNN g4 seed 1 `.pt` | `~/gnn-herosim/models/accel-replica-v1-gnn-eng-g4-seed1.pt`; copy in `/share/nikola.lukic/accel_prod/gate_inputs/models/accel-replica-v1-gnn-eng-seed1.pt` | yes, both | 0f915a36 (`slate_fix_v1.md:101`) → 0f915a36 both |
+  | GNN g4 seed 2 `.pt` | same two places, `seed2` | yes, both | 446f99fd (`slate_fix_v1.md:101`) → 446f99fd both |
+  | GNN g4 seed 1 / 2 sidecar | `….contract.json` beside each `.pt` | yes, both | none recorded → 114c5fdc / a3c72798, equal across copies |
+  | twin g4 seed 1 / 2 `.pt` | `~/gnn-herosim/models/accel-replica-v1-twin-eng-g4-seed{1,2}.pt`; copy in `/share/nikola.lukic/selfsearch_confirm/gate_twin_inputs/models/` (via `selfsearch/twin_inputs_8c8ebc7f`) | yes, both | none recorded → bc44f9c2 / 7798e128, equal across copies |
+  | twin g4 seed 1 / 2 sidecar | beside each `.pt` | yes, both | none recorded → 1c40f851 / 225a1e0e, equal across copies |
+  | `ib0_confirm_v1` inputs | `/share/nikola.lukic/ib0_confirm/inputs_12/inputs` (`wf1_{heavy,moderate}/cfg` 12 configs 19405–19416, `wl` 4 windows, manifests, split, `models` → `ib0_confirm/models`, symlinks to the g4 files above) | yes | none recorded |
+  | `selfsearch_confirm_v1` inputs (also `slate_bar_v1`'s, which reused them) | `/share/nikola.lukic/selfsearch_confirm/gate/inputs` (24 configs 16490–16513 per rung, 4 windows, manifests, split, `models` → `accel_prod/gate_inputs/models`) | yes | selection 15a36704 recorded (`selfsearch_confirm_v1.md:106`), not re-hashed |
+  | `selfsearch_confirm_v1` cells | `/share/nikola.lukic/selfsearch_confirm/gate_79ea002c` (4,608 files, summaries and logs) | yes | — |
+  | `accel_nosplit_v1` inputs | `/share/nikola.lukic/accel_nosplit/inputs/inputs` (24 configs 16345–16368 per rung, 4 windows, manifests, split, `models` → `accel_prod/gate_inputs/models`) | yes | none recorded |
+  | `slate_bar_v1` cells | `/share/nikola.lukic/slate_bar/gate` (384 files, summaries and logs of the restricted `cd_exactS` arm) | yes | — |
+  | gate commits | 79ea002c, acbea783, d192081f, 2c84ab4e, 168db8ca in `~/gnn-herosim` | yes (`git cat-file`) | — |
+
+  Not checked: whether each input file is byte-identical to what the gate read (no md5 is recorded for the
+  inputs; the per-cell bit-equal identity is the check), and the physMP checkpoints (in
+  `accel_prod/gate_inputs/models`, not in the minimum set).
 
 ## Recommendation
 
