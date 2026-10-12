@@ -1,11 +1,11 @@
 # slate_fix_v1 — does the GNN trained and served on the uncapped candidate set close its heavy gap to `cd_exactS`?
 
-**Status:** `REGISTERED` (signed by the expert 2026-10-12 at d66ab923; drafted by S6). No training, no gate cell, no data yet.
+**Status:** `REGISTERED` (signed by the expert 2026-10-12 at d66ab923; drafted by S6). Launched 2026-10-12; no gate cell, no data yet.
 
-**Now (2026-10-12).** Code and configs are on `rp/slate-fix`. The launch is gated, in this order:
-1. S7's recache and the cache check (`scripts_cosim/slate_fix_v1_cache_check.py`) must pass.
-2. Training waits for the `slate_bar_v1` read, by the user's order. If that read is SLATE-IRRELEVANT, the expert decides whether training still runs.
-3. The eval-only path's end-to-end identity task must pass before the screen; a failure is fixed in code, never rerun.
+**Now (2026-10-12).** Code and configs are on `rp/slate-fix`; the jobs run at the pinned code 438fa161 (later commits are this node only). Launch order:
+1. S7's recache and the cache check (`scripts_cosim/slate_fix_v1_cache_check.py`): PASSED.
+2. **User-ordered amendment (2026-10-12, relayed by the expert):** training starts now and no longer waits for the `slate_bar_v1` read. The gate order is unchanged.
+3. Eval-only identity task (job 863945, task 8) → training (863946, gnn_eng / twin_eng, seeds 1–2; `afterok` on the identity) → offline screen (863947, tasks 0–7; `afterok` on training) → identity and smoke on 16490 → gate A and B → single read. A failed identity is fixed in code, never rerun.
 
 **What the fix does not touch: read this first if the gap does not move.**
 - **54 over-cap train datasets** (> 100,000 full plans) keep their capped top-5 labels: `untouched_over_cap` in `extend_manifest.*.jsonl`.
@@ -192,10 +192,13 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 - **Total:** ≈ 0.4–0.6 M core-s training plus 1.1–1.8 M core-s gate; about 10–15 h end to end after the recache.
 - **Queue:** 23 entries in all (limit 44). At most 8 CPU jobs at once (my share), so the gate arrays are throttled (`%6` and `%2`) and launch only when L24 and my
   other jobs have drained.
-- **Order:** S7 recache → cache check → training → eval identity → screen and smoke (parallel) → gate A and B together → single read.
+- **Order (amended 2026-10-12, see head):** S7 recache → cache check → eval identity → training → screen → smoke → gate A and B together → single read.
 
 ## Record (newest first)
 
+- 2026-10-12 — **Launched, by user-ordered amendment** (relayed by the expert): training no longer waits for the `slate_bar_v1` read; the gate order is unchanged.
+  - Datalab worktree `~/gnn-herosim-wt/sf_438fa161` (code 438fa161), with `models/` → `~/gnn-herosim/models` and the g4 cache path → `accel_prod/20261010_061132/cache_run/cache` (the identity task's own capped cache).
+  - Jobs: identity 863945 (task 8); training 863946 (tasks 0–1, `afterok` on 863945); screen 863947 (tasks 0–7, throttle 4, `afterok` on 863946). Screen output `/share/nikola.lukic/slate_fix/screen_438fa161`.
 - 2026-10-12 — **What drives the 417 + 49 improved labels** (S7; `scripts_cosim/extend_corpus_drivers.py` on rp/corpus-uncap 8e0b8803, job 863777; `accel_uncap/4f41b771/drivers_{train,heldout}.json`). A classification, not a causal test.
   - Class of the candidates the new best plan uses that the old slate dropped (train / held-out):
     - cold-mispricing, meaning every such candidate would be top-5 under the simulation's cold charge: 61.6 % (257) / 49.0 % (24);
