@@ -66,6 +66,10 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
 | L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
 
+## 2026-10-12 — `run_one` rebound the cell name: per-cell `.tasks.npy` unusable since 6ad51eaf
+
+`fresh_topo_burst_v1_gate.py` `run_one` checks the served alpha env with `for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA")` (plan_rerank, 6ad51eaf). `name` is also the cell name under which `write_task_times` writes `<name>.tasks.npy`, so every cell reaching that loop wrote its per-task times to `HEROSIM_PG_BATCH_ALPHA.tasks.npy`, one file overwritten by every cell (concurrent cells also raced on its `.partial`, which killed the first warm_surge check cells). The sparse_obs check loop (`for name in OBS_ENV`) did the same. Summaries, `steady_state` keys and failed-cell records use their own path variables and are unaffected; only the per-task npy is lost. Every gate run between 6ad51eaf and the fix has no usable `.tasks.npy` (slate_fix_v2 at 6a5c922c, sparse_obs `gate_s2`, ib0_confirm). Fixed at e3d5e069 (loop variable renamed); `tests/test_gate_name_not_shadowed.py` fails if `run_one` rebinds `name` in a `for`. A reader that needs per-task times from a gate older than the fix must rerun it.
+
 ## 2026-10-12 — Audit after three breaking changes
 
 An independent audit (relayed by the coordinator) of the three 2026-10-12 breaking changes: the `cd_exactS_ib0` bar, the declared-slate cold defect, and the WF1 / multiplier rows. It found no cited number wrong, and four MAJOR reproducibility or contract items, which S6 is fixing on `rp/slate-fix`.
