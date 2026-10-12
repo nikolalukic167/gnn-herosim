@@ -1062,7 +1062,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
 
     def _pg_plan_terms(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch, memo: Dict[str, float], nodes) -> List[List[float]]:
         """ORACLE_DIAG_TERMS=1 only: `_pg_plan_cost`'s S split per task into [platform drain, in-batch stacking, in-flight, cold, exec, latency, input wait,
-        exchange (x pg_exchange_scale), pull hold, external, S_i], every term as `_pg_plan_cost` charges it (the alpha weights are applied, so the terms add up
+        exchange (x pg_exchange_scale), pull hold, external, S_i, then the UNWEIGHTED stacking and the task service (exec + comm + exchange), which the alpha weights would zero], every term as `_pg_plan_cost` charges it (the alpha weights are applied, so the terms add up
         to S_i of the running configuration; the sum is checked). A read of the same state with the same memo: it changes no book and no decision."""
         n = len(batch_tasks)
         planned = {int(batch_tasks[i].id): plan[i][0].node_name for i in range(n)}
@@ -1107,7 +1107,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             row = [ad * plat_drain, ab * stack_raw, ad * infl, cold, exec_s[i], lat, in_wait[i], self.pg_exchange_scale * exch[i], hold, ext]
             if abs(sum(row) - scores[i]) > 1e-6 * max(1.0, abs(scores[i])):
                 raise RuntimeError(f"FAIL LOUD: the S terms sum to {sum(row)!r}, _pg_plan_cost gives {scores[i]!r} (task {i})")
-            rows.append([round(v, 5) for v in row] + [round(scores[i], 5)])
+            rows.append([round(v, 5) for v in row] + [round(scores[i], 5), round(stack_raw, 5), round(service[i], 5)])
         return rows
 
     def _pg_terms_ctx(self, batch_tasks: List["Task"], plans: Sequence[Sequence[Tuple["Node", "Platform"]]]) -> Dict[str, Any]:
@@ -1518,7 +1518,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             if k not in seen:
                 seen.add(k)
                 chosen.append(pl)
-        return {"terms_cols": ["drain", "stack", "inflight", "cold", "exec", "lat", "in_wait", "exch", "hold", "ext", "S"],
+        return {"terms_cols": ["drain", "stack", "inflight", "cold", "exec", "lat", "in_wait", "exch", "hold", "ext", "S", "stack_raw", "service"],
                 "terms": [[list(ident(pl)), self._pg_plan_terms(batch_tasks, pl, orch, memo, self.nodes.items)] for pl in chosen],
                 "ctx": self._pg_terms_ctx(batch_tasks, chosen)}
 
