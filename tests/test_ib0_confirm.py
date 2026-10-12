@@ -204,8 +204,8 @@ def test_alpha_unset_prune_alone_is_unchanged(monkeypatch):
 
 
 def test_dc_suffix_and_new_hand_arms_in_the_harness():
-    assert G.split_dc("cd_exactS_ib0_dc250") == ("cd_exactS_ib0", "0.25")
-    assert G.split_dc("ra_gnn_eng_cdxapply_dc1000") == ("ra_gnn_eng_cdxapply", "1.0")
+    assert G.split_dc("cd_exactS_ib0_k025") == ("cd_exactS_ib0", 0.25)
+    assert G.split_dc("ra_gnn_eng_cdxapply_k100") == ("ra_gnn_eng_cdxapply", 1.0)
     assert G.split_dc("cd_exactS_ib0") == ("cd_exactS_ib0", None)
     for k in ("cd_ib0", "cd_exactS_ib0_prune"):
         assert k in G.R1A_ARMS and G.RULE_POLICY[k] == "peer_greedy_network_cd"
