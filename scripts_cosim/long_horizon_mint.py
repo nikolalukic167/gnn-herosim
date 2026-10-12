@@ -169,6 +169,8 @@ def main() -> int:
     ap.add_argument("--rung", required=True)
     ap.add_argument("--manifest", type=Path, required=True, help="accel gate manifest_<rung>.json (the rung factor and gate sha256)")
     ap.add_argument("--gate-wl", type=Path, required=True, help="accel gate wf1_<rung>/wl: cycles 0-3 must equal these")
+    ap.add_argument("--w2-wl", type=Path, required=True,
+                    help="the accel inputs_w24/wf1_<rung>/wl stage the manifest's sha256 describe (before the 160-client remap)")
     ap.add_argument("--x1", type=Path, required=True)
     ap.add_argument("--lib-dir", type=Path, required=True)
     ap.add_argument("--base-dir", type=Path, required=True)
@@ -180,10 +182,12 @@ def main() -> int:
         raise SystemExit(f"FAIL LOUD: {a.out} exists; a minted window is frozen")
     man = json.load(open(a.manifest))
     factor = float(man["rungs"][a.rung]["factor"])
+    # the manifest is written at the W2 stage, before the W3 copy and the 160-client remap; the gate files themselves are checked by
+    # equality with cycles 0-3 below
     for name, want in man["rungs"][a.rung]["wl_sha256"].items():
-        got = sha256(a.gate_wl / name)
+        got = sha256(a.w2_wl / name)
         if got != want:
-            raise SystemExit(f"FAIL LOUD: gate window {name} sha256 {got} != manifest {want}")
+            raise SystemExit(f"FAIL LOUD: W2 window {a.w2_wl / name} sha256 {got} != manifest {want}")
     cfg = json.load(open(a.cfg))
     cfg_factor = float((cfg.get("cd_gap_v1_rate_scale") or {}).get("factor", float("nan")))
     if abs(cfg_factor - factor) > 1e-12 or float(cfg["scheduler"]["batch_timeout"]) != 1.0:
