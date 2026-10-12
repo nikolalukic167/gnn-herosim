@@ -10,6 +10,30 @@ Facts about the *gates themselves*, kept out of the lineage narratives on purpos
 that lies is worse than no gate, and someone re-running one of these in six months needs to
 find out what changed about the tool without reading a lineage's story to get there.
 
+## Breaking changes, dated (compiled 2026-10-12)
+
+One row per change after which earlier numbers no longer mean what they said. Each date and effect was read at the home named in the last column.
+
+| Date | Change | What it invalidates | Home |
+|---|---|---|---|
+| 2026-08-17 | Cache labels came from `optimal_result.json`, not the `placements.jsonl` minimum: 24/200 `shallow_v1` labels wrong, mean regret 15.78 % | Any ablation trained on those caches (the 2026-08-17 `shallow_v1` ablation) | `docs/lessons.md` "CACHE LABELS ≠ SWEEP OPTIMA" |
+| 2026-08-18 | Workload draw was unseeded (global `random.randint`, no seed) | Reproducing any corpus or live number from before it by its seed | `docs/lessons.md` "THE WORKLOAD DRAW WAS UNSEEDED" |
+| 2026-08-20 | Checkpoints carried no infrastructure provenance: the sealed holdout served 40–50-node cells to 20 × 20-trained models unnoticed; the feature-layout guess was closed 2026-08-23 | Live numbers read as in-distribution before the `corpus` sidecar block; checkpoints served under a guessed layout | [table](gate-tools-table-2026-08-19-to-09-14.md), rows 2026-08-20 and 2026-08-23 |
+| 2026-08-21 | Every datalab gate ran in an undeclared third environment (`pipenv run` past `micromamba activate`) | Nothing: library versions measured at exactly 0.0 logit change, 0/256 argmax flips; it invalidates venue-gap explanations | [table](gate-tools-table-2026-08-19-to-09-14.md) row 2026-08-21; `PARITY.md` |
+| 2026-09-16 | Size-free served representation (`partial_state_v3`: rank one-hot → two scalars) | Serving a pre-v3 checkpoint at another cluster size; v3 ties v2 at 6 servers | [partial_state_v3](../lineages/partial_state_v3.md) |
+| 2026-09-18 | Bipartite penalty aggregates by `sum` over a candidate set that grows 3.55 → 47.92 per task (6 → 80 servers); use `mean` | `sum`-aggregated bipartite arms at 80 servers as an architecture verdict | [bipartite_aggr_v1](../lineages/bipartite_aggr_v1.md) |
+| 2026-09-20 | Paired statistic: pair on the environment before the median | Every client-rung "vs reactive" number before it (the −20.8 % headline was an unpaired ratio of medians) | [unsaturated_edge_v1](../lineages/unsaturated_edge_v1.md) |
+| 2026-09-20 | A hand rule with the model's information is the bar (peer-greedy rule −12.96 / −16.01 % vs reactive) | "Beats Knative" as evidence for a learned arm | [peer_greedy_live_v1](../lineages/peer_greedy_live_v1.md) |
+| 2026-09-20 | Serving cap blocked the label's co-location move (read 09-20, audit-confirmed 09-21) | Capped burst-seat learned-arm losses (`joint_burst_v1` +16.8 % vs the greedy) | [joint_burst_v2](../lineages/joint_burst_v2.md) |
+| 2026-09-25 | Uncapped-rung `krank` serving defect fixed at 721d44f (zero-demand nodes ranked first; 56/60 batches) | Uncapped burst-seat learned-arm numbers before 721d44f; bounded: the fix made `gnnedge0` +1.4 % slower | [load_repr_v1](../lineages/load_repr_v1.md) |
+| 2026-10-07 | Single request origin per group, not scattered | Every learned-vs-CD win before it (grounded, peak-load, small-batch): single-origin, no learned arm beats CD | [small_batch_so_v1](../lineages/small_batch_so_v1.md), [client_local_v1](../lineages/client_local_v1.md) |
+| 2026-10-08 | Reference physics R1 → R1.1 (pipelined, release, KPA, time scale 1.0) and workload WF1 frozen | Every pre-R1 number is another physics; R1 co-sim labels before the I11 fix 033811d6 | [physics_audit_v1](../lineages/physics_audit_v1.md), [workload_fix_v1](../lineages/workload_fix_v1.md) |
+| 2026-10-09 | Load rungs fixed by CD effective queue share (light ×1.26, moderate ×5.94, heavy ×11.61) | Rung labels from before it | [load_recalibration_v1](../lineages/load_recalibration_v1.md) |
+| 2026-10-10 | Multiplier convention: double scaling at 160 × 24 | "CD saturated at m0" (retracted) | [scale_160_v1](../lineages/scale_160_v1.md) |
+| 2026-10-10 | Hand bar moves above CD: `cd_expand` (α-expansion) and `cd_exactS` (exact S over the slate), −7 to −11 % vs CD | "Beats CD" as "beats the best hand search" | [accel_replica_v1 post-close diagnostics](../lineages/accel_replica_v1/post_close_diagnostics.md) |
+| 2026-10-12 | Declared top-5 slate charges cold 0 on initialized platforms; `cd_exactS` is not slate-restricted | GNN-vs-hand-search contrasts as scorer verdicts: matched-slate, the GNN self-search wins −4.85 / −1.94 % | [slate_bar_v1](../lineages/slate_bar_v1.md); the section below |
+| 2026-10-12 | Hand bar moves to `cd_exactS_ib0` (S without in-batch stacking): −4.73 / −2.27 % vs `cd_exactS`, 12/12 | `cd_exactS` as the bar | `ib0_confirm_v1` (branch `rp/plan-rerank`, not yet merged) |
+
 ## 2026-10-12 — The declared slate charges no cold start on an `initialized` platform; the simulation does
 
 **Where.** `declared_slate.standalone_cost` (`src/placement/declared_slate.py:46`) sets cold = 0 whenever the candidate payload's

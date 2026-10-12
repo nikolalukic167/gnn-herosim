@@ -2,7 +2,15 @@
 
 > **Status:** `SYNTHESIS` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-18 → 2026-09-09
 
-**Now (2026-10-12).** The count-shaped-or-negligible conclusion below covers the supervised single-batch targets it measured. Nothing since overturns it as a message-passing claim: the learned scorers that beat CD in the accel seat are not MP wins (`selfsearch_confirm_v1` ties its MP-OFF twin; `accel_nosplit_v1` trained none), and the instance-pair exception is offline only (2026-09-12 section). Routes 1–3, moved from AGENTS.md, are the last section.
+**Now (2026-10-12, head rewritten).** Accel seat (R1.1 + WF1, 160 clients × 24 servers, moderate and heavy rungs).
+- **The hand bar is `cd_exactS_ib0`**: exact search on CD's surrogate S with the in-batch stacking term zeroed. It beats `cd_exactS` −4.73 / −2.27 % (12/12 each, Holm .001) and CD −12.07 / −7.36 % (`ib0_confirm_v1`, branch `rp/plan-rerank`, not yet merged).
+- **Against plain CD a learned scorer wins at moderate only, CONFIRMED on fresh topologies:** whole-group GNN −6.9 / −7.7 % ([accel_nosplit_v1](accel_nosplit_v1.md)), GNN self-search −8.5 / −10.1 % ([selfsearch_confirm_v1](selfsearch_confirm_v1.md)). Heavy −1 to −4 %, under the −5 % bar.
+- **Against `cd_exactS` the heavy deficit is a candidate-set handicap:** matched-slate, the GNN self-search wins −4.85 / −1.94 % ([slate_bar_v1](slate_bar_v1.md)).
+- **Against the `ib0` bar the GNN is under it:** a GNN seed inside the `ib0` expansion search beats the same search hand-seeded by −0.99 % (11/12, Holm .020) / −1.22 % (9/12, Holm .154), DIRECTION-ONLY at moderate and NOT-SEPARATED at heavy, but is +0.73 / +0.41 % slower than `cd_exactS_ib0` itself. Even a full-coverage label oracle beats `ib0` by only −2.82 % at moderate (6/6), above the registered −3 % line, so the supervised batch-label family closes (`ib0_confirm_v1`).
+- **No message-passing win over a bar:** the winning arms tie their MP-OFF twins; where MP beats its twin (raw inputs, −4.75 / −4.62 / −7.99 %, [r1_attribution_v1](r1_attribution_v1.md)) both lose to CD.
+- **Closed 2026-10-12:** [plan_rerank_v1](plan_rerank_v1.md), [gnn_overcap_v1](gnn_overcap_v1.md), [prune_g8_s0_v1](prune_g8_s0_v1.md), [long_horizon_s0_v1](long_horizon_s0_v1.md), [high_rho_s0_v1](high_rho_s0_v1.md), [slate_bar_v1](slate_bar_v1.md). Numbers are in their index rows.
+- **Open levers, both REGISTERED, hand arms first:** `sparse_obs_s0_v1` (how much of the hand lead is information a real scheduler lacks; branch `rp/sparse-obs`) and `decision_cost_s0_v1` (decision time charged as simulated time; branch `rp/decision-cost`).
+- The count-shaped-or-negligible conclusion below still stands as a message-passing claim. Routes 1–3, moved from AGENTS.md, are the last section.
 
 **Outcome.** Cross-lineage synthesis: four mechanisms, one collapse. **In this simulator, coupling is either count-shaped or negligible** — and the negligible half is demonstrated, not assumed. **Closed as a question 2026-09-09:** a graph-reasoning win over a pointwise scorer is not available on this simulator's supervised targets — by the structure of what the simulator computes, not by a shortfall of data, epochs or architecture; the 2026-09-09 section below says why in plain language and what would change the answer.
 
