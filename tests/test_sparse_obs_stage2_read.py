@@ -19,7 +19,11 @@ def cell(lat, arm):
 
 
 def synth(pct):
-    return {(a, 0, t, "g0", r): cell(3.0 * (1 + (p + (t % 5 - 2) * 0.1) / 100), a) for t in TOPOS for r in G.RUNGS for a, p in pct.items()}
+    cells = {(a, 0, t, "g0", r): cell(3.0 * (1 + (p + (t % 5 - 2) * 0.1) / 100), a) for t in TOPOS for r in G.RUNGS for a, p in pct.items()}
+    for (a, _, t, _, r), c in cells.items():   # steady-state keys: a different effect size so the labelled lines are distinguishable
+        base = c["averageElapsedTime"]
+        c["steady_state"] = {"after_360s": {"mean": base * 0.5, "n": 10}, "after_p5_dispatch": {"mean": base * 0.6, "n": 10}}
+    return cells
 
 
 def patch(mp, cells):
@@ -57,3 +61,12 @@ def test_unregistered_arm_is_refused(monkeypatch):
     patch(monkeypatch, cells)
     with pytest.raises(SystemExit):
         G.read(["x"], TOPOS)
+
+
+def test_steady_state_lines_are_labelled_descriptive_and_outside_the_flags(monkeypatch):
+    patch(monkeypatch, synth({G.A0: 0.0, G.AP: -2.0, G.WN: 18.0, G.WE: 9.0}))
+    r = G.read(["x"], TOPOS)
+    ss = r["steady_state_descriptive"]
+    assert ss[f"{G.WN} vs {G.AP}|heavy|after_360s"]["median_pct"] == pytest.approx(r["contrasts"][f"{G.WN} vs {G.AP}|heavy"]["median_pct"], abs=0.5)
+    assert all(c["family"].startswith("steady:") for c in ss.values()) and len(ss) == 2 * 4 * 2
+    assert "steady" not in str(r["flags"])

@@ -10,6 +10,10 @@ Negative = the first arm faster.
 Flags: VOI_GE_10, R_GE_5, W1_PASS (both, some rung); the kill rule is HAND-RECOVERS-UNDER-SPARSITY for warmth when neither rung passes. LEAK: any W1 arm faster than A0+ by >= 1 % with Holm < 0.05
 (the degraded arm beating its own reference) is audited before VoI is read. A0P_GE_1: A0+ faster than A0 by >= 1 % (the hand-bar correction is material).
 
+Steady state (descriptive, labelled, NOT in any family or flag): beside every primary/VoI/R contrast the same paired statistic on the mean latency of the tasks dispatched at or after 360 s
+(`steady_state.after_360s`) and after the 5th-percentile dispatch time (`after_p5_dispatch`), because the live mean carries a whole-system cold start and A0+ is a cold-start correction.
+The A0 cells are re-run in this stage at the same pin (the stage-1 A0 summaries predate the steady-state keys), and the two A0 sets are compared by sparse_obs_ident.py.
+
   sparse_obs_v2_gate_read.py --gate <dir> [<dir> ...] --topos t1,...,t12 [--out read.json]
 """
 import argparse
@@ -71,6 +75,21 @@ def read(gates, topos):
             adj = R.holm({f"{a} vs {b}|{r}": contrasts[f"{a} vs {b}|{r}"]["p"] for a, b in ps for r in RUNGS})
             for k, v in adj.items():
                 contrasts[k]["p_holm"] = v
+    steady = {}
+    for label, key in (("after_360s", "after_360s"), ("after_p5", "after_p5_dispatch")):
+        ss = {}
+        for k, v in cells.items():
+            x = (v.get("steady_state") or {}).get(key) or {}
+            if x.get("mean") is not None:
+                ss[k] = {**v, "averageElapsedTime": x["mean"]}
+        for fam, ps in pairs.items():
+            if fam == "descriptive":
+                continue
+            for a, b in ps:
+                for r in RUNGS:
+                    c = R.contrast(ss, a, b, r, sel)
+                    c["family"] = f"steady:{label}"
+                    steady[f"{a} vs {b}|{r}|{label}"] = c
     m = lambda a, b, r: contrasts[f"{a} vs {b}|{r}"]["median_pct"]
     flags = {}
     for r in RUNGS:
@@ -86,7 +105,7 @@ def read(gates, topos):
     cnt = {f"{k}|{r}": {"finished": sum(1 for c in cells if c[0] == k and c[4] == r),
                         "failed": sum(1 for c in failed if c[0] == k and c[4] == r), "expected": exp} for k in ARMS for r in RUNGS}
     return {"gate": list(gates), "topologies": sel, "n_summaries": len(cells), "n_failed": len(failed), "counts": cnt, "books": bk,
-            "instrument_ok": inst, "INSTRUMENT_OK": all(inst.values()), "contrasts": contrasts, "flags": flags,
+            "instrument_ok": inst, "INSTRUMENT_OK": all(inst.values()), "contrasts": contrasts, "flags": flags, "steady_state_descriptive": steady,
             "W1_PASS": any(f["W1_PASS"] for f in flags.values()), "LEAK": any(any(f["LEAK"].values()) for f in flags.values())}
 
 
@@ -103,6 +122,10 @@ def print_report(r):
         print(f"  [{c['family']:11s}] {k:38s} median {mm:>10s} n={c['n_topologies']:2d} wins={c['wins']} p={f(c['p'])}{hp}")
         if c.get("per_topology"):
             print("      " + " ".join(f"{t}:{v:+.1f}" for t, v in c["per_topology"].items()))
+    print("-- steady state (descriptive, labelled; not in any family or flag)")
+    for k, c in r["steady_state_descriptive"].items():
+        mm = "-" if c["median_pct"] is None else format(c["median_pct"], "+.2f") + " %"
+        print(f"  [{c['family']:18s}] {k:46s} median {mm:>10s} n={c['n_topologies']:2d} wins={c['wins']} p={f(c['p'])}")
     for rr, v in r["flags"].items():
         print(f"  flags {rr:9s} {v}")
     print(f"-- INSTRUMENT_OK {r['INSTRUMENT_OK']}   W1_PASS {r['W1_PASS']}   LEAK {r['LEAK']}")
