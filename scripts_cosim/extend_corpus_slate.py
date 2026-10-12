@@ -155,7 +155,7 @@ def _spec_key() -> str:
     return fidelity_replay.SPEC_KEY
 
 
-def run_sweep(tag: str, workdir: Path, wl_path: Path, v: Dict[str, Any], config: Dict[str, Any], infra_path: Path, args, env: Dict[str, str]) -> Tuple[str, float, float]:
+def run_sweep(tag: str, workdir: Path, wl_path: Path, v: Dict[str, Any], config: Dict[str, Any], infra_path: Path, args, env: Dict[str, str], workers: int) -> Tuple[str, float, float]:
     from scripts_cosim.generate_gnn_datasets_fast import generate_single_dataset
 
     sim_data = PROJECT_ROOT / "simulation_data"
@@ -165,7 +165,7 @@ def run_sweep(tag: str, workdir: Path, wl_path: Path, v: Dict[str, Any], config:
         return generate_single_dataset(
             tag, workdir, config, wl_path, args.sim_input,
             sim_data / "sample_simple.json", sim_data / "lhs_samples_simple.npy", sim_data / "lhs_samples_simple_mapping.pkl",
-            seed=int(v["ws"]["provenance"]["cell_seed"]), max_workers=args.workers, quiet=True,
+            seed=int(v["ws"]["provenance"]["cell_seed"]), max_workers=workers, quiet=True,
             fast_forward_warmup=True, fast_forward_threshold=1, allow_non_unique_replicas=True, warmth_physics="node_disk_v2",
             grid_name=f"warm_snapshot:{v['ws']['provenance']['source_tag']}", num_tasks=len(v["wl"]["events"]),
             infrastructure_override=infra_path)
@@ -237,10 +237,11 @@ def extend_one(src: Path, dst: Path, args) -> Dict[str, Any]:
     skip = work / "old_plans.jsonl"
     shutil.copyfile(src / "placements" / "placements.jsonl", skip)
 
-    # a) the new plans
+    # a) the new plans (a process pool wider than the plans left only pays its start-up)
+    wk_new = max(1, min(args.workers, (v['full_plans'] - v['old_plans']) // 8 or 1))
     new_dir = work / "new"
     t0 = time.time()
-    status, new_best_rtt, secs = run_sweep("new", new_dir, wl_src, v, config, infra_path, args, {"COSIM_SKIP_PLANS_FILE": str(skip)})
+    status, new_best_rtt, secs = run_sweep("new", new_dir, wl_src, v, config, infra_path, args, {"COSIM_SKIP_PLANS_FILE": str(skip)}, wk_new)
     if status != "success":
         raise RuntimeError(f"FAIL LOUD: {name}: the sweep of the added plans returned {status!r}")
     report = json.loads((new_dir / "skip_plans_report.json").read_text())
@@ -265,7 +266,7 @@ def extend_one(src: Path, dst: Path, args) -> Dict[str, Any]:
         only = work / "verify_plans.jsonl"
         only.write_text("".join(line + "\n" for line, _ in picked))
         vdir = work / "verify"
-        vstatus, _, _ = run_sweep("verify", vdir, wl_src, v, config, infra_path, args, {"COSIM_ONLY_PLANS_FILE": str(only)})
+        vstatus, _, _ = run_sweep("verify", vdir, wl_src, v, config, infra_path, args, {"COSIM_ONLY_PLANS_FILE": str(only)}, min(args.workers, len(picked)))
         if vstatus != "success":
             raise RuntimeError(f"FAIL LOUD: {name}: the re-score sweep returned {vstatus!r}")
         again = {plan_key(r["placement_plan"]): float(r["rtt"]) for _, r in read_rows(vdir / "placements" / "placements.jsonl")}
@@ -298,7 +299,7 @@ def extend_one(src: Path, dst: Path, args) -> Dict[str, Any]:
            "best_before": old_best[0], "best_after": min(old_best, new_best)[0], "new_best_wins": bool(new_wins),
            "verified_old_plans": verified, "per_task_candidates_before": v["draw"]["per_task_candidates"],
            "per_task_candidates_after": prov["candidate_draw"]["per_task_candidates"], "old_slate": prov["candidate_draw"]["old_slate"],
-           "sweep_seconds_added": secs, "sim_per_second_added": sweep_rate, "workers": args.workers,
+           "sweep_seconds_added": secs, "sim_per_second_added": sweep_rate, "workers": wk_new,
            "code_commit": os.environ.get("EXTEND_CODE_COMMIT")}
     meta = dict(meta_old)
     meta.update({"num_placements": total, "completed": total, "rows_written": total, "sweep_complete": True, "slate_extension": ext})
@@ -325,8 +326,8 @@ def extend_one(src: Path, dst: Path, args) -> Dict[str, Any]:
     rec.update({"status": "extended", "plans_before": len(old_rows), "plans_added": len(new_rows), "plans_after": total,
                 "best_before": old_best[0], "best_after": min(old_best, new_best)[0], "new_best_wins": bool(new_wins),
                 "verified": verified, "sweep_seconds": secs, "wall_seconds": time.time() - t0, "sim_per_second": sweep_rate,
-                "workers": args.workers,
-                "worker_seconds_per_plan": (args.workers / sweep_rate) if sweep_rate else None})
+                "workers": wk_new,
+                "worker_seconds_per_plan": (wk_new / sweep_rate) if sweep_rate else None})
     return rec
 
 
