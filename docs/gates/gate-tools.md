@@ -788,3 +788,10 @@ tasks died mid-epoch with nothing in their logs.
   `/tmp` (936 G free on CPU-amd nodes); `client_local_v1_*.sbatch` and the newer gate sbatches set it.
 - **Rule:** rc 120, or a run whose log stops mid-simulation with no error, is the quota until shown otherwise; check
   `du -sh ~` before rerunning, and remove those records — they are not outcomes.
+
+## 2026-10-12 — `read_training_curves.py` read rising accuracies as falling and train/ce against the wrong floor
+
+The wandb curve audit (343 run dirs) found two defects in the reader. Neither changes a checkpoint, selection or live number, but both are in curve reads quoted since the plan-exact metrics landed.
+- **Peak direction.** The SELECTION block took `max` only for names ending in `acc`. So `val/mt_plan_exact`, `val/mt_task_acc_choice` and `val/task_acc_choice` had their *minimum* reported as their peak, e.g. "peaks at epoch 0" when they peak at epochs 57–99. Now a name containing acc, exact, choice or agreement is higher-is-better unless it is a regret, ce or loss (`higher_is_better`). Read the prefix-free ones with [lessons.md "Prefix-free accuracy drifts down as the selector improves"](../lessons.md): their max is not the run's decision.
+- **train/ce floor.** train/ce was compared with `baseline/val_chance_ce`, the val split's one-term plan NLL. Under `NEAR_RTT_FULL_CONTEXT_CE_WEIGHT=1.0`, train/ce adds a second plan NLL, so 25 grounded runs read "train/ce NEVER BEATS CHANCE" while val/ce beat it. Only val/ce is now read against the floor, and the output says why. The weight is in the checkpoint contract, not the W&B config, so the floor can't be scaled from the run dir.
+- Tests: `tests/test_read_training_curves_direction.py`, on two trimmed saved runs in `tests/fixtures/wandb_curves/` (history and summary records only).
