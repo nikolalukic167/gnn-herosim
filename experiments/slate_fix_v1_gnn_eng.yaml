@@ -1,11 +1,11 @@
 # slate_fix_v1 -- the accel_replica_v1 gnn_eng g4 recipe (lr 0.001, embedding = hidden = 128, 100-epoch cap, patience 60), byte-identical
 # except lineage, cache_dir and the W&B names, trained on the UNCAPPED accel corpus (accel_uncap/4f41b771, rule
 # declared_pruning_v1_uncapped). Seeds 1 and 2 via run_experiment.py --seed. One checkpoint serves both the no-split and the
-# self-search arm (as in selfsearch_confirm_v1). cache_dir is a placeholder S7 replaces with the recache's directory;
-# scripts_cosim/datalab/slate_fix_v1_train.sbatch refuses to run while it names S7_FILLS_THIS.
+# self-search arm (as in selfsearch_confirm_v1). cache_dir: S7's uncapped recache (rp/corpus-uncap 836e469d, absolute on /share);
+# slate_fix_v1_train.sbatch runs scripts_cosim/slate_fix_v1_cache_check.py on it before training.
 trainer: gnn
 lineage: slate_fix_v1
-cache_dir: simulation_data/graphs_cache_slate_fix_v1_S7_FILLS_THIS_psv5_inf
+cache_dir: /share/nikola.lukic/accel_uncap/4f41b771/cache_run/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT
 - NEAR_RTT_LABEL_OVERRIDE_JSON

@@ -66,8 +66,7 @@ This gate asks whether the same architecture, retrained and served on the full c
 
 **Corpus and cache.**
 - Corpus: `/share/nikola.lukic/accel_uncap/4f41b771/{train,heldout}`. The over-cap tables are symlinked in untouched (`--link-untouched`).
-- Cache: S7 recaches it under `partial_state_v5`, alpha `inf`. The configs name a placeholder, `simulation_data/graphs_cache_slate_fix_v1_S7_FILLS_THIS_psv5_inf`,
-  which S7 replaces in one commit. The training sbatch refuses to start while the placeholder is there.
+- Cache: S7's recache under `partial_state_v5`, alpha `inf`, written 2026-10-12 by rp/corpus-uncap 836e469d (merged into this branch): `/share/nikola.lukic/accel_uncap/4f41b771/cache_run/cache`. Both configs name it as an absolute `cache_dir`. The training sbatch still refuses a placeholder.
 - **Pre-training check** (`slate_fix_v1_cache_check.py`, metadata only, login-node safe). Against the capped cache
   (`/share/nikola.lukic/accel_prod/20261010_061132/cache_run/cache`, 3,169 graphs):
   - `candidate_slate` = `declared_pruning_v1_uncapped`, and `candidate_slate_rules` is absent or exactly both rules;
@@ -197,6 +196,15 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Uncapped corpus and cache written** (S7). The fix's denominators are here.
+  - Corpus: `/share/nikola.lukic/accel_uncap/4f41b771/{train,heldout}`, from `gnn_datasets_wf1_{train,heldout}`; rule `declared_pruning_v1_uncapped`, max-plans 100,000, `--link-untouched`.
+  - Runs: extension at 4f41b771; check job 863723 (`scripts_cosim/extend_corpus_check.py`, `accel_uncap/4f41b771/check_{train,heldout}.json`); recache job 863752 at rp/corpus-uncap 836e469d.
+  - Cache `cache_run/cache`, split `cache_run/split.json` (sha f5bc4f51, equal to production).
+  - Census, train / held-out: extended 1,767 / 258; already full 910 / 171; **over-cap untouched 54 / 9** (the pre-launch 54 is confirmed); plans 1,490,170 → 6,152,545 and 347,885 → 1,125,734; cache RTT rows 5,227,936 → 10,668,160.
+  - Checks: re-scored stored plans differ by 0.0 on every extended dataset; old rows are a subset of new rows everywhere; 0 problems.
+  - The old best was strictly beaten on **417 of 1,767 train datasets (23.6 %)** and 49 of 258 held-out (19.0 %). S7 is running a diagnostic of what drives these (cold-defect rank change vs co-location).
+  - The 556 / 92 sub-batched count is S5's (see head), not S7's.
+  - This branch merged 836e469d, which adds `replica_placement_rule` and in-flight capture to the physics contract. Both configs now name the cache.
 - 2026-10-12 — **Signed** by the expert at d66ab923.
   - The two-config deviation is confirmed: one checkpoint, two serving modes, as the parent did; the byte-equality test is the guard.
   - Rulings: (1) the launch gating above; (2) the untouched corpus goes in the head; (3) the eval identity task is a prerequisite and a failure is fixed in code; (4) the expert writes the LINEAGES.md row.
