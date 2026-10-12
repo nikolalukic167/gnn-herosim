@@ -1,6 +1,6 @@
-# trainer_determinism_v1 — ACTIVE
+# trainer_determinism_v1 — PARKED
 
-> **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-08-25
+> **Status:** `PARKED` (2026-10-12: no entry since 2026-08-25; its standing output is `tests/test_trainer_determinism.py`, maintained via `docs/gates/gate-tools.md`) &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-08-25
 
 **Outcome.** The seed fix reached **1 of 4 trainers**. Three defect classes now — newest: `prepare_graphs_cache` seeded 42 at module import and clobbered every GNN draw's seed. `tests/test_trainer_determinism.py` covers every trainer; run it before training anything you intend to gate.
 
