@@ -518,7 +518,7 @@ class Orchestrator:
         logger = logging.getLogger('simulation')
 
         if self._use_low_memory_stats():
-            return self._stats_low_memory()
+            return self._with_hourly_bins(self._stats_low_memory())
 
         try:
             application_results: List[ApplicationResult] = [
@@ -827,6 +827,13 @@ class Orchestrator:
         logging.info("Checking for non-serializable types in stats...")
         check_serializable(result, "stats")
 
+        return self._with_hourly_bins(result)
+
+    def _with_hourly_bins(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """long_horizon_s0_v1: `hourlyBins` only when HEROSIM_HOURLY_BINS=1, so every other run keeps its stats keys."""
+        from src.placement import hourly_bins
+        if hourly_bins.enabled():
+            result["hourlyBins"] = hourly_bins.hourly_bins(self.task_archive, hourly_bins.bin_width_s())
         return result
 
     def create_application(

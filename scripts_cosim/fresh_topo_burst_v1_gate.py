@@ -167,6 +167,10 @@ GROUNDED_LADDER = {f"g{i}{r}": (f"grounded_g{i}_n50000", f"grounded_{r}") for r 
 # WF1_RUNGS="tagA,tagB" names them and the window label is g<i><tag>. Empty unless the env is set.
 WF1_TAGS = [t for t in os.environ.get("WF1_RUNGS", "").split(",") if t]
 WF1_LADDER = {f"g{i}{t}": (f"grounded_g{i}_n50000", f"wf1_{t}") for t in WF1_TAGS for i in range(4)}
+# long_horizon_s0_v1: the stationary 24 h window (long_horizon_mint.py) at each WF1 rung, window label L24<tag>; its cells record
+# hourly bins (src/placement/hourly_bins.py) and expect the window's own task count
+LONG_HORIZON = {f"L24{t}": ("long_horizon_L24", f"wf1_{t}") for t in WF1_TAGS}  # never in a phase's default grid: R1A_WINDOWS=L24
+_N_EVENTS: Dict[str, int] = {}
 # scale_sweep_v1: the ladder at x3 / x5 with ~2x / ~4x tasks per decision batch (m2 / m4: grounded_workload_v1_mint.py
 # --merge-k, cell batch_size 16) and on 12-server cells (s12), each built into <inputs>/grounded_<rung><cond>
 SCALE_CONDS = ("m2", "m4", "s12")
@@ -662,15 +666,16 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     if R1A_ON:
-        state = pw.rung_state(out_dir, window[2:])
+        rung_tag = window[3:] if window in LONG_HORIZON else window[2:]
+        state = pw.rung_state(out_dir, rung_tag)
         if pw.paused(state):
-            return f"[PAUSED rung {window[2:]}: {state['hung']} of {state['decided']} decided cells hung, line {pw.PAUSE_SHARE:.0%}] {name}"
+            return f"[PAUSED rung {rung_tag}: {state['hung']} of {state['decided']} decided cells hung, line {pw.PAUSE_SHARE:.0%}] {name}"
     if kind == "batched" and _reactive_disqualified(int(t["topo"]), out_dir):
         return f"[skip, reactive already disqualifies] {name}"
     wl_dir = None
     inputs_root = inputs
-    if window in GROUNDED_LADDER or window in SCALE_LADDER or window in WF1_LADDER:
-        wl_name, sub = GROUNDED_LADDER.get(window) or SCALE_LADDER.get(window) or WF1_LADDER[window]
+    if window in GROUNDED_LADDER or window in SCALE_LADDER or window in WF1_LADDER or window in LONG_HORIZON:
+        wl_name, sub = GROUNDED_LADDER.get(window) or SCALE_LADDER.get(window) or WF1_LADDER.get(window) or LONG_HORIZON[window]
         inputs_root, inputs = inputs, os.path.join(inputs, sub)
     elif window in GROUNDED_X15:
         wl_name = GROUNDED_X15[window]
@@ -846,6 +851,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         dog = pw.Watchdog(prog, _LAST_ARRIVAL[wl], float(timeout_s), poll_s=float(os.environ.get("R1A_POLL_S", pw.POLL_S)), **rule)
         if "R1A_POLL_S" in os.environ:  # a test run with short cells: report as often as the watchdog polls
             env["HEROSIM_PROGRESS_INTERVAL_S"] = os.environ["R1A_POLL_S"]
+    env.pop("HEROSIM_HOURLY_BINS", None)
+    if window in LONG_HORIZON:
+        env["HEROSIM_HOURLY_BINS"] = "1"
     rc = run_logged(cmd, env, REPO, log, cap_bytes(), on_start=dog.attach if dog else None)  # capped: a hung run's log used to reach several GB
     wall = int(time.time() - start)
     if dog:
@@ -889,6 +897,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["queue_drift"] = drift
+    if "hourlyBins" in st:
+        out["hourlyBins"] = st["hourlyBins"]
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     n = out.get("num_tasks")
     problems = []
@@ -927,8 +937,24 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if time_scale == 1.0 and out["env"].get("HEROSIM_POLICY_TIME_SCALE") not in (None, "1.0"):
         problems.append(f"policy time scale should be 1.0, served {out['env'].get('HEROSIM_POLICY_TIME_SCALE')!r}")
     out["policy_time_scale"] = time_scale
-    if n is None or int(n) != N_TASKS:
-        problems.append(f"num_tasks={n!r}")
+    if window in LONG_HORIZON:
+        if wl not in _N_EVENTS:
+            _N_EVENTS[wl] = len(json.load(open(wl))["events"])
+        want_n = _N_EVENTS[wl]
+        hb = out.get("hourlyBins")
+        if not hb or out["env"].get("HEROSIM_HOURLY_BINS") != "1":
+            problems.append("hourly-bin instrument off: no hourlyBins in the result or HEROSIM_HOURLY_BINS not served")
+        else:
+            nb = sum(int(b["n"]) for b in hb["bins"])
+            lat = sum(float(b["latency"]) * int(b["n"]) for b in hb["bins"] if b["n"]) / max(1, nb)
+            if nb != int(n or -1) or abs(lat - float(out.get("averageElapsedTime") or 0.0)) > 1e-9 * max(1.0, lat):
+                problems.append(f"hourly bins do not sum to the run: n {nb} vs {n}, latency {lat} vs {out.get('averageElapsedTime')}")
+    else:
+        want_n = N_TASKS
+        if out.get("hourlyBins") is not None:
+            problems.append("a non-long-horizon cell recorded hourly bins")
+    if n is None or int(n) != want_n:
+        problems.append(f"num_tasks={n!r}, want {want_n}")
     want_ka = CAP_KEEP_ALIVE if window in KA_WINDOWS else None
     if out["env"].get("HEROSIM_KEEP_ALIVE") != want_ka:
         problems.append(f"served HEROSIM_KEEP_ALIVE={out['env'].get('HEROSIM_KEEP_ALIVE')!r}, {window} needs {want_ka!r}")
