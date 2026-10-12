@@ -98,7 +98,8 @@ def test_cache_check():
 
 
 def _cell(d, topo, win, rung, kind, seed, lat):
-    (d / f"cc40s{topo}__{win}{rung}__{kind}_s{seed}.summary.json").write_text(json.dumps({"averageElapsedTime": lat, "wallclock_s": 1.0, "num_tasks": 50000}))
+    q = {"quarter_mean_queue": [5.0 * lat, lat / 10, lat / 10, lat / 10]}  # a cold first quarter, then flat
+    (d / f"cc40s{topo}__{win}{rung}__{kind}_s{seed}.summary.json").write_text(json.dumps({"averageElapsedTime": lat, "wallclock_s": 1.0, "num_tasks": 50000, "queue_drift": q}))
 
 
 def _gate_dirs(tmp_path, new_pct, old_pct, twin_pct=0.0):
@@ -129,6 +130,10 @@ def test_reader_win_and_gap(tmp_path):
     assert m["comparable"] and r["n_summaries"] == 12 * 2 * 2 * (3 + 2 * 7)
     assert m["primary"]["holm_over"] == 8 and set(m["primary"]["labels"].values()) == {"WIN"}
     assert "new self-search vs cd_exactS_ib0|heavy" in m["primary"]["tests"]
+    qp = m["queue_q234_proxy"]
+    assert qp["label"] == "queue component only, Q1 dropped, outside every family" and len(qp["tests"]) == 8
+    for k, c in qp["tests"].items():  # queue is proportional to latency in the synthetic cells: the proxy equals the primary contrast
+        assert abs(c["median_pct"] - m["primary"]["tests"][k]["median_pct"]) < 1e-9 and "holm_p" not in c
     assert all(c["holm_p"] < 0.05 for c in m["primary"]["tests"].values())
     g = m["gap_change_pp"]["ra_gnn_eng_selfsearch|heavy"]
     assert g["n_topologies"] == 12 and -6.9 < g["median_pp"] < -6.4 and g["shrank"] == 12
