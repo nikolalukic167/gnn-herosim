@@ -1518,7 +1518,18 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             if k not in seen:
                 seen.add(k)
                 chosen.append(pl)
-        return {"terms_cols": ["drain", "stack", "inflight", "cold", "exec", "lat", "in_wait", "exch", "hold", "ext", "S", "stack_raw", "service"],
+        sel = len(chosen)
+        if combos:   # 8 uniformly random plans outside the selected set (a local generator seeded by the batch: no global RNG is touched), to check the selection bias
+            import random
+
+            rng = random.Random(int(round(float(self.env.now) * 1e6)) * 1000003 + len(combos))
+            for i in rng.sample(range(len(combos)), min(len(combos), 24)):
+                if len(chosen) - sel >= 8:
+                    break
+                if ident(combos[i]) not in seen:
+                    seen.add(ident(combos[i]))
+                    chosen.append(combos[i])
+        return {"terms_selected": sel, "terms_cols": ["drain", "stack", "inflight", "cold", "exec", "lat", "in_wait", "exch", "hold", "ext", "S", "stack_raw", "service"],
                 "terms": [[list(ident(pl)), self._pg_plan_terms(batch_tasks, pl, orch, memo, self.nodes.items)] for pl in chosen],
                 "ctx": self._pg_terms_ctx(batch_tasks, chosen)}
 
