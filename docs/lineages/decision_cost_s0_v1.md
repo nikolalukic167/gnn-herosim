@@ -50,7 +50,7 @@ all arms of the seat run through it), after the placements are computed:
 Accel seat as in `ib0_confirm_v1` (160×24, p .6, `fastest_compatible`, KPA, pipelined, `HEROSIM_REPLICA_RELEASE=1`), rungs moderate / heavy, windows
 **g0–g1**, 12 topologies **19405–19416** (reuse the `ib0_confirm_v1` inputs if byte-identical by md5; otherwise mint 12 fresh).
 
-Arms (6, 7 if `ib0` confirms): `cd`, `cd_exactS`, `cd_exactS_ib0` (**only if `ib0_confirm_v1` reads WIN**), GNN self-search s1, `cdxapply` s1, plain
+Arms (7: `ib0_confirm_v1` read PRIMARY WIN, so `cd_exactS_ib0` is in): `cd`, `cd_exactS`, `cd_exactS_ib0`, GNN self-search s1, `cdxapply` s1, plain
 `nosplit` s1. c in {0, 0.1, 0.25, 0.5, 1.0} ms per plan.
 
 ## Hypotheses and bars
@@ -96,3 +96,6 @@ c ≤ 0.5, so the cut reads it at c = 0.25 only; the 0.5 point is the follow-up.
 
 
 2026-10-12 — drafted (558abed3); code not yet written.
+
+2026-10-12 — `ib0_confirm_v1` classical stage read PRIMARY WIN (e7966896): `cd_exactS_ib0` is in the arm list (7 arms; cut grid 7 × 3 × 48 = 1,008 cells, 912 new since `c = 0` of `cd`
+and `cd_exactS` is reused, ≈ 290 cell-hours, a little over a day). Heavy flag-off identity of the oracle-stage code closed IDENT (33dcfe1f).
