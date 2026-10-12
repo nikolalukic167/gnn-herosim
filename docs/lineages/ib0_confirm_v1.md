@@ -1,6 +1,6 @@
 # ib0_confirm_v1 — does the hand `ib0` surrogate beat `cd_exactS` on fresh topologies, and does a GNN seed add anything on top of it?
 
-**Status:** `REGISTERED` (2026-10-12, signed by the coordinator at 62e51229 with the amendment below). Owner S4. Parent: `plan_rerank_v1`
+**Status:** `ACTIVE` — classical stage read: PRIMARY WIN, GNN-SEED WIN no; oracle stage pending (2026-10-12, signed by the coordinator at 62e51229 with the amendment below). Owner S4. Parent: `plan_rerank_v1`
 (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record, read once, 12 oracle cells).
 
 ## Why
@@ -151,3 +151,25 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
 
 - 2026-10-12 — Drafted from the coordinator's brief and SCIENTIST's review (λ frozen at 0 with an α = 0.5 control, a hand-seed control `cdx_ib0`, the MP-OFF twin,
   the full-coverage oracle with a pre-registered closing rule). Not signed.
+- 2026-10-12 — **Classical + GNN-seed stage READ ONCE** (job 863671, `ib0_confirm_read.py` at d192081f; `gate_d192081f/read.json`). Counts first: 624
+  summaries, 0 failed, every arm and rung complete (48/48 for the five main arms, 24/24 for the three descriptive ones). 12 topologies 19405–19416.
+  - **PRIMARY: WIN.** `cd_exactS_ib0` vs `cd_exactS`: **−4.73 %** moderate (12/12, Holm p .0010), **−2.27 %** heavy (12/12, Holm p .0010); no rung where
+    `cd_exactS` is faster. g0+g1 sensitivity −5.22 % / −3.01 % (12/12, 11/12). Bucket: the gain is exchange (−5.96 pp moderate, −4.43 pp heavy), lock wait +0.55 / +1.67 pp.
+    `ib0` vs CD −12.07 % / −7.36 % (12/12 each); `cd_exactS` vs CD −8.52 % / −5.57 %.
+  - **GNN-SEED WIN: NO.** `ra_gnn_eng_cdxib0` vs the hand-seed control `cdx_ib0`: −0.99 % (11/12, Holm p .020) moderate, −1.22 % (9/12, Holm p .154) heavy: the
+    direction is the seed's, the size is under the 2 % bar at both rungs and heavy is not significant. Vs `cd_exactS_ib0` itself it is **slower**: +0.73 % moderate
+    (2/12, Holm p .081), +0.41 % heavy (5/12, p .38). The hand-seed control `cdx_ib0` is also slower than `ib0`: +1.61 % / +1.41 % (1/12 each): the exact search over the
+    top-5 slate is what the expansion flow does not reach. Search books are equal (expansion evals 23.2 M vs 24.3 M moderate, 30.6 M vs 31.4 M heavy).
+  - **Descriptive:** MP-OFF twin vs GNN seed +0.55 % / +1.62 % (4/12, 3/12; p .57, .23): no message-passing claim either way. `cd_exactS_a05` (α = 0.5) vs `ib0`
+    +3.63 % / +2.88 % slower (0/12, 2/12): stacking is worth zeroing, half of it is not enough. `cd_exactS_a0` (whole queue term to 0) vs `ib0` −0.37 % moderate
+    (p .34), +2.87 % heavy (3/12): at heavy the platform backlog is worth keeping.
+  - **Predictions scored:** `ib0` vs `cd_exactS` −3 to −5 % moderate **held** (−4.73); −2 to −3 % heavy **held** (−2.27). GNN seed tie: **held** at heavy, partly
+    missed at moderate (vs `ib0` +0.73 inside the +1 to +4 % band only just; vs `cdx_ib0` −0.99 % is inside ±1.5 %). `a05` within ±1 % of `ib0`: **MISSED** (+3.6 / +2.9 %).
+  - Oracle stage (6 topologies, g0, both rungs) still running; reader `ib0_confirm_oracle_read.py` committed (ed02144f) before its data. Not read.
+- 2026-10-12 — **Heavy flag-off identity closed.** The smoke at 8cc890fa (19405 g0) against the gate's d192081f cells: `cd_exactS_ib0` and `cd_exactS` are IDENT at both rungs
+  on total_rtt, mean latency, queue, exchange, cold start, end time and the search counters (heavy total_rtt 92928.903 / 96604.847; moderate 113355.535 / 120892.136). The code
+  that served the oracle stage and the code that served the classical gate agree on the arms they share.
+- 2026-10-12 — **Coordinator's labels for the classical stage (ruling).** PRIMARY **WIN** as registered: `cd_exactS_ib0` is the new hand bar in the accel seat (hand vs hand,
+  unconfounded; the slate caveat only bears on learned arms). GNN seed: **DIRECTION-ONLY at moderate** (−1.0 %, Holm .02, under the −2 % bar), **NOT-SEPARATED at heavy**;
+  not an MP claim. Alpha is monotone through 0.5: `a05` sits between `ib0` and `cd_exactS` (a05 vs `ib0` +3.6 / +2.9 %; `cd_exactS` vs `ib0` +4.7 / +2.3 %; a05 vs `cd_exactS`
+  −1.86 % / −0.28 %), so 0 is not a knife-edge; the ±1 % prediction for `a05` is recorded as **missed**. Status stays ACTIVE until the oracle stage is read once, against `ib0` as served.
