@@ -196,6 +196,10 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Smokes PASS; gate A and B launched.**
+  - Smoke B 864098 (32 m; 4/4, 0 failed): **flag-off identity PASS.** `cd_exactS` and old `ra_gnn_eng_selfsearch` s1 on 16490 g0 at both rungs equal `selfsearch_confirm/gate_79ea002c` in every simulated key (mean latency bit-equal: heavy 2.2544 / 2.2196, moderate 2.6100 / 2.5902; every scheduler counter). The only differing keys are measured timing (`decisionTiming.*`, `ss_seconds`, `total_rtt_plus_inference`), code provenance and the model path (same md5).
+  - Smoke A 864099 (21 m; 10/10, 0 failed): served `GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1_uncapped` and the loader's slate check passed; `slate_declared_pruned` = 0 on every cell; `ss_batches` = `slate_declared_batches` on both self-search kinds; `slate_declared_unsplit` = `slate_declared_sub_batched` on every cell. Slowest cell 1,268 s (heavy gnn self-search), so `LIMIT` = max(8,100, 2.5 × 1,268) = 8,100 s. Smokes are not results.
+  - Gate A 864114 (`--array=0-5%6`, PAR 24, LIMIT 8,100; 5 new kinds × seeds 1–2 under the uncapped rule; 480 cells) and gate B 864115 (`--array=0-1%2`, PAR 24, LIMIT 8,100; `cd_exactS`, `cd` and old self-search / no-split seeds 1–2, `R1A_SLATE` unset; 288 cells), at 4d90119c on 19420–19431 × g0–g1 × moderate/heavy. OUT `/share/nikola.lukic/slate_fix/gate_{A,B}_4d90119c`. Watchdog kills and failed cells are counted, never rerun. Then the single read with `scripts_cosim/slate_fix_v1_gate_read.py --new gate_A… --old gate_B…`.
 - 2026-10-12 — **Offline screen (863952; ordering only, never a bar) and smokes submitted.**
   - Val `regret_masked_topo` (s) on the uncapped cache's 438 held-out tables, seeds 1 / 2 (mean); plan_exact in brackets:
 
