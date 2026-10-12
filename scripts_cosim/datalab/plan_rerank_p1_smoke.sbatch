@@ -7,6 +7,7 @@
 #   IN                smoke inputs: wf1_<rung>/{cfg,wl} models/ accel_replica_v1_split.json selection.json (models/ must be this smoke's own)
 #   OUT               result directory
 #   TOPO RUNG WINDOW  the cell (defaults 16301 moderate g0); LIMIT watchdog limit in s (default 36000)
+#   SEL_FROM          optional: serve this earlier smoke selector (path without .pt) instead of fitting; SELNAME / ARM its gate name / arm
 #SBATCH --job-name=prsel-smoke
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/prsel-smoke-%j.out
 #SBATCH --partition=CPU-amd
@@ -31,18 +32,24 @@ HEAD=$(git rev-parse HEAD)
 echo "HEAD $HEAD node $(hostname) job=${SLURM_JOB_ID:-} IN=$IN OUT=$OUT cell=$TOPO/$RUNG/$WINDOW"
 [[ "$HEAD" == "$EXPECT_HEAD"* ]] || { echo "FAIL LOUD: worktree HEAD $HEAD is not $EXPECT_HEAD"; exit 1; }
 mkdir -p "$OUT"
-# (1) smoke fit
-python3 run_experiment.py experiments/plan_rerank_v1_gnn_eng_sela_smoke.yaml --seed 1
-CK=models/plan-rerank-v1-gnn-eng-sela-smoke-seed1
-python3 -c "import json,sys; c=json.load(open('$CK.contract.json')); assert c['smoke'] is True and c['variant']=='a' and not c['disable_message_passing'], c; print('[SMOKE CKPT]', c['selected_epoch'], c['base_checkpoint'], c['base_checkpoint_md5'])"
+# (1) smoke fit, unless SEL_FROM names an earlier smoke selector (<path stem>) to serve again (a replay of the same cell)
+if [[ -n "${SEL_FROM:-}" ]]; then
+  CK=$SEL_FROM
+else
+  python3 run_experiment.py experiments/plan_rerank_v1_gnn_eng_sela_smoke.yaml --seed 1
+  CK=models/plan-rerank-v1-gnn-eng-sela-smoke-seed1
+fi
+python3 -c "import json,sys; c=json.load(open('$CK.contract.json')); assert c['smoke'] is True, c; print('[SMOKE CKPT]', '$CK', c['variant'], c['selected_epoch'], c['base_checkpoint'], c['base_checkpoint_md5'])"
+md5sum "$CK.pt"
 # (2) install under the gate name, in this smoke's own models/ only
 [[ ! -L "$IN/models" ]] || { echo "FAIL LOUD: $IN/models is a link; the smoke installs into its own models/"; exit 1; }
-cp "$CK.pt" "$IN/models/plan-rerank-v1-gnn-eng-sela-seed1.pt"
-cp "$CK.contract.json" "$IN/models/plan-rerank-v1-gnn-eng-sela-seed1.contract.json"
+SELNAME=${SELNAME:-plan-rerank-v1-gnn-eng-sela-seed1}
+cp "$CK.pt" "$IN/models/$SELNAME.pt"
+cp "$CK.contract.json" "$IN/models/$SELNAME.contract.json"
 # (3) the cell
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 export WF1_RUNGS=$RUNG R1A_STEM=accel-replica-v1 R1A_SPLIT=accel_replica_v1_split.json R1A_TOPOS=$TOPO R1A_WINDOWS=$WINDOW \
-  R1A_ARMS=ra_gnn_eng_prsela R1A_SEEDS=1 R1A_PRSEL_SMOKE=1 R1A_PRSEL_DIAG=1
+  R1A_ARMS=${ARM:-ra_gnn_eng_prsela} R1A_SEEDS=1 R1A_PRSEL_SMOKE=1 R1A_PRSEL_DIAG=1
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$IN/selection.json" --parallel 1 --mem 32G \
   --timeout "${LIMIT:-36000}" --no-scope | grep -v "^\[skip"
 python3 - "$OUT" <<'EOF'
