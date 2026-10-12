@@ -68,6 +68,7 @@ from src.eventgenerator import increase_events_of_app
 from src.placement.constants import KEEP_ALIVE, QUEUE_LENGTH
 from src.placement.executor import execute_sim
 from src.placement import fidelity_replay
+from src.placement.progress_watchdog import ProgressWatchdog
 from src.placement.model import SimulationData, DataclassJSONEncoder
 from src.sample_loader import load_primary_sample_and_mapping
 
@@ -2819,19 +2820,31 @@ def process_placement_fast(
         return None, float('inf'), None, None, None
 
 
-def _completed_or_stalled(futures, stall_timeout, stall):
+def _completed_or_stalled(futures, stall_timeout, stall, watchdog=None, poll_s=30.0):
     """concurrent.futures.as_completed, plus: when nothing finishes for `stall_timeout` seconds, record how many futures are
-    still pending in stall["pending"], cancel them and stop yielding."""
+    still pending in stall["pending"], cancel them and stop yielding. With a `watchdog` (src/placement/progress_watchdog.py,
+    progress = placements finished) the same exit is taken when it says the sweep cannot finish inside its limit; stall["watchdog"]
+    carries the reason."""
     pending = set(futures)
+    t0 = last_done = time.time()
+    finished = 0
     while pending:
-        done, pending = concurrent.futures.wait(pending, timeout=stall_timeout, return_when=concurrent.futures.FIRST_COMPLETED)
-        if not done:
+        wait_s = stall_timeout if watchdog is None else min(poll_s, stall_timeout or poll_s)
+        done, pending = concurrent.futures.wait(pending, timeout=wait_s, return_when=concurrent.futures.FIRST_COMPLETED)
+        now = time.time()
+        if done:
+            last_done = now
+            finished += len(done)
+        verdict = watchdog.update(now - t0, finished) if watchdog is not None else None
+        for f in done:
+            yield f
+        if verdict is not None or (not done and stall_timeout is not None and now - last_done >= stall_timeout):
             stall["pending"] = len(pending)
+            if verdict is not None:
+                stall["watchdog"] = watchdog.reason
             for f in pending:
                 f.cancel()
             return
-        for f in done:
-            yield f
 
 
 def _plan_combo(placement_plan: Dict[Any, Any]) -> Tuple[Tuple[int, int], ...]:
@@ -3021,6 +3034,23 @@ def execute_brute_force_optimized(
         allow_non_unique_replicas=allow_non_unique_replicas
     )
     
+    skip_file = os.environ.get("COSIM_SKIP_PLANS_FILE", "").strip()
+    only_file = os.environ.get("COSIM_ONLY_PLANS_FILE", "").strip()
+    if skip_file or only_file:
+        # extend_corpus_slate.py: SKIP drops plans an earlier sweep of this dataset already scored; ONLY keeps just the listed ones (the re-score
+        # check). The sweep keeps its own enumeration, so what is left is the generator's plan space cut by the list; the counts are recorded.
+        if skip_file and only_file:
+            raise RuntimeError("FAIL LOUD: COSIM_SKIP_PLANS_FILE and COSIM_ONLY_PLANS_FILE are exclusive")
+        listed = {tuple(sorted((int(k), int(v[0]), int(v[1])) for k, v in json.loads(line)["placement_plan"].items()))
+                  for line in open(skip_file or only_file) if line.strip()}
+        enumerated = len(placement_combinations)
+        in_list = lambda pl: tuple(sorted((int(k), int(v[0]), int(v[1])) for k, v in pl.items())) in listed
+        placement_combinations = [pl for pl in placement_combinations if in_list(pl) != bool(skip_file)]
+        with open((final_dataset_dir or output_dir) / "skip_plans_report.json", "w") as fh:
+            json.dump({"mode": "skip" if skip_file else "only", "enumerated": enumerated, "listed": len(listed),
+                       "to_simulate": len(placement_combinations),
+                       "listed_in_enumeration": enumerated - len(placement_combinations) if skip_file else len(placement_combinations)}, fh)
+        _log(f"  plan list ({'skip' if skip_file else 'only'}): {len(placement_combinations)} of {enumerated} plans to simulate")
     num_placements = len(placement_combinations)
     _log(f"Generated {num_placements} placement combinations")
     
@@ -3103,7 +3133,11 @@ def execute_brute_force_optimized(
             progress_dir = final_dataset_dir if final_dataset_dir else output_dir
             
             stall = {"pending": 0}
-            for future in _completed_or_stalled(futures, stall_timeout, stall):
+            # COSIM_SWEEP_LIMIT_S: the sweep's time budget; a sweep that cannot finish in 1.5x of it at its measured rate is stopped early
+            # (src/placement/progress_watchdog.py), counted as timed out like a stall, and its dataset is discarded as incomplete
+            sweep_limit = os.environ.get("COSIM_SWEEP_LIMIT_S")
+            watchdog = ProgressWatchdog(len(futures), float(sweep_limit)) if sweep_limit else None
+            for future in _completed_or_stalled(futures, stall_timeout, stall, watchdog):
                 completed += 1
                 placement_idx = futures[future]
                 
@@ -3244,7 +3278,8 @@ def execute_brute_force_optimized(
         
             if stall["pending"]:
                 timed_out_count += stall["pending"]
-                _log(f"  Sweep stalled: no placement finished for {stall_timeout}s; {stall['pending']} unfinished placement(s) "
+                why = stall.get("watchdog") or f"no placement finished for {stall_timeout}s"
+                _log(f"  Sweep stalled: {why}; {stall['pending']} unfinished placement(s) "
                      f"counted as timed out, workers killed", force=True)
                 logger.warning(f"Sweep stalled: {stall['pending']} placements timed out after {stall_timeout}s without progress")
                 for proc in list(getattr(executor, "_processes", {}).values()):

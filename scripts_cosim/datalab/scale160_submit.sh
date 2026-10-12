@@ -20,7 +20,8 @@ HEAD=$(git rev-parse HEAD)
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
 [[ -L models ]] || { echo "FAIL LOUD: models/ must be the symlink into ~/gnn-herosim/models"; exit 1; }
 [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
-for s in train heldout; do [[ -d "$CORPUS/gnn_datasets_wf1_${s}_$SUF" ]] || { echo "FAIL LOUD: no $CORPUS/gnn_datasets_wf1_${s}_$SUF"; exit 1; }; done
+SFX=_$SUF; [[ "$SUF" == none ]] && SFX=""   # SUF=none: no suffix on the corpus directories
+for s in train heldout; do [[ -d "$CORPUS/gnn_datasets_wf1_${s}$SFX" ]] || { echo "FAIL LOUD: no $CORPUS/gnn_datasets_wf1_${s}$SFX"; exit 1; }; done
 [[ -f "$CORPUS_SPLIT" ]] || { echo "FAIL LOUD: no $CORPUS_SPLIT"; exit 1; }
 for a in $ARMS; do for g in 0 1 2 3 4 5; do [[ -f experiments/${LINEAGE}_${a}_g$g.yaml ]] || { echo "FAIL LOUD: experiments/${LINEAGE}_${a}_g$g.yaml missing"; exit 1; }; done; done
 queued=$(squeue -u "$USER" -r -h | wc -l)
