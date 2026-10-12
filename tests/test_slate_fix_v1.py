@@ -74,7 +74,7 @@ def test_configs_are_the_g4_recipe():
     for arm in ("gnn_eng", "twin_eng"):
         c = yaml.safe_load((ROOT / f"experiments/slate_fix_v1_{arm}.yaml").read_text())
         assert c["args"] == g4["args"] and c["unset_env"] == g4["unset_env"] and c["lineage"] == "slate_fix_v1"
-        assert "S7_FILLS_THIS" in c["cache_dir"]
+        assert c["cache_dir"] == "/share/nikola.lukic/accel_uncap/4f41b771/cache_run/cache"  # S7's uncapped recache
         env = dict(g4["env"])
         if arm == "twin_eng":
             for k in ("NEAR_RTT_MP_BIPARTITE_EDGE_CONV", "NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO"):
