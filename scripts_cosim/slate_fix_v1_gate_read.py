@@ -152,7 +152,10 @@ def families(cells: dict, topos: List[int]) -> dict:
 
 
 def slate_counts(cells: dict) -> dict:
-    """Per learned arm and rung: declared-slate batches, batches whose slate was pruned (0 under the uncapped rule), sub-batched and unsplit."""
+    """Per learned arm and rung: declared-slate batches, batches whose slate was pruned (0 under the uncapped rule), sub-batched and unsplit,
+    self-search exact vs ascent batches, and the shares. Audit M4: the uncapped slate roughly doubles the sub-batched share and moves
+    self-search from exact to ascent, while the corpus keeps 54 + 9 capped over-cap tables; read a NO-WIN against these before calling
+    it "the data did not help"."""
     out = {}
     for arm in sorted({k[0] for k in cells if ":" in k[0]}):
         for r in RUNGS:
@@ -160,9 +163,14 @@ def slate_counts(cells: dict) -> dict:
             if not cs:
                 continue
             tot = lambda n: sum(int((s.get("schedulerCounters") or {}).get(n) or 0) for s in cs)
-            out[f"{arm}|{r}"] = {"cells": len(cs), **{n: tot(n) for n in ("slate_declared_batches", "slate_declared_pruned",
-                                                                         "slate_declared_sub_batched", "slate_declared_unsplit",
-                                                                         "ss_batches", "ss_exact_batches", "ss_ascent_batches")}}
+            row = {"cells": len(cs), **{n: tot(n) for n in ("slate_declared_batches", "slate_declared_pruned",
+                                                             "slate_declared_sub_batched", "slate_declared_unsplit",
+                                                             "slate_declared_tasks", "slate_declared_sub_batched_tasks",
+                                                             "ss_batches", "ss_exact_batches", "ss_ascent_batches")}}
+            row["sub_batched_task_share"] = (row["slate_declared_sub_batched_tasks"] / row["slate_declared_tasks"]
+                                             if row["slate_declared_tasks"] else None)
+            row["ss_ascent_share"] = row["ss_ascent_batches"] / row["ss_batches"] if row["ss_batches"] else None
+            out[f"{arm}|{r}"] = row
     return out
 
 
@@ -201,6 +209,13 @@ def print_report(r: dict) -> None:
     print("-- descriptive")
     for k, c in m["descriptive"].items():
         print(f"  {k:44s} {f(c['median_pct'])} % ({c['wins']}/{c['n_topologies']}) p {f(c['p'], 4)}")
+    print("-- served slate per arm and rung (audit M4: read a NO-WIN against these): batches, sub-batched (tasks %), unsplit, "
+          "self-search exact / ascent (ascent %)")
+    for k, c in r["slate"].items():
+        pct = lambda x: "-" if x is None else f"{100 * x:.1f}"
+        print(f"  {k:40s} {c['slate_declared_batches']:7d}  sub {c['slate_declared_sub_batched']:6d} ({pct(c['sub_batched_task_share'])} %)  "
+              f"unsplit {c['slate_declared_unsplit']:6d}  pruned {c['slate_declared_pruned']:5d}  "
+              f"ss {c['ss_exact_batches']:6d} / {c['ss_ascent_batches']:6d} ({pct(c['ss_ascent_share'])} %)")
     print(f"-- queue time over Q2-Q4, paired % ({m['queue_q234_proxy']['label']})")
     for k, c in m["queue_q234_proxy"]["tests"].items():
         print(f"  {k:44s} {f(c['median_pct'])} % ({c['wins']}/{c['n_topologies']}) p {f(c['p'], 4)}")
