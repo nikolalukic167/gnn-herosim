@@ -176,3 +176,24 @@ All plan ratios other than top6 are 1.0.
 | top6 +1–3 pp task recall over top5 | +3.3–3.9 over declared, +0.7–1.0 over top5cd | **mixed** |
 | union 0–3 pp over top5 | +8–14 pp batch (the cost defect, unforeseen) | **missed** |
 | partner within 1 pp of union | G8 0.9 pp | **held** |
+
+### Expert rulings on the recall audit (2026-10-12)
+
+- **Declared rule for future capped builds: `declared_pruning_v2`.**
+  - It is the partner rule with the corrected cold cost: the cost is the cold start the simulation applies, per ruling 1 below.
+  - The existing corpus is **not** rebuilt with it. S7's uncapped extension (`accel_uncap`, 4f41b771, running) removes the
+    100k cap for about 98 % of datasets (the expert's figure), which makes the slate question moot there.
+  - v2 applies only to a future build that keeps a cap.
+- **The live arm keeps `declared_pruning_v1`** (S5's part). It is the matched-information bar, defect included, because that is
+  the slate the GNN was trained and served on.
+  - One descriptive arm, if cheap: cd_exactS restricted to top5cd (CD's own standalone cost).
+- **What the cap costs on big batches.** Read on accel heavy, cd_exactS, batch recall of the declared top 5 by batch size:
+
+  | n | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|
+  | recall % | 96.7 | 91.5 | 90.0 | 86.7 | 74.1 | 71.7 | 58.3 | 65.0 | 56.7 |
+
+  - The plan cap binds from n = 8 (65–83 % of those heavy batches fall back to expansion).
+  - Even CD's own top 5 recalls only 73–77 % of batches at n = 8–10, and top6 (×2.1–2.6 plans) recalls 82–90 %.
+  - A slate-restricted search on a 9–10-task batch therefore cannot reproduce the hand rule's plan in a quarter to two fifths
+    of batches, before any learning enters.
