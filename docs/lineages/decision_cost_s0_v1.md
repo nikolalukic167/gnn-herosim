@@ -142,3 +142,9 @@ and `cd_exactS` is reused, ≈ 290 cell-hours, a little over a day). Heavy flag-
   **Decision line:** a GNN WIN counts only if its crossover k is ≤ the largest anchor's k for the HAND arm it beats (the hand arm would have been within budget at that k); otherwise NO-GO as registered.
 - **Utilisation:** reported per cell (`sched_busy_seconds` ÷ simulated end time); > 1 is flagged unstable and read as such. It is a result: exact search at k = 1 is ~0.96 utilisation at heavy on one core.
 - WIN rule and families are unchanged, read per k. Smoke: one cell per GNN arm at k = 1, counters shown; launch when the oracle frees slots.
+
+2026-10-12 — **Anchors-table note (S7's surrogate-gap frontier, `rp/surrogate-gap` 066832e0, `/share/nikola.lukic/surrogate_gap/frontier_v1`; relayed by the coordinator, figures not re-read by S4).**
+On n ≤ 6 full-candidate states: `ib0` S alone has mean regret 4.1 % heavy / 1.4 % moderate; `ib0` S plus 4 exact evaluations is within 1 % on ≥ 96 % of states; the GNN plan-score top-1 has mean
+regret 9.8 % heavy / 27 % moderate (heavy-tailed) and needs k = 8 to match. Costs: S pass ≈ 0 s; GNN plan score 0.8 ms/plan; an exact replay 0.05 s each, **but building a replay for a fresh
+state costs 5.6–7.7 s**, so a live oracle or exact-evaluation arm pays the build on every decision. That build cost is why "exact evaluation" is not a live option and is not an arm here
+(the oracle in `ib0_confirm_v1` is an offline ceiling). Arm list unchanged. Before the read, the figures are re-read from the frontier file and corrected here if they differ.
