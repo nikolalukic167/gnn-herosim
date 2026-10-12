@@ -26,6 +26,9 @@
 - A rung with ρ below 0.70 is reported but is not the oracle rung.
 
 ## Record (newest first)
+- 2026-10-12 — **Amendment before launch (coordinator ruling): stage 1 completed on 6 topologies, because the signed stability rule is a 6-topology median.** No ×5 cell on 19310 and no ×4 CD-vs-`cd_exactS` stage 2.
+  CD only, traced, heavy ×4 and ×5 on 19311–19315 (10 cells, g0; inputs one job, `big_groups_inputs.sbatch` with the moderate tag = ×4 and the heavy tag = ×5). The ×4 median is therefore over 6 topologies (19310 from stage 1 plus these five) and the ×5 median over 5 (19311–19315), disclosed.
+  Rule: the highest multiplier whose median end/last ≤ 1.05 is the candidate rung. Median ρ there < 0.70 closes the node `RHO-UNREACHABLE-STABLE` (mechanism recorded: ρ falls as stability fails, compute lock ≤ 0.37, latency 66–71 % storage/I/O); ≥ 0.70 is reported to the coordinator before anything else.
 - 2026-10-12 — **Stage 1 read (S5), topology 19310, g0, CD, one cell per multiplier (heavy × k); ρ = occupied fraction of the busiest platform type.**
   Multipliers 1 and 1.5 / 2 / 3 / 6 ran on the `moderate` tag and 1.25 / 1.75 / 2.5 / 4 / 8 on the `heavy` tag of five input pairs (jobs 860861–860870). ρ was measured on traced reruns of six
   cells (jobs 861451–861456: `HEROSIM_AUDIT_TRACE` through a copy of `r1a_gate.sbatch` at `/share/nikola.lukic/high_rho/r1a_gate_trace.sbatch`, the only change; the traced cells' mean latencies equal the untraced ones to 3 decimals, so the trace is inert).
