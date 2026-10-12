@@ -17,3 +17,9 @@ def test_slate_cost_env_is_scrubbed_and_recorded():
     assert '"HEROSIM_PG_SLATE_COST", "HEROSIM_PG_SHARED_LINK"' in src  # popped before the per-kind env is set
     assert "HEROSIM_PG_SLATE_COST" in (Path(G.__file__).resolve().parents[1] / "src/executesimulation.py").read_text()  # recorded in run_provenance.env
     assert 'env["HEROSIM_PG_SLATE_COST"] = "cd"' in src and src.count("HEROSIM_PG_SLATE_COST") >= 5
+
+
+def test_corpus_slate_suffix_does_not_capture_the_exact_slate_arms():
+    src = Path(G.__file__).read_text()
+    assert src.count('kind.endswith("_slate") and kind not in SLATE_EXACT') == 2
+    assert 'if not kind.endswith("_slate") and int(c.get("slate_batches")' not in src
