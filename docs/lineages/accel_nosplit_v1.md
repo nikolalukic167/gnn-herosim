@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-10) — **DIRECTION-ONLY** (moderate CONFIRMED, heavy DIRECTION-ONLY; no WIN). Registered
 2026-10-10; every bar below was signed before its data.
 
+> ⚠ **Declared-slate defect (caveat added 2026-10-12).** The GNN's declared top-5 slate charges no cold start on an initialized platform; the simulation does. Learned-vs-hand-search contrasts here (`cd_exactS`, `cd_expand`, `cdxapply`, label-optimal plans) are confounded until `slate_bar_v1` (branch `rp/slate-bar`) reads. Contrasts against plain `cd` are not affected in the GNN's favour.
+
 **Outcome.** Serving split groups whole makes the accel GNN beat plain CD at moderate, confirmed on 24 fresh
 topologies. It also turns heavy from a loss into a small lead. It does not beat the stronger hand bar.
 - **vs CD, moderate:** gnn_eng −6.93 % (23/24, Holm <.0001); physmp −7.71 % (22/24, Holm <.0001). Both CONFIRMED.

@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-11) — **NO-GO LINKS-DO-NOT-BIND; live HAND-SEARCH-FASTER**. Registered 2026-10-11;
 every bar below was signed before any data.
 
+> ⚠ **Declared-slate defect (caveat added 2026-10-12).** The GNN's declared top-5 slate charges no cold start on an initialized platform; the simulation does. Learned-vs-hand-search contrasts here (`cd_exactS`, `cd_expand`, `cdxapply`, label-optimal plans) are confounded until `slate_bar_v1` (branch `rp/slate-bar`) reads. Contrasts against plain `cd` are not affected in the GNN's favour.
+
 **Outcome.** Slowing the core links does not make CD's surrogate wrong in the typical decision, and it opens no learned
 gap.
 - **Screen:** at the lowest CD-healthy core rate (3.9 MB/s), link wait is 1.2–1.6 % of CD's latency. It passes 5 % only

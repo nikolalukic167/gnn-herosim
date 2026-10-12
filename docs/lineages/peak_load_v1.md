@@ -6,6 +6,8 @@ windows. Parts (a) and (b) were fixed before any of their runs (commit 35593af).
 (Amendment 1, "peak_load_v2") was added after (b) was read** — its rungs were chosen from the literature
 below, not from its data, but the decision to climb was post hoc. Disclose it as such.
 
+> ⚠ **Origin model (caveat added 2026-10-12).** Measured on the grounded mint with scattered request origins (97 % of multi-task groups span clients). With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
+
 **Outcome** (`xs1load_selfref` vs each strategy; median over topologies of the per-topology median paired %;
 exact Wilcoxon over 12 topologies; ✓ = `CONFIRMED`, ≤ −5 % and p < 0.05):
 

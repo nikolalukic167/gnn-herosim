@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-05) — **NO-WIN: CD-FASTER, GNN-BEATS-MLP**. Registered 2026-10-04; arms, topologies,
 statistic and verdict were fixed before any training run, and Amendments 1–2 before any gate summary was read.
 
+> ⚠ **Origin model (caveat added 2026-10-12).** Measured on the grounded mint with scattered request origins (97 % of multi-task groups span clients). With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
+
 **Outcome.** On 19 unseen topologies (8 seeds), the GNN with per-candidate-only features beats the same-input MLP at
 every rung — **−11.0 / −24.2 / −20.2 %** at ×2 / ×3 / ×5, 18–19 of 19 topologies, Holm-CONFIRMED, every seed alone and
 seed-pairing-free — and its no-conv twin −8 to −17 % (so the convs, not the sum channel, carry it). But **CD is faster at
