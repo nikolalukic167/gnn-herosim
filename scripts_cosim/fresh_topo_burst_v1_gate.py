@@ -1105,10 +1105,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     if kind in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
-    for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
-        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(name)
-        if out["env"].get(name) != want:
-            problems.append(f"{name} served {out['env'].get(name)!r}, want {want!r} for {kind}")
+    for var in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
+        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(var)
+        if out["env"].get(var) != want:
+            problems.append(f"{var} served {out['env'].get(var)!r}, want {want!r} for {kind}")
     # decision_cost_s0_v1: the cost served is the cost named, the plan counter always runs, the scheduler server's books exist exactly when c > 0
     served_dc = out["env"].get("HEROSIM_DECISION_COST_MS")
     if (float(served_dc) if served_dc else None) != (float(dc_ms) if dc_ms else None):  # dc_ms is k x w for this arm and rung
