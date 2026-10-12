@@ -153,7 +153,9 @@ def test_reader_reports_the_served_slate_per_arm(tmp_path, capsys):
     c = r["slate"]["new:ra_gnn_eng_selfsearch|heavy"]
     assert c["slate_declared_sub_batched"] == 10 and c["sub_batched_task_share"] == 0.2 and c["ss_ascent_share"] == 0.3
     rd.print_report(r)
-    assert "served slate per arm" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "served slate per arm" in out and "-- code: " in out
+    assert r["code_commits"][new] == ["unrecorded"] and len(r["code_commits"]["reader"]) == 1
 
 
 def test_reader_loss_and_refusals(tmp_path):
