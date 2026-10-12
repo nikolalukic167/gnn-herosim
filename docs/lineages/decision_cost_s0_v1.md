@@ -125,3 +125,20 @@ and `cd_exactS` is reused, ≈ 290 cell-hours, a little over a day). Heavy flag-
      anchor (c_anchor of the arm), the result is NO-GO regardless of the Holm result.** If no grid point shows a win, the crossover is "above 1.0 ms" and the result is NO-GO.
 3. **Signed arms stay** (the existing checkpoints). An **ib0-labelled GNN** (labels = argmin of ib0's surrogate; cheap, can cover over-cap batches; built only on the uncapped candidate set) is a registered
    **SUCCESSOR**, run only if s0 shows a crossover at or below an anchor. Nothing is trained in this node.
+
+2026-10-12 — **Calibration read and Amendment 3 (coordinator's ruling; committed before the smoke).**
+- **Calibration (flag-off identity cells, 19405 and 19411, g0, new code 84415895; wall = `decisionTiming.total_s` ÷ `sched_plan_evals`).** 20/20 cells IDENT to the gate cells of d192081f on
+  total_rtt, mean latency, queue, exchange, cold start, endTime, num_tasks and the search counters. Measured (pooled over the two topologies): `cd_exactS` 521 plans/task at 0.0665 ms/plan moderate,
+  652 at 0.0586 heavy (34.6 / 38.2 ms per task); `cd_exactS_ib0` 499 / 625 plans at 0.0688 / 0.0617; `cd` 13–18 plans at 0.008–0.010; `cdx_ib0` 24–30 plans at 0.025–0.029;
+  `ra_gnn_eng_cdxib0` 20–27 plans at 0.16 (heavy) / 0.26 (moderate) ms/plan, 4.3–5.2 ms per task. Decision wall over simulated run: `cd_exactS` 96 % at heavy (3,818 s of 3,985 s), 37 % at moderate.
+  Wall per plan spans ~30× across arms: the 3× rule fires and is stated. The unit "plan" is not one unit of work (the GNN's wall is its forward pass, counted as one plan per task).
+- **Amendment 3 (supersedes the common per-plan c).** A common per-plan c is unfair in both directions once per-plan wall spans 30×. The cost model is **arm-calibrated**:
+  `t_batch = k × w[arm][rung] × plans_evaluated`, with `w` the measured ms per plan per arm and rung from the calibration table, fixed in `scripts_cosim/decision_cost_w.json` before any cell counts and
+  recorded here. `k = 1` is "as measured on the cluster CPU"; k scales to a reference machine. The GNN's w is CPU forward-pass wall (conservative against the GNN; disclosed).
+  The harness kind suffix is `_k025 / _k050 / _k100 / _k200` (`HEROSIM_DECISION_COST_MS = k × w` for that arm and rung). The per-plan c table above stays in the record for reference only.
+- **Grid:** k ∈ {0, 0.25, 0.5, 1, 2}; 8 arms × 5 × 48 = 1,920 cells (k = 0 exists for `cd`, `cd_exactS`, `cd_exactS_ib0`, `cdx_ib0`-class cells already). The whole grid runs; k = 2 is cut for the
+  classical arms only if cost forces it, and that is stated.
+- **Anchors convert to k per arm:** `k_anchor(arm) = B / (w_arm × plans per task at k = 1)`. Exact search (35–38 ms/task) vs the 1–10 ms Kubernetes budget: k ≈ 0.03–0.3; the GNN at 4–5 ms/task: k ≈ 0.2–2.
+  **Decision line:** a GNN WIN counts only if its crossover k is ≤ the largest anchor's k for the HAND arm it beats (the hand arm would have been within budget at that k); otherwise NO-GO as registered.
+- **Utilisation:** reported per cell (`sched_busy_seconds` ÷ simulated end time); > 1 is flagged unstable and read as such. It is a result: exact search at k = 1 is ~0.96 utilisation at heavy on one core.
+- WIN rule and families are unchanged, read per k. Smoke: one cell per GNN arm at k = 1, counters shown; launch when the oracle frees slots.
