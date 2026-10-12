@@ -1887,7 +1887,8 @@
         },
         "check_job": 863723,
         "check_json": "/share/nikola.lukic/accel_uncap/4f41b771/check_{train,heldout}.json",
-        "cache": "/share/nikola.lukic/accel_uncap/4f41b771/cache_run/cache (job 863752, rp/corpus-uncap 836e469d; split f5bc4f51)"
+        "cache": "/share/nikola.lukic/accel_uncap/4f41b771/cache_run/cache (job 863752, rp/corpus-uncap 836e469d; split f5bc4f51)",
+        "drivers": "23.6 % / 19.0 % of extended tables have a strictly better plan; ~62 / 49 % of those from the declared-slate cold mispricing, ~28 / 39 % from the cap; a correct-cost top-10 would hold every new-best candidate (extend_corpus_drivers.py, job 863777, drivers_{train,heldout}.json)"
       }
     }
   }
