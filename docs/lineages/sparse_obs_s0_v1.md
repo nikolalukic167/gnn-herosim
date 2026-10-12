@@ -61,7 +61,7 @@ The `ib0_confirm_v1` seat (160 clients × 24 servers, p 0.6, `fastest_compatible
 topologies **19440–19451**. Disjointness: `git grep` of the 194xx–199xx tokens over every remote branch finds 19400, 19404–19417, 19420–19431
 (`slate_fix_v1`), 19490 and 19516+; no `/share` name matches. To be re-run at signature.
 - Stage 1: A0 + NAIVE/EC for queue and BUNDLE = 5 arms × 12 topologies × 2 rungs × **g0** = **120 cells**; adding g1 doubles it (240).
-- Stage 2: exec, warm, partners = 6 arms × 24 = 144 cells (g0). Walls of the `cd_exactS_ib0` class (about 3 ks median): about 0.4 Mcore-s per 120 cells; one 24-shard array each, about 1 h.
+- Stage 2 (as ruled, see "Stage 2 design"): warmth only, A0+ / W1-NAIVE / W1-EC = 72 cells (g0); exec and partners not run. Walls of the `cd_exactS_ib0` class (about 3 ks median): about 0.4 Mcore-s per 120 cells; one 24-shard array each, about 1 h.
 - Queue: at most 24 of mine. The topologies are new, so their inputs (`wf1_*`) must be minted first (one CPU job, as `ib0_confirm_v1` did).
 
 ## Rulings applied (2026-10-12) and how they were implemented
@@ -87,7 +87,54 @@ is never used by a queue-degraded arm, and that every other arm's books are zero
 
 - **Partner row = NOT-TESTABLE-IN-SEAT.** The scheduler batches whole peer groups: cross-batch pairs are 438 (moderate) / 86 (heavy) against about 66,000 in-batch pairs in the smoke cells (19405 g0). Nothing is "unarrived and known" in this seat, so the EC two-step estimate has no inputs (`obs_partner_predicted` is 158,388 / 112 evaluations of those few pairs) and EC = NAIVE on partners by construction.
   The arrival view still hides the batch plan the exact search prices in-batch partners from: it removes A0's in-batch co-location signal. The bundle is therefore a **mixed read dominated by the hidden batch plan**; its VoI is reported as the measured price of removing the batch plan (the smoke cell reads about +100 % at moderate), not as a pass/kill input. The stronger EC (a batch-derived estimate for an unplaced in-batch partner) is not built (ruled).
-- **The kill rule (VoI < 10 % or R < 5 %) applies per channel**: drain on the queue arms in stage 1, exec on the exec arm in stage 2. Warmth is stage 2 and its flag is not written.
+- **The kill rule (VoI < 10 % or R < 5 %) applies per channel**: drain on the queue arms in stage 1, warmth (W1) in stage 2. Exec is not run (see Stage 2).
+
+## Stage 2 design (ruled by the coordinator 2026-10-12; signature after the stage-1 drain read)
+
+Design by SCIENTIST; lines at `2d4e15c4` unless named. Stage 2 runs **warmth only**: A0+, W1-NAIVE, W1-EC = **72 cells** (12 topologies × 2 rungs × g0).
+
+**Physics both channels rest on.**
+- Exec is a deterministic table per (type, platform type), `data/nofs-ids/task-types.json`, read at `scheduler.py:433`. dnn1/dnn2/rf run 0.000–0.17 s; cnn runs 0.10 (xavierGpu) / 0.56 (xavierDla) / 0.71 (xavierCpu) / 3.09 s (rpiCpu).
+- Cold is a table in the same file: 0.05–1.16 s on CPUs, 6.1–12.7 s on xavierGpu, 38.0 s for cnn on xavierDla.
+- A sandbox is warm iff the previous task on the platform has the same type (`warmth.py:197–202`), applied at `infrastructure.py:1616–1628`. Under `REPLICA_RELEASE`, `previous_task` is set at pop (`infrastructure.py:1651`). Replica removal resets it only under `node_disk_v2` (`autoscaler.py:606–607`).
+- Cold is 12.6 → 7.2 % of CD latency in the WF1 seat (×2 → ×5); cold starts per task fall 0.216 → 0.115 with load (`physics_audit_v1.md:110–118`).
+
+**Exec: not run; the reason is recorded instead of a measurement.** Under `table_v0` exec is deterministic, so any estimator with history (EWMA, per-(type, platform-type) mean) equals the table after one completion per pair. A realistic EC is therefore A0 within minutes, and R ≡ 0 by construction.
+- The only degraded exec observations that persist are no hardware resolution (per-type mean across platforms) or a bias that never self-corrects (`HEROSIM_OBS_EXEC_SIGMA`). Neither is how a system with history behaves.
+- σ = 0.3 moves S by about 0.35 × exec at most, under 0.06 s outside cnn, and cannot flip cnn's 5–30× platform gaps.
+- `hidden_exec_s0_v1` closed NO-HEADROOM even with stochastic hidden exec physics. That was another seat (6 servers, exec 0.05 s of 14.6 s), so it is supporting evidence, not a carry-over.
+- The descriptive no-profile arm (E-NOPROF: exec = per-type mean, `observation.py:92–101`) is **not run**.
+
+**Warmth: what a real system observes.**
+- Knative sees ready pods per revision, i.e. per function; cold seconds are not priced.
+- OpenWhisk invokers keep containers for a fixed 10 minutes, and the controller's load balancer sees invoker health, capacity and the history of prior executions (Shahrad et al. ATC'20, `/root/papers_text/03_workloads_and_traces/Shahrad_ServerlessInTheWild_ATC20.txt:104`, `:580–590`).
+- AWS/Azure keep containers for 10/20 minutes (same file, `:63–66`).
+- HeROsim has one sandbox per platform, so "which function this platform holds" is exactly the Knative-visible bit, and A0 reads it. The realistic degradation hides the cold **seconds**, not the bit.
+- Hiding the bit (W2) is recoverable exactly: the warm state is a deterministic function of the scheduler's own FIFO placements plus autoscaler removals, both control-plane facts. **W2 is not run.** Its EC would be that bookkeeping, R ≡ 0 by construction.
+
+**A0 is not a full-information warmth reference.** A0's cold term is `incoming_cold_start_time` (`scheduling_cost.py:71–83`), called at `scheduler.py:527` and `:1077`. It has two defects:
+1. It reads `previous_task` at decision time. The task actually starts against the type at the queue tail, or the in-batch task the plan stacks ahead of it. The drain walk charges queued tasks no cold (`live_audit.py:94–100`).
+2. "`current_task` set → cold 0" (`scheduling_cost.py:73`) is wrong under release. `current_task` is set only during compute (`infrastructure.py:1857`), and a different-type task still cold-starts.
+
+A degraded arm with a better predictor could therefore beat A0 legitimately. Every warmth contrast uses the corrected reference **A0+**.
+
+**Arms (24 cells each).**
+- **A0+** (full information, corrected; a hand-bar correction in its own right). Cold is priced against the type the task will follow: the queue tail, or its in-batch predecessor under the plan. The `current_task` → 0 rule is dropped under release.
+  - Own contrast: **A0+ vs A0**, paired per topology, Holm, 12 topologies, both rungs.
+  - **Before coding A0+, S5 confirms which autoscaler path resets `previous_task` in the WF1 seat** (KPA path vs `autoscaler.py:606–607`), so A0+ predicts resets the sim actually performs.
+- **W1-NAIVE**: A0+'s warm bit; cold seconds = the global mean of the cold table.
+- **W1-EC**: A0+'s warm bit; cold seconds = the per-platform-type mean over task types (a runtime-class prior). Within-class spread is small except xavierGpu (6.1–12.7 s); xavierDla has only cnn.
+
+**Reads, kill and leak checks.**
+- VoI_W1 = W1-NAIVE vs A0+; R_W1 = W1-EC vs A0+. Same statistic as below.
+- Kill: VoI_W1 < 10 % or R_W1 < 5 % at both rungs → `HAND-RECOVERS-UNDER-SPARSITY` for warmth.
+- Books `obs_cold_degraded` > 0 and `obs_cold_exact` = 0 in W1 arms, and no W1 call reaches `incoming_cold_start_time`.
+- A W1 arm faster than A0+ by ≥ 1 % (Holm) is audited before VoI is read.
+- Flag-off identity test per new flag. Stage-1 A0 cells are reused only at the same pinned head, with the 2-cell identity check.
+
+**Priors (SCIENTIST).** A0+ ≥ 1 % faster than A0: ~35 %. VoI_W1 ≥ 10 %: ~10 % heavy, ~20 % moderate. R_W1 ≥ 5 %: ~5 %. A Phase-1 pass from exec or warmth: ~3 %. The likely yield is the A0+ hand-bar check and the credibility numbers.
+
+**Correction on record.** The "62/49 %" in `slate_fix_v1.md:221–231` (rp/slate-fix) is the share of the 417 train / 49 held-out *improved* labels whose new best used a candidate the declared slate dropped by its cold = 0 error. That is about 14.5 % / 9.3 % of datasets, and it is a defect in the declared slate's pricing, not in what A0 observes.
 
 ## Rules, written before data
 
