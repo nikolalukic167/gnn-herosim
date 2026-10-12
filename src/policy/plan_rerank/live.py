@@ -84,6 +84,90 @@ class LivePlanSelector:
         nat = self.refiner._cd_native_plan(batch_tasks, system_state, passes=3)
         return tuple((int(nat[i][0]), int(nat[i][1])) for i in range(len(batch_tasks)))
 
+    def _native_cause(self, batch_tasks, system_state, sl, native, argmin_s) -> Dict[str, Any]:
+        """Diagnostic only (PRSEL_DIAG_DIR): why cd_exactS's plan is not among the declared-slate argmin-S plans. Re-runs
+        `_cd_native_plan`'s steps with the intermediate plans kept (greedy + passes -> pass plan, exact search -> exact plan, passes
+        again -> final; every counter restored, nothing applied), rebuilds cd_exactS's own top-K slate (`_pg_exact`'s ranking over
+        `_pg_candidates`: initialised replicas when any exist) and classifies, first match wins:
+          fallback           the cd slate's product is over its plan cap: the expansion, not the exact search, chose
+          single_task_pass   a one-task batch: no exact search, the greedy pass over every candidate chose
+          post_exact_passes  the refine passes after the exact search moved the plan
+          pass_kept          the exact search kept the pass plan (strictly cheaper on S, outside the cd slate product)
+          slate_init_filter  the exact optimum over a cd slate that differs from the declared slate for a task whose declared top-K
+                             holds an uninitialised replica while initialised ones exist
+          slate_rank         the cd slate differs from the declared slate otherwise
+          same_slate_tie     equal slates, equal S: a different tie-break
+          same_slate_other   equal slates, different S"""
+        from itertools import product as _product
+
+        from src.policy.peer_greedy_network.scheduler import PEER_GREEDY_COUNTERS
+
+        ref = self.refiner
+        ref._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
+        n = len(batch_tasks)
+        orch = ref._pg_orchestrator()
+        nodes = self.host.nodes.items
+        ident = lambda pl: tuple((int(pl[i][0]), int(pl[i][1])) for i in range(n))
+        saved = {name: getattr(ref, name) for name in PEER_GREEDY_COUNTERS if hasattr(ref, name)}
+        memo: Dict[str, float] = {}
+        committed: Dict[str, float] = {}
+        planned: Dict[int, str] = {}
+        placements: Dict[int, Tuple[int, int]] = {}
+        service_of: Dict[int, Tuple[str, float]] = {}
+        try:
+            ref._pg_batch_pass(batch_tasks, system_state, orch, memo=memo, committed_service=committed, planned=planned,
+                               placements=placements, service_of=service_of, refine=False)
+            ref._refine_passes(3, batch_tasks, system_state, orch, memo, committed, planned, placements, service_of)
+            pass_plan = ident(placements)
+            fb0 = ref.pg_exact_fallbacks
+            moved = ref._pg_exact(batch_tasks, system_state, orch, memo, committed, planned, placements, service_of)
+            fell_back = ref.pg_exact_fallbacks > fb0
+            exact_plan = ident(placements)
+            if moved:
+                ref._refine_passes(3, batch_tasks, system_state, orch, memo, committed, planned, placements, service_of)
+            final = ident(placements)
+            smemo: Dict[str, float] = {}
+            cd_slates, cands_all = [], []
+            for task in batch_tasks:
+                cands = ref._pg_candidates(task, system_state)
+                ranked = sorted(cands, key=lambda c: (ref._pg_standalone(task, c[0], c[1], orch, smemo, nodes), int(c[0].id), int(c[1].id)))
+                cd_slates.append({(int(c[0].id), int(c[1].id)) for c in ranked[:ref.pg_cd_exact_top_k]})
+                cands_all.append(len(cands))
+        finally:
+            for name, value in saved.items():
+                setattr(ref, name, value)
+        if final != native:
+            raise RuntimeError("FAIL LOUD: the traced cd_exactS plan differs from _cd_native_plan's")
+        decl = [{(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for i in range(n)]
+        decl_uninit = [any(not c.get("initialized", True) for c in sl.kept[i]) for i in range(n)]
+        has_init = [any(r[1].initialized.triggered for r in self.host._get_valid_replicas(system_state.replicas.get(t.type["name"], set()), t))
+                    for t in batch_tasks]
+        diff = [i for i in range(n) if cd_slates[i] != decl[i]]
+        in_cd = all(final[i] in cd_slates[i] for i in range(n))
+        in_decl = all(final[i] in decl[i] for i in range(n))
+        couple = {}
+        for t in batch_tasks:
+            for node, platform in self.host._get_valid_replicas(system_state.replicas.get(t.type["name"], set()), t):
+                couple.setdefault((int(node.id), int(platform.id)), (node, platform))
+        s_native = ref._pg_plan_cost(batch_tasks, [couple[c] for c in final], orch, {}, nodes)[0]
+        if fell_back:
+            cause = "fallback"
+        elif n < 2:
+            cause = "single_task_pass"  # _pg_exact searches nothing for one task: the greedy pass over every candidate decides
+        elif final != exact_plan:
+            cause = "post_exact_passes"
+        elif exact_plan == pass_plan and not in_cd:
+            cause = "pass_kept"
+        elif diff:
+            cause = "slate_init_filter" if any(decl_uninit[i] and has_init[i] for i in diff) else "slate_rank"
+        else:
+            s_min = min(float(c) for c in argmin_s.values())
+            cause = "same_slate_tie" if abs(s_native - s_min) <= S_TIE_EPS else "same_slate_other"
+        return {"cause": cause, "native_in_declared_product": in_decl, "native_in_cd_product": in_cd, "slate_diff_tasks": diff,
+                "s_native": s_native, "s_declared_min": min(float(c) for c in argmin_s.values()), "pass_plan": [list(c) for c in pass_plan],
+                "exact_plan": [list(c) for c in exact_plan], "cd_slates": [sorted(map(list, s)) for s in cd_slates],
+                "declared_slates": [sorted(map(list, s)) for s in decl], "declared_uninit": decl_uninit, "has_init": has_init, "n_cands": cands_all}
+
     def build_row(self, batch_tasks, system_state, sl) -> Tuple[Dict[str, Any], Any, Dict[str, Any]]:
         """(pool row in the training schema, the graph the selector reads, info). Raises nothing silently."""
         from src.policy.gnn.seq_decode import topological_task_order
@@ -169,6 +253,10 @@ class LivePlanSelector:
         host.prsel_order_not_id += int([int(batch_tasks[t].id) for t in info["order"]] != sorted(int(t.id) for t in batch_tasks))
         host.prsel_seconds += default_timer() - t0
         if self.diag_dir:
-            self._write_diag({"t": float(host.env.now), "row": row, "cost": [float(c) for c in cost], "plans": [list(map(list, p)) for p in plans],
+            cause = None
+            if native not in argmin_s:
+                cause = self._native_cause(batch_tasks, system_state, sl, native,
+                                           {tuple(map(tuple, c["plan"])): c["s"] for c in row["candidates"] if "argmin_s" in c["sources"]})
+            self._write_diag({"t": float(host.env.now), "native_cause": cause, "row": row, "cost": [float(c) for c in cost], "plans": [list(map(list, p)) for p in plans],
                               "chosen": list(map(list, chosen)), "decoded": list(map(list, dec)), "native": list(map(list, native))})
         return {i: chosen[i] for i in range(n)}
