@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """slate_fix_v2 reader (docs/lineages/slate_fix_v2.md). Written before the data.
 
-All gate cells ran at one commit (6a5c922c), so learned kinds keep their harness names; the bar is cd_exactS_ib0. Topologies
+Gate cells ran at two pins (PINS): 6a5c922c, and f4f0453f for the cells a shared-.partial race at 6a5c922c (the shadowed cell
+name) left unfinished; a 2-cell identity tied the pins before the relaunch. Any other commit is refused and the cells per pin are
+recorded. Learned kinds keep their harness names; the bar is cd_exactS_ib0. Topologies
 19420-19431 and windows g0-g1 only. Statistic as slate_fix_v1 (r1_attribution_v1_read): per topology the median over (window,
 seed) of the paired %, then the median over topologies and an exact two-sided Wilcoxon; + = the reference is faster.
 
@@ -40,6 +42,7 @@ TOPO_RANGE = (19420, 19431)
 IB0 = "cd_exactS_ib0"
 SS, NS, TWIN_NS = "ra_gnn_eng_selfsearch", "ra_gnn_eng_nosplit", "ra_twin_eng_nosplit"
 BAR_PCT, ALPHA, DELTA_PP = -2.0, 0.05, 1.0
+PINS = ("6a5c922c", "f4f0453f")
 METRICS = {"whole": ("averageElapsedTime",), "s360": ("steady_state", "after_360s", "mean"),
            "p5": ("steady_state", "after_p5_dispatch", "mean")}
 
@@ -69,6 +72,18 @@ def load(dirs: Sequence[str]):
     cells = {k: v for k, v in cells.items() if k[4] in RUNGS}
     failed = {k: v for k, v in failed.items() if k[4] in RUNGS}
     return cells, failed
+
+
+def pins(cells: dict) -> Dict[str, int]:
+    """Cells per pin; a cell at any commit outside PINS (or unrecorded) stops the read."""
+    out: Dict[str, int] = {}
+    for k, s in cells.items():
+        c = str((s.get("code") or {}).get("commit") or "unrecorded")
+        pin = next((p for p in PINS if c.startswith(p)), None)
+        if pin is None:
+            raise SystemExit(f"FAIL LOUD: cell {k} ran at {c[:12]}, not at a registered pin {PINS}")
+        out[pin] = out.get(pin, 0) + 1
+    return out
 
 
 def identity(cells: dict, ref: dict) -> dict:
@@ -137,6 +152,7 @@ def read(gate: Sequence[str], ref: Sequence[str]) -> dict:
     gate, ref = ([d] if isinstance(d, str) else list(d) for d in (gate, ref))
     cells, failed = load(gate)
     topos = V1.check_grid(list(cells) + list(failed))
+    per_pin = pins(cells)
     ref_cells, _ = load(ref)
     ident = identity(cells, ref_cells)
     drop = frozenset(tuple(m["cell"]) for m in ident["mismatched"])
@@ -166,7 +182,7 @@ def read(gate: Sequence[str], ref: Sequence[str]) -> dict:
                 desc[f"mp {tag} {m}|{r}"] = R.contrast(remap(cells, m, seeds, drop if m != "whole" else frozenset()), NS, TWIN_NS, r, topos)
     for r in RUNGS:
         desc[f"self-search vs no-split s360|{r}"] = R.contrast(remap(cells, "s360", s12, drop), SS, NS, r, topos)
-    return {"gate": list(gate), "ref": list(ref), "code_commits": V1.code_commits(list(gate)), "topologies": topos,
+    return {"gate": list(gate), "ref": list(ref), "code_commits": V1.code_commits(list(gate)), "cells_per_pin": per_pin, "topologies": topos,
             "n_summaries": len(cells), "n_failed": len(failed), "arm_table": R.arm_table(cells, failed, {}), "identity": ident,
             "primary_s360": prim, "secondary_p5": sec, "mp": {"tests": mp, "labels": mp_labels}, "descriptive": desc,
             "deciles": deciles(cells), "hand_transient": hand_transient(cells), "slate": V1.slate_counts({(f"g:{k[0]}",) + k[1:]: v for k, v in cells.items() if k[0].startswith("ra_")})}
@@ -176,6 +192,7 @@ def print_report(r: dict) -> None:
     f = lambda x, n=2: "-" if x is None else f"{x:.{n}f}"
     print(f"{r['n_summaries']} summaries, {r['n_failed']} failed, {len(r['topologies'])} topologies")
     print("-- code: " + "; ".join(f"{os.path.basename(k.rstrip('/'))} {','.join(c[:8] for c in v)}" for k, v in r["code_commits"].items()))
+    print("-- cells per pin: " + ", ".join(f"{p} {n}" for p, n in r["cells_per_pin"].items()))
     i = r["identity"]
     print(f"-- whole-run identity vs slate_fix_v1: {i['checked']} cells checked, {len(i['mismatched'])} mismatched"
           + ("" if not i["mismatched"] else f" (dropped from the steady-state families: {[m['cell'] for m in i['mismatched']][:6]} ...)"))

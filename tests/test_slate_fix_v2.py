@@ -11,11 +11,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts_cosim"))
 
+COMMIT = {3: "f4f0453f0000", 4: "f4f0453f0000"}  # seeds 3-4 at the second pin, the rest at the first
 IB0, SS, NS, TW = "cd_exactS_ib0", "ra_gnn_eng_selfsearch", "ra_gnn_eng_nosplit", "ra_twin_eng_nosplit"
 
 
 def _cell(d, topo, win, rung, kind, seed, whole, steady):
-    s = {"averageElapsedTime": whole, "wallclock_s": 1.0, "num_tasks": 50000,
+    s = {"averageElapsedTime": whole, "wallclock_s": 1.0, "num_tasks": 50000, "code": {"commit": COMMIT.get(seed, "6a5c922cd1b2")},
          "steady_state": {"after_360s": {"T_s": 360.0, "n": 45000, "mean": steady},
                           "after_p5_dispatch": {"T_s": 200.0, "n": 47500, "mean": steady},
                           "decile_mean": [whole * 3] + [steady] * 9}}
@@ -81,5 +82,20 @@ def test_refuses_topologies_outside_the_registered_range(tmp_path):
     rd = importlib.import_module("slate_fix_v2_read")
     gate, ref = _dirs(tmp_path, 5.0, 9.0, -3.0)
     _cell(Path(gate), 19500, "g0", "heavy", IB0, 0, 1.0, 1.0)
+    with pytest.raises(SystemExit):
+        rd.read(gate, ref)
+
+
+def test_both_pins_are_recorded_and_any_other_commit_or_window_is_refused(tmp_path):
+    rd = importlib.import_module("slate_fix_v2_read")
+    gate, ref = _dirs(tmp_path, 5.0, 9.0, -3.0)
+    r = rd.read(gate, ref)
+    assert r["cells_per_pin"] == {"6a5c922c": 12 * 2 * 2 * 7, "f4f0453f": 12 * 2 * 2 * 4}
+    stray = Path(gate) / "cc40s19420__g0heavy__cd_exactS_ib0_s0.summary.json"
+    s = json.loads(stray.read_text()); s["code"] = {"commit": "3b1ebd00aaaa"}; stray.write_text(json.dumps(s))
+    with pytest.raises(SystemExit):
+        rd.read(gate, ref)
+    s["code"] = {"commit": "6a5c922cd1b2"}; stray.write_text(json.dumps(s))
+    _cell(Path(gate), 19420, "g2", "heavy", IB0, 0, 1.0, 1.0)
     with pytest.raises(SystemExit):
         rd.read(gate, ref)
