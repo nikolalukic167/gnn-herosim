@@ -1,6 +1,6 @@
 # ib0_confirm_v1 — does the hand `ib0` surrogate beat `cd_exactS` on fresh topologies, and does a GNN seed add anything on top of it?
 
-**Status:** `ACTIVE` — classical stage read: PRIMARY WIN, GNN-SEED WIN no; oracle stage pending (2026-10-12, signed by the coordinator at 62e51229 with the amendment below). Owner S4. Parent: `plan_rerank_v1`
+**Status:** `ACTIVE` — classical stage read: PRIMARY WIN, GNN-SEED WIN no; oracle stage read: FAMILY-CLOSES (moderate −2.82 %, borderline) (2026-10-12, signed by the coordinator at 62e51229 with the amendment below). Owner S4. Parent: `plan_rerank_v1`
 (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record, read once, 12 oracle cells).
 
 ## Why
@@ -183,3 +183,9 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
   - **Buckets (pp of the reference's mean latency, oracle − `ib0`):** moderate exchange −1.91, lock wait −1.92, cold start +0.33; heavy exchange +1.21, lock wait −3.56, cold start −0.07. Vs `cd_exactS`: moderate exchange −7.40, heavy exchange −3.35.
   - **Reading against the prediction (1–2.5 % moderate, 2–4 % heavy):** the moderate interim sits above the 3 % line (−3.91 %), heavy below the predicted band (−1.96 %): both off the prediction, in opposite directions.
     If −3.91 % held on 6/6, the registered rule would leave the supervised family OPEN at moderate; four cells cannot say that. Each topology is one g0 cell, per-topology spread is wide (−0.9 to −5.9).
+- 2026-10-12 — **REGISTERED oracle read (12 of 12 cells, 0 failed; job 864107, reader ed02144f, `/share/nikola.lukic/ib0_confirm/final/read_oracle.json`). Verdict: `FAMILY-CLOSES` by the pre-registered rule.**
+  - **Coverage (≥ 95 % rule):** moderate **95.97 %** (served 61.7, searched 34.3, unplaced 4.0; per topology 95.08–96.54 %), heavy **98.43 %**; books close, over-cap unsearched 0, budget never exhausted. Moderate passes by 0.97 pp.
+  - **Oracle vs `cd_exactS_ib0` (g0):** moderate **−2.82 %** (6/6 faster, p .031; topologies −0.9 / −5.5 / −3.3 / −5.9 / −2.4 / −0.3); heavy −1.96 % (4/6, p .31; −0.0 / −3.9 / +0.2 / −5.8 / +1.3 / −7.0).
+  - **Rule:** moderate median > −3 % → the supervised batch-label family closes. The margin is 0.18 pp; the two late moderate cells (19407 −3.3, 19410 −0.3) moved the median from the interim −3.91 % to −2.82 %. The rule was fixed before the data and is applied as written; the borderline is recorded, not argued around. The direction is real (6/6) and the size is below the line.
+  - **Descriptive vs `cd_exactS`:** oracle −8.25 % / −6.78 % (6/6 each, p .031); `ib0` vs `cd_exactS` −5.96 % / −3.73 % (6/6). Oracle search covers 34–41 % of tasks by replay-scored local search, so it is a floor on what exact labels would give on over-cap batches, not an exact ceiling there.
+  - **Prediction check (1–2.5 % moderate, 2–4 % heavy):** moderate −2.82 % above the band, heavy −1.96 % just below it.
