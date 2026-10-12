@@ -196,6 +196,7 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Identity task 863945 FAILED on a launch defect, before any number:** `OSError: [Errno 24] Too many open files` in the eval DataLoader 33 s in. `slate_fix_v1_eval.sbatch` lacked `ulimit -n 65536` (datalab-pitfalls #11; the training sbatch had it). The `afterok` chain dropped 863946 and 863947, so nothing trained. Fixed in code (this commit) and relaunched at a new pin; job ids in the next entry.
 - 2026-10-12 — **Launched, by user-ordered amendment** (relayed by the expert): training no longer waits for the `slate_bar_v1` read; the gate order is unchanged.
   - Datalab worktree `~/gnn-herosim-wt/sf_438fa161` (code 438fa161), with `models/` → `~/gnn-herosim/models` and the g4 cache path → `accel_prod/20261010_061132/cache_run/cache` (the identity task's own capped cache).
   - Jobs: identity 863945 (task 8); training 863946 (tasks 0–1, `afterok` on 863945); screen 863947 (tasks 0–7, throttle 4, `afterok` on 863946). Screen output `/share/nikola.lukic/slate_fix/screen_438fa161`.
