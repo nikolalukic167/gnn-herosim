@@ -166,3 +166,6 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
   - **Predictions scored:** `ib0` vs `cd_exactS` −3 to −5 % moderate **held** (−4.73); −2 to −3 % heavy **held** (−2.27). GNN seed tie: **held** at heavy, partly
     missed at moderate (vs `ib0` +0.73 inside the +1 to +4 % band only just; vs `cdx_ib0` −0.99 % is inside ±1.5 %). `a05` within ±1 % of `ib0`: **MISSED** (+3.6 / +2.9 %).
   - Oracle stage (6 topologies, g0, both rungs) still running; reader `ib0_confirm_oracle_read.py` committed (ed02144f) before its data. Not read.
+- 2026-10-12 — **Heavy flag-off identity closed.** The smoke at 8cc890fa (19405 g0) against the gate's d192081f cells: `cd_exactS_ib0` and `cd_exactS` are IDENT at both rungs
+  on total_rtt, mean latency, queue, exchange, cold start, end time and the search counters (heavy total_rtt 92928.903 / 96604.847; moderate 113355.535 / 120892.136). The code
+  that served the oracle stage and the code that served the classical gate agree on the arms they share.
