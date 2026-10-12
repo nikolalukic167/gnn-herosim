@@ -57,6 +57,8 @@ RULE_POLICY = {
     "cd_expand": "peer_greedy_network_cd",  # cd_expand: CD + exact-move alpha-expansion in its refine (HEROSIM_PG_CD_EXPANSION=1); descriptive, the stronger hand control
     "cd_exactS": "peer_greedy_network_cd",  # cd_exactS: CD + exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1, expansion as the over-cap fallback); the hand bar
     "cd_exactS_a0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with S's whole queue term scaled to 0 (HEROSIM_PG_DRAIN_ALPHA=0, S6's S_alpha)
+    "cd_exactS_a05": "peer_greedy_network_cd",  # ib0_confirm_v1 descriptive: batch alpha 0.5, to show alpha = 0 is not a knife-edge
+    "cdx_ib0": "peer_greedy_network_cd",  # ib0_confirm_v1 hand-seed control: the cd_expand flow (greedy first pass, passes, one expansion, passes) on the ib0 surrogate
     "cd_exactS_ib0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with only the in-batch stacking term zeroed (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_oracle": "peer_greedy_network_cd",  # plan_rerank_v1 Phase 0: cd_exactS with the exact search scored by the real single-batch RTT (HEROSIM_PG_ORACLE=1); a measurement arm
     "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
@@ -104,7 +106,7 @@ CAP_KEEP_ALIVE = "1e9"
 CAP_ARMS = ("reactive", "cd")
 LADDER_ARMS = ("reactive", "cd", "cd_inflight", "selfpredict")
 LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
-SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
+SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxib0", "_cdxhib0", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
 # gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
 # accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
 # cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
@@ -147,12 +149,27 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
-EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}}  # plan_rerank_v1 S_alpha arms
-ORACLE_ENV = ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
-R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"}}  # plan_rerank_v1 S_alpha arms
+ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
+
+
+def ib0_alpha(kind: str) -> dict:
+    """ib0_confirm_v1: the batch alpha the expansion arms on the ib0 surrogate must serve (none for every other arm)."""
+    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind == "cdx_ib0" or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
+
+
+def check_alias(kind: str) -> str:
+    """ib0_confirm_v1: the registered arm whose instrument checks an ib0-surrogate expansion arm shares (the alpha and seed are checked on top)."""
+    if kind == "cdx_ib0":
+        return "cd_expand"
+    for suffix in ("_cdxib0", "_cdxhib0"):
+        if kind.endswith(suffix):
+            return kind[:-len(suffix)] + "_cdxapply"
+    return kind
+R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cdx_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
-R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
+R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
@@ -799,6 +816,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_CD_REFINE"] = "apply"
         if kind.endswith("_cdxapply"):
             env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")
+        if kind.endswith(("_cdxib0", "_cdxhib0")):
+            env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1", **ib0_alpha(kind))
+        if kind.endswith("_cdxhib0"):
+            env["GNN_CD_SEED"] = "hand"
         if kind.endswith("_cdxexg"):
             env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXACT_GNN="1", GNN_SLATE_NO_SPLIT="1")
         if kind.endswith(("_cdxpra", "_cdxprb")):
@@ -835,6 +856,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PULL_LEDGER"] = "1"
         if kind == "cd_expand":
             env["HEROSIM_PG_CD_EXPANSION"] = "1"
+        if kind == "cdx_ib0":
+            env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1", HEROSIM_PG_CD_EXPANSION="1", **ib0_alpha(kind))
         if kind == "cd_exactS":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")
         if kind in EXACT_ALPHA:
@@ -920,6 +943,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     n = out.get("num_tasks")
     problems = []
+    orig_kind, kind = kind, check_alias(kind)
     for k, default in (("HEROSIM_TRANSFER_MODEL", "store_forward"), ("HEROSIM_REPLICA_RELEASE", "0"),
                        ("HEROSIM_SCALEOUT", "legacy"), ("HEROSIM_SHARED_AUTOSCALER", "0")):
         if out["env"].get(k, default) != os.environ.get(k, default):
@@ -990,7 +1014,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if kind in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
-        want = EXACT_ALPHA.get(kind, {}).get(name)
+        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(name)
         if out["env"].get(name) != want:
             problems.append(f"{name} served {out['env'].get(name)!r}, want {want!r} for {kind}")
     exact_arm = kind in ("cd_exactS", "cd_oracle", *EXACT_ALPHA) or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb"))
@@ -1111,6 +1135,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("a pre-v4 arm computed v4 backlogs")
     if base_kind in LEARNED_KINDS and not kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0):
         problems.append("unspread arm moved siblings")
+    want_seed = "hand" if orig_kind.endswith("_cdxhib0") else None
+    if out["env"].get("GNN_CD_SEED") != want_seed:
+        problems.append(f"GNN_CD_SEED served {out['env'].get('GNN_CD_SEED')!r}, want {want_seed!r} for {orig_kind}")
+    kind = orig_kind
     if problems:
         json.dump({"arm": name, "why": "; ".join(problems), "wallclock_s": wall}, open(failed, "w"))
         os.remove(raw)

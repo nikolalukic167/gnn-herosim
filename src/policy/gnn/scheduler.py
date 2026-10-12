@@ -1106,6 +1106,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if self._cd_refiner is None:
             from src.policy.peer_greedy_network.scheduler import GnnCdRefiner
             self._cd_refiner = GnnCdRefiner(self)
+        if os.environ.get("GNN_CD_SEED", "").strip() == "hand":
+            # ib0_confirm_v1 hand-seed control: the CD greedy's own first-pass plan replaces the decoded plan as the refine's seed
+            placements = self._cd_refiner.hand_seed(tasks, system_state)
+        elif os.environ.get("GNN_CD_SEED", "").strip():
+            raise ValueError(f"FAIL LOUD: GNN_CD_SEED must be unset or 'hand', got {os.environ['GNN_CD_SEED']!r}")
         refined, info = self._cd_refiner.refine(tasks, system_state, placements, passes=3)
         if self._cd_refiner.pg_cd_expansion or getattr(self._cd_refiner, "pg_cd_exact", False):
             # cdxapply: the refiner's search books, mirrored on the host the orchestrator reads counters from
