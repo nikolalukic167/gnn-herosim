@@ -141,10 +141,27 @@ R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "rea
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
 R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
-R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
+R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
+# slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
+# submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
+def r1a_slate() -> str:
+    from src.placement.declared_slate import RULE, RULES
+    want = os.environ.get("R1A_SLATE", "").strip() or RULE
+    if want not in RULES:
+        raise SystemExit(f"FAIL LOUD: R1A_SLATE={want!r}; expected one of {RULES}")
+    return want
+
+
+def ra_serving_slate(side: str) -> str:
+    rule = json.load(open(side)).get("candidate_slate")
+    if rule != r1a_slate():
+        raise SystemExit(f"FAIL LOUD: {side} records candidate_slate={rule!r}; this gate serves R1A_SLATE={r1a_slate()!r}")
+    return rule
+
+
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
 _LAST_ARRIVAL: Dict[str, float] = {}
@@ -765,7 +782,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar. The graph-free arms
             # additionally refuse a serving environment that names another arm.
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v5", PARTIAL_STATE_LOAD_SECONDS="1",
-                       PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE="declared_pruning_v1")
+                       PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE=ra_serving_slate(side))
             if base_kind in ("ra_mlp_same", "ra_set_transformer"):
                 env["GNN_ARM_KIND"] = base_kind[3:]
         if base_kind in LOAD_KINDS:
@@ -1040,7 +1057,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("v4 instrument off: no candidate ever had a backlog")
     elif base_kind in RA_KINDS:
         for key, want in (("PARTIAL_STATE_CONTRACT", "partial_state_v5"), ("PARTIAL_STATE_LOAD_SECONDS", "1"),
-                          ("PARTIAL_STATE_EXCHANGE_SECONDS", "1"), ("GNN_SERVE_CANDIDATE_SLATE", "declared_pruning_v1")):
+                          ("PARTIAL_STATE_EXCHANGE_SECONDS", "1"), ("GNN_SERVE_CANDIDATE_SLATE", r1a_slate())):
             if out["env"].get(key, "") != want:
                 problems.append(f"served {key}={out['env'].get(key)!r}, {base_kind} needs {want!r}")
     elif int(c.get("v4_backlog_batches") or 0):

@@ -1,0 +1,184 @@
+# slate_fix_v1 — does the GNN trained and served on the uncapped candidate set close its heavy gap to `cd_exactS`?
+
+**Status:** DRAFT for the expert's signature (2026-10-12, S6). Becomes `REGISTERED` when signed. The LINEAGES.md row is the expert's to write.
+No training, no gate cell, no data yet.
+
+**Now (2026-10-12).** Code and configs are on `rp/slate-fix`, branched off `rp/corpus-uncap` 9acac361, with the selfsearch_confirm_v1 harness
+merged in. Tests pass. It launches only after three things: S7's recache of the uncapped corpus, the slate_bar_v1 read, and the expert's signature.
+
+## Question and why
+
+`selfsearch_confirm_v1` (CLOSED DIRECTION-ONLY) left the learned self-search arm behind the hand exact search at heavy.
+- On g0–g3: gnn_eng self-search vs `cd_exactS` was −0.16 % moderate / **+3.66 % heavy** (2 of 24 topologies faster).
+- Read again on g0–g1 only, the windows this gate uses (same 24 topologies, descriptive): self-search −1.03 / +3.51 %; no-split +0.35 / +5.44 %.
+
+`slate_bar_v1` (S6 audit, 2026-10-12) found one cause that sits in the data and not in the model.
+- The GNN's declared top-5 slate charges no cold start on an initialized platform; the simulation does. The fault is at
+  `src/placement/declared_slate.py:46`, recorded in `docs/gates/gate-tools.md`.
+- So the corpus labels and the served slate miss plans that `cd_exactS` (its own top 5, correct cold cost) can pick.
+- G8 `cd_exactS` batch recall: declared top 5 79.5 % vs `cd_exactS`'s own top 5 89.3 %. At heavy, recall falls by batch size, from 96.7 % (n = 2) to 56.7 % (n = 10).
+
+S7's `accel_uncap` (`scripts_cosim/extend_corpus_slate.py`, 4f41b771, rule `declared_pruning_v1_uncapped`) removes the cap without re-simulating.
+- It keeps every candidate and scores only the plans the wider slate adds.
+- It covers about 98 % of tables. The rest are over 100,000 full plans and keep the capped labels.
+
+This gate asks whether the same architecture, retrained and served on the full candidate set, closes the heavy gap.
+
+## Design (fixed at signature)
+
+**Code.** `rp/slate-fix` = `rp/corpus-uncap` (S7: uncapped rule, serving mode, cache's one allowed mixed corpus) plus a merge of 2c84ab4e (the
+`selfsearch_confirm_v1` gate harness: `ra_gnn_eng_selfsearch`, `ra_twin_eng_selfsearch`, `cdxapply`, `cd_exactS`). Two add/add conflicts took
+`rp/corpus-uncap`'s side, which is a strict superset. Changes of mine, all in the commit after the merge:
+- **Serving slate from the sidecar.** `scripts_cosim/fresh_topo_burst_v1_gate.py` (`ra_serving_slate`, `r1a_slate`) exports
+  `GNN_SERVE_CANDIDATE_SLATE` as the rule the checkpoint's `.contract.json` records.
+  - `R1A_SLATE` names the rule a gate submission expects; unset means `declared_pruning_v1`, so every earlier gate is unchanged.
+  - A sidecar with another rule fails the cell before it runs.
+  - The per-cell instrument check compares the served env to the same rule. The loader's `require_matching_slate` (`src/executesimulation.py:802`,
+    `src/policy/gnn/prefix_serving.py:213`) is the second, independent check.
+- **Sidecheck.** `scripts_cosim/joint_burst_v2_sidecheck.py` accepts `candidate_slate` = `R1A_SLATE` (default `declared_pruning_v1`).
+- **New harness kind.** `ra_twin_eng_nosplit`, the twin's no-split decode, existed only as a self-search kind before.
+- **Offline eval path.** `src/notebooks/train_near_rtt.py` has an eval-only path: `NEAR_RTT_EVAL_ONLY_CHECKPOINT` + `NEAR_RTT_EVAL_ONLY_JSON`.
+  - It scores a checkpoint on the cache's val split through the same `evaluate()` the training loop selects on, then exits before any gradient step or
+    checkpoint write.
+  - It is env-gated, so training is unchanged; `tests/test_trainer_determinism.py` passes, 12 passed and 8 skipped as on the parent.
+- **Two merged tests fixed** (`tests/test_slate_no_split.py`, test-only): one monkeypatch lambda now takes S7's new `rule` argument, and two source-string assertions were stale against the selfsearch line's own harness.
+- **New files:**
+  - `scripts_cosim/slate_fix_v1_cache_check.py`, `scripts_cosim/slate_fix_v1_gate_read.py`, `scripts_cosim/slate_fix_v1_selected.json`;
+  - `scripts_cosim/datalab/slate_fix_v1_train.sbatch`, `scripts_cosim/datalab/slate_fix_v1_eval.sbatch`,
+    `scripts_cosim/datalab/slate_fix_v1_gate_models.sh`;
+  - `tests/test_slate_fix_v1.py` (13 tests).
+
+**Corpus and cache.**
+- Corpus: `/share/nikola.lukic/accel_uncap/4f41b771/{train,heldout}`. The over-cap tables are symlinked in untouched (`--link-untouched`).
+- Cache: S7 recaches it under `partial_state_v5`, alpha `inf`. The configs name a placeholder, `simulation_data/graphs_cache_slate_fix_v1_S7_FILLS_THIS_psv5_inf`,
+  which S7 replaces in one commit. The training sbatch refuses to start while the placeholder is there.
+- **Pre-training check** (`slate_fix_v1_cache_check.py`, metadata only, login-node safe). Against the capped cache
+  (`/share/nikola.lukic/accel_prod/20261010_061132/cache_run/cache`, 3,169 graphs):
+  - `candidate_slate` = `declared_pruning_v1_uncapped`, and `candidate_slate_rules` is absent or exactly both rules;
+  - 13 contract keys are unchanged (`partial_state_contract`, `physics_env`, `training_contract`, ...);
+  - the same 3,169 parent ids;
+  - the split is `experiments/accel_replica_v1_split.json`, sha256 f5bc4f51…, which the g4 and twin checkpoints record. It has train 2,674 / val 438
+    (wf1_heldout) / test 57 placeholder. The 57 test ids are never scored: `NEAR_RTT_SKIP_FINAL_TEST=1`.
+
+**Training** (`scripts_cosim/datalab/slate_fix_v1_train.sbatch`, array 0–1).
+- Configs: `experiments/slate_fix_v1_gnn_eng.yaml` and `experiments/slate_fix_v1_twin_eng.yaml`.
+- They are the accel_replica_v1 g4 recipe and its MP-OFF twin byte-for-byte: lr 1e-3, width 128, `ce_only` + full-context CE, 100-epoch cap,
+  patience 60, min 100. Only `lineage`, `cache_dir` and the W&B names differ; a test enforces this.
+- Seeds 1 and 2. W&B project `gnn-slate-fix-v1`.
+- Each checkpoint is sidechecked as `ra_gnn_eng` / `ra_twin_eng` with `R1A_SLATE=declared_pruning_v1_uncapped`, and its md5 is logged.
+- **Deviation from the request, decided here.** You asked for four files, `slate_fix_v1_{nosplit,selfsearch}[_twin].yaml`. No-split and self-search are
+  two serving modes of one checkpoint, as in `selfsearch_confirm_v1`, where `ra_gnn_eng_selfsearch` and `ra_gnn_eng_nosplit` served the same g4 weights.
+  Four configs would train identical recipes twice and unpair the "search adds" contrast, so there are two configs and one checkpoint per arm and seed.
+
+**Arms.** A cell is arm × topology × window × rung; 48 per arm and seed.
+
+| arm | submission | stem / seeds | cells |
+|---|---|---|---|
+| **new self-search** `ra_gnn_eng_selfsearch` | A (`R1A_SLATE=…_uncapped`) | `slate-fix-v1`, 1–2 | 96 |
+| **new no-split** `ra_gnn_eng_nosplit` | A | `slate-fix-v1`, 1–2 | 96 |
+| new twin self-search / no-split (`ra_twin_eng_*`) | A | `slate-fix-v1`, 1–2 | 192 |
+| new `cdxapply` (`ra_gnn_eng_cdxapply`: no-split plan, CD refine with expansion) | A | `slate-fix-v1`, 1–2 | 96 |
+| old self-search / no-split, capped g4 (md5 0f915a36 / 446f99fd) | B (`R1A_SLATE` unset) | `accel-replica-v1`, 1–2 | 192 |
+| `cd_exactS`, `cd` | B | seed 0 | 96 |
+
+- Total: **768 cells**.
+- The old checkpoints are served capped (their sidecar says `declared_pruning_v1`), exactly as every earlier gate served them. They are the "same model, old data" control.
+- The old twin is not in the gate. Its offline numbers are in the screen.
+
+**Offline screen (ordering only, never a bar).** `scripts_cosim/datalab/slate_fix_v1_eval.sbatch` scores val `regret_masked_topo` on the uncapped cache's
+438 held-out tables for 8 checkpoints:
+- new gnn and twin, seeds 1 and 2;
+- old gnn (above) and old twin (bc44f9c2 / 7798e128), seeds 1 and 2.
+- Disclosed: the old checkpoints are scored decoding over the full candidate set, not the capped slate they are served on.
+- **Identity first (task 8):** the old gnn seed 1 through this path on its own capped cache must reproduce its recorded best_val 0.7807019727098458
+  within 1e-6, or the screen is not read.
+
+**Identity and smoke before the gate** (two submissions, old/hand and new, as the gate's A and B; on 16490 g0, both rungs; `SMOKE_IN` reuses selfsearch_confirm_v1's inputs; smokes are not read as results):
+- **Flag-off identity.** `cd_exactS` and old `ra_gnn_eng_selfsearch` s1 reproduce the recorded `selfsearch_confirm_v1` cells
+  (`/share/nikola.lukic/selfsearch_confirm/gate_79ea002c`) to the digit: mean latency and every scheduler counter. The only serving-code changes
+  since 79ea002c are S7's uncapped branch (`declared_slate.py`, `src/policy/gnn/scheduler.py:855`), and the capped path is byte-identical per S7's tests.
+- **Uncapped serving smoke:** the 5 new kinds at s1.
+  - The sidecar round-trips: the harness serves `declared_pruning_v1_uncapped` and `require_matching_slate` passes in the loader.
+  - `slate_declared_pruned` = 0 on every batch, `ss_batches` = `slate_declared_batches` on the self-search kinds, and unsplit = sub-batched on the no-split kinds.
+  - Walls are measured here. They set `LIMIT` for submission A = max(8,100 s, 2.5 × the slowest smoke cell).
+
+**Gate.**
+- Seat: the accel seat, unchanged — 160 × 24, p 0.6, `fastest_compatible`, WF1 windows **g0–g1**, moderate (×11.6139) and heavy
+  (×27.622665025860204), pipelined, `HEROSIM_REPLICA_RELEASE=1`, KPA.
+- Inputs: `scripts_cosim/datalab/s160_gate_inputs.sbatch` with ib0_confirm_v1's arguments (base cfg `accel_nosplit/inputs/cfg_src/cc40s16345.json`) and
+  `TOPOS` = 19420–19431. `scripts_cosim/datalab/slate_fix_v1_gate_models.sh` wires `models/`, checking md5 and sidecheck.
+- Harness: phase `r1a` via `scripts_cosim/datalab/r1a_gate.sbatch` at the pinned worktree with `SELECT=scripts_cosim/slate_fix_v1_selected.json`.
+  - A watchdog kill or a failed cell is counted and reported, never rerun.
+- **Topologies 19420–19431.**
+  - `git grep` of 194xx tokens over every local and remote branch finds only 19400, 19404–19417 and 19490.
+  - A `/share/nikola.lukic` name scan for 1942x–1949x topology tokens (excluding the 6-digit `ds_` dataset dirs) finds none. `truth_19439.json` is a batch index, not a topology.
+  - Disjoint from:
+    - ib0's 19405–19416; overcap's 19206–19217 and the 19400–19404 prefixes;
+    - 19300–19305 (never read);
+    - selfsearch_confirm_v1's 16490–16513, L24's 16900;
+    - the corpus topologies 16201–16258 (train, val and test 16226).
+
+**Statistic** (`scripts_cosim/slate_fix_v1_gate_read.py`, committed now, before data).
+- Per topology: the median over (window, seed) of the paired % of mean latency. The reference is its own seed when seeded, else seed 0; new vs old pairs seed s with seed s.
+- Then the median over 12 topologies, the sign count and the exact two-sided Wilcoxon (n = 12: p floor 0.00049, Holm over 4 floor 0.002).
+- Negative = the first arm is faster.
+- The reader renames learned kinds by directory (`new:` / `old:`), refuses topologies outside 19420–19431, windows other than g0–g1, and a hand cell present in both directories.
+- A second pass repeats every family without the topologies that have a failure.
+
+**Registered families (Holm within each).**
+- **PRIMARY (Holm over 4):** new self-search vs `cd_exactS` and new no-split vs `cd_exactS`, × moderate and heavy.
+- **SECONDARY, data effect (Holm over 4):** new vs old checkpoint, self-search and no-split, × 2 rungs.
+- **SECONDARY, MP (Holm over 4):** new gnn vs new twin, self-search and no-split, × 2 rungs.
+- **Descriptive, untested:**
+  - the gap change, i.e. (new vs `cd_exactS`) − (old vs `cd_exactS`) in pp, per topology then the median. This is the quantity both predictions are about;
+  - old arms vs `cd_exactS`; new `cdxapply` vs `cd_exactS` and vs CD; new self-search vs new no-split and vs CD;
+  - per-arm slate counters: pruned, sub-batched, unsplit, exact vs ascent batches.
+
+**Labels (standard, fixed now).**
+- **WIN** for an arm: median ≤ −2 % with Holm p < .05 at **both** rungs.
+- **E-FASTER:** `cd_exactS` faster with Holm p < .05 at either rung (a LOSS).
+- Otherwise **DIRECTION-ONLY** (median < 0 at both rungs) or **NOT-SEPARATED**, reported with both medians and p-values.
+- Per rung: CONFIRMED / E-FASTER / DIRECTION-ONLY / NOT-SEPARATED.
+- **NOT-COMPARABLE** if `cd_exactS` is not faster than CD at both rungs (the seat is then not the one selfsearch_confirm_v1 measured).
+- Attribution:
+  - a WIN with the MP family NOT-SEPARATED is a learned-scorer result, not a message-passing one;
+  - a data-effect family not significantly negative means "uncapping did not help this model", whatever the primary says.
+
+**Predictions, written before any data.**
+- **Expert:** the heavy gap shrinks by 2–4 pp and ends NOT-SEPARATED.
+- **S6:** the heavy gap shrinks less, by **0.5–2 pp**. New self-search lands at **+1.5 to +3 %** vs `cd_exactS` at heavy and stays **E-FASTER**; new no-split stays E-FASTER (+3.5 to +5 %).
+  Moderate stays tied: |median| < 1.5 %, NOT-SEPARATED. **No WIN** for either arm (P(WIN) ≈ 0.05). Data effect: heavy −0.5 to −2 %,
+  DIRECTION-ONLY or NOT-SEPARATED; moderate within ±1 %. MP: NOT-SEPARATED, as in selfsearch_confirm_v1.
+  - **Reason:** the heavy deficit lives in the large groups. The sub-batch peer cut on split 9–10-task groups is ~22 % of tasks, and over-cap batches are ~half of heavy tasks at G8.
+  - Those are exactly the tables `accel_uncap` leaves capped (> 100,000 full plans), and the batches where self-search falls back to coordinate ascent.
+  - Uncapping widens per-task candidates 5 → 7–13 and mainly fixes small and mid batches, where recall was already 85–97 %.
+  - A wider slate also pushes more batches past self-search's 625-plan exact limit, which can cost some of the gain.
+
+**Not claimed:** a message-passing win; any seat other than the accel seat; other recipes or seeds; G8; "beats the best hand rule" unless the primary is a WIN.
+
+## Cost and queue plan
+
+Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, median / max).
+- Capped: self-search 1.85–1.92 ks (max 2.3 ks), twin self-search 1.45–1.84 ks, no-split 0.46–0.50 ks, `cdxapply` 0.54–0.56 ks, `cd_exactS` 3.1 ks (max 3.9 ks), CD 0.09 ks.
+- Uncapped learned cells are **estimated** at 1.5–3× those (7–13 candidates per task instead of 5); the smoke fixes the number.
+
+| step | jobs (queue entries) | resources | wall (est.) |
+|---|---|---|---|
+| inputs, 19420–19431 (`s160_gate_inputs.sbatch`) | 1 | CPU-amd | ~2 min (ib0's took 72 s) |
+| cache check (login node, metadata only) | 0 | — | seconds |
+| training, 2 arms × 2 seeds in parallel | 2 | CPU-amd, 18 CPU, 150 G each | 3–5 h (twin: 1.6 h capped, 25 GB RSS per seed; × 2–3 for the wider graphs) |
+| offline identity, then screen | 1 + 8 | CPU-amd, 8 CPU, 96 G | 0.5–1 h each |
+| identity + smoke (16490 g0: `cd_exactS` + old self-search, and the 5 new kinds, × 2 rungs = 14 cells) | 2 | 64 CPU | 1–2 h |
+| gate A (new, 480 cells) | 6 | 64 CPU, 240 G, PAR 24 | |
+| gate B (old + hand, 288 cells) | 2 | 64 CPU, 240 G, PAR 24 | |
+| reader | 1 | CPU-amd, 2 CPU | minutes |
+
+- **Gate compute:** A ≈ 190–390 cell-h, B ≈ 105 cell-h; 768 cells over 192 concurrent slots is about 4 waves, **≈ 4–7 h** wall.
+- **Total:** ≈ 0.4–0.6 M core-s training plus 1.1–1.8 M core-s gate; about 10–15 h end to end after the recache.
+- **Queue:** 23 entries in all (limit 44). At most 8 CPU jobs at once (my share), so the gate arrays are throttled (`%6` and `%2`) and launch only when L24 and my
+  other jobs have drained.
+- **Order:** S7 recache → cache check → training → eval identity → screen and smoke (parallel) → gate A and B together → single read.
+
+## Record (newest first)
+
+- 2026-10-12 — Drafted (S6) on the expert's request. Code, configs, reader and tests are on `rp/slate-fix`; nothing has run.

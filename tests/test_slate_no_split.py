@@ -17,7 +17,7 @@ def shell(monkeypatch, groups, sub_batched):
     s._get_valid_replicas = lambda replicas, task: []
     monkeypatch.setattr(live_audit, "_candidate_payload", lambda *a: {})
     kept = [[{"node_id": t, "platform_id": 10 + t}, {"node_id": 9, "platform_id": 90}] for t in range(4)]
-    monkeypatch.setattr(D, "slate", lambda payloads, pairs: D.Slate(kept, [7] * 4, 7 ** 4, groups, True, sub_batched))
+    monkeypatch.setattr(D, "slate", lambda payloads, pairs, rule=None: D.Slate(kept, [7] * 4, 7 ** 4, groups, True, sub_batched))
     calls = []
 
     def core(batch, state, queue, temporal, allowed=None):
@@ -99,11 +99,11 @@ def test_harness_serves_the_nosplit_kinds_and_keeps_them_out_of_the_default_grid
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
     import fresh_topo_burst_v1_gate as G
 
-    assert G.R1A_NOSPLIT == ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")
+    assert G.R1A_NOSPLIT == ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")
     for k in G.R1A_NOSPLIT:
         assert k in G.R1A_ARMS and next((k[:-len(s)] for s in G.SUFFIXES if k.endswith(s)), k) in G.RA_KINDS
     for k in ("cd", "selfpredict", "ra_gnn_eng", "ra_gnn_eng_physmp", "ra_gnn_eng_cdapply", "cd_pull"):
         assert k in G.R1A_ARMS
     src = open(G.__file__).read()
-    assert 'if kind.endswith("_nosplit"):\n            env["GNN_SLATE_NO_SPLIT"] = "1"' in src
-    assert '"GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src          # scrubbed per cell before the kind sets it
+    assert 'if kind.endswith(("_nosplit", "_selfsearch")):\n            env["GNN_SLATE_NO_SPLIT"] = "1"' in src
+    assert '"GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV' in src  # scrubbed per cell before the kind sets it
