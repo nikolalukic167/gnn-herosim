@@ -169,3 +169,7 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
 - 2026-10-12 — **Heavy flag-off identity closed.** The smoke at 8cc890fa (19405 g0) against the gate's d192081f cells: `cd_exactS_ib0` and `cd_exactS` are IDENT at both rungs
   on total_rtt, mean latency, queue, exchange, cold start, end time and the search counters (heavy total_rtt 92928.903 / 96604.847; moderate 113355.535 / 120892.136). The code
   that served the oracle stage and the code that served the classical gate agree on the arms they share.
+- 2026-10-12 — **Coordinator's labels for the classical stage (ruling).** PRIMARY **WIN** as registered: `cd_exactS_ib0` is the new hand bar in the accel seat (hand vs hand,
+  unconfounded; the slate caveat only bears on learned arms). GNN seed: **DIRECTION-ONLY at moderate** (−1.0 %, Holm .02, under the −2 % bar), **NOT-SEPARATED at heavy**;
+  not an MP claim. Alpha is monotone through 0.5: `a05` sits between `ib0` and `cd_exactS` (a05 vs `ib0` +3.6 / +2.9 %; `cd_exactS` vs `ib0` +4.7 / +2.3 %; a05 vs `cd_exactS`
+  −1.86 % / −0.28 %), so 0 is not a knife-edge; the ±1 % prediction for `a05` is recorded as **missed**. Status stays ACTIVE until the oracle stage is read once, against `ib0` as served.
