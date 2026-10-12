@@ -1,6 +1,6 @@
 # queue_range_v1 — the served queue column leaves the contract it was trained under
 
-**Status:** `REGISTERED` (2026-09-15). Every bar below is a module constant in
+**Status:** `CLOSED` (2026-09-15) — **QUEUE-RANGE-NOT-THE-LEVER**. Registered 2026-09-15. Every bar below is a module constant in
 `scripts_cosim/queue_range_v1_read.py`, committed **before** the arms it reads exist. Amend by
 dated amendment only.
 

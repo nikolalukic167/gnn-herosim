@@ -1,6 +1,6 @@
 # cluster_scale_v1 — the axis every load rung held fixed
 
-**Status:** `REGISTERED` (2026-09-16). Every bar below is a module constant in
+**Status:** `CLOSED` (2026-09-16) — **ASSEMBLY-IS-ARRIVAL-BOUND · REQUIRES-RETRAINED-REPRESENTATION**. Registered 2026-09-16. Every bar below is a module constant in
 `scripts_cosim/cluster_scale_v1_read.py`, committed **before** any arm runs. Amend by dated
 amendment only.
 
