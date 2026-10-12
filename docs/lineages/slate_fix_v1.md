@@ -196,12 +196,12 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
-- 2026-10-12 — **What drives the 417 + 49 improved labels** (S7; `scripts_cosim/extend_corpus_drivers.py` on rp/corpus-uncap 8e0b8803; `accel_uncap/4f41b771/drivers_{train,heldout}.json`). A classification, not a causal test.
+- 2026-10-12 — **What drives the 417 + 49 improved labels** (S7; `scripts_cosim/extend_corpus_drivers.py` on rp/corpus-uncap 8e0b8803, job 863777; `accel_uncap/4f41b771/drivers_{train,heldout}.json`). A classification, not a causal test.
   - Class of the candidates the new best plan uses that the old slate dropped (train / held-out):
     - cold-mispricing, meaning every such candidate would be top-5 under the simulation's cold charge: 61.6 % (257) / 49.0 % (24);
     - mixed: 9.8 % (41) / 12.2 % (6);
     - cap, meaning outside the top 5 even when correctly priced: 28.5 % (119) / 38.8 % (19).
-  - Per dropped candidate, the simulation-cost rank is ≤ 5 for 410 of 621 / 45 of 78, and 6–10 for the rest. None is beyond 10.
+  - Per dropped candidate, the simulation-cost rank is ≤ 5 for 410 of 621 / 45 of 78, and 6–10 for the rest. None is beyond 10, so a top-10 slate at the correct cost would hold every new-best candidate.
   - The new best moves at least one task to another node in 95.4 % / 89.8 % of cases; the rest swap platform on the same node.
   - Co-located pairs go up in 51.3 % / 44.9 %, stay the same in 46.0 % / 46.9 %, and go down in 2.6 % / 8.2 %.
   - Label regret of the old best (old minus new, s): median 0.285 / 0.309, mean 3.02 / 3.18, p90 7.19 / 7.61, max 104.9 / 43.3.
