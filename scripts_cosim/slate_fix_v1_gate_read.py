@@ -18,6 +18,9 @@ Wilcoxon. Negative = the arm is faster.
   * descriptive, outside every family: the gap change (new vs cd_exactS minus old vs cd_exactS, pp, per topology then median), old arms vs
     cd_exactS, new cdxapply vs cd_exactS and vs CD, cd_exactS vs CD (the comparability check: cd_exactS must be faster than CD at both rungs,
     else the gate is NOT-COMPARABLE with the seat selfsearch_confirm_v1 measured), new self-search vs new no-split.
+  * descriptive queue proxy (added by the expert's ruling 2026-10-12, before any gate read): the same statistic on each cell's mean QUEUE
+    time over quarters 2-4 of its tasks in dispatch order (queue_drift.quarter_mean_queue[1:]), for the primary pairs. Queue component only,
+    Q1 dropped, outside every family; the summaries keep no time-resolved latency, so this is the only steady-state view this gate has.
 A missing arm counts as p = 1 in its family. Counts come first; a second pass repeats every family without the topologies that have a failure.
 
   slate_fix_v1_gate_read.py --new <dir> [<dir> ...] --old <dir> [<dir> ...] [--out read.json]
@@ -110,6 +113,20 @@ def gap_change(cells: dict, topos: List[int], arm: str, rung: str) -> dict:
             "per_topology": {str(t): round(x, 3) for t, x in sorted(d.items())}}
 
 
+QUEUE_PROXY_LABEL = "queue component only, Q1 dropped, outside every family"
+
+
+def queue_q234(cells: dict) -> dict:
+    """Cells re-keyed so the reader's paired statistic runs on mean queue time over quarters 2-4 (equal-sized, so the mean of the
+    three quarter means is the mean over those tasks). Cells without queue_drift are left out."""
+    out = {}
+    for k, s in cells.items():
+        q = (s.get("queue_drift") or {}).get("quarter_mean_queue")
+        if q and len(q) == 4:
+            out[k] = {"averageElapsedTime": sum(q[1:]) / 3}
+    return out
+
+
 def families(cells: dict, topos: List[int]) -> dict:
     pp = [(f"new:{SS}", IB0, "new self-search vs cd_exactS_ib0"), (f"new:{NS}", IB0, "new no-split vs cd_exactS_ib0"),
           (f"new:{SS}", E, "new self-search vs cd_exactS"), (f"new:{NS}", E, "new no-split vs cd_exactS")]
@@ -125,9 +142,12 @@ def families(cells: dict, topos: List[int]) -> dict:
         for r in RUNGS:
             desc[f"{n}|{r}"] = R.contrast(cells, a, b, r, topos)
     gaps = {f"{arm}|{r}": gap_change(cells, topos, arm, r) for arm in (SS, NS) for r in RUNGS}
+    qc = queue_q234(cells)
+    qproxy = {"label": QUEUE_PROXY_LABEL, "n_cells": len(qc),
+              "tests": {f"{n}|{r}": R.contrast(qc, a, b, r, topos) for a, b, n in pp for r in RUNGS}}
     ce = [desc[f"cd_exactS vs cd|{r}"]["median_pct"] for r in RUNGS]
     comparable = all(x is not None and x < 0 for x in ce)
-    return {"primary": prim, "data_effect": data, "mp": mp, "descriptive": desc, "gap_change_pp": gaps,
+    return {"primary": prim, "data_effect": data, "mp": mp, "descriptive": desc, "gap_change_pp": gaps, "queue_q234_proxy": qproxy,
             "comparable": comparable, "verdict": "NOT-COMPARABLE" if not comparable else None}
 
 
@@ -180,6 +200,9 @@ def print_report(r: dict) -> None:
         print(f"  {k:40s} {f(g['median_pp'])} pp (shrank on {g.get('shrank')}/{g['n_topologies']})")
     print("-- descriptive")
     for k, c in m["descriptive"].items():
+        print(f"  {k:44s} {f(c['median_pct'])} % ({c['wins']}/{c['n_topologies']}) p {f(c['p'], 4)}")
+    print(f"-- queue time over Q2-Q4, paired % ({m['queue_q234_proxy']['label']})")
+    for k, c in m["queue_q234_proxy"]["tests"].items():
         print(f"  {k:44s} {f(c['median_pct'])} % ({c['wins']}/{c['n_topologies']}) p {f(c['p'], 4)}")
     if r["sensitivity"]["excluded_topologies"]:
         print(f"-- sensitivity without {r['sensitivity']['excluded_topologies']}: primary labels "
