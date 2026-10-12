@@ -133,9 +133,91 @@ Out of scope (each is a separate claim):
 - hidden information that a class prior cannot recover;
 - batches too large to enumerate. `big_groups_s0_v1` at G = 8: the hand search is still faster live.
 
+**The small-batch condition is partly ours.** The workload mint caps every fan-out at 10 tasks. Over the
+groups it draws, 7.5 % exceed 10, and they hold **37.5 %** of member tasks; 24.0 % of tasks sit in
+groups larger than 20, and the largest is 2,876 (`grounded_workload_v1.md:109–124`; over the mint's draw,
+not over the whole trace). The claim holds for the workload we served. It is not yet a claim about the
+uncut trace.
+
 ## 4. When would a GNN be necessary?
 
-_(Placeholder. SCIENTIST is answering this separately.)_
+_(SCIENTIST's answer, 2026-10-12, edited for voice. Probabilities are SCIENTIST's priors, not
+measurements.)_
+
+**Why exhaustive hand search is near-optimal here.** Nothing is broken. The accel seat is a small, fully
+known, nearly separable assignment problem. On such a problem, search over a correct cost model is
+near-optimal by construction, and a learned scorer can at best match it.
+
+- **Near-additive objective.** Co-sim targets fit a sum of per-task terms (additive R² up to 1.00000,
+  argmin exact; `program_verdict_v1.md:149`).
+  - The one coupling is the pairwise exchange term. Hiding the batch plan costs the bar +113 / +170 %
+    (`sparse_obs_s0_v1.md:10`). Search prices that term exactly.
+  - Node-indexed contention is closed by the count theorem (`dag_fabric_contention_v1`).
+  - Links never bind: at most 1.6 % of latency (`link_bound_s0_v1`).
+- **Enumerable coupled set, but only below the 10-task cut** (above).
+  - 59,908 of 73,279 moderate batches (82 %) and 56,700 of 73,281 heavy (77 %) are within the enumeration cap
+    (`ib0_confirm_v1/oracle_loss_diag.md:16–17`).
+  - Above the cap, hand local search is the better fallback. Top-k pruning beats the expansion fallback
+    (`prune_g8_s0_v1`), and the GNN on over-cap batches is +0.2 / +2.5 % behind (`gnn_overcap_v1`).
+- **Every cost is a deterministic table.**
+  - Hidden execution time has no headroom (`hidden_exec_s0_v1.md:9`, an earlier seat).
+  - The exact queue walk is worth under 1 %. Warmth is recovered by a per-class prior
+    (`sparse_obs_s0_v1.md:6–7`).
+- **No hidden state that only a learned model could predict.**
+  - Partners arrive in the same batch, so the partner channel is not testable in this seat
+    (`sparse_obs_s0_v1.md:9`).
+  - Pricing partners that have not arrived yet: a hand self-predict rule recovers 93–95 % of an oracle
+    (`lookahead_mp_v1`).
+  - Within S's table, ΔS explains ≥ 98.9 % of the label's variance across plans. Plan-structure features
+    add nothing on held-out cells (`oracle_loss_diag.md`, "Time split").
+- **Nothing outside the batch changes the best per-batch choice.**
+  - A cost-to-go re-rank ties live (`cost_to_go_v1`).
+  - Rollout imitation wins offline (−12.7 %) and loses live (+14–28 %; `rollout_imitation_v1`).
+  - The oracle's room is mostly the deploy transient (§2).
+
+**The logic.** With a known deterministic model and enumerable batches, every training label comes from
+search. A model trained on search labels can at best match that search's quality and can only win on
+decision time. Every learned win in the record fits this, and none needs message passing:
+
+- matched slate: the GNN beats a handicapped `cd_exactS` (`slate_bar_v1`);
+- a GNN-seeded CD beats matched hand CD, but its MP-OFF twin beats the GNN seed (`gnn_seeded_cd_fixed_v1`,
+  `gnn_seeded_cd_mp_ablation_v1`);
+- the GNN proposal adds to a hand selector (`gnn_proposal_selector_v1`).
+
+**Candidates, with SCIENTIST's prior for a GNN win of at least −5 % (Holm) against the named bar.**
+
+| | change | what the record already says | bar | P(win) |
+|---|---|---|---|---|
+| A | coupled sets too large to enumerate (DAG stages, 30–100 operations) | timed hand search won every workflow / DAG / mixed lineage by 1.8–5 %, and the GNN tied MP-OFF | time-bounded `ib0` search | ~5 % (decision time free), ~8 % (charged) |
+| B | stochastic exec or transfer times with learnable structure | `hidden_exec_s0_v1` NO-HEADROOM; per-input regression is pointwise (an MLP's job); co-location interference is node-indexed | hand rule with per-class means | ~3 % (~1 % needing MP) |
+| C | closed-loop effects (per-batch best is wrong for the trajectory) | `cost_to_go_v1`, `rollout_imitation_v1`, `lookahead_mp_v1` negative; high ρ unreachable while stable (`high_rho_s0_v1`) | `ib0` + a hand value term | ~4 % |
+| **D** | **remove the 10-task cut, serve real fan-outs as joint batches, and charge each arm's decision time as simulated time** | the cut is ours (37.5 % of tasks beyond it); `cd_exactS` already uses ~76 % of one scheduler thread at heavy (`decision_cost_s0_v1.md:13`) | `cd_exactS_ib0` and its time-bounded variant, both paying for decision time | ~10 % (~3 % also beating its MP-OFF twin) |
+
+**SCIENTIST's pick: D.**
+
+- It is the only option that breaks a property without inventing physics.
+- It is the one pattern where learning has beaten an exact method in print: a learned component inside
+  an exact search, winning on solve time (Gasse et al. NeurIPS'19).
+- Real schedulers decide in milliseconds (Sparrow, Firmament).
+- Kill checks:
+  - Check 1, fan-out share beyond the cut ≥ ~5 %: **PASSED** (37.5 %).
+  - Check 2, `cd_exactS` loses ≥ 3 % to its own decision time at k = 1: from `decision_cost_s0_v1`, not yet
+    read. If it fails, stop.
+- Cost if both pass, SCIENTIST's estimate:
+  - hand arms live on an uncut mint, ~100–150 CPU-h;
+  - labels by ILS replay (brute force cannot label these batches), ~0.5–1k CPU-h (from memory);
+  - GNN + twin training and a live gate, ~150 CPU-h.
+- The prior stays low because `big_groups_s0_v1`, `scale_sweep_v1` and `gnn_overcap_v1` lost or tied when
+  decision time was free.
+
+**Published GNN wins against an exact baseline with the same information.** SCIENTIST knows of none on
+solution quality.
+
+- L2D trails OR-Tools by 17.7–29.2 % (its Table 1).
+- Kool et al. stay behind Concorde, LKH and Gurobi.
+- Decima is compared against tuned heuristics. The one exhaustive search it faces covers job ordering
+  only, and Decima matches it (§1).
+- What survives is learning inside an exact search that wins on time, which is the reason for D.
 
 ## Caveats that travel with every quote
 
