@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-12) — **HAND-FALLBACK-FASTER** (LOSS as registered). Registered 2026-10-11 by S7 on the coordinator's ruling; every bar below was fixed before any live data. The reader
 (`scripts_cosim/gnn_overcap_gate_read.py`, tests in `tests/test_gnn_overcap_gate_read.py`; by-batch readout `scripts_cosim/gnn_overcap_batches_read.py`) was committed before any cell ran. Gate pin 9d19aebf (amendment below).
 
+> ⚠ **Bar moved (2026-10-12).** Contrasts here are to `cd_exactS`; the hand bar is now `cd_exactS_ib0` (`ib0_confirm_v1`, −4.73 / −2.27 % vs `cd_exactS`), and they were not re-measured against it.
+
 **Outcome.** At G = 8 (160 clients × 24 servers, 12 fresh topologies 19206–19217, 4 windows, 384/384 cells, 0 failed), serving the GNN's own self-search plan on over-cap batches (H = `ra_gnn_eng_ovg`; the within-cap path is `cd_exactS`'s)
 is **not faster than `cd_exactS`**: **+0.24 %** at moderate (5/12 topologies ahead, Holm p = 0.30, a tie) and **+2.47 %** at heavy (1/12, Holm p = 0.0049, H slower). `WIN False, LOSS True, E_FASTER_RUNGS = both`.
 The expansion fallback `cd_exactS` runs on over-cap batches beats the GNN's plan there. H ties its MP-OFF twin (−0.29 % / −0.45 %, 8/12 each, Holm p = 0.47), so there is **no message-passing effect**. H beats `cd` (−9.06 % / −4.79 %); `cd_exactS` beats `cd` by −8.84 % / −7.41 %.

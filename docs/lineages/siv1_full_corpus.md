@@ -2,6 +2,8 @@
 
 > **Status:** `PARKED` (2026-10-12: no entry since 2026-08-21; the corrected-cache retrain, job 709234, was never gated, and the program moved on) &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-20 → 2026-08-21
 
+> ⚠ **Physics (caveat added 2026-10-12).** Measured before reference physics R1.1 + WF1 (2026-10-08, `physics_audit_v1`, `workload_fix_v1`); not re-measured on it. Breaking-changes table in `docs/gates/gate-tools.md`.
+
 **Outcome.** First real live-gate FAILED, then **SUPERSEDED the same day** — it measured an uncommitted code diff, not the model. The synced-code re-gate (job 709163) wins **5/5 on `workload-150-100` and `workload-175-100`**, 2W/1T/2L on `workload-125-225`. Corrected-cache retrain (job 709234) is ungated.
 
 **Entry points:** `scripts_cosim/datalab/full_corpus_siv1_{recache,gnn_train,mlp_train}.sbatch` → `run_full_corpus_siv1_*.sh`

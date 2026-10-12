@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-12) — **WIN-FOR-PRUNING / ORDER-NOT-LEARNED / NOT-MP.** Drafted by S5, ruled by the coordinator. Every bar below was fixed before any live data;
 the reader (`scripts_cosim/prune_g8_gate_read.py`, tests in `tests/test_prune_g8_gate_read.py`) was committed before any cell ran.
 
+> ⚠ **Bar moved (2026-10-12).** Contrasts here are to `cd_exactS`; the hand bar is now `cd_exactS_ib0` (`ib0_confirm_v1`, −4.73 / −2.27 % vs `cd_exactS`), and they were not re-measured against it.
+
 **Outcome.** Pruning an over-cap batch to its top-k and enumerating that exactly beats `cd_exactS`'s expansion fallback at G=8, 12 fresh topologies × g0–g3, seed 1:
 **−1.43 % moderate (11/12, Holm p 0.0049) and −2.13 % heavy (9/12, Holm p 0.0068).** The registered primary fired, so the label is WIN FOR LEARNED SEARCH ORDER by the
 reading rules, and both attribution clauses fail: GNN order against cost order −0.26 % / +0.32 % (Holm p 1.0) and against the MP-OFF twin order −0.36 % / −0.05 % (Holm p 1.0).

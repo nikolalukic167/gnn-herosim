@@ -20,6 +20,8 @@ distribution, `gnnedge0` beat reactive Knative (−12.5 %) and its cold twin (�
 the batched greedy in its own seat (+16.8 %). This lineage tests **why**, and whether closing the
 gap it names flips the sign.
 
+> ⚠ **Physics (caveat added 2026-10-12).** Measured before reference physics R1.1 + WF1 (2026-10-08, `physics_audit_v1`, `workload_fix_v1`); not re-measured on it. Breaking-changes table in `docs/gates/gate-tools.md`.
+
 **Parents:** [`joint_burst_v1`](joint_burst_v1.md) (the served-distribution corpus and gate),
 [`peer_greedy_live_v1`](peer_greedy_live_v1.md) (the greedies that are the bars),
 [`peer_affinity_warm_v1`](peer_affinity_warm_v1.md) (snapshot → dataset machinery).
