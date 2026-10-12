@@ -18,7 +18,7 @@ plus the label's own shape: plans, number of optimal ties, multi-node optimum, l
   surrogate_gap_screen.py select OUT.tsv CORPUS_DIR[:source] ... [--per-n 60] [--ns 2,3,4,5,6] [--cap 100000]
   surrogate_gap_screen.py run OUT.jsonl LIST.tsv [--ckpt X.pt --gnn-max-plans N] [--workers 8]
   surrogate_gap_screen.py walls OUT.jsonl LIST.tsv [--per-cell 3 --plans 5]
-  surrogate_gap_screen.py read ROWS.jsonl [--walls WALLS.jsonl] [--json OUT]
+  surrogate_gap_screen.py read ROWS.jsonl [--walls WALLS.jsonl] [--json OUT] [--source heldout|train]
 """
 from __future__ import annotations
 
@@ -490,6 +490,8 @@ def aggregate(rows):
 
 def read(a):
     rows = [json.loads(l) for f in a.rows for l in open(f) if l.strip()]
+    if a.source:                    # error rows carry no `source`; the dataset path does
+        rows = [r for r in rows if f"/{a.source}/" in r["ds"]]
     errs = [r for r in rows if "error" in r]
     agg = aggregate(rows)
     print(f"{len(rows)} rows, {len(errs)} errors; sources {dict(defaultdict(int, {s: sum(1 for r in rows if r.get('source') == s) for s in {r.get('source') for r in rows}}))}")
@@ -551,7 +553,7 @@ def main():
     w.add_argument("--seed", type=int, default=20261012)
     w.set_defaults(fn=walls)
     d = sub.add_parser("read")
-    d.add_argument("rows", nargs="+"); d.add_argument("--walls", nargs="*"); d.add_argument("--json", default=None)
+    d.add_argument("rows", nargs="+"); d.add_argument("--walls", nargs="*"); d.add_argument("--json", default=None); d.add_argument("--source", default=None)
     d.set_defaults(fn=read)
     a = ap.parse_args()
     a.fn(a)
