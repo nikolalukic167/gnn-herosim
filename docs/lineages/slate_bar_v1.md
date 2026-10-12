@@ -197,3 +197,11 @@ All plan ratios other than top6 are 1.0.
   - Even CD's own top 5 recalls only 73–77 % of batches at n = 8–10, and top6 (×2.1–2.6 plans) recalls 82–90 %.
   - A slate-restricted search on a 9–10-task batch therefore cannot reproduce the hand rule's plan in a quarter to two fifths
     of batches, before any learning enters.
+
+**Ruling 1, answered (2026-10-12).** The defect is in the slate, not in CD.
+- The simulation cold-starts an `initialized` platform unless its previous task was the same type
+  (`infrastructure.py:1616`, `sandbox_is_warm`).
+- The cold-probe (863493 at ddc3b5cd) forced 5 tasks onto such couples, and all 5 cold-started at the table value.
+  Example: a cnn task on platform 887, declared cost 0.60 s, CD cost 38.60 s, simulated `coldStartTime` 38.0 s.
+- Filed as a gate-tool correction (`docs/gates/gate-tools.md`, 2026-10-12), together with a smaller unmeasured deviation in CD's
+  cost (busy platform charged no cold start, `scheduling_cost.py:73`).
