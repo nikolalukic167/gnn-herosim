@@ -620,6 +620,9 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     ap.add_argument("--quiet", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="write configs + candidate records, run no sweep")
+    ap.add_argument("--whole-group", choices=("top5", "none"), default=None,
+                    help="with --fidelity: one view per batch, never sub-batched; top5 = the declared slate, none = every eligible "
+                         "candidate (big_groups_s0_v1; for --dry-run replay scoring, not a training corpus)")
     ap.add_argument(
         "--no-cap-filter", action="store_true",
         help="joint_burst_v2 (2026-09-20): do NOT reject a snapshot whose live slate admits no plan "
@@ -734,7 +737,19 @@ def main() -> int:
                 sl = declared_slate.slate(snap0["tasks"], pairs0)
                 gid_of = [int(t["task_id"]) for t in snap0["tasks"]]
                 views = []
-                for g_i, group in enumerate(sl.groups):
+                if args.whole_group is not None:
+                    # big_groups_s0_v1: the whole peer group is one view (no sub-batch split at any plan count); "none" keeps
+                    # every eligible candidate per task in rank order instead of the top-5 slate
+                    kept_all = (sl.kept if args.whole_group == "top5"
+                                else [declared_slate.prune_candidates(t["candidates"], k=10 ** 9) for t in snap0["tasks"]])
+                    views.append((snap0, ids0, {
+                        "kept": {gid_of[p]: {str(c["queue_key"]) for c in kept_all[p]} for p in range(len(gid_of))},
+                        "batch_ids": None, "sub_batch": None, "of": 1,
+                        "plans": declared_slate.plan_space(len(k) for k in kept_all),
+                        "full_plans": declared_slate.plan_space(sl.full_sizes),
+                        "pruned": args.whole_group == "top5" and sl.pruned,
+                        "snapshot_pruned": sl.pruned, "snapshot_sub_batched": sl.sub_batched, "snapshot_plans": sl.plans}))
+                for g_i, group in enumerate(sl.groups if args.whole_group is None else []):
                     gids = [gid_of[p] for p in group]
                     sub = len(sl.groups) > 1
                     views.append((
@@ -875,6 +890,12 @@ def main() -> int:
             (out_dir / "space_with_network.json").write_text(json_dumps_pretty(config))
             shutil.copy2(infra_path, out_dir / "infrastructure.json")
             shutil.copy2(workload_path, out_dir / "workload.json")
+            if args.fidelity:  # a dry-run fidelity dataset is replayable without a sweep (big_groups_s0_v1 scores plans by replay)
+                (out_dir / "fidelity_replay.json").write_text(json.dumps(
+                    {"fidelity": True, **provenance["fidelity_replay"], "snapshot_id": sid,
+                     "snapshot_time": float(snap.get("time", 0.0))}, indent=1))
+                (out_dir / "generation_provenance.json").write_text(json.dumps(
+                    {"argv": sys.argv, "dataset_id": dataset_id, "dry_run": True}, indent=1))
             entry["status"] = "dry-run"
         else:
             status, rtt, secs = generate_single_dataset(
