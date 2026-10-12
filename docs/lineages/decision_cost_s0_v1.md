@@ -1,7 +1,7 @@
 # decision_cost_s0_v1 — when the scheduler's decision time is charged as simulated time, which search still pays, and does the GNN's cheaper search beat `cd_exactS`?
 
-**Status:** `DRAFT` (2026-10-12, owner S4, for the coordinator's signature). Nothing launches before it is signed **and** `ib0_confirm_v1` is read.
-Code and the identity smokes may start now.
+**Status:** `REGISTERED` (2026-10-12, owner S4, signed by the coordinator with the amendment below). Nothing launches before `ib0_confirm_v1` is read.
+Code goes on branch `rp/decision-cost`, not `rp/plan-rerank`.
 
 ## Why
 
@@ -83,5 +83,16 @@ c ≤ 0.5, so the cut reads it at c = 0.25 only; the 0.5 point is the follow-up.
 
 ## Record
 
-2026-10-12 — drafted; code not yet written. Open points for the signature: held-mutex vs stale-snapshot form; the unit of `plans_evaluated` for
-single-move scores; the c-grid cut.
+2026-10-12 — **signature amendment (coordinator rulings, supersede the draft where they differ):**
+1. **Held-mutex form.** Disclosed side effect: the autoscaler and monitor wait `t` for the mutex. A counter records how long they waited (total and max
+   mutex-wait seconds while the scheduler server is busy) so a reader can see whether the autoscaler was starved.
+2. **`plans_evaluated` definitions stand**, plus: (a) the calibration table is read **before** the gate and recorded; if any arm's measured wall per
+   plan differs from the others by more than 3×, say so and keep `c` as a common reference anyway (a plan score is the unit, disclosed);
+   (b) per-cell counters for `plans_evaluated` and scheduler busy time must appear in the summaries, and the smoke must show them (instrument rule).
+3. **Grid cut to c ∈ {0, 0.25, 1.0} ms** (864 cells, 768 new, ≈ 245 cell-hours). 0.1 and 0.5 ms run only as a registered follow-up if the primary
+   contrasts straddle the bar at 0.25. The WIN rule's "some c ≤ 0.5" is therefore read at 0.25.
+- **Launch order after `ib0_confirm_v1` is read:** identity test (c = 0 byte-identical on the 24 identity cells) → calibration → one-cell smoke with
+  counters → gate, classical arms first.
+
+
+2026-10-12 — drafted (558abed3); code not yet written.
