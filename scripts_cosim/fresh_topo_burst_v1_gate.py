@@ -49,6 +49,7 @@ RULE_POLICY = {
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
     "cd_slate": "peer_greedy_network_cd",  # cd_gap_v1 D4: GNN_SERVE_CORPUS_SLATE=1
     "cd_inflight": "peer_greedy_network_cd",  # burst_ladder_v1: HEROSIM_PG_INFLIGHT=1
+    "cd_declared": "peer_greedy_network_cd",  # r1_attribution_v1: CD over the learned arms' declared slate (GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1); descriptive
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
     "random": "random_network",
     "drain": "drain_greedy_network",  # rule_baselines_v1: least-loaded (drain-time shortest queue, per arrival, no exchange term)
@@ -117,7 +118,12 @@ TP1_CONDS = {"replay": ("store_forward", "0"), "pipe": ("pipelined", "0"), "rele
 SO1_KINDS = ("so1load", "so1mpoff", "so1lfgnn", "so1lfmlp")  # so1lf*: lf1gnn / lf1mlp recipes (Amendment 1)
 BC1_KINDS = ("bc1load", "bc1mpoff", "fc1load", "xs1load", "xs1mpoff") + RAW_KINDS + SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS
 LOAD_KINDS = V4_KINDS + BC1_KINDS
-LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS
+# r1_attribution_v1: the seven learned arms, retrained on R1 + WF1 under partial_state_v5. The checkpoint each arm serves is the
+# configuration chosen on validation topologies only, copied to <inputs>/models/r1-attribution-v1-<arm>-seed<N>.pt by the selection step.
+RA_ARMS = ("gnn_eng", "twin_eng", "mlp_same", "gnn_raw", "twin_raw", "gnn_eng_physmp", "set_transformer")
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS)
+RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
+LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS + RA_KINDS
 SERVICE_END = "service_end_v1"
 # grounded_workload_v1: study windows whose group sizes, sibling offsets and arrival process come from Alibaba's
 # 2021 call graphs (grounded_workload_v1_mint.py), at the study's x1 rate; files live in <inputs>/grounded/wl
@@ -316,7 +322,7 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
             if not cal:
                 raise SystemExit("FAIL LOUD: wf1cal needs WF1_TOPOS")
             kinds = [k for k in os.environ.get("WF1_CAL_KINDS", "cd").split(",") if k]
-            if any(k not in ("cd", "reactive") for k in kinds):
+            if any(k not in ("cd", "reactive", "cd_declared") + RA_KINDS for k in kinds):  # ra_*: the r1_attribution_v1 serve smoke
                 raise SystemExit(f"FAIL LOUD: WF1_CAL_KINDS={kinds!r}")
             return [task(t, f"{w}{tag}", k) for tag in WF1_TAGS for t in cal for w in wins for k in kinds]
         rules = ("reactive", "selfpredict", "locality", "batched", "cd")
@@ -676,12 +682,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = f"hetero-conv-v1-{base_kind}"
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
+        elif base_kind in RA_KINDS:
+            stem = "r1-attribution-v1-" + base_kind[3:].replace("_", "-")
         else:
             stem = f"joint-burst-v2-{base_kind}"
-        ck = os.path.join(inputs, "models", f"{stem}-lr2e3-seed{seed}.pt")
+        ck = os.path.join(inputs, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
         check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind)
-        split = ("small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
+        split = ("r1_attribution_v1_split.json" if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
                                   os.path.join(inputs, split), "inf"], env=env, cwd=REPO)
@@ -689,8 +697,15 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
-        if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "so1mpoff", "so1lfmlp", "rawmlp", "rawStwin", "lf1twin", "lf1mlp"):
+        if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "so1mpoff", "so1lfmlp", "rawmlp", "rawStwin", "lf1twin", "lf1mlp") + RA_MP_OFF:
             env["GNN_DISABLE_MESSAGE_PASSING"] = "1"
+        if base_kind in RA_KINDS:
+            # exported, not adopted, so run_provenance records them; the loader verifies the sidecar. The graph-free arms
+            # additionally refuse a serving environment that names another arm.
+            env.update(PARTIAL_STATE_CONTRACT="partial_state_v5", PARTIAL_STATE_LOAD_SECONDS="1",
+                       PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE="declared_pruning_v1")
+            if base_kind in ("ra_mlp_same", "ra_set_transformer"):
+                env["GNN_ARM_KIND"] = base_kind[3:]
         if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
@@ -713,8 +728,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_declared", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
+        if kind == "cd_declared":
+            env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
         if kind == "locality":
             env["HEROSIM_PG_EXCHANGE_SCALE"] = repr(LOCALITY_SCALE)
         if kind == "cdext":
@@ -770,7 +787,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     arm_kind = RULE_POLICY.get(kind, kind)
     out.update(arm=name, cell=f"cc40s{t['topo']}", topology=int(t["topo"]), window=window, clients=40,
                servers=int(json.load(open(cfg))["nodes"]["server_nodes"]["count"]),
-               rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "bc1" if base_kind in BC1_KINDS else "jb2") if base_kind in LEARNED_KINDS else "none",
+               rung="C40", lever="burst", workload=wl_name, corpus=("jb2-cdlabel" if base_kind == "cdimit" else "r1a" if base_kind in RA_KINDS else "bc1" if base_kind in BC1_KINDS else "jb2") if base_kind in LEARNED_KINDS else "none",
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["queue_drift"] = drift
@@ -842,8 +859,15 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("decima instrument off: decima_batches == 0")
         if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
             problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
-    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
+    # cd_declared: the slate must have been applied to every batch, and nowhere else
+    declared = int(c.get("pg_declared_batches") or 0)
+    if kind == "cd_declared":
+        if out["env"].get("GNN_SERVE_CANDIDATE_SLATE") != "declared_pruning_v1" or declared == 0 or int(c.get("pg_declared_groups") or 0) < declared:
+            problems.append("declared-slate instrument off: GNN_SERVE_CANDIDATE_SLATE not served or no batch went through declared_slate")
+    elif declared and not kind.startswith("ra_"):
+        problems.append("a non-declared arm applied the declared slate")
     want_scale = repr(LOCALITY_SCALE) if kind == "locality" else None
     if out["env"].get("HEROSIM_PG_EXCHANGE_SCALE") != want_scale:
         problems.append(f"served HEROSIM_PG_EXCHANGE_SCALE={out['env'].get('HEROSIM_PG_EXCHANGE_SCALE')!r}, {kind} needs {want_scale!r}")
@@ -883,6 +907,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("v4 instrument off: v4_backlog_batches == 0")
         if base_kind != "v4twin" and int(c.get("v4_backlog_nonzero") or 0) == 0:
             problems.append("v4 instrument off: no candidate ever had a backlog")
+    elif base_kind in RA_KINDS:
+        for key, want in (("PARTIAL_STATE_CONTRACT", "partial_state_v5"), ("PARTIAL_STATE_LOAD_SECONDS", "1"),
+                          ("PARTIAL_STATE_EXCHANGE_SECONDS", "1"), ("GNN_SERVE_CANDIDATE_SLATE", "declared_pruning_v1")):
+            if out["env"].get(key, "") != want:
+                problems.append(f"served {key}={out['env'].get(key)!r}, {base_kind} needs {want!r}")
     elif int(c.get("v4_backlog_batches") or 0):
         problems.append("a pre-v4 arm computed v4 backlogs")
     if base_kind in LEARNED_KINDS and not kind.endswith("_spread") and int(c.get("prefix_sibling_moves") or 0):

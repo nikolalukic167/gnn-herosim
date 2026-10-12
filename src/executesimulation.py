@@ -682,6 +682,12 @@ def checkpoint_mp_config(model_path: Path) -> dict:
     # is the only path from the sidecar to run_provenance.
     if payload.get("label_objective"):
         config["label_objective"] = str(payload["label_objective"])
+    # r1_attribution_v1: a STRING again. Absent means a message-passing GNN (every earlier checkpoint).
+    if payload.get("arm_kind"):
+        arm = str(payload["arm_kind"])
+        if arm not in ("gnn", "mlp_same", "set_transformer"):
+            raise ValueError(f"{model_path.name}: sidecar arm_kind={arm!r} is not a known arm")
+        config["arm_kind"] = arm
     if payload.get("dag_task_type_vocab"):
         config["dag_task_type_vocab"] = list(payload["dag_task_type_vocab"])
     # Not a bool: which network entities the training graph contained. Recoverable from
@@ -767,15 +773,23 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         apply_checkpoint_inference_feature_layout(model_path, _label)
         apply_checkpoint_queue_norm_mode(model_path, _label)
         check_checkpoint_corpus_compatibility(model_path, _label, space_config)
-        task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
-        platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])
         embedding_dim = 64
-        edge_fc1_in = int(state_dict["edge_scorer.fc1.weight"].shape[1])
-        edge_dim = edge_fc1_in - 2 * embedding_dim
-        if edge_dim < 0:
-            raise ValueError(
-                f"Cannot infer edge_dim from edge_scorer.fc1 in_dim={edge_fc1_in}"
-            )
+        _arm_sidecar = _read_checkpoint_sidecar(model_path)
+        if str(_arm_sidecar.get("arm_kind") or "gnn") == "mlp_same":
+            # r1_attribution_v1: one flat input layer, no node encoders -- the widths are in the sidecar. The
+            # arm/weights agreement is checked by require_arm_matches_weights in the prefix loader below.
+            task_feature_dim = int(_arm_sidecar["task_feature_dim"]) + int(_arm_sidecar.get("task_type_onehot_dim") or 0)
+            platform_feature_dim = int(_arm_sidecar["platform_feature_dim"])
+            edge_dim = int(_arm_sidecar.get("edge_dim") or 5)
+        else:
+            task_feature_dim = int(state_dict["task_encoder.net.0.weight"].shape[1])
+            platform_feature_dim = int(state_dict["platform_encoder.net.0.weight"].shape[1])
+            edge_fc1_in = int(state_dict["edge_scorer.fc1.weight"].shape[1])
+            edge_dim = edge_fc1_in - 2 * embedding_dim
+            if edge_dim < 0:
+                raise ValueError(
+                    f"Cannot infer edge_dim from edge_scorer.fc1 in_dim={edge_fc1_in}"
+                )
 
         # A task_dim=3 / platform_dim=14 checkpoint is structurally valid under BOTH
         # atomic21 and dim22 — the layouts assign different meanings to the same platform
@@ -798,7 +812,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         _trained_psc = _read_checkpoint_sidecar(model_path).get("partial_state_contract")
         from src.placement.cache_physics import require_matching_physics_env
 
-        require_matching_physics_env(_read_checkpoint_sidecar(model_path).get("physics_env"), what=model_path.name)
+        require_matching_physics_env(_read_checkpoint_sidecar(model_path).get("physics_env"), what=model_path.name, space_config=space_config)
         from src.placement.declared_slate import require_matching_slate
 
         require_matching_slate(_read_checkpoint_sidecar(model_path).get("candidate_slate"), what=model_path.name)
@@ -953,6 +967,11 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
         elif mp_network_entities:
             os.environ[NETWORK_GRAPH_CONTRACT_ENV] = trained_net_contract
 
+        if mp_cfg.get("arm_kind", "gnn") != "gnn":
+            raise ValueError(
+                f"{model_path.name} is a {mp_cfg['arm_kind']!r} arm; this loader builds a TaskPlacementGNN and "
+                "would run the wrong architecture. Graph-free arms are served through prefix serving only."
+            )
         model = TaskPlacementGNN(
             task_feature_dim=task_feature_dim,
             platform_feature_dim=platform_feature_dim,
@@ -1213,6 +1232,9 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "KNATIVE_BATCH_SIZE",
             "KNATIVE_BATCH_TIMEOUT",
             "GNN_MODEL_PATH",
+            # r1_attribution_v1: the serving slate (declared pruning) and the arm the serving environment asked for
+            "GNN_SERVE_CANDIDATE_SLATE",
+            "GNN_ARM_KIND",
             "MLP_MODEL_PATH",
             "TOPOLOGY_FEATURE_CONTRACT",
             "NETWORK_GRAPH_CONTRACT",
