@@ -1,6 +1,6 @@
 # sparse_obs_s0_v1 — how much of the hand scheduler's lead comes from information a real scheduler does not have?
 
-**Status:** `REGISTERED` (2026-10-12, signed by the coordinator at 827718cf with four rulings, applied below) — Phase 0, hand arms only, live. Owner S5. Parent question (the user's): *does our
+**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the coordinator at 827718cf with four rulings, applied below) — Phase 0, hand arms only, live. Owner S5. Parent question (the user's): *does our
 scheduler get information real systems do not, which makes the placement problem pointwise?* Reference arm A0 = `cd_exactS_ib0`
 (`ib0_confirm_v1`, the current hand bar). Parents read: `ib0_confirm_v1`, `decision_cost_s0_v1`.
 
