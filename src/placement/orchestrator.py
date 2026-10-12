@@ -256,6 +256,7 @@ class Orchestrator:
             "pg_lookahead_priced", "pg_lookahead_blind",
             # sparse_obs_s0_v1: degraded observation channels actually used
             "obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted",
+            "obs_cold_degraded", "obs_cold_exact", "pg_cold_tail_calls",
             # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
             "sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max",

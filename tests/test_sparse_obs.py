@@ -38,7 +38,7 @@ def _orch(table=None, tasks=()):
 
 
 def _sched(monkeypatch, **env):
-    for k in O.OBS_ENVS + ("HEROSIM_PG_INFLIGHT",):
+    for k in O.OBS_ENVS + ("HEROSIM_PG_INFLIGHT", "HEROSIM_PG_COLD_TAIL"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
     for k, v in env.items():
@@ -155,3 +155,64 @@ def test_validation(monkeypatch):
     monkeypatch.delenv("HEROSIM_OBS_QUEUE")
     with pytest.raises(ValueError, match="no degradation"):
         O.Observation.from_env()
+
+
+# ---- A0+ (HEROSIM_PG_COLD_TAIL) and W1 (HEROSIM_OBS_WARM=seconds) ----
+
+def test_cold_flag_off_is_the_registered_term(monkeypatch):
+    s = _sched(monkeypatch)
+    n, p = _platform("n1", 1, "gpu", previous=_task(9, "cnn"))
+    for t in (_task(1, "cnn"), _task(2, "svm")):
+        assert s._pg_cold(t, p, _orch()) == incoming_cold_start_time(t, p)
+    assert s.pg_cold_tail_calls == 0
+
+
+def test_cold_tail_prices_against_the_queue_tail_and_drops_the_current_task_rule(monkeypatch):
+    s = _sched(monkeypatch, HEROSIM_PG_COLD_TAIL="1")
+    orch = _orch()
+    svm, cnn = _task(2, "svm"), _task(1, "cnn")
+    # previous_task cnn, empty queue: a cnn is warm, an svm cold (the table value)
+    n, p = _platform("n1", 1, "gpu", previous=_task(9, "cnn"))
+    assert s._pg_cold(cnn, p, orch) == 0.0 and s._pg_cold(svm, p, orch) == 4.0
+    # queue tail svm behind a cnn previous_task: now the svm is warm and the cnn cold, though previous_task says cnn
+    n, p = _platform("n1", 1, "gpu", queue=[_task(5, "svm")], previous=_task(9, "cnn"))
+    assert s._pg_cold(svm, p, orch) == 0.0 and s._pg_cold(cnn, p, orch) == 5.0
+    assert incoming_cold_start_time(svm, p) == 4.0   # the registered term reads previous_task
+    # current_task set (computing) does not zero the cold of a different type
+    n, p = _platform("n1", 1, "gpu", current=_task(6, "svm"), previous=_task(6, "svm"))
+    assert s._pg_cold(cnn, p, orch) == 5.0 and incoming_cold_start_time(cnn, p) == 0.0
+    # nothing ever ran: cold; an explicit in-batch predecessor overrides the tail
+    n, p = _platform("n1", 1, "gpu")
+    assert s._pg_cold(cnn, p, orch) == 5.0 and s._pg_cold(cnn, p, orch, "cnn") == 0.0 and s._pg_cold(cnn, p, orch, None) == 5.0
+    assert s.pg_cold_tail_calls == 8
+
+
+def test_w1_keeps_the_warm_bit_and_degrades_the_seconds(monkeypatch):
+    n, p = _platform("n1", 1, "gpu", previous=_task(9, "cnn"))
+    orch = _orch()
+    cnn, svm = _task(1, "cnn"), _task(2, "svm")
+    allv = [5.0, 1.0, 4.0, 1.0]
+    naive = _sched(monkeypatch, HEROSIM_PG_COLD_TAIL="1", HEROSIM_OBS_WARM="seconds", HEROSIM_OBS_ESTIMATOR="naive")
+    assert naive._pg_cold(cnn, p, orch) == 0.0                                  # the bit is exact
+    assert naive._pg_cold(svm, p, orch) == pytest.approx(sum(allv) / 4)          # global mean of the cold table
+    ec = _sched(monkeypatch, HEROSIM_PG_COLD_TAIL="1", HEROSIM_OBS_WARM="seconds", HEROSIM_OBS_ESTIMATOR="ec")
+    assert ec._pg_cold(svm, p, orch) == pytest.approx((5.0 + 4.0) / 2)           # gpu: mean over task types
+    assert ec.obs_cold_degraded == 1 and ec.obs_cold_exact == 0
+    with pytest.raises(ValueError, match="HEROSIM_PG_COLD_TAIL"):
+        _sched(monkeypatch, HEROSIM_OBS_WARM="seconds", HEROSIM_OBS_ESTIMATOR="ec")
+
+
+def test_plan_cost_uses_the_in_batch_predecessor(monkeypatch):
+    s = _sched(monkeypatch, HEROSIM_PG_COLD_TAIL="1")
+    s.exchange_on = False
+    n1, p1 = _platform("n1", 1, "gpu")
+    n2, p2 = _platform("n2", 2, "gpu")
+    orch = _orch()
+    a, b = _task(1, "svm"), _task(2, "svm")
+    stacked, _, scores_stacked = s._pg_plan_cost([a, b], [(n1, p1), (n1, p1)], orch, {}, [n1, n2])
+    split, _, scores_split = s._pg_plan_cost([a, b], [(n1, p1), (n2, p2)], orch, {}, [n1, n2])
+    # both tasks see the other's service when stacked (exec 1 s + the 0.002 s I/O approximation); the second svm also follows an svm, so it pays no cold (4 s)
+    svc = 1.0 + _approx_comm(TYPES["svm"])
+    assert scores_stacked[0] - scores_split[0] == pytest.approx(svc)
+    assert scores_split[1] - scores_stacked[1] == pytest.approx(4.0 - svc)
+    assert s.pg_cold_tail_calls == 4

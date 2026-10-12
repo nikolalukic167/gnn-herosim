@@ -136,6 +136,17 @@ A degraded arm with a better predictor could therefore beat A0 legitimately. Eve
 
 **Correction on record.** The "62/49 %" in `slate_fix_v1.md:221–231` (rp/slate-fix) is the share of the 417 train / 49 held-out *improved* labels whose new best used a candidate the declared slate dropped by its cold = 0 error. That is about 14.5 % / 9.3 % of datasets, and it is a defect in the declared slate's pricing, not in what A0 observes.
 
+## Stage 2 implementation and the previous_task reset path (confirmed before coding A0+, 2026-10-12)
+
+- **Reset path.** Every replica removal in this seat goes through `Autoscaler._release_replica` (`autoscaler.py:581`): the KPA scale-down (`_kpa_scale_down`, `autoscaler.py:335`) and the legacy `scale_down` (`:579`) both call it, and it is the only place `previous_task` is cleared on removal (`autoscaler.py:606–607`). The clear is gated on `warmth_physics == NODE_DISK_V2`.
+  The seat declares none: the minted `cfg` carries no `warmth_physics`, the space config does not set it, and `r1a_gate.sbatch` unsets every `HEROSIM_*` variable before exporting its own, so `resolve_warmth_physics` returns the default `platform_reuse_v1` (`warmth.py:123–145`).
+  **Under `platform_reuse_v1` a removal does not reset `previous_task`**: the sandbox state survives scale-down and scale-up, so A0+ has no autoscaler resets to predict. This is derived from the code and the inputs; the cell summaries do not record `warmth_physics`, and the per-task raw results that would are deleted after summarising.
+  `previous_task` is set at pop under `HEROSIM_REPLICA_RELEASE` (`infrastructure.py:1651`) and by warm-up (`:1418`).
+- **A0+ (`HEROSIM_PG_COLD_TAIL=1`, `scheduler.py` `_pg_cold`).** Cold is priced against the type the task will follow: the platform's queue tail, else its `previous_task`; inside a whole plan (`_pg_plan_cost`: the exact search, the expansion, the kept pass), the task the plan stacks ahead of it on the platform in batch order. "`current_task` set -> cold 0" is dropped.
+  **Approximation:** the single-task greedy passes (`_pg_choose`, `_pg_standalone`) price cold from the queue tail only and do not see the in-batch tasks already committed; only the plan-level scoring does. The flag is default off and byte-identical off.
+- **W1 (`HEROSIM_OBS_WARM=seconds`, needs `HEROSIM_PG_COLD_TAIL=1`).** The warm bit is A0+'s; the seconds are the global mean of the cold table (naive) or the mean over task types for the platform's type (ec). Books: `pg_cold_tail_calls`, `obs_cold_degraded`, `obs_cold_exact` (0 by construction: a W1 call never reaches `incoming_cold_start_time`).
+- Arms `cd_obs_a0plus`, `cd_obs_w1_naive`, `cd_obs_w1_ec`; reader `scripts_cosim/sparse_obs_v2_gate_read.py` (A0+ vs A0 primary; VoI_W1, R_W1; the leak check; the books).
+
 ## Rules, written before data
 
 - Statistic: the paired % of mean latency per topology (median over windows), median over topologies, exact Wilcoxon, Holm within VoI and within R (the `prune_g8_gate_read.py` shape). Negative = the first arm faster; here "VoI" = NAIVE slower than A0, reported as a positive loss.

@@ -48,6 +48,8 @@ from src.placement.live_audit import inflight_remaining_seconds, orchestrator_of
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.model import SystemState
 from src.placement.scheduling_cost import incoming_cold_start_time, network_latency_between
+
+_UNSET = object()
 from src.policy.gnn.scheduler import GNNScheduler, PREFIX_DECODE_MODE
 from src.policy.peer_greedy_network.observation import OBS_COUNTERS, Observation
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
@@ -159,6 +161,10 @@ def _exact_diag_write(rec: Dict) -> None:
 # it equals the drain alpha. The slate (standalone-cost ranking) is not scaled. 1 and 1 (the defaults) are the registered S, byte-identical.
 PG_DRAIN_ALPHA_ENV = "HEROSIM_PG_DRAIN_ALPHA"
 PG_BATCH_ALPHA_ENV = "HEROSIM_PG_BATCH_ALPHA"
+# sparse_obs_s0_v1 A0+: price cold against the type the task will FOLLOW on the platform (the queue tail, else the platform's last-started
+# task; inside a whole plan, the task the plan stacks ahead of it) instead of the platform's previous_task now, and drop "current_task set -> cold 0"
+# (under HEROSIM_REPLICA_RELEASE current_task is set only during compute, so a different-type task still cold-starts). Default off: the registered cold term.
+PG_COLD_TAIL_ENV = "HEROSIM_PG_COLD_TAIL"
 PG_ORACLE_ENV = "HEROSIM_PG_ORACLE"
 PG_ORACLE_MAX_PLANS_ENV = "HEROSIM_PG_ORACLE_MAX_PLANS"
 PG_ORACLE_SEARCH_ENV = "HEROSIM_PG_ORACLE_SEARCH"  # ib0_confirm_v1: over-cap batches get a replay-scored local search seeded from the surrogate's plan
@@ -308,6 +314,13 @@ class _PeerGreedyCore:
         self._pg_capture_path = os.environ.get("HEROSIM_PG_CAPTURE_PATH") or None
         self.pg_partners_blinded = 0
         self._obs = Observation.from_env()
+        raw_tail = os.environ.get(PG_COLD_TAIL_ENV, "0").strip() or "0"
+        if raw_tail not in ("0", "1"):
+            raise ValueError(f"FAIL LOUD: {PG_COLD_TAIL_ENV} must be 0 or 1, got {raw_tail!r}")
+        self.pg_cold_tail = raw_tail == "1"
+        self.pg_cold_tail_calls = 0
+        if self._obs is not None and self._obs.warm_seconds and not self.pg_cold_tail:
+            raise ValueError(f"FAIL LOUD: HEROSIM_OBS_WARM=seconds degrades A0+'s cold term; set {PG_COLD_TAIL_ENV}=1")
         raw_blind = os.environ.get(PG_BATCH_BLIND_ENV, "0").strip() or "0"
         if raw_blind not in ("0", "1"):
             raise ValueError(f"FAIL LOUD: {PG_BATCH_BLIND_ENV} must be 0 or 1, got {raw_blind!r}")
@@ -433,6 +446,18 @@ class _PeerGreedyCore:
         v = float(task_type["executionTime"].get(plat_type, 0.0) or 0.0)
         return v if self._obs is None else self._obs.exec_est(task_type, plat_type, v)
 
+    def _pg_cold(self, task, platform, orch, pred=_UNSET) -> float:
+        if not self.pg_cold_tail:
+            return incoming_cold_start_time(task, platform)
+        self.pg_cold_tail_calls += 1
+        if pred is _UNSET:
+            items = platform.queue.items
+            tail = items[-1] if items else platform.previous_task
+            pred = None if tail is None else tail.type["name"]
+        table = float(task.type["coldStartDuration"].get(platform.type["shortName"], 0.0) or 0.0)
+        seconds = table if self._obs is None or not self._obs.warm_seconds else self._obs.cold_seconds(task.type, platform.type["shortName"], orch, table)
+        return 0.0 if pred == task.type["name"] else seconds
+
     def _pg_orchestrator(self):
         orch = orchestrator_of(self)
         if orch is None:
@@ -524,7 +549,7 @@ class _PeerGreedyCore:
                     self.pg_inflight_seconds += remaining
             drain += self._pg_running(platform)
             exec_s = self._pg_exec_table(task.type, plat_type) * xf
-            cold = incoming_cold_start_time(task, platform)
+            cold = self._pg_cold(task, platform, orch)
             lat = network_latency_between(task.node_name, node, nodes)
             base = (drain if not self.pg_alpha_on else self.pg_drain_alpha * (drain - committed_service.get(key, 0.0))
                     + self.pg_batch_alpha * committed_service.get(key, 0.0)) + cold + exec_s + lat
@@ -1067,6 +1092,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             committed[key] = committed.get(key, 0.0) + service[i]
         total = 0.0
         scores = []
+        last_type: Dict[str, str] = {}
         for i in range(n):
             node, platform = plan[i]
             key = f"{node.node_name}:{platform.id}"
@@ -1074,7 +1100,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             if self.pg_inflight:
                 drain += inflight_remaining_seconds(platform)
             drain += self._pg_running(platform)
-            cold = incoming_cold_start_time(batch_tasks[i], platform)
+            cold = self._pg_cold(batch_tasks[i], platform, orch, last_type.get(key, _UNSET))
+            last_type[key] = batch_tasks[i].type["name"]
             lat = network_latency_between(batch_tasks[i].node_name, node, nodes)
             base = (drain if not self.pg_alpha_on else self.pg_drain_alpha * (drain - (committed[key] - service[i]))
                     + self.pg_batch_alpha * (committed[key] - service[i])) + cold + exec_s[i] + lat + in_wait[i]
@@ -1289,7 +1316,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             drain += inflight_remaining_seconds(platform)
         drain += self._pg_running(platform)
         exec_s = self._pg_exec_table(task.type, platform.type["shortName"]) * xf
-        return drain + incoming_cold_start_time(task, platform) + exec_s + network_latency_between(task.node_name, node, nodes)
+        return drain + self._pg_cold(task, platform, orch) + exec_s + network_latency_between(task.node_name, node, nodes)
 
     def _pg_exact(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
                   committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],

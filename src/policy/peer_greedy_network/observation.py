@@ -7,6 +7,8 @@ Every flag is default off, and with none set `Observation.from_env()` returns No
                               queued task's type). No per-task exec, I/O, latency or partner transfer.
   HEROSIM_OBS_EXEC_SIGMA=s    every exec estimate x a log-normal factor, one per (task type, platform type), seeded by HEROSIM_OBS_SEED, fixed for the run.
   HEROSIM_OBS_INFLIGHT=running  the running task is known only as running: naive charges nothing, ec charges half its type's mean service.
+  HEROSIM_OBS_WARM=seconds    the warm BIT stays exact (A0+'s, HEROSIM_PG_COLD_TAIL=1) and the cold SECONDS are not priced per (type, platform type): naive = the global mean of
+                              the cold table, ec = the mean over task types for the platform's type (a runtime-class prior).
   HEROSIM_OBS_PARTNERS=arrival  a partner's node is known only once the partner is placed: the batch's own plan is invisible. ec predicts the node of a
                               partner with no known node as the node of its bytes-heaviest known partner (the lookahead rule's two-step estimate).
 """
@@ -25,8 +27,9 @@ INFLIGHT_ENV = "HEROSIM_OBS_INFLIGHT"
 PARTNERS_ENV = "HEROSIM_OBS_PARTNERS"
 ESTIMATOR_ENV = "HEROSIM_OBS_ESTIMATOR"
 SEED_ENV = "HEROSIM_OBS_SEED"
-OBS_ENVS = (QUEUE_ENV, EXEC_SIGMA_ENV, INFLIGHT_ENV, PARTNERS_ENV, ESTIMATOR_ENV, SEED_ENV)
-OBS_COUNTERS = ("obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted")
+WARM_ENV = "HEROSIM_OBS_WARM"
+OBS_ENVS = (QUEUE_ENV, EXEC_SIGMA_ENV, INFLIGHT_ENV, PARTNERS_ENV, WARM_ENV, ESTIMATOR_ENV, SEED_ENV)
+OBS_COUNTERS = ("obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted", "obs_cold_degraded", "obs_cold_exact")
 
 
 def _choice(env: str, allowed: Tuple[str, ...]) -> str:
@@ -37,11 +40,14 @@ def _choice(env: str, allowed: Tuple[str, ...]) -> str:
 
 
 class Observation:
-    def __init__(self, queue: str, sigma: float, inflight: str, partners: str, estimator: str, seed: str) -> None:
+    def __init__(self, queue: str, sigma: float, inflight: str, partners: str, estimator: str, seed: str, warm: str = "") -> None:
         self.queue_count = queue == "count"
         self.sigma = sigma
         self.inflight_running = inflight == "running"
         self.partners_arrival = partners == "arrival"
+        self.warm_seconds = warm == "seconds"
+        self._cold_global: Optional[float] = None
+        self._cold_class: Dict[str, float] = {}
         self.ec = estimator == "ec"
         self.seed = seed
         self.counts: Dict[str, int] = {n: 0 for n in OBS_COUNTERS}
@@ -54,6 +60,7 @@ class Observation:
         queue = _choice(QUEUE_ENV, ("count",))
         inflight = _choice(INFLIGHT_ENV, ("running",))
         partners = _choice(PARTNERS_ENV, ("arrival",))
+        warm = _choice(WARM_ENV, ("seconds",))
         raw_sigma = os.environ.get(EXEC_SIGMA_ENV, "").strip()
         try:
             sigma = float(raw_sigma) if raw_sigma else 0.0
@@ -62,7 +69,7 @@ class Observation:
         if sigma < 0.0:
             raise ValueError(f"FAIL LOUD: {EXEC_SIGMA_ENV} must be >= 0, got {sigma}")
         estimator = _choice(ESTIMATOR_ENV, ("naive", "ec"))
-        if not (queue or inflight or partners or sigma):
+        if not (queue or inflight or partners or sigma or warm):
             if estimator:
                 raise ValueError(f"FAIL LOUD: {ESTIMATOR_ENV}={estimator!r} with no degradation set")
             return None
@@ -70,7 +77,7 @@ class Observation:
             raise ValueError(f"FAIL LOUD: a degradation is set; {ESTIMATOR_ENV} must be naive or ec")
         if inflight and os.environ.get("HEROSIM_PG_INFLIGHT", "0").strip() not in ("", "0"):
             raise ValueError(f"FAIL LOUD: {INFLIGHT_ENV} replaces HEROSIM_PG_INFLIGHT's exact remaining seconds; set it to 0")
-        return cls(queue, sigma, inflight, partners, estimator, os.environ.get(SEED_ENV, "0").strip() or "0")
+        return cls(queue, sigma, inflight, partners, estimator, os.environ.get(SEED_ENV, "0").strip() or "0", warm)
 
     def exec_est(self, task_type, plat_type: str, table_value: float) -> float:
         if not self.sigma:
@@ -149,3 +156,19 @@ class Observation:
         if not weight:
             return None
         return max(sorted(weight), key=lambda n: weight[n])
+
+    def cold_seconds(self, task_type, plat_type: str, orch, table_value: float) -> float:
+        """The cold seconds the scheduler believes (the warm bit is decided by the caller). naive: global mean of the cold table; ec: mean over task types for this platform type."""
+        self.counts["obs_cold_degraded"] += 1
+        types = [orch.data.task_types[k] for k in sorted(orch.data.task_types)]
+        if not self.ec:
+            if self._cold_global is None:
+                vals = [float(v or 0.0) for t in types for _, v in sorted((t.get("coldStartDuration") or {}).items())]
+                self._cold_global = sum(vals) / len(vals)
+            return self._cold_global
+        v = self._cold_class.get(plat_type)
+        if v is None:
+            vals = [float(t["coldStartDuration"][plat_type] or 0.0) for t in types if plat_type in (t.get("coldStartDuration") or {})]
+            v = sum(vals) / len(vals) if vals else table_value
+            self._cold_class[plat_type] = v
+        return v

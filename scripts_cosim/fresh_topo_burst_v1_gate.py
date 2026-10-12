@@ -62,7 +62,8 @@ RULE_POLICY = {
     "cd_ib0": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: plain CD greedy on the ib0 surrogate (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_exactS_ib0_prune": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: cd_exactS_ib0 with cost-ordered top-k pruning of over-cap batches (HEROSIM_PG_CD_EXACT_PRUNE=cost)
     **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
-        "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec")},
+        "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
+        "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
     "cd_exactS_ib0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with only the in-batch stacking term zeroed (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_oracle_ib0": "peer_greedy_network_cd",  # ib0_confirm_v1 full-coverage oracle: the ib0 surrogate's plan, the exact label on covered batches, a replay-scored local search on over-cap ones
     "cd_oracle": "peer_greedy_network_cd",  # plan_rerank_v1 Phase 0: cd_exactS with the exact search scored by the real single-batch RTT (HEROSIM_PG_ORACLE=1); a measurement arm
@@ -165,8 +166,11 @@ OBS_ARMS = {  # sparse_obs_s0_v1 degradations (the estimator is the naive/ec arm
     "cd_obs_exec": {"HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_ESTIMATOR": "naive"},
     "cd_obs_partners_naive": {"HEROSIM_OBS_PARTNERS": "arrival", "HEROSIM_OBS_ESTIMATOR": "naive"},
     "cd_obs_partners_ec": {"HEROSIM_OBS_PARTNERS": "arrival", "HEROSIM_OBS_ESTIMATOR": "ec"},
+    "cd_obs_a0plus": {"HEROSIM_PG_COLD_TAIL": "1"},  # stage 2: A0 with the cold term priced against the type the task follows
+    "cd_obs_w1_naive": {"HEROSIM_PG_COLD_TAIL": "1", "HEROSIM_OBS_WARM": "seconds", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_w1_ec": {"HEROSIM_PG_COLD_TAIL": "1", "HEROSIM_OBS_WARM": "seconds", "HEROSIM_OBS_ESTIMATOR": "ec"},
 }
-OBS_ENV = ("HEROSIM_OBS_QUEUE", "HEROSIM_OBS_EXEC_SIGMA", "HEROSIM_OBS_INFLIGHT", "HEROSIM_OBS_PARTNERS", "HEROSIM_OBS_ESTIMATOR", "HEROSIM_OBS_SEED")
+OBS_ENV = ("HEROSIM_OBS_QUEUE", "HEROSIM_OBS_EXEC_SIGMA", "HEROSIM_OBS_INFLIGHT", "HEROSIM_OBS_PARTNERS", "HEROSIM_OBS_WARM", "HEROSIM_PG_COLD_TAIL", "HEROSIM_OBS_ESTIMATOR", "HEROSIM_OBS_SEED")
 EXACT_ALPHA.update({k: {"HEROSIM_PG_BATCH_ALPHA": "0"} for k in OBS_ARMS})  # sparse_obs_s0_v1
 ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_PG_ORACLE_SEARCH", "HEROSIM_PG_ORACLE_SEARCH_BUDGET", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
 
@@ -926,7 +930,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if kind == "cd_exactS_ib0_prune":
             env["HEROSIM_PG_CD_EXACT_PRUNE"] = "cost"
         if kind in OBS_ARMS:
-            env.update(OBS_ARMS[kind], HEROSIM_OBS_SEED=str(seed))
+            env.update(OBS_ARMS[kind])
+            if "HEROSIM_OBS_ESTIMATOR" in OBS_ARMS[kind]:
+                env["HEROSIM_OBS_SEED"] = str(seed)
         if kind == "cd_ib0":
             env.update(ib0_alpha(kind))
         if kind == "cd_oracle":
@@ -1082,10 +1088,17 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     obs_want = OBS_ARMS.get(kind, {})
     for name in OBS_ENV:
-        want_o = obs_want.get(name, str(seed) if (name == "HEROSIM_OBS_SEED" and obs_want) else None)
+        want_o = obs_want.get(name, str(seed) if (name == "HEROSIM_OBS_SEED" and "HEROSIM_OBS_ESTIMATOR" in obs_want) else None)
         if out["env"].get(name) != want_o:
             problems.append(f"{name} served {out['env'].get(name)!r}, want {want_o!r} for {kind}")
-    used = {n: int(c.get(n) or 0) for n in ("obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted")}
+    used = {n: int(c.get(n) or 0) for n in ("obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted", "obs_cold_degraded", "obs_cold_exact")}
+    tail_calls = int(c.get("pg_cold_tail_calls") or 0)
+    if bool(obs_want.get("HEROSIM_PG_COLD_TAIL")) != bool(tail_calls):
+        problems.append(f"cold-tail instrument: HEROSIM_PG_COLD_TAIL={obs_want.get('HEROSIM_PG_COLD_TAIL')!r} but pg_cold_tail_calls {tail_calls}")
+    if obs_want.get("HEROSIM_OBS_WARM") and (not used["obs_cold_degraded"] or used["obs_cold_exact"]):
+        problems.append(f"warmth channel: degraded cold prices {used['obs_cold_degraded']}, exact {used['obs_cold_exact']}")
+    if not obs_want.get("HEROSIM_OBS_WARM") and used["obs_cold_degraded"]:
+        problems.append("cold seconds degraded on an arm that does not degrade them")
     if not obs_want and any(used.values()):
         problems.append(f"an exact-observation arm used degraded channels: {used}")
     if obs_want:
