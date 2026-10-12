@@ -1,8 +1,38 @@
 # long_horizon_s0_v1 — does the GNN-vs-hand gap change with horizon?
 
-**Status:** `REGISTERED` (signed by the expert 2026-10-12, with a directional bar). Every bar below was signed before its data.
-Placed by S6 on branch `rp/long-horizon` at the expert's instruction, with a branch-only index row (authorised; the
-expert reconciles it on reference-physics at close).
+**Status:** `CLOSED` (2026-10-12) — **HORIZON-HAND-GAINS** (mixed signs). Registered 2026-10-12 with a directional bar; every bar
+below was signed before its data. Placed by S6 on branch `rp/long-horizon` at the expert's instruction, with a branch-only
+index row (authorised; the expert reconciles it on reference-physics).
+
+**Outcome (2026-10-12; the registered single read, all 7 cells, 0 failed).** Over a 24 h stationary window the GNN's lead over CD
+does not erode, and its deficit to `cd_exactS` grows.
+- No GNN-favourable contrast reaches the −2 pp bar, and three hand-favourable contrasts exceed +2 pp, so the node closes under the
+  registered bar. No multi-day gate.
+- S = the OLS slope of the hourly paired gap over bins 2–24, × 24 h; g = the paired gap, negative = GNN faster.
+
+  | contrast | S | mean g, bins 2–24 |
+  |---|---|---|
+  | moderate nosplit vs CD | −0.41 pp | −5.19 % |
+  | moderate cdxapply vs CD | −0.58 pp | −4.83 % |
+  | heavy nosplit vs CD | −1.77 pp | −7.28 % |
+  | heavy cdxapply vs CD | +2.32 pp | −10.32 % |
+  | moderate nosplit vs `cd_exactS` | **+2.73 pp** | +1.69 % |
+  | moderate cdxapply vs `cd_exactS` | **+2.63 pp** | +2.05 % |
+
+- **Quote as:** "over 24 h the GNN stays ahead of CD and falls further behind `cd_exactS` at moderate; one topology, a direction".
+  Never as "the GNN gains with horizon".
+- **Caveats:**
+  - One topology (16900, spent), one seed per cell: a direction, never a magnitude.
+  - Stationary trace by construction: it tests accumulation, not daily peaks.
+  - Heavy `cd_exactS` was not run (worst projected cell ~25 h), so the bar at heavy is CD only.
+  - Heavy cdxapply's +2.32 pp slope is driven by g_1 (−1.56 %) being its smallest gap; its blocks over bins 2–24 sit at −8.6 to
+    −11.9 %, so it is not a reversal.
+  - Hour-to-hour SD of g is 2.8–3.5 pp on every contrast, above the 2 pp the bar calls weak, so each slope is a weak band.
+  - A user-ordered interim read of 4 cells preceded this read (Record); it changed no bar.
+- **What this does not test (expert's ruling, 2026-10-12): no daily-cycle trace is downloaded.**
+  - A daily cycle moves the system between the moderate and heavy regimes, both already measured.
+  - The only untested piece is the transitions between them, and this read gives no sign the GNN gains from time structure.
+- **Prediction (S6, before data):** HORIZON-FLAT with |S| < 1 pp. It missed: 3 of 6 contrasts are above +2 pp.
 
 **Question (user, 2026-10-12):** "workloads are less than one day; what if they were seven days?" In the accel seat, does the
 gap between the GNN and the hand search change with horizon? A longer trace can change the gap only if something
@@ -145,6 +175,37 @@ t, a longer trace only adds n.
 - Compute: 7 cells, about 11 h wall (bounded by moderate cd_exactS, 8–11 h).
 
 ## Record (newest first)
+
+- 2026-10-12 — **CLOSED HORIZON-HAND-GAINS** (S6, the registered single read; expert ruling the same day).
+  - Read once with `scripts_cosim/long_horizon_s0_v1_read.py` at 0605a5d2 (`~/lh_0605a5d2`), `--topo 16900`. Output:
+    `/share/nikola.lukic/long_horizon/probe_0605a5d2/read_0605a5d2.{json,txt}`.
+  - 7 of 7 cells have a summary; failed cells: none. Reader verdict: `HORIZON-HAND-GAINS (mixed signs across contrasts)`.
+  - Per contrast, with the 6 four-hour blocks of g over bins 2–24:
+
+    | contrast | S (pp) | g_1 | mean g(2..24) | SD | blocks |
+    |---|---|---|---|---|---|
+    | moderate nosplit vs CD | −0.41 | −5.70 | −5.19 | 3.02 | −4.4 −6.0 −5.4 −4.8 −6.0 −4.3 |
+    | moderate nosplit vs `cd_exactS` | +2.73 | −1.64 | +1.69 | 3.50 | +1.1 +0.5 +1.9 +1.1 +1.7 +4.5 |
+    | moderate cdxapply vs CD | −0.58 | −3.52 | −4.83 | 3.39 | −4.4 −5.2 −4.0 −4.9 −5.7 −4.7 |
+    | moderate cdxapply vs `cd_exactS` | +2.63 | +0.63 | +2.05 | 2.81 | +1.1 +1.4 +3.2 +1.0 +2.0 +4.1 |
+    | heavy nosplit vs CD | −1.77 | −5.57 | −7.28 | 3.48 | −6.6 −5.2 −8.5 −7.7 −9.3 −6.0 |
+    | heavy cdxapply vs CD | +2.32 | −1.56 | −10.32 | 3.27 | −11.4 −9.4 −11.9 −9.5 −10.8 −8.6 |
+
+  - Walls (s) and MaxRSS:
+
+    | cell | job | wall (s) | MaxRSS |
+    |---|---|---|---|
+    | moderate CD (the smoke) | 863309 | 438 | 8.0 G |
+    | moderate `cd_exactS` | 863323 | 14,706 | 8.0 G |
+    | moderate nosplit | 863324 | 2,327 | 8.1 G |
+    | moderate cdxapply | 863325 | 2,660 | 8.1 G |
+    | heavy CD | 863326 | 870 | 18.6 G |
+    | heavy nosplit | 863327 | 5,503 | 18.7 G |
+    | heavy cdxapply | 863328 | 6,193 | 18.7 G |
+
+    The heavy cells held 18.7 G, far below the 60–95 G linear guess. Moderate `cd_exactS` took 4.1 h, below the projected 8–11 h.
+  - Expert ruling: close as HORIZON-HAND-GAINS; no daily-cycle download (head).
+  - Against the interim read (moderate vs CD): the means agree (−5.19 / −4.83 %); the slopes are −0.41 / −0.58 here vs −0.40 / −0.56 there, and the SD 3.02 / 3.39 vs 2.96 / 3.31. The small differences are not explained here.
 
 - 2026-10-12 — **User-ordered interim read, before the registered single read** (disclosed by the expert; it changes no bar).
   - At the user's direct instruction, the expert read the `hourlyBins` of the 4 cells finished at that time:
