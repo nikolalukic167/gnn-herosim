@@ -1,26 +1,31 @@
 # slate_fix_v1 — does the GNN trained and served on the uncapped candidate set close its heavy gap to `cd_exactS`?
 
-**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert at d66ab923; drafted by S6). Training done, gates A/B/B2 running; single read pending.
+**Status:** `CLOSED` (2026-10-12) — **E-FASTER / UNCAPPED-DATA-NOT-THE-LEVER**. Registered 2026-10-12 (signed by the expert at d66ab923; drafted by S6); every bar below was signed before its data, and the two amendments (the `cd_exactS_ib0` bar, gate B2) were signed before any gate read.
 
-**Now (2026-10-12).** Code and configs are on `rp/slate-fix`; the jobs run at the pinned code 4d90119c (438fa161 plus the eval `ulimit` fix; later commits are this node only). Launch order:
-1. S7's recache and the cache check (`scripts_cosim/slate_fix_v1_cache_check.py`): PASSED.
-2. **User-ordered amendment (2026-10-12, relayed by the expert):** training starts now and no longer waits for the `slate_bar_v1` read. The gate order is unchanged.
-3. Eval-only identity task (job 863950, task 8; the first try 863945 died on a launch defect, see Record) → training (863951, gnn_eng / twin_eng, seeds 1–2; `afterok` on the identity) → offline screen (863952, tasks 0–7; `afterok` on training) → identity and smoke on 16490 → gate A, B and B2 (amendment) → single read. A failed identity is fixed in code, never rerun.
+**Outcome.** The GNN retrained on the uncapped, correctly cold-priced accel corpus and served over the full candidate set **does not close its heavy gap to the hand exact search.** Single read 2026-10-12 (job 864248, `rp/slate-fix-int` bd22e31c; 816/816 cells, 0 failed; 12 fresh topologies 19420–19431 × g0–g1; A/B at 4d90119c, B2 at d192081f, joined by a bit-equal cross-commit identity):
+- **Against the bar `cd_exactS_ib0`:** self-search +2.6 % moderate / **+5.3 %** heavy; no-split +2.8 / **+7.4 %**. E-FASTER, Holm ≤ .03 on all four. (+ = the hand search is faster.)
+- **Against `cd_exactS`** (secondary reference): self-search −2.1 % (n.s.) / +3.7 %; no-split −1.2 % (n.s.) / +4.1 %. E-FASTER at heavy; at moderate the GNN is ahead in direction only.
+- **The heavy gap grew** by about 1 pp: +0.95 pp self-search, +1.36 pp no-split, against the capped checkpoints. Moderate shrank by about 1.2 pp.
+- **Data effect** (new vs old checkpoint): −1.7 / −0.8 % at moderate, DIRECTION-ONLY (Holm .11); heavy n.s. (+1.1 / +0.6 %).
+- **Message passing** (new gnn vs its separately trained twin):
+  - no-split −2.57 % heavy (12/12, Holm .002) and −1.55 % moderate (11/12, Holm .004). Both are significant. Under the registered −2 % bar the heavy rung is CONFIRMED and the moderate rung DIRECTION-ONLY by magnitude, so as an arm (both rungs required) it is **DIRECTION-ONLY**;
+  - self-search n.s. (−0.6 %);
+  - two training seeds per arm. **This is not a win over any hand arm:** both GNN modes lose to `cd_exactS_ib0` at both rungs.
+- `cdxapply` (the GNN plan refined by CD expansion) ties `cd_exactS` and beats CD by about 7 %.
+- **Quote as:** "trained and served on the uncapped slate, the GNN still loses to the hand exact search at heavy (+5–7 % vs `cd_exactS_ib0`), and the gap widens about 1 pp". Never as "uncapping helps the GNN".
 
-**What the fix does not touch: read this first if the gap does not move.**
-- **54 over-cap train datasets** (> 100,000 full plans) keep their capped top-5 labels: `untouched_over_cap` in `extend_manifest.*.jsonl`.
-  - Source: S7's census of `gnn_datasets_wf1_train` before launch, as relayed by the expert on 2026-10-12. Of 2,731 datasets, 1,767 were to be extended, 910 were never pruned and 54 are over the cap.
-  - The held-out manifest is complete with 9 over-cap.
-- **648 sub-batched datasets** are tables cut from a batch whose pruned plan space exceeded the cap. Each is extended within its sub-batch of ≤ 4 tasks, but the peer cut across sub-batches stays in the label.
-  - Source: S5's accel_replica_v1 corpus read on 2026-10-10 (jobs 855783 / 855785 / 855788; `/share/nikola.lukic/workload_fix_v1/accel_state_stats/summary.json`): 648 of 3,169 datasets, 20.4 %, 4.3 % of plans.
-  - Split by `sub` in `full_rank_rows.jsonl` in the same directory (S6, 2026-10-12): **556 train** (heavy 364 of 1,415 = 25.7 %; moderate 192 of 1,316 = 14.6 %) and **92 held-out** (heavy 54, moderate 38).
-- Both are re-counted from the final extend manifests when the build completes. On 2026-10-12 it was partial: 1,609 train rows, of which 1,067 extended, 507 already full and 35 `untouched_over_cap`.
-- The heavy deficit to `cd_exactS` sits in exactly these large, split groups:
-  - the accel GNN's loss is on split 9–10-task groups, about 22 % of tasks;
-  - `selfsearch_gap_v1` found self-search loses on batches ≤ 8 and wins on 9+;
-  - `slate_bar_v1`'s recall falls from 96.7 % (n = 2) to 56.7 % (n = 10) at heavy.
-- So the fix reaches the small and mid batches, where the declared slate's recall was already 85–97 %, and leaves the part of the corpus where the gap lives.
-- A gap that does not move says that part, not the cold-cost defect, is the binding constraint.
+**Caveats (do not quote without them).**
+- **The mechanism is the served slate, not the labels.** Uncapping moves more heavy batches into sub-batching: the sub-batched task share goes 10.5 → 15 % at moderate and 15.5 → 23 % at heavy. It also moves self-search into coordinate ascent: ascent share 15.6 → 22.5 % at moderate and 20.3 → 33.5 % at heavy. Those split, ascent-searched groups are where the deficit lived before (the accel GNN loses on split 9–10-task groups; self-search wins only at 9+).
+- **The corpus fix did not reach that regime.** 54 + 9 over-cap tables kept their capped labels, and 556 + 92 sub-batched tables keep the peer cut across sub-batches (S7's census; S5's corpus read). The fix reached the small and mid batches, where recall was already 85–97 %.
+- **Whole-run means only.** The statistic includes the scale-from-zero cold opening. No steady-state latency exists for this gate: per-task results were deleted before the summarizer at c81f0e88. Queue over Q2–Q4 is the only proxy: self-search's queue +40–45 % vs `cd_exactS_ib0`.
+- The bar's cells ran at d192081f, the arms at 4d90119c. A 2-cell identity (cd_exactS on 16490 g0, bit-equal in every shared key) ties the commits.
+- **Predictions, both missed on the heavy-gap direction.**
+  - Expert: shrink 2–4 pp, NOT-SEPARATED.
+  - S6: shrink 0.5–2 pp. S6 was right on E-FASTER at heavy, no WIN and no-split +4.1 %. S6 missed heavy self-search (+3.7 % vs a predicted +1.5 to +3 %), the heavy data effect and MP NOT-SEPARATED.
+
+**Not claimed:** a message-passing win; any seat other than the accel seat; any steady-state number; "the slate was the GNN's problem at heavy".
+
+Launch history, amendments, identities, the offline screen and the full read are in the Record below. The read report is at `slate_fix_v1/read_bd22e31c.txt`.
 
 ## Question and why
 
@@ -198,6 +203,9 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **CLOSED, E-FASTER / UNCAPPED-DATA-NOT-THE-LEVER** (expert's ruling on the single read). The head is rewritten.
+  - MP labelling uses the registered −2 % bar (the reader's `BAR_PCT`; no other bar was registered): heavy CONFIRMED, moderate DIRECTION-ONLY by magnitude, so the arm is DIRECTION-ONLY. It is not a win over any hand arm.
+  - The expert merges `rp/slate-fix-int` into `reference-physics` (code included, audit M1) and writes the row, the AGENTS pointer and the memory.
 - 2026-10-12 — **SINGLE READ: E-FASTER for both new arms against both references; the uncapped retrain does not close the heavy gap.** Read job 864248 from `rp/slate-fix-int` bd22e31c (`--new gate_A_4d90119c --old gate_B_4d90119c gate_B2_d192081f`). 816/816 summaries, 0 failed, 12 topologies; cells at 4d90119c (A, B) and d192081f (B2). Report: `slate_fix_v1/read_bd22e31c.txt`; JSON `/share/nikola.lukic/slate_fix/read_bd22e31c.json` (md5 fbfc444f).
   - Comparable: `cd_exactS` beats CD −8.20 % (12/12) / −6.98 % (11/12). `cd_exactS_ib0` beats `cd_exactS` −4.68 % (12/12) / −1.34 % (11/12).
   - **Primary (Holm over 8)**, per-topology median of the paired %, + = the hand search faster:
