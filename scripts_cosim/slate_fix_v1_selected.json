@@ -1,0 +1,9 @@
+{
+ "verdict": "DESIGN-READY",
+ "lineage": "slate_fix_v1",
+ "clients": 160,
+ "servers": 24,
+ "connection_probability": 0.6,
+ "topologies": [19420, 19421, 19422, 19423, 19424, 19425, 19426, 19427, 19428, 19429, 19430, 19431],
+ "windows": ["g0", "g1"]
+}

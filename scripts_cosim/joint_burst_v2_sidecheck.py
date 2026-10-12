@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 
 
@@ -52,9 +53,11 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
         if sc.get(k) != v:
             print(f"FAIL LOUD: sidecar {k}={sc.get(k)!r}, arm {arm} expects {v!r}", file=sys.stderr)
             return 1
-    if sc.get("candidate_slate") != "declared_pruning_v1" or not sc.get("physics_env"):
-        print("FAIL LOUD: an r1_attribution_v1 checkpoint must record candidate_slate=declared_pruning_v1 and its physics_env",
-              file=sys.stderr)
+    # slate_fix_v1: R1A_SLATE names the rule expected (unset: declared_pruning_v1, every checkpoint before slate_fix_v1)
+    want_slate = os.environ.get("R1A_SLATE", "").strip() or "declared_pruning_v1"
+    if sc.get("candidate_slate") != want_slate or not sc.get("physics_env"):
+        print(f"FAIL LOUD: an r1_attribution_v1 checkpoint must record candidate_slate={want_slate} and its physics_env "
+              f"(sidecar: {sc.get('candidate_slate')!r})", file=sys.stderr)
         return 1
     sha = hashlib.sha256(open(split, "rb").read()).hexdigest()
     if (sc.get("split_artifact") or {}).get("sha256") != sha:
