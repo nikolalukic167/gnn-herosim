@@ -39,7 +39,9 @@ peer-free physics would score a term the simulator never charges.
 """
 from __future__ import annotations
 
+import json
 import os
+from timeit import default_timer
 from typing import Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
 from src.placement.live_audit import inflight_remaining_seconds, orchestrator_of, platform_queue_drain_seconds
@@ -63,6 +65,10 @@ PEER_GREEDY_COUNTERS = (
     "pg_expand_gain_seconds", "pg_expand_labels_skipped",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
     "pg_exact_gain_seconds",
+    "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
+    "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
+    "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
+    "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -127,10 +133,61 @@ PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves"
 # 72.6-79 % of batches against the expansion's 62.8 %, at ~1.6k S-evaluations per batch (S6, 2026-10-10). 0 (the default) is
 # the registered CD rule, byte-identical.
 PG_CD_EXACT_ENV = "HEROSIM_PG_CD_EXACT"
+# Diagnostic only: when set, every exact batch appends one JSON line (the pass plan's standalone rank per task, its S, the slate optimum's S) to
+# <dir>/exact_diag_<pid>.jsonl. Not a HEROSIM_ name on purpose (the datalab sbatch unsets those); changes no decision.
+_EXACT_DIAG_DIR = os.environ.get("EXACT_SLATE_DIAG_DIR", "").strip()
+_exact_diag_fh = None
+
+
+def _exact_diag_write(rec: Dict) -> None:
+    global _exact_diag_fh
+    if _exact_diag_fh is None:
+        os.makedirs(_EXACT_DIAG_DIR, exist_ok=True)
+        _exact_diag_fh = open(os.path.join(_EXACT_DIAG_DIR, f"exact_diag_{os.getpid()}.jsonl"), "a", buffering=1 << 16)
+    _exact_diag_fh.write(json.dumps(rec) + "\n")
+    _exact_diag_fh.flush()
+
+
+# plan_rerank_v1 Phase 0 (HEROSIM_PG_ORACLE=1, peer_greedy_network_cd with HEROSIM_PG_CD_EXACT=1): in a batch whose top-K slate holds at most
+# HEROSIM_PG_ORACLE_MAX_PLANS plans (default 625), the exact search is scored by the REAL single-batch RTT of each plan (a fidelity replay of the
+# live snapshot, src/placement/plan_oracle.py) instead of S; the pass plan is a candidate too. Larger batches run the S search unchanged and are
+# counted. A measurement arm (the myopic oracle), not a policy: it needs HEROSIM_SNAPSHOT_FIDELITY=1 and the cell/sim-input paths.
+# plan_rerank_v1 cd_exactS_a0 (HEROSIM_PG_DRAIN_ALPHA=<alpha>, peer_greedy_network_cd with HEROSIM_PG_CD_EXACT=1): S's queue term, the platform's own drain plus
+# the service of the batch-mates the plan stacks on it (S6's registered S_alpha "drain" variant), is scaled by alpha in the greedy pass and in the whole-plan
+# cost the exact search minimises. HEROSIM_PG_BATCH_ALPHA scales the in-batch part alone (S6's "batch" variant, cd_exactS_ib0: alpha 1, batch alpha 0); unset,
+# it equals the drain alpha. The slate (standalone-cost ranking) is not scaled. 1 and 1 (the defaults) are the registered S, byte-identical.
+PG_DRAIN_ALPHA_ENV = "HEROSIM_PG_DRAIN_ALPHA"
+PG_BATCH_ALPHA_ENV = "HEROSIM_PG_BATCH_ALPHA"
+PG_ORACLE_ENV = "HEROSIM_PG_ORACLE"
+PG_ORACLE_MAX_PLANS_ENV = "HEROSIM_PG_ORACLE_MAX_PLANS"
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
 PG_CD_EXACT_TOP_K_ENV = "HEROSIM_PG_CD_EXACT_TOP_K"  # default 5, the declared pruning's slate width
+# cd_exactS_gnn (HEROSIM_PG_CD_EXACT_GNN=1, gnn_cd_refine only): S-ties among the exact plans (and the pass plan when it ties) are broken by the
+# GNN's plan score instead of CD's order; at most _EXACT_GNN_TIE_CAP tied plans are scored, the first ones in CD's order. The over-cap fallback
+# starts from the pass plan the GNN seed produced; each fallback batch is re-run from the CD greedy start (not applied) to count how often the
+# GNN seed changed the plan.
+PG_CD_EXACT_GNN_ENV = "HEROSIM_PG_CD_EXACT_GNN"
+# cdxprune (HEROSIM_PG_CD_EXACT_PRUNE=gnn|cost): in an over-cap batch only, every task's slate is cut to its top-k and the cut slate is enumerated exactly on S;
+# k is the largest k whose plan count fits the cap. `cost` keeps the first k of the slate's own standalone-cost order, `gnn` the k with the highest logit of the
+# model that seeded the refine (every other task committed at the pass plan). The expansion is run on the side, never applied, to count how often the pruned
+# optimum is the fallback plan and what it gains over it. Under the cap nothing changes.
+PG_CD_EXACT_PRUNE_ENV = "HEROSIM_PG_CD_EXACT_PRUNE"
+# big_groups_s0_v1 M4 (HEROSIM_PG_SHARED_LINK=1): S' = S with each in-batch peer pair's transfer priced at the link bandwidth divided by the number of
+# the batch's cross-node pairs whose route crosses the same link (`_pg_plan_cost` only; the greedy and the passes keep S). Off: bit-identical.
+PG_SHARED_LINK_ENV = "HEROSIM_PG_SHARED_LINK"
+# link_bound_s0_v1 L3 (Amendment 1): in this physics only a task's INPUT transfer queues on link pipes (infrastructure.py:1526-1565); peer exchange is additive.
+# HEROSIM_PG_INPUT_LINK=hold|core prices the wait a task's input sees on each CORE link of its route (origin -> node) behind the other in-batch inputs
+# crossing that link: wait_i = max over core links l of route_i of sum over j != i with l in route_j of h_j(l), added to S in `_pg_plan_cost` only.
+# `hold`: h_j = the live pipe hold, input_j / bottleneck(route_j) (pipelined). `core`: h_j = input_j / bandwidth(l). No shared core link: equals S.
+PG_INPUT_LINK_ENV = "HEROSIM_PG_INPUT_LINK"
+_EXACT_GNN_TIE_CAP = 64
 PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass",
-                     "pg_exact_tasks_moved", "pg_exact_gain_seconds")
+                     "pg_exact_tasks_moved", "pg_exact_gain_seconds",
+                     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",
+                     "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
+                     "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
+                     "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
+                     "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks")
 PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
 
 
@@ -283,11 +340,50 @@ class _PeerGreedyCore:
         self.pg_cd_exact = _pg_flag(PG_CD_EXACT_ENV)
         self.pg_cd_exact_max_plans = _pg_int(PG_CD_EXACT_MAX_PLANS_ENV, 100_000)
         self.pg_cd_exact_top_k = _pg_int(PG_CD_EXACT_TOP_K_ENV, 5)
+        self.pg_cd_exact_gnn = _pg_flag(PG_CD_EXACT_GNN_ENV)
+        self.pg_oracle = _pg_flag(PG_ORACLE_ENV)
+        self.pg_drain_alpha = float(os.environ.get(PG_DRAIN_ALPHA_ENV, "1").strip() or "1")
+        raw_b = os.environ.get(PG_BATCH_ALPHA_ENV, "").strip()
+        self.pg_batch_alpha = float(raw_b) if raw_b else self.pg_drain_alpha
+        for name, v in ((PG_DRAIN_ALPHA_ENV, self.pg_drain_alpha), (PG_BATCH_ALPHA_ENV, self.pg_batch_alpha)):
+            if not 0.0 <= v <= 1.0:
+                raise ValueError(f"FAIL LOUD: {name} must be in [0, 1], got {v}")
+        self.pg_alpha_on = (self.pg_drain_alpha, self.pg_batch_alpha) != (1.0, 1.0)
+        self.pg_oracle_max_plans = _pg_int(PG_ORACLE_MAX_PLANS_ENV, 625)
+        self.pg_shared_link = _pg_flag(PG_SHARED_LINK_ENV)
+        if self.pg_shared_link and not (self._pg_batched and self.exchange_on):
+            raise RuntimeError(f"FAIL LOUD: {PG_SHARED_LINK_ENV}=1 prices a batch's pairs over shared links: it needs a batched flavour with peer exchange; "
+                               f"{self._policy_label}")
+        self.pg_input_link = os.environ.get(PG_INPUT_LINK_ENV, "").strip()
+        if self.pg_input_link not in ("", "hold", "core"):
+            raise ValueError(f"FAIL LOUD: {PG_INPUT_LINK_ENV} must be hold or core, got {self.pg_input_link!r}")
+        if self.pg_input_link and (self.pg_shared_link or not self._pg_batched):
+            raise RuntimeError(f"FAIL LOUD: {PG_INPUT_LINK_ENV} prices a batch's inputs over shared core links: it needs a batched flavour and excludes "
+                               f"{PG_SHARED_LINK_ENV}; {self._policy_label}")
+        self.pg_cd_exact_prune = os.environ.get(PG_CD_EXACT_PRUNE_ENV, "").strip()
+        if self.pg_cd_exact_prune not in ("", "gnn", "cost"):
+            raise ValueError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} must be gnn or cost, got {self.pg_cd_exact_prune!r}")
         for name in PG_EXACT_COUNTERS:
             setattr(self, name, 0.0 if name.endswith("_seconds") else 0)
         if self.pg_cd_exact and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_ENV}=1 is defined for peer_greedy_network_cd and gnn_cd_refine only; "
                                f"{self._policy_label} has no refine to extend")
+        if self.pg_cd_exact_gnn and not (self.pg_cd_exact and self._policy_label == "gnn_cd_refine"):
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_GNN_ENV}=1 needs {PG_CD_EXACT_ENV}=1 and is defined for gnn_cd_refine only "
+                               f"(it scores plans with the GNN that seeded the refine); {self._policy_label}")
+        if self.pg_cd_exact_prune and not self.pg_cd_exact:
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} needs {PG_CD_EXACT_ENV}=1")
+        # ib0_confirm_v1: also the expansion refines on the surrogate -- plain CD (cd_expand flow) and the GNN-seeded refiner (cdxapply) -- never with the
+        # exact search under the refiner, the GNN-scored exact search or the prune
+        alpha_ok = (self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune) or (
+            self._policy_label == "gnn_cd_refine" and not self.pg_cd_exact and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune)
+        if self.pg_alpha_on and not alpha_ok:
+            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd (not with the GNN-scored exact search or the prune) "
+                               f"and for gnn_cd_refine without the exact search; {self._policy_label}")
+        if self.pg_oracle and (not self.pg_cd_exact or self._policy_label != "peer_greedy_network_cd" or self.pg_cd_exact_gnn or self.pg_cd_exact_prune):
+            raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_ENV}=1 is defined for peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1 alone; {self._policy_label}")
+        if self.pg_cd_exact_prune == "gnn" and self._policy_label != "gnn_cd_refine":
+            raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV}=gnn ranks with the GNN that seeded the refine (gnn_cd_refine only); {self._policy_label}")
         self.pg_ext_batches = 0
         self.pg_ext_charged = 0
         self.pg_ext_seconds = 0.0
@@ -396,7 +492,8 @@ class _PeerGreedyCore:
             exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0) * xf
             cold = incoming_cold_start_time(task, platform)
             lat = network_latency_between(task.node_name, node, nodes)
-            base = drain + cold + exec_s + lat
+            base = (drain if not self.pg_alpha_on else self.pg_drain_alpha * (drain - committed_service.get(key, 0.0))
+                    + self.pg_batch_alpha * committed_service.get(key, 0.0)) + cold + exec_s + lat
             exch = self._pg_exchange_seconds(node, platform, peer_nodes)
             if getattr(self, "pg_pull_hold", False):
                 hold_key = f"pull_hold:{node.node_name}"
@@ -915,7 +1012,11 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             others.pop(int(batch_tasks[i].id), None)
             peer_nodes_of.append(self._pg_peer_nodes(batch_tasks[i], orch, others) if self.exchange_on else [])
         self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
-        exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+        if self.pg_shared_link:
+            exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
+        else:
+            exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+        in_wait = self._pg_input_link_wait(batch_tasks, plan) if self.pg_input_link else [0.0] * n
         xf = [self._pg_xf(plan[i][1]) for i in range(n)]
         exec_s = [float(batch_tasks[i].type["executionTime"].get(plan[i][1].type["shortName"], 0.0) or 0.0) * xf[i] for i in range(n)]
         comm = [_approx_comm(batch_tasks[i].type) for i in range(n)]
@@ -934,7 +1035,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                 drain += inflight_remaining_seconds(platform)
             cold = incoming_cold_start_time(batch_tasks[i], platform)
             lat = network_latency_between(batch_tasks[i].node_name, node, nodes)
-            base = drain + cold + exec_s[i] + lat
+            base = (drain if not self.pg_alpha_on else self.pg_drain_alpha * (drain - (committed[key] - service[i]))
+                    + self.pg_batch_alpha * (committed[key] - service[i])) + cold + exec_s[i] + lat + in_wait[i]
             if getattr(self, "pg_pull_hold", False):
                 hold_key = f"pull_hold:{node.node_name}"
                 if hold_key not in memo:
@@ -950,6 +1052,86 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             scores.append(score)
             total += score
         return total, service, scores
+
+    def _pg_input_link_wait(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]]) -> List[float]:
+        """Seconds each task's input waits on the shared CORE links of its route behind the batch's other inputs (link_bound_s0_v1 L3, see
+        PG_INPUT_LINK_ENV). Bandwidths come from the node's fabric, so they follow the configured link bandwidth."""
+        from src.placement.infrastructure import _audit_input_bytes
+        from src.placement.network_fabric import is_core_link, transfer_model
+        from src.placement.scheduling_cost import transfer_time
+
+        if self.pg_input_link not in ("hold", "core"):
+            raise ValueError(f"FAIL LOUD: pg_input_link must be hold or core to price input waits, got {self.pg_input_link!r}")
+        if self.pg_input_link == "hold" and transfer_model() != "pipelined":
+            raise RuntimeError(f"FAIL LOUD: {PG_INPUT_LINK_ENV}=hold prices the pipelined hold; HEROSIM_TRANSFER_MODEL is {transfer_model()!r}")
+        n = len(batch_tasks)
+        routes = []
+        for i in range(n):
+            fabric = getattr(getattr(plan[i][1], "node", None), "fabric", None)
+            routes.append(fabric.hops(batch_tasks[i].node_name, plan[i][0].node_name) if fabric is not None and batch_tasks[i].node_name != plan[i][0].node_name else [])
+        holds = []   # per task: {core link: seconds the input holds it}
+        for i in range(n):
+            bottleneck = min((bw for _k, bw in routes[i]), default=None)
+            holds.append({k: transfer_time(batch_tasks[i], bottleneck if self.pg_input_link == "hold" else bw)
+                          for k, bw in routes[i] if is_core_link(k)})
+        load: Dict[str, float] = {}
+        for h in holds:
+            for k, v in h.items():
+                load[k] = load.get(k, 0.0) + v
+        return [max((load[k] - v for k, v in holds[i].items()), default=0.0) for i in range(n)]
+
+    def _pg_exchange_shared(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch,
+                            peer_nodes_of: List[Sequence[Tuple[str, float]]]) -> List[float]:
+        """S' exchange seconds per task (big_groups_s0_v1 M4). Each unordered in-batch pair on two different nodes loads every link of its route;
+        a link's load is the number of such pairs crossing it. A task's transfer from an in-batch partner is `transmission_hops * payload /
+        (min over the route of bandwidth / load)`, the formula of `Platform._payload_transfer_time` with the shared bandwidth; propagation
+        latency and any partner outside the batch are priced as in S. With no shared link (every load 1) it equals S to the digit."""
+        from src.placement.network_fabric import transmission_hops
+
+        n = len(batch_tasks)
+        table = getattr(orch, "peer_exchange", None) or {}
+        idx = {int(t.id): i for i, t in enumerate(batch_tasks)}
+
+        def fabric_of(i: int):
+            return getattr(getattr(plan[i][1], "node", None), "fabric", None)
+
+        load: Dict[str, int] = {}
+        for i in range(n):
+            for peer_id in table.get(int(batch_tasks[i].id)) or {}:
+                j = idx.get(int(peer_id))
+                if j is None or j <= i or plan[i][0].node_name == plan[j][0].node_name:
+                    continue
+                fabric = fabric_of(i)
+                if fabric is None:
+                    continue
+                for key, _bw in fabric.hops(plan[i][0].node_name, plan[j][0].node_name):
+                    load[key] = load.get(key, 0) + 1
+        out = []
+        for i in range(n):
+            node, platform = plan[i]
+            fabric = fabric_of(i)
+            pending: Dict[Tuple[str, float], int] = {}
+            for pid, pl in (table.get(int(batch_tasks[i].id)) or {}).items():
+                if int(pid) in idx:
+                    entry = (plan[idx[int(pid)]][0].node_name, float(pl))
+                    pending[entry] = pending.get(entry, 0) + 1
+            total = 0.0
+            for entry in peer_nodes_of[i]:   # S's own order, so a load of 1 everywhere reproduces S to the digit
+                peer_node_name, payload = entry
+                if peer_node_name == node.node_name:
+                    continue
+                transfer = None
+                if pending.get(entry, 0) > 0:
+                    pending[entry] -= 1
+                    hops = fabric.hops(peer_node_name, node.node_name) if fabric is not None else []
+                    bottleneck = min((bw / load.get(key, 1) for key, bw in hops), default=0.0)
+                    if bottleneck > 0:
+                        transfer = transmission_hops(len(hops)) * payload / (bottleneck * (1024 * 1024))
+                if transfer is None:
+                    transfer = platform._payload_transfer_time(peer_node_name, payload)
+                total += transfer + platform.peer_link_latency(peer_node_name, context="peer-greedy estimate")
+            out.append(total)
+        return out
 
     def _pg_plan_objects(self, batch_tasks: List["Task"], system_state: SystemState, placements: Dict[int, Tuple[int, int]]):
         """(candidate couples per task, the shared couple table, candidate keys per task, the current plan as couples, pinned
@@ -980,7 +1162,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
 
     def _pg_expand(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
                    committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
-                   service_of: Dict[int, Tuple[str, float]]) -> int:
+                   service_of: Dict[int, Tuple[str, float]], dry: bool = False):
         """Exact-move alpha-expansion on the batch's current plan (HEROSIM_PG_CD_EXPANSION=1). Labels are visited in
         (node id, platform id) order; for each, every non-empty subset of the tasks that may take it and do not hold it is
         scored as a whole plan and the best strictly improving subset is applied before the next label. Sweeps stop when a
@@ -993,6 +1175,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         if n < 2:
             return 0
         nodes = self.nodes.items
+        saved = {name: getattr(self, name) for name in PG_EXPAND_COUNTERS} if dry else None
         # a task whose current couple is not among its candidates (a forced placement) is pinned: never a mover
         _cands, couple, keys, plan, _pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
         cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
@@ -1028,6 +1211,11 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                     moved_in_sweep = True
             if not moved_in_sweep:
                 break
+        if dry:
+            # the plan the expansion would reach, for counting only: its counters are put back and its books never written
+            for name, value in saved.items():
+                setattr(self, name, value)
+            return plan, cur
         if moved_tasks == 0:
             return 0
         self.pg_expand_tasks_moved += moved_tasks
@@ -1071,41 +1259,234 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         from itertools import product
 
         n = len(batch_tasks)
-        if n < 2:
+        if n < 2 and not self.pg_oracle:
             return 0
         nodes = self.nodes.items
         cands, couple, keys, plan, pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
         slates = []
+        tops = []
+        diag_ranks = []
         for i in range(n):
             if i in pinned:
                 slates.append([plan[i]])
+                tops.append([plan[i]])
+                diag_ranks.append(None)
                 continue
             ranked = sorted(cands[i], key=lambda c: (self._pg_standalone(batch_tasks[i], c[0], c[1], orch, memo, nodes), int(c[0].id), int(c[1].id)))
+            if _EXACT_DIAG_DIR:
+                ids = [(int(c[0].id), int(c[1].id)) for c in ranked]
+                diag_ranks.append((ids.index((int(plan[i][0].id), int(plan[i][1].id))) + 1 if (int(plan[i][0].id), int(plan[i][1].id)) in ids else 0, len(ids)))
+            tops.append(ranked[:self.pg_cd_exact_top_k])
             slates.append(sorted(ranked[:self.pg_cd_exact_top_k], key=lambda c: (int(c[0].id), int(c[1].id))))
         total = 1
         for sl in slates:
             total *= len(sl)
+        if self.pg_oracle:
+            self.pg_oracle_seen_batches += 1
+            self.pg_oracle_seen_tasks += n
+            if total > self.pg_oracle_max_plans:
+                self.pg_oracle_over_cap_batches += 1
+                self.pg_oracle_over_cap_tasks += n
+        if n < 2 and not (self.pg_oracle and total <= self.pg_oracle_max_plans):
+            return 0
         if total > self.pg_cd_exact_max_plans:
             self.pg_exact_fallbacks += 1
+            if self.pg_cd_exact_prune:
+                return self._pg_exact_pruned(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of, tops, plan)
             return self._pg_expand(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of) if self.pg_cd_expansion else 0
         self.pg_exact_batches += 1
         self.pg_exact_plans += total
         cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
+        gnn = self.pg_cd_exact_gnn
         best_cost, best_plan, ties = None, None, 0
+        tied: List[List] = []
         for combo in product(*slates):
             cost, _s, _c = self._pg_plan_cost(batch_tasks, list(combo), orch, memo, nodes)
             if best_cost is None or cost < best_cost - 1e-9:
                 best_cost, best_plan, ties = cost, list(combo), 0
+                tied = [list(combo)] if gnn else tied
             elif abs(cost - best_cost) <= 1e-9:
                 ties += 1
+                if gnn:
+                    tied.append(list(combo))
         if ties:
             self.pg_exact_ties += 1
-        if best_cost >= cur - 1e-9:
+        if _EXACT_DIAG_DIR:
+            _exact_diag_write({"n": n, "pinned": len(pinned), "cur": cur, "best": best_cost, "kept": bool(best_cost >= cur - 1e-9),
+                               "slate": [len(sl) for sl in slates], "pass_rank": diag_ranks, "k": self.pg_cd_exact_top_k})
+        ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
+        keep_pass = best_cost >= cur - 1e-9
+        if self.pg_oracle and total <= self.pg_oracle_max_plans:
+            moved = self._pg_oracle_apply(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of,
+                                          slates, plan, plan if keep_pass else best_plan)
+            if moved is not None:
+                return moved
+        if gnn and abs(best_cost - cur) <= 1e-9 or (gnn and not keep_pass and len(tied) > 1):
+            # S-tie: the candidates are every enumerated plan at the optimum, and the pass plan when it sits at the optimum too
+            cands_t = list(tied)
+            pass_id = ident(plan)
+            pass_in = any(ident(t) == pass_id for t in cands_t)
+            if keep_pass and not pass_in:
+                cands_t.append(list(plan))
+            if len(cands_t) > 1:
+                self.pg_exact_gnn_tie_batches += 1
+                self.pg_exact_gnn_tie_plans += len(cands_t)
+                scored = cands_t[:_EXACT_GNN_TIE_CAP]
+                if keep_pass and pass_id not in [ident(t) for t in scored]:
+                    scored.append(list(plan))
+                if len(cands_t) > _EXACT_GNN_TIE_CAP:
+                    self.pg_exact_gnn_capped += 1
+                allowed = {i: {(int(c[0].id), int(c[1].id)) for c in slates[i]} | {(int(plan[i][0].id), int(plan[i][1].id))} for i in range(n)}
+                scorer = self._host._exact_plan_scorer(batch_tasks, system_state, allowed)
+                baseline = list(plan) if keep_pass else tied[0]
+                # the highest GNN plan score wins; a score tie goes to the pass plan, then to the lowest plan in CD's order
+                top, top_score = None, None
+                for cand in sorted(scored, key=lambda t: (ident(t) != pass_id,)) if keep_pass else scored:
+                    sc = scorer([(int(c[0].id), int(c[1].id)) for c in cand])
+                    self.pg_exact_gnn_scored += 1
+                    if top_score is None or sc > top_score + 1e-9:
+                        top, top_score = cand, sc
+                if ident(top) != ident(baseline):
+                    self.pg_exact_gnn_changed += 1
+                if ident(top) == pass_id:
+                    return 0
+                best_plan, keep_pass, best_cost = list(top), False, best_cost
+                moved = sum(1 for i in range(n) if ident([best_plan[i]]) != ident([plan[i]]))
+                self.pg_exact_tasks_moved += moved
+                self.pg_exact_gain_seconds += max(0.0, cur - best_cost)
+                self._pg_write_books(batch_tasks, best_plan, orch, memo, committed_service, planned, placements, service_of)
+                return moved
+        if keep_pass:
             self.pg_exact_kept_pass += 1
             return 0
         moved = sum(1 for i in range(n) if (int(best_plan[i][0].id), int(best_plan[i][1].id)) != (int(plan[i][0].id), int(plan[i][1].id)))
         self.pg_exact_tasks_moved += moved
         self.pg_exact_gain_seconds += cur - best_cost
+        self._pg_write_books(batch_tasks, best_plan, orch, memo, committed_service, planned, placements, service_of)
+        return moved
+
+    def _pg_oracle_apply(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
+                         committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                         service_of: Dict[int, Tuple[str, float]], slates: List[List], plan: List, s_plan: List) -> int:
+        """The live oracle (HEROSIM_PG_ORACLE=1): every plan of the slate product, and the pass plan, scored by the real single-batch RTT of a
+        fidelity replay of this very state; the argmin is applied. `s_plan` is what cd_exactS would apply. A plan replaces it only when strictly
+        cheaper, so a replay tie keeps cd_exactS's choice. Returns the number of tasks moved off the pass plan, or None when the batch cannot be
+        labelled (the caller then runs cd_exactS's own choice)."""
+        from itertools import product
+
+        from src.placement import plan_oracle
+        from src.placement.live_audit import capture_batch_snapshot
+
+        t0 = default_timer()
+        n = len(batch_tasks)
+        ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
+        combos = [list(c) for c in product(*slates)]
+        if ident(plan) not in {ident(c) for c in combos}:
+            combos.append(list(plan))
+        if getattr(self, "_plan_oracle", None) is None:
+            self._plan_oracle = plan_oracle.PlanOracle()
+        snapshot = capture_batch_snapshot(self, system_state, batch_tasks, self._live_audit_policy_name)
+        t_capture = default_timer() - t0
+        fid = snapshot["fidelity"]
+        future = fid.get("future") or {}
+        if any(node is None and str(other) not in future for row in (fid.get("peers") or {}).values() for other, node, _p in row):
+            # a partner outside the batch the live run had not placed yet is a rendezvous whose time no snapshot gives: the replay cannot label
+            # the batch (the corpus builder rejects the same snapshots, UNPLACED_PARTNER_REASON); cd_exactS's choice stands, counted
+            self.pg_oracle_unplaced_batches += 1
+            self.pg_oracle_unplaced_tasks += n
+            return None
+        order = sorted(range(n), key=lambda i: int(batch_tasks[i].id))
+        types = [batch_tasks[i].type["name"] for i in order]
+        labels = self._plan_oracle.labels(snapshot, types, [[(int(c[i][0].id), int(c[i][1].id)) for i in order] for c in combos])
+        by_id = {ident(c): lab for c, lab in zip(combos, labels)}
+        s_label = by_id[ident(s_plan)]
+        best, best_label = s_plan, s_label
+        for c, lab in zip(combos, labels):
+            if lab < best_label - 1e-9:
+                best, best_label = c, lab
+        moved = sum(1 for i in range(n) if ident([best[i]]) != ident([plan[i]]))
+        self.pg_oracle_batches += 1
+        self.pg_oracle_tasks += n
+        self.pg_oracle_plans += len(combos)
+        self.pg_oracle_changed += int(ident(best) != ident(s_plan))
+        self.pg_oracle_gain_seconds += s_label - best_label
+        self.pg_oracle_tasks_moved += moved
+        self.pg_oracle_seconds += default_timer() - t0
+        if os.environ.get(plan_oracle.DIAG_DIR_ENV):
+            _cost, _svc, _sc = self._pg_plan_cost(batch_tasks, plan, orch, memo, self.nodes.items)
+            plan_oracle.diag_write({"t": float(self.env.now), "n": n, "plans": len(combos), "s_plan": list(ident(s_plan)), "s_label": s_label,
+                                    "best": list(ident(best)), "best_label": best_label, "pass_label": by_id[ident(plan)],
+                                    "wall": default_timer() - t0, "timing": getattr(self._plan_oracle, "last", None), "t_capture": t_capture,
+                                    "table": [[list(ident(c)), self._pg_plan_cost(batch_tasks, c, orch, memo, self.nodes.items)[0], lab]
+                                              for c, lab in zip(combos, labels)]})
+        if ident(best) == ident(plan):
+            return 0
+        self.pg_exact_tasks_moved += moved
+        self._pg_write_books(batch_tasks, best, orch, memo, committed_service, planned, placements, service_of)
+        return moved
+
+    def _pg_exact_pruned(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
+                         committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                         service_of: Dict[int, Tuple[str, float]], tops: List[List], plan: List) -> int:
+        """cdxprune: the over-cap batch's exact search on a slate cut to its top-k per task (HEROSIM_PG_CD_EXACT_PRUNE). `tops` holds each
+        task's slate in standalone-cost order. The pass plan is kept unless the pruned optimum is strictly cheaper, as in `_pg_exact`."""
+        from itertools import product
+
+        n = len(batch_tasks)
+        nodes = self.nodes.items
+        cap = self.pg_cd_exact_max_plans
+
+        def width(k: int) -> int:
+            total = 1
+            for t in tops:
+                total *= min(len(t), k)
+            return total
+
+        k = 1
+        while k < max(len(t) for t in tops) and width(k + 1) <= cap:
+            k += 1
+        cost_cut = [t[:k] for t in tops]
+        cut = cost_cut
+        ident = lambda c: (int(c[0].id), int(c[1].id))
+        if self.pg_cd_exact_prune == "gnn":
+            allowed = {i: {ident(c) for c in tops[i]} | {ident(plan[i])} for i in range(n)}
+            logits = self._host._exact_task_logits(batch_tasks, system_state, allowed, [ident(c) for c in plan])
+            cut = [sorted(tops[i], key=lambda c, i=i: (-logits[i][ident(c)], ident(c)))[:k] if len(tops[i]) > 1 else tops[i] for i in range(n)]
+            if any({ident(c) for c in cut[i]} != {ident(c) for c in cost_cut[i]} for i in range(n)):
+                self.pg_exact_prune_set_differs += 1
+        slates = [sorted(c, key=ident) for c in cut]
+        total = width(k)
+        self.pg_exact_prune_batches += 1
+        self.pg_exact_prune_plans += total
+        if k == 3:
+            self.pg_exact_prune_k3 += 1
+        elif k == 4:
+            self.pg_exact_prune_k4 += 1
+        else:
+            self.pg_exact_prune_kother += 1
+        cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
+        best_cost, best_plan = None, None
+        for combo in product(*slates):
+            cost, _s, _c = self._pg_plan_cost(batch_tasks, list(combo), orch, memo, nodes)
+            if best_cost is None or cost < best_cost - 1e-9:
+                best_cost, best_plan = cost, list(combo)
+        keep_pass = best_cost >= cur - 1e-9
+        final_plan, final_cost = (list(plan), cur) if keep_pass else (best_plan, best_cost)
+        if self.pg_cd_expansion:
+            fb_plan, fb_cost = self._pg_expand(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of, dry=True)
+            if [ident(c) for c in fb_plan] != [ident(c) for c in final_plan]:
+                self.pg_exact_prune_differs += 1
+            if final_cost < fb_cost - 1e-9:
+                self.pg_exact_prune_better += 1
+            elif final_cost > fb_cost + 1e-9:
+                self.pg_exact_prune_worse += 1
+            self.pg_exact_prune_gain_fb_seconds += fb_cost - final_cost
+        if keep_pass:
+            self.pg_exact_prune_kept_pass += 1
+            return 0
+        moved = sum(1 for i in range(n) if ident(best_plan[i]) != ident(plan[i]))
+        self.pg_exact_prune_tasks_moved += moved
+        self.pg_exact_prune_gain_pass_seconds += cur - best_cost
         self._pg_write_books(batch_tasks, best_plan, orch, memo, committed_service, planned, placements, service_of)
         return moved
 
@@ -1254,11 +1635,14 @@ class GnnCdRefiner(_PeerGreedyCore):
     # cdxapply (HEROSIM_PG_CD_EXPANSION=1): the expansion phase of cd_expand, bound here as the pass is, not copied
     _pg_candidates = PeerGreedyNetworkBatchScheduler._pg_candidates
     _pg_plan_cost = PeerGreedyNetworkBatchScheduler._pg_plan_cost
+    _pg_exchange_shared = PeerGreedyNetworkBatchScheduler._pg_exchange_shared
+    _pg_input_link_wait = PeerGreedyNetworkBatchScheduler._pg_input_link_wait
     _pg_expand = PeerGreedyNetworkBatchScheduler._pg_expand
     _pg_plan_objects = PeerGreedyNetworkBatchScheduler._pg_plan_objects
     _pg_write_books = PeerGreedyNetworkBatchScheduler._pg_write_books
     _pg_standalone = PeerGreedyNetworkBatchScheduler._pg_standalone
     _pg_exact = PeerGreedyNetworkBatchScheduler._pg_exact
+    _pg_exact_pruned = PeerGreedyNetworkBatchScheduler._pg_exact_pruned
 
     def __init__(self, host) -> None:
         self._host = host
@@ -1281,6 +1665,40 @@ class GnnCdRefiner(_PeerGreedyCore):
                                         placements=placements, service_of=service_of, refine=True)
             if moved == 0:
                 break
+
+    def _cd_native_plan(self, batch_tasks, system_state, passes) -> Dict[int, Tuple[int, int]]:
+        """The plan the CD scheduler itself would reach on this batch (greedy start, passes, expansion, passes), computed for counting only:
+        every book this touches is restored, so it changes nothing the run reads."""
+        saved = {name: getattr(self, name) for name in PEER_GREEDY_COUNTERS if hasattr(self, name)}
+        orch = self._pg_orchestrator()
+        memo: Dict[str, float] = {}
+        committed_service: Dict[str, float] = {}
+        planned: Dict[int, str] = {}
+        placements: Dict[int, Tuple[int, int]] = {}
+        service_of: Dict[int, Tuple[str, float]] = {}
+        try:
+            self._pg_batch_pass(batch_tasks, system_state, orch, memo=memo, committed_service=committed_service, planned=planned,
+                                placements=placements, service_of=service_of, refine=False)
+            self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+            if self._pg_exact(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
+                self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        finally:
+            for name, value in saved.items():
+                setattr(self, name, value)
+        return {i: tuple(v) for i, v in placements.items()}
+
+    def hand_seed(self, batch_tasks, system_state) -> Dict[int, Tuple[int, int]]:
+        """ib0_confirm_v1 hand-seed control (GNN_CD_SEED=hand): the plan the CD greedy's first pass builds on this batch (task-id order, no refine), for the
+        refiner to start from in place of the GNN's plan. Every book it touches is restored, as `_cd_native_plan` does."""
+        saved = {name: getattr(self, name) for name in PEER_GREEDY_COUNTERS if hasattr(self, name)}
+        placements: Dict[int, Tuple[int, int]] = {}
+        try:
+            self._pg_batch_pass(batch_tasks, system_state, self._pg_orchestrator(), memo={}, committed_service={}, planned={},
+                                placements=placements, service_of={}, refine=False)
+        finally:
+            for name, value in saved.items():
+                setattr(self, name, value)
+        return {i: tuple(v) for i, v in placements.items()}
 
     def refine(self, batch_tasks: List["Task"], system_state: SystemState,
                seed: Dict[int, Tuple[int, int]], passes: int) -> Tuple[Dict[int, Tuple[int, int]], Dict[str, int]]:
@@ -1308,11 +1726,16 @@ class GnnCdRefiner(_PeerGreedyCore):
             committed_service[key] = committed_service.get(key, 0.0) + service
             service_of[int(task.id)] = (key, service)
         self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        fallbacks_before = self.pg_exact_fallbacks
         if self.pg_cd_expansion or self.pg_cd_exact:
             # cdxapply: one expansion phase (or the exact search) after the passes converge on the seeded plan, then the passes again
             search = self._pg_exact if self.pg_cd_exact else self._pg_expand
             if search(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of):
                 self._refine_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if self.pg_cd_exact_gnn and self.pg_exact_fallbacks > fallbacks_before:
+            self.pg_exact_gnn_fb_batches += 1
+            if self._cd_native_plan(batch_tasks, system_state, passes) != {i: tuple(v) for i, v in placements.items()}:
+                self.pg_exact_gnn_fb_differs += 1
         seed_load: Dict[Tuple[int, int], int] = {}
         for v in seed.values():
             seed_load[tuple(v)] = seed_load.get(tuple(v), 0) + 1
