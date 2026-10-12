@@ -358,6 +358,48 @@ def lock_wait_profile(task_results: Optional[List[dict]]) -> Optional[Dict[str, 
             "queue_share_same_tasks": queue / elapsed if elapsed > 0 else None}
 
 
+STEADY_T_S = 360.0  # the corpus MIN_TIME
+
+
+def _workload_rows(task_results: Optional[List[dict]]) -> List[tuple]:
+    return sorted((float(r["dispatchedTime"]), float(r["doneTime"])) for r in task_results or ()
+                  if r.get("taskId") is None or int(r["taskId"]) >= 0)
+
+
+def steady_state_latency(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """The live path autoscales from zero replicas with no warm-up discard, so averageElapsedTime carries a whole-system cold
+    start (expert's ruling, 2026-10-12). Mean latency (done - dispatched, the averageElapsedTime quantity) over the tasks
+    dispatched at or after T, for T = 360 s and T = the dispatch time of the 5th-percentile task (nearest rank), and the mean
+    of each tenth of the tasks in dispatch order."""
+    rows = _workload_rows(task_results)
+    n = len(rows)
+    if n < 10:
+        return None
+
+    def after(t_s: float) -> Dict[str, object]:
+        lat = [done - d for d, done in rows if d >= t_s]
+        return {"T_s": t_s, "n": len(lat), "mean": sum(lat) / len(lat) if lat else None}
+
+    t5 = rows[min(n - 1, max(0, math.ceil(0.05 * n) - 1))][0]
+    deciles = [rows[i * n // 10:(i + 1) * n // 10] for i in range(10)]
+    return {"after_360s": after(STEADY_T_S), "after_p5_dispatch": after(t5),
+            "decile_mean": [sum(done - d for d, done in part) / len(part) for part in deciles]}
+
+
+def write_task_times(task_results: Optional[List[dict]], path: str) -> Optional[int]:
+    """Per-task (dispatchedTime, doneTime) as float32, in dispatch order, so any warm-up cut can be read after the raw file is
+    deleted (~400 KB per 50k-task cell). Written atomically; returns the row count."""
+    import numpy as np
+
+    rows = _workload_rows(task_results)
+    if not rows:
+        return None
+    with open(path + ".partial", "wb") as fh:
+        np.save(fh, np.asarray(rows, dtype=np.float32))
+    os.replace(path + ".partial", path)
+    return len(rows)
+
+
 def arrival_end(workload_path: str, end_time: Optional[float]) -> Optional[Dict[str, object]]:
     """load_recalibration_v1: the run's end time against the last arrival in its workload file."""
     last = max(float(e["timestamp"]) for e in json.load(open(workload_path))["events"])
@@ -1032,6 +1074,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["lock_wait"] = lock_wait_profile(st.get("taskResults"))
     out["arrival_end"] = arrival_end(wl, st.get("endTime"))
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
+    out["steady_state"] = steady_state_latency(st.get("taskResults"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
         want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
                 "panic_window_s": 6.0 * time_scale, "panic_threshold": 2.0}
@@ -1261,6 +1304,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     e, q = float(out["averageElapsedTime"]), float(out["averageQueueTime"])
     out["queue_share"] = q / e if e > 0 else None
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
+    out["task_times_rows"] = write_task_times(st.get("taskResults"), os.path.join(out_dir, name + ".tasks.npy"))
     json.dump(out, open(summary + ".partial", "w"), indent=1)
     os.replace(summary + ".partial", summary)
     keep = os.environ.get("KEEP_RAW_DIR")
