@@ -4,7 +4,7 @@
 below was signed before its data. Placed by S6 on branch `rp/long-horizon` at the expert's instruction, with a branch-only
 index row (authorised; the expert reconciles it on reference-physics).
 
-**Outcome (2026-10-12; the registered single read, all 7 cells, 0 failed).** Over a 24 h stationary window the GNN stays 5–11 %
+**Outcome (2026-10-12; the registered single read, all 7 cells, 0 failed).** Over a 24 h stationary window the GNN stays 4–12 %
 ahead of CD in every 4 h block, and its deficit to `cd_exactS` at moderate grows.
 - No GNN-favourable contrast reaches the −2 pp bar, and three hand-favourable contrasts exceed +2 pp, so the node closes under the
   registered bar. No multi-day gate.
