@@ -10,7 +10,7 @@ from __future__ import annotations
 import collections
 import os
 import subprocess
-from typing import Deque, Mapping, Optional, Sequence
+from typing import Callable, Deque, Mapping, Optional, Sequence
 
 CAP_ENV = "HEROSIM_GATE_LOG_CAP_MB"
 DEFAULT_CAP_MB = 50.0
@@ -23,18 +23,26 @@ def cap_bytes() -> Optional[int]:
     return None if mb <= 0 else int(mb * 1024 * 1024)
 
 
-def run_logged(cmd: Sequence[str], env: Mapping[str, str], cwd: str, log_path: str, cap: Optional[int] = None) -> int:
-    """Return the command's exit code; the log is at ``log_path``."""
+def run_logged(cmd: Sequence[str], env: Mapping[str, str], cwd: str, log_path: str, cap: Optional[int] = None,
+               on_start: Optional[Callable[[subprocess.Popen], None]] = None) -> int:
+    """Return the command's exit code; the log is at ``log_path``. ``on_start`` gets the process once it runs (a watchdog
+    kills its process group); with it the child leads its own session."""
+    session = on_start is not None
     if cap is None:
         with open(log_path, "w") as fh:
-            return subprocess.run(list(cmd), env=dict(env), cwd=cwd, stdout=fh, stderr=subprocess.STDOUT).returncode
+            proc = subprocess.Popen(list(cmd), env=dict(env), cwd=cwd, stdout=fh, stderr=subprocess.STDOUT, start_new_session=session)
+            if on_start:
+                on_start(proc)
+            return proc.wait()
     head_limit = int(cap * HEAD_SHARE)
     tail_limit = cap - head_limit
     head_written = 0
     tail: Deque[bytes] = collections.deque()
     tail_size = 0
     dropped = 0
-    proc = subprocess.Popen(list(cmd), env=dict(env), cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(list(cmd), env=dict(env), cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=session)
+    if on_start:
+        on_start(proc)
     with open(log_path, "wb") as fh:
         while True:
             chunk = proc.stdout.read(CHUNK)

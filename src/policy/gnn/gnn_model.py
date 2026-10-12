@@ -154,6 +154,63 @@ def split_task_platform_embeddings(
     return x[:n_tasks], x[n_tasks : n_tasks + n_platforms]
 
 
+def gather_scorable_edges(
+    data: Data, partial_state_edge_dim: int
+) -> Optional[Tuple[Tensor, Tensor, Optional[Tensor]]]:
+    """The per-edge scoring inputs shared by every arm that scores (task, candidate) edges.
+
+    Returns ``(ti, pj, e_attr)`` -- task index, platform index and the edge columns (the 5-column
+    ``edge_attr`` concatenated with the partial-state block when prefix conditioning is on) of every
+    task->platform edge -- or None when the graph has none. ``TaskPlacementGNN``, the MLP-same arm and
+    the set-transformer arm all read their edge inputs through this one function, so "the same inputs,
+    no graph" is a property of the code and not of a comment.
+    """
+    n_tasks: int = int(data.n_tasks)
+    n_platforms: int = int(data.n_platforms)
+    ei = data.edge_index
+    if ei.numel() == 0:
+        return None
+    ti = ei[0]
+    pj = ei[1] - n_tasks
+    # Defensive: only score edges whose source is a task node (filters any
+    # platform<->platform edge that may have been merged into edge_index).
+    valid = (pj >= 0) & (pj < n_platforms) & (ti < n_tasks)
+    ti = ti[valid]
+    pj = pj[valid]
+    if ti.numel() == 0:
+        return None
+    e_attr: Optional[Tensor] = None
+    if hasattr(data, 'edge_attr') and data.edge_attr.numel() > 0:
+        if partial_state_edge_dim:
+            # No silent swallow when prefix conditioning is on: an alignment fault
+            # here would drop edge_attr and produce a quietly wrong T2 arm.
+            e_attr = data.edge_attr[valid]
+        else:
+            try:
+                e_attr = data.edge_attr[valid]
+            except (IndexError, RuntimeError):
+                e_attr = None
+    # The partial-state prefix block rides in its own attr, aligned row-for-row with
+    # the FULL edge_index, and is selected by the same `valid` mask as edge_attr --
+    # so its alignment with the per-task logit order is inherited, not re-derived.
+    if partial_state_edge_dim:
+        ps = getattr(data, "partial_state_edge_attr", None)
+        if ps is None or int(ps.size(-1)) != partial_state_edge_dim:
+            got = "absent" if ps is None else f"width {int(ps.size(-1))}"
+            raise ValueError(
+                f"FAIL LOUD: partial_state_edge_dim={partial_state_edge_dim} "
+                f"but the graph's partial_state_edge_attr is {got}. Populate it via "
+                "src.policy.gnn.partial_state_edges.refresh_partial_state_edge_attr."
+            )
+        ps_valid = ps.to(ti.device if e_attr is None else e_attr.device, dtype=torch.float32 if e_attr is None else e_attr.dtype)[valid]
+        e_attr = ps_valid if e_attr is None else torch.cat([e_attr, ps_valid], dim=-1)
+    return ti, pj, e_attr
+
+
+def split_scores_per_task(edge_scores: Tensor, ti: Tensor, n_tasks: int) -> List[Tensor]:
+    return [edge_scores[ti == t] for t in range(n_tasks)]
+
+
 class MLPEncoder(nn.Module):
     """Generic 2-layer MLP encoder with LayerNorm (matches train.py / desert-galaxy-26)."""
 
@@ -865,64 +922,13 @@ class TaskPlacementGNN(nn.Module):
     def _score(self, task_emb: Tensor, platform_emb: Tensor, data: Data) -> List[Tensor]:
         """Edge scoring from precomputed node embeddings → per-task logits."""
         n_tasks: int = int(data.n_tasks)
-        n_platforms: int = int(data.n_platforms)
-        device = task_emb.device
-
-        # Score edges. Scoring stays on the bipartite task->platform edges only, so
-        # edge_attr alignment is preserved and same-node edges never produce logits.
-        ei = data.edge_index
-        if ei.numel() == 0:
-            return [torch.empty(0, device=device) for _ in range(n_tasks)]
-
-        ti = ei[0]
-        pj = ei[1] - n_tasks
-        # Defensive: only score edges whose source is a task node (filters any
-        # platform<->platform edge that may have been merged into edge_index).
-        valid = (pj >= 0) & (pj < n_platforms) & (ti < n_tasks)
-        ti = ti[valid]
-        pj = pj[valid]
-        if ti.numel() == 0:
-            return [torch.empty(0, device=device) for _ in range(n_tasks)]
-
-        e_task = task_emb[ti]
-        e_platform = platform_emb[pj]
-        e_attr: Optional[Tensor] = None
-        if hasattr(data, 'edge_attr') and data.edge_attr.numel() > 0:
-            if self.partial_state_edge_dim:
-                # No silent swallow when prefix conditioning is on: an alignment fault
-                # here would drop edge_attr and produce a quietly wrong T2 arm.
-                e_attr = data.edge_attr[valid]
-            else:
-                try:
-                    e_attr = data.edge_attr[valid]
-                except (IndexError, RuntimeError):
-                    e_attr = None
-
-        # The partial-state prefix block rides in its own attr, aligned row-for-row with
-        # the FULL edge_index, and is selected by the same `valid` mask as edge_attr —
-        # so its alignment with the per-task logit order is inherited, not re-derived.
-        if self.partial_state_edge_dim:
-            ps = getattr(data, "partial_state_edge_attr", None)
-            if ps is None or int(ps.size(-1)) != self.partial_state_edge_dim:
-                got = "absent" if ps is None else f"width {int(ps.size(-1))}"
-                raise ValueError(
-                    f"FAIL LOUD: partial_state_edge_dim={self.partial_state_edge_dim} "
-                    f"but the graph's partial_state_edge_attr is {got}. Populate it via "
-                    "src.policy.gnn.partial_state_edges.refresh_partial_state_edge_attr."
-                )
-            ps_valid = ps.to(e_task.device, dtype=e_task.dtype)[valid]
-            e_attr = ps_valid if e_attr is None else torch.cat([e_attr, ps_valid], dim=-1)
-
-        edge_scores = self.edge_scorer(e_task, e_platform, e_attr)
-
-        # Split scores per task
-        logits_per_task = []
-        for t in range(n_tasks):
-            mask_t = (ti == t)
-            logits_t = edge_scores[mask_t]
-            logits_per_task.append(logits_t)
-
-        return logits_per_task
+        edges = gather_scorable_edges(data, self.partial_state_edge_dim)
+        if edges is None:
+            return [torch.empty(0, device=task_emb.device) for _ in range(n_tasks)]
+        ti, pj, e_attr = edges
+        e_attr = None if e_attr is None else e_attr.to(task_emb.device, dtype=task_emb.dtype)
+        edge_scores = self.edge_scorer(task_emb[ti], platform_emb[pj], e_attr)
+        return split_scores_per_task(edge_scores, ti, n_tasks)
 
     def forward(self, data: Data) -> List[Tensor]:
         task_emb, platform_emb = self._encode(data)

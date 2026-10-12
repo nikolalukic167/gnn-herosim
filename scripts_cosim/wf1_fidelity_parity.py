@@ -74,6 +74,23 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     wl, forced, ids = SF.replay_workload(fid)
     batch_local = [ids[int(r["gid"])] for r in fid["batch"]]
     out.update(queued=len(forced), batch=n_batch, batch_ids=batch_local)
+    # A sub-batch dataset (declared pruning cut a connected peer group into runs of <= 4 tasks) holds only the pairs inside its run, so the
+    # scheduler's peer-group batching would cut it again where the dataset's batch is one unit. Live serving never does that: it collects the
+    # WHOLE connected group and cuts it with the same declared_slate.sub_batches the corpus used. The sub-batch is therefore replayed as one
+    # collected batch (peer-group batching off for this dataset); features, not batching, are what this script compares.
+    par = {int(r["gid"]): int(r["gid"]) for r in fid["batch"]}
+
+    def _find(x):
+        while par[x] != x:
+            x = par[x]
+        return x
+
+    for a_, b_, *_ in fid["pairs"]:
+        if int(a_) in par and int(b_) in par:
+            par[_find(int(a_))] = _find(int(b_))
+    if len({_find(g) for g in par}) > 1:
+        os.environ["GNN_BATCH_BY_PEER_GROUP"] = "0"
+        out["note"] = "sub-batch of a connected peer group: replayed as one collected batch"
 
     space = json.loads(Path(spec["cell_config"]).read_text())
     infra = prepare_infrastructure_for_real_simulation(space, seed=None, sim_input_path=Path(spec["sim_input"]))
@@ -151,11 +168,24 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
         nid, pid = ast.literal_eval(key) if isinstance(key, str) else key
         return f"{node_name_of[int(nid)]}:{pid}"
 
+    ghost_stages: Dict[str, List[str]] = {}
+    for g in fid["ghosts"]:
+        ghost_stages.setdefault(g["q"], []).append(str(g.get("stage")))
+
     def record(label, lv, cv, platforms, columns=None, biggest=0.0, extra=""):
         if platforms and all(qname(k) in ghost_platforms for k in platforms):
             out.setdefault("explained", []).append(
                 f"{label}: differs on {len(platforms)} ghost-hosting platforms"
                 + (f", columns {sorted(columns)}" if columns else "") + f", max |diff| {biggest:.3e}")
+            # the numbers behind the claim: each differing platform's live and cache value and the stages of the ghosts it hosts
+            detail = []
+            for k in sorted(platforms, key=str):
+                if label == "platform_features":
+                    a_, b_ = [lv[k][c] for c in sorted(columns)], [cv[k][c] for c in sorted(columns)]
+                else:
+                    a_, b_ = lv[k], cv[k]
+                detail.append({"platform": qname(k), "live": a_, "cache": b_, "ghost_stages": ghost_stages.get(qname(k))})
+            out.setdefault("explained_detail", []).append({"label": label, "platforms": detail})
         else:
             mism.append(f"{label}: differ{extra}")
 
@@ -201,7 +231,9 @@ def main() -> int:
     ap.add_argument("--checkpoint", type=Path, required=True)
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--only", default="", help="comma-separated dataset names to run (default: all)")
     a = ap.parse_args()
+    only = {x for x in a.only.split(",") if x}
     if os.environ.get("HEROSIM_SNAPSHOT_FIDELITY") != "1":
         raise SystemExit("FAIL LOUD: export HEROSIM_SNAPSHOT_FIDELITY=1, PARTIAL_STATE_CONTRACT=partial_state_v5 and the R1 environment")
     ids = pickle.load(open(a.cache_dir / "dataset_ids.pkl", "rb"))
@@ -209,6 +241,8 @@ def main() -> int:
     index = {str(i): k for k, i in enumerate(ids)}
     jobs = []
     for d in sorted(a.datasets.glob("ds_*")):
+        if only and d.name not in only:
+            continue
         key = f"{a.datasets.name}/{d.name}"
         if key not in index:
             raise SystemExit(f"{key} is not in the cache {a.cache_dir}")

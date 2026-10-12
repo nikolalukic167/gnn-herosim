@@ -29,6 +29,7 @@ from simpy.core import Environment, SimTime
 from simpy.events import Event, Process
 from simpy.resources.store import Store, FilterStore
 
+from src.placement.decision_timing import log_of
 from src.placement.autoscaler import Autoscaler
 from src.placement.infrastructure import Application, Task
 from src.placement.model import (
@@ -197,6 +198,10 @@ class Orchestrator:
             "averageGNNDecisionTime": avg,
         }
 
+    def _decision_timing(self) -> Dict[str, Any]:
+        """Wall time of the scheduler's decisions (src/placement/decision_timing.py); measurement only."""
+        return log_of(self.scheduler).summary()
+
     def _scheduler_counters(self) -> Dict[str, Any]:
         """Policy-side counters a gate report needs alongside the totals (stage 3: how
         many batches the prefix decoder served, tasks it deferred to the autoscaler,
@@ -206,6 +211,14 @@ class Orchestrator:
             "prefix_batches", "prefix_tasks_decoded", "prefix_tasks_deferred",
             "prefix_pairs_in_batch", "prefix_peers_outside_batch", "prefix_sibling_moves",
             "slate_batches", "slate_rejected", "slate_candidates_full", "slate_candidates_kept",
+            # accel_slate_instr: the declared-pruning slate's books (src/policy/gnn/scheduler.py), measurement only
+            "slate_declared_batches", "slate_declared_pruned", "slate_declared_sub_batched", "slate_declared_groups",
+            "slate_declared_tasks", "slate_declared_sub_batched_tasks", "slate_declared_max_tasks", "slate_declared_max_group",
+            # GNN_SLATE_NO_SPLIT: over-100k batches decoded whole instead of in sub-batches
+            "slate_declared_unsplit",
+            # GNN_SELF_SEARCH (gnn_selfsearch): exact vs ascent batches, plan-changed share, plans scored, search seconds
+            "ss_batches", "ss_tasks", "ss_exact_batches", "ss_ascent_batches", "ss_ascent_sweeps", "ss_scored", "ss_changed_batches",
+            "ss_changed_tasks", "ss_seconds",
             "cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change",
             "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves",
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",
@@ -220,6 +233,16 @@ class Orchestrator:
             "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
             "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
             "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
+            "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
+            "pg_random_seed_batches",
+            # accel pull-hold control: candidate evaluations charged the node's pull hold, and the seconds charged
+            "pg_pull_charged", "pg_pull_seconds",
+            # cd_expand: exact-move alpha-expansion in the CD refine (HEROSIM_PG_CD_EXPANSION=1)
+            "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
+            "pg_expand_gain_seconds", "pg_expand_labels_skipped",
+            # cd_exactS: exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1)
+            "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
+            "pg_exact_gain_seconds",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",
@@ -427,6 +450,7 @@ class Orchestrator:
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
             "schedulerCounters": self._scheduler_counters(),
+            "decisionTiming": self._decision_timing(),
             "num_tasks": n_tasks,
             **inference_agg,
             "statsSchemaVersion": "v2_streaming",
@@ -768,6 +792,7 @@ class Orchestrator:
             "total_rtt": total_rtt,
             "total_rtt_plus_inference": total_rtt_plus_inference,
             "schedulerCounters": self._scheduler_counters(),
+            "decisionTiming": self._decision_timing(),
             "num_tasks": num_tasks,
             "statsSchemaVersion": "v2_task_metrics",
             "taskResultsIncluded": task_results_included,

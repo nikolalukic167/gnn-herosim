@@ -197,6 +197,9 @@ class NearRttConfig:
     # raw_plan_v2: the committed-load channel (gnn_model.TaskPlacementGNN._committed_load)
     plan_raw_sum: bool = os.environ.get("NEAR_RTT_PLAN_RAW_SUM", "0") == "1"
     plan_raw_local: bool = os.environ.get("NEAR_RTT_PLAN_RAW_LOCAL", "0") == "1"
+    # r1_attribution_v1: which architecture is fitted. "gnn" is every arm before it (message passing on or off);
+    # "mlp_same" and "set_transformer" are the graph-free arms in src/policy/gnn/arm_models.py.
+    arm_kind: str = os.environ.get("NEAR_RTT_ARM", "").strip() or "gnn"
     dag_alpha_key: str = os.environ.get("NEAR_RTT_DAG_ALPHA_KEY", "2.0")
     # 0 = use every tied-optimal plan. Any other value CHANGES THE LOSS DEFINITION, so
     # it is recorded in the sidecar and applied deterministically (first N in cache
@@ -276,7 +279,8 @@ if NEAR_CFG.full_context_ce_weight < 0.0 or (NEAR_CFG.full_context_ce_weight > 0
         f"NEAR_RTT_FULL_CONTEXT_CE_WEIGHT={NEAR_CFG.full_context_ce_weight} needs the teacher-forced "
         "prefix objective (NEAR_RTT_PARTIAL_STATE_EDGES=1) and a non-negative weight"
     )
-if TEACHER_FORCED and not (NEAR_CFG.mp_dag_edges or NEAR_CFG.mp_peer_edges):
+# The graph-free arms (r1_attribution_v1) are pointwise/set scorers by design and say so in arm_kind and the sidecar.
+if TEACHER_FORCED and NEAR_CFG.arm_kind == "gnn" and not (NEAR_CFG.mp_dag_edges or NEAR_CFG.mp_peer_edges):
     raise ValueError(
         "NEAR_RTT_PARTIAL_STATE_EDGES=1 without NEAR_RTT_MP_DAG_EDGES=1 is arm A3 "
         "(pointwise scoring under a masked decoder) wearing A1's name — the model would "
@@ -333,7 +337,9 @@ if _metadata_path.exists():
     _cache_candidate_slate = _cache_meta.get("candidate_slate")
     from src.placement.cache_physics import require_matching_physics_env
     from src.placement.four_type_features import four_type_enabled
-    require_matching_physics_env(_cache_physics_env, what=f"cache {CACHE_CTX.cache_dir}", require=four_type_enabled())
+    # the trainer is rule-agnostic: it records the cache's replica_placement_rule in the sidecar (serving enforces it)
+    require_matching_physics_env(_cache_physics_env, what=f"cache {CACHE_CTX.cache_dir}", require=four_type_enabled(),
+                                 skip=("replica_placement_rule",))
     # Caches older than CACHE_VERSION 5.7 predate the field and are legacy_v0 by construction.
     _queue_feature_contract = validate_queue_feature_contract(
         _cache_meta.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
@@ -2040,34 +2046,76 @@ def _flush_guard_metrics() -> None:
                 flush=True,
             )
 
-model = TaskPlacementGNN(
-    task_feature_dim=_task_feature_dim,
-    platform_feature_dim=_platform_feature_dim,
-    embedding_dim=EMBEDDING_DIM,
-    hidden_dim=HIDDEN_DIM,
-    num_layers=NUM_GIN_LAYERS,
-    dropout=NEAR_CFG.dropout,
-    post_gin_dropout=NEAR_CFG.dropout,
-    normalize_platform_inputs=_feature_dim == 21,
-    mp_residual=NEAR_CFG.mp_residual,
-    mp_node_edges=NEAR_CFG.mp_node_edges,
-    mp_node_edges_candidates_only=NEAR_CFG.mp_node_edges_candidates_only,
-    mp_network_entities=NEAR_CFG.mp_network_entities,
-    # _task_feature_dim stays the cache-derived width; the model adds the one-hot
-    # itself, so the printed provenance above stays honest about the cache.
-    mp_dag_edges=NEAR_CFG.mp_dag_edges,
-    mp_peer_edges=NEAR_CFG.mp_peer_edges,
-    mp_platform_edges=NEAR_CFG.mp_platform_edges,
-    mp_bipartite_edge_conv=NEAR_CFG.mp_bipartite_edge_conv,
-    mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
-    mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
-    mp_bipartite_hetero=NEAR_CFG.mp_bipartite_hetero,
-    task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
-    partial_state_edge_dim=(_prefix_block_dim() if NEAR_CFG.partial_state_edges else 0),
-    plan_raw=NEAR_CFG.plan_raw,
-    plan_raw_sum=NEAR_CFG.plan_raw_sum,
-    plan_raw_local=NEAR_CFG.plan_raw_local,
-).to(DEVICE)
+from src.policy.gnn.arm_models import (  # noqa: E402
+    ARM_KINDS, GRAPH_FREE_ARMS, SET_HEADS_ENV, SET_INDUCING_ENV, DEFAULT_SET_HEADS, DEFAULT_SET_INDUCING,
+    _env_int as _arm_env_int, build_graph_free_arm,
+)
+
+if NEAR_CFG.arm_kind not in ARM_KINDS:
+    raise SystemExit(f"FAIL LOUD: NEAR_RTT_ARM={NEAR_CFG.arm_kind!r}; expected one of {ARM_KINDS}")
+_SET_HEADS = _arm_env_int(SET_HEADS_ENV, DEFAULT_SET_HEADS)
+_SET_INDUCING = _arm_env_int(SET_INDUCING_ENV, DEFAULT_SET_INDUCING)
+if NEAR_CFG.arm_kind in GRAPH_FREE_ARMS:
+    _graph_ops_on = [
+        name for name, on in (
+            ("NEAR_RTT_MP_RESIDUAL", NEAR_CFG.mp_residual), ("NEAR_RTT_MP_NODE_EDGES", NEAR_CFG.mp_node_edges),
+            ("NEAR_RTT_MP_NETWORK_ENTITIES", NEAR_CFG.mp_network_entities), ("NEAR_RTT_MP_DAG_EDGES", NEAR_CFG.mp_dag_edges),
+            ("NEAR_RTT_MP_PEER_EDGES", NEAR_CFG.mp_peer_edges), ("NEAR_RTT_MP_BIPARTITE_EDGE_CONV", NEAR_CFG.mp_bipartite_edge_conv),
+            ("NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO", NEAR_CFG.mp_bipartite_edge_attr_zero),
+            ("NEAR_RTT_MP_BIPARTITE_HETERO", NEAR_CFG.mp_bipartite_hetero), ("NEAR_RTT_PLAN_RAW", NEAR_CFG.plan_raw),
+            ("NEAR_RTT_PLAN_RAW_SUM", NEAR_CFG.plan_raw_sum), ("NEAR_RTT_PLAN_RAW_LOCAL", NEAR_CFG.plan_raw_local),
+            ("GNN_DISABLE_MESSAGE_PASSING", os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower() in ("1", "true", "yes")),
+            ("NEAR_RTT_MP_PLATFORM_EDGES=0", not NEAR_CFG.mp_platform_edges),
+        ) if on
+    ]
+    if _graph_ops_on:
+        raise SystemExit(f"FAIL LOUD: NEAR_RTT_ARM={NEAR_CFG.arm_kind} has no graph, but the config sets {_graph_ops_on}")
+    if not (NEAR_CFG.partial_state_edges and NEAR_CFG.task_type_onehot):
+        raise SystemExit("FAIL LOUD: the graph-free arms take GNN-eng's inputs, which need NEAR_RTT_PARTIAL_STATE_EDGES=1 and "
+                         "NEAR_RTT_TASK_TYPE_ONEHOT=1")
+    model = build_graph_free_arm(
+        NEAR_CFG.arm_kind,
+        task_feature_dim=_task_feature_dim,
+        platform_feature_dim=_platform_feature_dim,
+        embedding_dim=EMBEDDING_DIM,
+        hidden_dim=HIDDEN_DIM,
+        num_layers=NUM_GIN_LAYERS,
+        dropout=NEAR_CFG.dropout,
+        normalize_platform_inputs=_feature_dim == 21,
+        task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM,
+        partial_state_edge_dim=_prefix_block_dim(),
+        heads=_SET_HEADS,
+        inducing=_SET_INDUCING,
+    ).to(DEVICE)
+else:
+    model = TaskPlacementGNN(
+        task_feature_dim=_task_feature_dim,
+        platform_feature_dim=_platform_feature_dim,
+        embedding_dim=EMBEDDING_DIM,
+        hidden_dim=HIDDEN_DIM,
+        num_layers=NUM_GIN_LAYERS,
+        dropout=NEAR_CFG.dropout,
+        post_gin_dropout=NEAR_CFG.dropout,
+        normalize_platform_inputs=_feature_dim == 21,
+        mp_residual=NEAR_CFG.mp_residual,
+        mp_node_edges=NEAR_CFG.mp_node_edges,
+        mp_node_edges_candidates_only=NEAR_CFG.mp_node_edges_candidates_only,
+        mp_network_entities=NEAR_CFG.mp_network_entities,
+        # _task_feature_dim stays the cache-derived width; the model adds the one-hot
+        # itself, so the printed provenance above stays honest about the cache.
+        mp_dag_edges=NEAR_CFG.mp_dag_edges,
+        mp_peer_edges=NEAR_CFG.mp_peer_edges,
+        mp_platform_edges=NEAR_CFG.mp_platform_edges,
+        mp_bipartite_edge_conv=NEAR_CFG.mp_bipartite_edge_conv,
+        mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
+        mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
+        mp_bipartite_hetero=NEAR_CFG.mp_bipartite_hetero,
+        task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
+        partial_state_edge_dim=(_prefix_block_dim() if NEAR_CFG.partial_state_edges else 0),
+        plan_raw=NEAR_CFG.plan_raw,
+        plan_raw_sum=NEAR_CFG.plan_raw_sum,
+        plan_raw_local=NEAR_CFG.plan_raw_local,
+    ).to(DEVICE)
 if NEAR_CFG.plan_raw and not NEAR_CFG.partial_state_edges:
     raise ValueError("FAIL LOUD: NEAR_RTT_PLAN_RAW=1 rides the prefix path; set NEAR_RTT_PARTIAL_STATE_EDGES=1")
 print(
@@ -2232,6 +2280,15 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "plan_raw": NEAR_CFG.plan_raw,
                 "plan_raw_sum": NEAR_CFG.plan_raw_sum,
                 "plan_raw_local": NEAR_CFG.plan_raw_local,
+                # r1_attribution_v1: which architecture. The graph-free arms are told apart by their parameter
+                # names too; serving refuses a sidecar and weights that disagree (arm_models.require_arm_matches_weights).
+                # The widths below are what a serving loader cannot recover from mlp_same's single input layer.
+                "arm_kind": NEAR_CFG.arm_kind,
+                "task_feature_dim": _task_feature_dim,
+                "platform_feature_dim": _platform_feature_dim,
+                "edge_dim": 5,
+                "set_heads": _SET_HEADS if NEAR_CFG.arm_kind == "set_transformer" else None,
+                "set_inducing": _SET_INDUCING if NEAR_CFG.arm_kind == "set_transformer" else None,
                 # Which capacity rung the labels AND the capacity columns came from —
                 # they move together, so this names both.
                 "dag_alpha_key": NEAR_CFG.dag_alpha_key if TEACHER_FORCED else None,
@@ -2523,12 +2580,16 @@ def _final_eval(loader, ids, tag):
 
 train_final = _final_eval(train_loader, train_ids, "final/train")
 val_final = _final_eval(val_loader, val_ids, "final/val")
-test_final = _final_eval(test_loader, test_ids, "final/test")
+# r1_attribution_v1: the arm and its configuration are chosen on validation topologies only, before any test read, so the held-out
+# topologies are not scored (nor logged to W&B) by a run that sets NEAR_RTT_SKIP_FINAL_TEST=1.
+SKIP_FINAL_TEST = os.environ.get("NEAR_RTT_SKIP_FINAL_TEST", "0").strip() == "1"
+test_final = None if SKIP_FINAL_TEST else _final_eval(test_loader, test_ids, "final/test")
 
 final_log: Dict[str, float] = {}
 final_log.update(prefix(train_final, "final/train"))
 final_log.update(prefix(val_final, "final/val"))
-final_log.update(prefix(test_final, "final/test"))
+if test_final is not None:
+    final_log.update(prefix(test_final, "final/test"))
 _wandb_log(final_log)
 
 wandb.summary["peak_val_acc"] = float(peak_val_acc)
@@ -2561,9 +2622,16 @@ else:
     wandb.summary["best_val_regret_topk"] = float(best_val_regret)
     wandb.summary["checkpoint_metric"] = "regret_topk"
 wandb.summary["best_val_regret_greedy"] = float(best_val_metrics.get("regret_greedy", 0.0))
-wandb.summary["final_test_regret_topk"] = float(test_final["regret_topk"])
-wandb.summary["final_test_regret_greedy"] = float(test_final["regret_greedy"])
-wandb.summary["final_test_oracle_topk"] = float(test_final["regret_oracle_topk"])
+if test_final is not None:
+    wandb.summary["final_test_regret_topk"] = float(test_final["regret_topk"])
+    wandb.summary["final_test_regret_greedy"] = float(test_final["regret_greedy"])
+    wandb.summary["final_test_oracle_topk"] = float(test_final["regret_oracle_topk"])
+# what the per-arm configuration selection reads (scripts_cosim/r1a_select_checkpoints.py): the validation score of the saved checkpoint
+model_path.with_suffix(".val.json").write_text(json.dumps({
+    "run_name": str(wandb.run.name), "checkpoint_metric": str(checkpoint_metric_name), "best_val": float(best_val_regret),
+    "best_val_regret_greedy": float(best_val_metrics.get("regret_greedy", 0.0)), "train_seed": _TRAIN_SEED,
+    "epochs_requested": int(EPOCHS), "test_evaluated": test_final is not None,
+}, indent=1) + "\n")
 
 _flush_guard_metrics()
 
@@ -2581,7 +2649,10 @@ if CE_ONLY_TRAINING and not TEACHER_FORCED:
     print(f"Best val acc: {best_val_acc * 100:.1f}%")
 else:
     print(f"Best val {checkpoint_metric_name}: {best_val_regret:.4f}s")
-print(
+if test_final is None:
+    print("Final test: skipped (NEAR_RTT_SKIP_FINAL_TEST=1)")
+else:
+  print(
     f"Final test: greedy={test_final['regret_greedy']:.4f}s, "
     f"top{NEAR_CFG.top_k_decode}={test_final['regret_topk']:.4f}s, "
     f"oracle_top{NEAR_CFG.top_k_decode}={test_final['regret_oracle_topk']:.4f}s"
