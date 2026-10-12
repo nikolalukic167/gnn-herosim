@@ -1,9 +1,9 @@
 # plan_rerank_v1 — can a learned plan-level scorer beat `cd_exactS` in the accel seat, and is there anything left to learn?
 
-**Status:** `REGISTERED` (2026-10-11), pending the coordinator's signature. Owner S4. Drafted from the coordinator's brief and its
+**Status:** `CLOSED` `SUPERVISED-CEILING-AT-BAR` (2026-10-12; Phase 0 read, bar missed at moderate). Owner S4. Drafted from the coordinator's brief and its
 amendment after SCIENTIST's review. Nothing trains before the Phase 0 read.
 
-**Now.** Node only. Phase 0 reader and harness are not yet committed; no live data.
+**Now.** Phase 0 read once on 12 oracle cells (2026-10-12): NO-GO. Phase 1 and the gate are not run. See the Record.
 
 ## Why
 
@@ -95,6 +95,20 @@ The model is SCIENTIST's version, not the top-10 reranker.
 - **Queue:** ≤ 44 in total; this lineage gets at most 8 jobs.
 
 ## Record
+
+- 2026-10-12 — **Phase 0 read (once, all 12 oracle g0 cells in, 0 failed; reader plan_oracle_read.py at b05e99f5, output `gate_c7ceec53/read.json`). NO-GO: `SUPERVISED-CEILING-AT-BAR`.**
+  - **O vs cd_exactS (g0, paired, negative = O faster):** moderate **−0.92 %**, 5/6 faster, p = 0.219; heavy **−4.17 %**, 6/6, p = 0.031.
+    The bar needs ≤ −4 % at both rungs, so moderate misses and GO is False. Per topology, moderate: −0.1 / −1.3 / −3.4 / +1.3 / −3.5 / −0.6; heavy: −5.1 / −1.4 / −1.1 / −4.4 / −5.7 / −3.9.
+  - **Prediction (1–3 % faster, short of 4 %):** held at moderate, missed at heavy (−4.17 % clears the bar on its own; the lineage still closes because the bar is both rungs).
+  - **O vs CD:** −9.98 % moderate, −9.60 % heavy (6/6 each); cd_exactS vs CD −9.01 / −6.04 %.
+  - **Coverage:** oracle served 77 % (moderate) / 75 % (heavy) of batches but 61 % / 56 % of tasks; over-cap fallback 18 % / 23 % of batches (36 % / 43 % of tasks); unplaced-partner pass-through 4.5 % / 2.0 %. Books close. So O is a partial oracle: about 40–44 % of tasks ran cd_exactS unchanged, and the bars are on the arm as run.
+  - **Cost:** ~80 / 105 plans per served batch, 0.82 / 0.72 s wall per served batch, 18 % of served batches changed, 0.51 / 0.88 s of single-batch RTT saved per served batch.
+  - **Buckets (pp of E's latency):** O − E moderate: elapsed −0.92 (exchange −0.33, lock_wait −0.55, cold −0.15); heavy: elapsed −4.17 (lock_wait −2.10, exchange −0.62, cold +0.04). Oracle plans stack slightly more (share of tasks sharing a platform 0.45 vs 0.38 moderate, 0.40 vs 0.36 heavy).
+  - **Descriptive arms (g0 vs cd_exactS):** a0 −4.76 % (6/6) moderate, −2.40 % (4/6) heavy; ib0 −4.60 % (6/6) moderate, −3.18 % (6/6) heavy. g0+g1: a0 −4.00 / −0.85 %, ib0 −3.72 / −2.34 %. Both hand variants are as fast as O at moderate and ib0 is 0.8 % behind it at heavy (ib0 vs O: −2.94 / −0.84 %, not significant); a0 loses to O at heavy (+1.83 %).
+    Per the reading written before data: batch-label stacking is the right direction live (a0 wins at moderate), but a0 gives back queue at heavy (lock_wait +5.2 pp, exchange −7.9 pp), so the herding worry shows at heavy only; ib0, which keeps the backlog, is the safer version.
+  - **Consequence:** no batch-label learner can reach the −4 % bar at both rungs against cd_exactS in this seat, since a label optimum served as far as it is enumerable moves moderate by 0.9 %. A cheap hand change of S (ib0, one scale factor, no replay) matches or beats the oracle. Phase 1 and its live gate are not run; the offline screen is not run. Hand-S, ib0 / a0, is the lead for any follow-up and would need its own registered live gate (not a rerank).
+  - First-quarter share of the gap: not read, raw per-run files were node-local and not kept.
+  - Disclosed: heavy cells 19301–19305 ran at 60 replay workers and moderate cells at 28–30; worker count changes no decision. Oracle g1 cells were not run.
 
 - 2026-10-12 — **Amendment before any oracle read: every oracle heavy cell runs with >= 60 replay workers (coordinator ruling, launch-resource fault).** The g0
   relaunch (860732-860736) gave shards 1-5 28 replay workers per cell (two cells per 60-CPU node), about half the throughput the design was costed on;
