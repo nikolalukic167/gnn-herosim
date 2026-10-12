@@ -146,3 +146,11 @@ A degraded arm with a better predictor could therefore beat A0 legitimately. Eve
 - Flag-off identity: a test per flag that the scheduler's scores are unchanged with the flag off; the live gate adds a 2-cell identity check at the pinned head.
 
 ## Record
+
+- 2026-10-12 — **Stage 1 read (119 of 120 cells; array 864053, pin 8392fbd2, reader 2d4e15c4, output `sparse_obs/read_s1.json`).** 19442 heavy `cd_obs_bundle_ec` still running (progress file live) at the read; 0 failed.
+  Identity (smoke 19405 g0, `cd_exactS_ib0` at 8392fbd2 vs d192081f): total_rtt, endTime, averageElapsedTime and every shared counter equal at both rungs. Instruments OK (no exact queue walk in a queue-degraded arm, in-flight book 0, A0 books 0).
+  - **Drain channel (queue count × service): VoI +0.73 % moderate / +0.34 % heavy** (NAIVE vs A0; Holm .41 both); R: −0.74 % / +1.49 % (heavy p .043, Holm .085); EC vs NAIVE −0.72 % / +0.42 %. Both far under the 10 % bar: STAGE1_PASS False. The exact queue walk is worth about nothing over a count at this seat; no residual for a learned scorer on drain.
+  - **Exec channel:** not run (stage 2). **Warmth:** flag not written (stage 2).
+  - **Bundle (mixed read, not a pass/kill input): VoI +113.2 % moderate / +169.6 % heavy** (0/12, Holm .002), R +124.3 % / +181.7 % (n=11 heavy), EC vs NAIVE +6.7 % / +2.4 %. The bundle hides the batch plan the exact search prices in-batch partners from; this is the measured price of removing the batch plan (how much of the margin is in-batch co-location). It also contains the queue count and exec noise (exec noise was not isolated in stage 1).
+  - **Partner row: NOT-TESTABLE-IN-SEAT.** Cross-batch pairs are 0.1–0.4 % of pairs, so hiding unarrived partners removes nothing from either degraded arm; the EC two-step estimate has no inputs.
+  - Prediction: bundle VoI ≥ 10 % at heavy (~40 %) held; R ≥ 5 % (~20 %) held formally on a vacuous EC. Decision time not scored.
