@@ -71,6 +71,13 @@ ranks the same width by CD's own cost.
 - **Cost, estimated.** New cells: 384, each about the `cd_exactS` cell of the parent (median 2.9–3.2 ks, max 4.3 ks). About 1.2 Mcore-s, so
   about **2 h on 24 shards** (`PAR=8`, `LIMIT=30000`). Inputs: none (reused). Identity cells: 2, about 1 h before the array.
 - **Queue:** at most 44 jobs counting any other session's, so at most 24 of mine (one 24-shard array) plus the 2 identity cells.
+- **Launch record (2026-10-12), disclosed before the read.** Wave 1 (array 863644, pin 168db8ca, 384 cells): the 192 K (`cd_exactS_top5cd`) cells
+  finished; **all 192 S (`cd_exactS_slate`) cells failed the harness check `slate_batches == 0`**. Cause: the corpus-slate check was
+  `kind.endswith("_slate")`, which captured the new arm name (the same suffix also set `GNN_SERVE_CORPUS_SLATE=1` on S cells, ignored by a CD policy).
+  The raw results are deleted on a failed check, nothing was read, the failure files are kept in `slate_bar/gate_failed_wave1`. Fix 3eb4b37c
+  (both uses exempt `SLATE_EXACT`, with a test). Ruled a relaunch, not a rerun, by the coordinator. Wave 2: the 192 S cells at **3eb4b37c**
+  (array 863803, `slate_bar/gate_s`), plus 2 K identity cells at 3eb4b37c (16490 g0, both rungs; job 863804, `slate_bar/gate_kid`) to be shown byte-identical to
+  the 168db8ca K cells. **Pins: K at 168db8ca, S at 3eb4b37c, reused E, C, G at 79ea002c.**
 - **Owners:** S5 runs the live part; S6 owns the recall audit below. LINEAGES.md and AGENTS.md are the coordinator's.
 
 ## 2026-10-12 — recall audit (S6)
