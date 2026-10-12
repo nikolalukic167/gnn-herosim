@@ -1,0 +1,7 @@
+seed 1234: fair 62 | decima mean 54 (min 53 max 54; runs 53 54 54) | cap5 144 (+168.3%) | cap10 81 (+50.7%) | cap25 69 (+29.0%) | cap50 92 (+70.7%) | wall 225s
+seed 1234 EXIT 0
+seed 1: fair 43 | decima mean 39 (min 39 max 40; runs 39 39 40) | cap5 107 (+171.8%) | cap10 62 (+56.4%) | cap25 48 (+22.2%) | cap50 59 (+49.9%) | wall 222s
+seed 1 EXIT 0
+seed 1234 SJF2: cap10 81 | cap25 69 | cap50 92 | wall 23s
+seed 1 SJF2: cap10 62 | cap25 48 | cap50 59 | wall 21s
+DONE
