@@ -384,10 +384,12 @@ class _PeerGreedyCore:
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} needs {PG_CD_EXACT_ENV}=1")
         # ib0_confirm_v1: also the expansion refines on the surrogate -- plain CD (cd_expand flow) and the GNN-seeded refiner (cdxapply) -- never with the
         # exact search under the refiner, the GNN-scored exact search or the prune
-        alpha_ok = (self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune) or (
+        # decision_cost_s0_v1: the cost-ordered prune (not the GNN-ranked one, which needs the refiner) is defined on the surrogate too: its slate cut is the standalone
+        # cost order (never alpha-scaled) and every plan it enumerates is scored by `_pg_plan_cost`, which applies the alphas
+        alpha_ok = (self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and self.pg_cd_exact_prune in ("", "cost")) or (
             self._policy_label == "gnn_cd_refine" and not self.pg_cd_exact and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune)
         if self.pg_alpha_on and not alpha_ok:
-            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd (not with the GNN-scored exact search or the prune) "
+            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd (not with the GNN-scored exact search or the GNN-ranked prune) "
                                f"and for gnn_cd_refine without the exact search; {self._policy_label}")
         if self.pg_oracle and (not self.pg_cd_exact or self._policy_label != "peer_greedy_network_cd" or self.pg_cd_exact_gnn or self.pg_cd_exact_prune):
             raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_ENV}=1 is defined for peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1 alone; {self._policy_label}")
