@@ -25,15 +25,16 @@ def _isolate_contract_env(monkeypatch):
 
 
 def test_current_physics_env_follows_the_environment(monkeypatch):
-    for k in ("HEROSIM_TRANSFER_MODEL", "HEROSIM_REPLICA_RELEASE", "HEROSIM_SCALEOUT", "HEROSIM_INFLIGHT_CAPTURE"):
+    for k in ("HEROSIM_TRANSFER_MODEL", "HEROSIM_REPLICA_RELEASE", "HEROSIM_SCALEOUT", "HEROSIM_INFLIGHT_CAPTURE", "HEROSIM_WARMTH_PHYSICS"):
         monkeypatch.delenv(k, raising=False)
     assert current_physics_env() == {"transfer_model": "store_forward", "replica_release": "0", "scaleout": "legacy",
-                                     "inflight_capture": "legacy", "replica_placement_rule": "first_compatible"}
+                                     "inflight_capture": "legacy", "replica_placement_rule": "first_compatible",
+                                     "warmth_physics": "platform_reuse_v1"}
     monkeypatch.setenv("HEROSIM_TRANSFER_MODEL", "pipelined")
     monkeypatch.setenv("HEROSIM_REPLICA_RELEASE", "1")
     monkeypatch.setenv("HEROSIM_SCALEOUT", "kpa")
     assert current_physics_env() == {"transfer_model": "pipelined", "replica_release": "1", "scaleout": "kpa", "inflight_capture": "legacy",
-                                     "replica_placement_rule": "first_compatible"}
+                                     "replica_placement_rule": "first_compatible", "warmth_physics": "platform_reuse_v1"}
 
 
 def test_mismatch_is_refused_and_names_every_difference(monkeypatch):
@@ -266,3 +267,33 @@ def test_prefix_loader_refuses_the_rule_mismatch_both_ways(tmp_path, monkeypatch
             load_prefix_conditioned_gnn(legacy)         # a first_compatible record under a simulator on fastest_compatible
     finally:
         replica_rule.set_rule(None)
+
+
+def test_warmth_physics_is_recorded_and_checked_only_when_recorded(monkeypatch):
+    """audit M3: a record carrying warmth_physics is enforced; one without it (every pre-M3 cache and checkpoint) is not."""
+    _r1(monkeypatch)
+    monkeypatch.setenv("HEROSIM_WARMTH_PHYSICS", "node_disk_v2")
+    now = current_physics_env()
+    assert now["warmth_physics"] == "node_disk_v2"
+    require_matching_physics_env(now, what="same")
+    require_matching_physics_env({k: v for k, v in now.items() if k != "warmth_physics"}, what="pre-M3 record")
+    with pytest.raises(ValueError, match="warmth_physics"):
+        require_matching_physics_env({**now, "warmth_physics": "platform_reuse_v1"}, what="other warmth")
+    assert current_physics_env({"warmth_physics": "platform_reuse_v1"})["warmth_physics"] == "platform_reuse_v1"  # the cell config wins
+
+
+def test_cache_records_the_datasets_warmth_not_the_build_shell(monkeypatch, tmp_path):
+    from src.notebooks import prepare_graphs_cache as pgc
+
+    _r1(monkeypatch)
+    monkeypatch.setenv("HEROSIM_WARMTH_PHYSICS", "platform_reuse_v1")
+    ds = {"a": {"warmth_physics": "node_disk_v2"}, "b": {"warmth_physics": "node_disk_v2"}}
+    assert pgc._cache_physics_env(ds)["warmth_physics"] == "node_disk_v2"
+    assert "warmth_physics" not in pgc._cache_physics_env({**ds, "c": {"warmth_physics": None}})  # unknown: no record
+    with pytest.raises(RuntimeError, match="different warmth physics"):
+        pgc._cache_physics_env({**ds, "c": {"warmth_physics": "platform_reuse_v1"}})
+    d = tmp_path / "ds"
+    d.mkdir()
+    assert pgc._warmth_physics_of_dataset(d) is None
+    (d / "generation_provenance.json").write_text(json.dumps({"warmth_physics": "node_disk_v2"}))
+    assert pgc._warmth_physics_of_dataset(d) == "node_disk_v2"
