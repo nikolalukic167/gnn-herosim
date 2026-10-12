@@ -834,7 +834,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         ids = {int(t.id) for t in batch_tasks}
         peers = getattr(self._orchestrator(), "peer_exchange", None) or {}
         pairs = [(int(t.id), int(j)) for t in batch_tasks for j in (peers.get(int(t.id)) or {}) if int(j) in ids]
-        sl = declared_slate.slate(payloads, pairs)
+        sl = declared_slate.slate(payloads, pairs, declared_slate.serving_slate())
         self.slate_declared_batches = getattr(self, "slate_declared_batches", 0) + 1
         self.slate_declared_pruned = getattr(self, "slate_declared_pruned", 0) + int(sl.pruned)
         self.slate_declared_sub_batched = getattr(self, "slate_declared_sub_batched", 0) + int(sl.sub_batched)
