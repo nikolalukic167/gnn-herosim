@@ -292,56 +292,70 @@ def _capture_pulls(scheduler: Any, platforms: Dict[str, Any], now: float) -> Lis
     call in the queue) paying only the wait. Returns one record per call: its own hold time and its rank. Sets
     `pull_remaining` on a platform not yet initialised to when its first call finishes (that call initialises it;
     a duplicate call's `succeed()` is swallowed by the live code)."""
-    from src.placement.warmth import PLATFORM_REUSE_V1, needs_image_pull
-
-    physics = getattr(scheduler.env, "warmth_physics", PLATFORM_REUSE_V1)
     out: List[Dict[str, Any]] = []
     for node in scheduler.nodes.items:
-        calls = [c for c in node.__dict__.get("_fid_pull_calls", []) if not c["done"]]
-        if not calls:
+        walk = _node_pull_walk(scheduler, node, now)
+        if not walk:
             continue
-        locals_ = [s for s in node._fid_storages if not s.type.get("remote")]
-        if len(locals_) != 1:
-            raise RuntimeError(f"fidelity capture: {node.node_name} has {len(locals_)} local storages; the pull "
-                               "queue is modelled for exactly one")
-        storage = locals_[0]
-        holders = sorted((c for c in calls if c["end"] is not None), key=lambda c: (c["end"], c["init_start"]))
-        waiters = sorted((c for c in calls if c["end"] is None),
-                         key=lambda c: (c["init_start"], c["platform"].id))
-        cached = {(short, tt["name"]) for short, tt in storage.functions_cache}
-        cursor = now
-        rank = 0
         finish: Dict[int, float] = {}
-
-        def emit(call: Dict[str, Any], own: float, estimated: bool) -> None:
-            nonlocal rank
+        for rank, (call, own, estimated, cursor) in enumerate(walk):
             p = call["platform"]
             out.append({"q": f"{node.node_name}:{p.id}", "own": own, "rank": rank, "estimated": estimated,
                         "node": node.node_name, "short": p.type["shortName"], "fn": call["fn"]})
-            rank += 1
             if not p.initialized.triggered:
                 done_at = cursor - now
                 finish[p.id] = min(finish.get(p.id, math.inf), done_at)
-
-        for c in holders:
-            own = max(0.0, float(c["end"]) - now)
-            cursor = max(cursor, float(c["end"]))
-            emit(c, own, False)
-        for c in waiters:
-            p, fn = c["platform"], c["fn"]
-            short = p.type["shortName"]
-            task_type = scheduler.data.task_types[fn]
-            own = 0.0
-            if (short, fn) not in cached and needs_image_pull(physics, p, node, task_type):
-                size = task_type["imageSize"][short]
-                speed = min(storage.type["throughput"]["write"], node.network["bandwidth"])
-                own = float(size / (speed / 1024) + storage.type["latency"]["write"])
-                cached.add((short, fn))
-            cursor += own
-            emit(c, own, True)
         for pid, remaining in finish.items():
             platforms[f"{node.node_name}:{pid}"]["pull_remaining"] = max(0.0, remaining)
     return out
+
+
+def _node_pull_walk(scheduler: Any, node: Any, now: float) -> List[Tuple[Dict[str, Any], float, bool, float]]:
+    """The node's unfinished pull calls in the order its local storage serves them: (call, own hold seconds, estimated,
+    the queue cursor once that call is served). The holder's own time is exact; a waiter's is its image size over the
+    storage write / node bandwidth, and 0 when an earlier call in the queue caches the same image."""
+    from src.placement.warmth import PLATFORM_REUSE_V1, needs_image_pull
+
+    calls = [c for c in node.__dict__.get("_fid_pull_calls", []) if not c["done"]]
+    if not calls:
+        return []
+    physics = getattr(scheduler.env, "warmth_physics", PLATFORM_REUSE_V1)
+    locals_ = [s for s in node._fid_storages if not s.type.get("remote")]
+    if len(locals_) != 1:
+        raise RuntimeError(f"fidelity capture: {node.node_name} has {len(locals_)} local storages; the pull "
+                           "queue is modelled for exactly one")
+    storage = locals_[0]
+    holders = sorted((c for c in calls if c["end"] is not None), key=lambda c: (c["end"], c["init_start"]))
+    waiters = sorted((c for c in calls if c["end"] is None),
+                     key=lambda c: (c["init_start"], c["platform"].id))
+    cached = {(short, tt["name"]) for short, tt in storage.functions_cache}
+    cursor = now
+    walk: List[Tuple[Dict[str, Any], float, bool, float]] = []
+    for c in holders:
+        own = max(0.0, float(c["end"]) - now)
+        cursor = max(cursor, float(c["end"]))
+        walk.append((c, own, False, cursor))
+    for c in waiters:
+        p, fn = c["platform"], c["fn"]
+        short = p.type["shortName"]
+        task_type = scheduler.data.task_types[fn]
+        own = 0.0
+        if (short, fn) not in cached and needs_image_pull(physics, p, node, task_type):
+            size = task_type["imageSize"][short]
+            speed = min(storage.type["throughput"]["write"], node.network["bandwidth"])
+            own = float(size / (speed / 1024) + storage.type["latency"]["write"])
+            cached.add((short, fn))
+        cursor += own
+        walk.append((c, own, True, cursor))
+    return walk
+
+
+def node_pull_hold_seconds(scheduler: Any, node: Any, now: float) -> float:
+    """Seconds until `node`'s local storage is free of image pulls: the end of its pull queue (_node_pull_walk), 0 with
+    none. A task on the node waits for it at its output write (Platform output stage: a parentless task writes to local
+    storage). Needs the pull ledger (HEROSIM_PULL_LEDGER=1 or HEROSIM_SNAPSHOT_FIDELITY=1)."""
+    walk = _node_pull_walk(scheduler, node, now)
+    return max(0.0, walk[-1][3] - now) if walk else 0.0
 
 
 # ---------------------------------------------------------------------------------------------------------------

@@ -377,3 +377,58 @@ def test_loader_refuses_an_inflight_capture_mismatch(tmp_path, monkeypatch):
     monkeypatch.setenv("HEROSIM_INFLIGHT_CAPTURE", "service_end_v1")
     with pytest.raises(PrefixServingError, match="inflight_capture"):
         load_prefix_conditioned_gnn(ckpt, device=torch.device("cpu"))
+
+
+FASTEST_CFG = {"preinit": {"replica_placement_rule": "fastest_compatible"}}
+FIRST_CFG = {"preinit": {}}
+
+
+def _rule_checkpoint(tmp_path, checkpoint_rule):
+    """A prefix-conditioned graph-free checkpoint whose sidecar records `checkpoint_rule` (None = a record from before the field)."""
+    from src.placement.cache_physics import current_physics_env
+
+    torch.manual_seed(0)
+    # widths under which load_gnn_model's layout check resolves (an mlp_same sidecar width + the 4 one-hot columns = 3 legacy task columns + 2 four-type columns; platform 14 + 2)
+    arm = build_graph_free_arm(ARM_MLP_SAME, task_feature_dim=1, platform_feature_dim=16, embedding_dim=32, hidden_dim=48, num_layers=2, dropout=0.0,
+                               task_type_onehot_dim=ONEHOT, partial_state_edge_dim=PS_DIM, heads=4, inducing=3).eval()
+    ckpt = _write_checkpoint(tmp_path, ARM_MLP_SAME, arm)
+    side = json.loads(ckpt.with_suffix(".contract.json").read_text())
+    side.update({"task_feature_dim": 1, "platform_feature_dim": 16})
+    env = current_physics_env()
+    if checkpoint_rule is None:
+        env.pop("replica_placement_rule")
+    else:
+        env["replica_placement_rule"] = checkpoint_rule
+    side["physics_env"] = env
+    side.update({"inference_feature_layout": "dim22", "queue_feature_contract": "legacy_v0", "queue_norm_mode": "scheduler_adaptive",
+                 "topology_feature_contract": "src_index_v0"})
+    ckpt.with_suffix(".contract.json").write_text(json.dumps(side))
+    return ckpt
+
+
+@pytest.mark.parametrize("checkpoint_rule,cfg,loads", [
+    ("fastest_compatible", FASTEST_CFG, True),     # an accel checkpoint on an accel cell
+    ("fastest_compatible", FIRST_CFG, False),      # an accel checkpoint on a first_compatible cell
+    ("first_compatible", FASTEST_CFG, False),      # a first_compatible checkpoint on an accel cell
+    ("first_compatible", FIRST_CFG, True),         # the s160 / r1a case
+    (None, FIRST_CFG, True),                       # a checkpoint that predates the field reads as first_compatible
+    (None, FASTEST_CFG, False),
+])
+def test_load_gnn_model_applies_the_rule_of_the_cell_not_the_simulator_default(tmp_path, monkeypatch, checkpoint_rule, cfg, loads):
+    """The checkpoint loads BEFORE the simulator sets the run's rule (replica_rule's global is still the default then), so the rule must come from the cell
+    config the loader is given. Through the real loader path, load_gnn_model."""
+    from src.executesimulation import load_gnn_model
+    from src.placement import replica_rule
+
+    for name in ("GNN_DISABLE_MESSAGE_PASSING", "GNN_ARM_KIND", "HEROSIM_INFLIGHT_CAPTURE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GNN_DECODE_MODE", "masked_topo")
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", "partial_state_v5")
+    replica_rule.set_rule(None)                     # the state the loader sees in a real run: the simulator has not set the rule yet
+    ckpt = _rule_checkpoint(tmp_path, checkpoint_rule)
+    if loads:
+        model, _device = load_gnn_model(ckpt, space_config=cfg)
+        assert model is not None
+    else:
+        with pytest.raises(Exception, match="replica_placement_rule"):
+            load_gnn_model(ckpt, space_config=cfg)
