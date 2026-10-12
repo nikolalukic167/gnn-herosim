@@ -1,6 +1,6 @@
 # sparse_obs_s0_v1 — how much of the hand scheduler's lead comes from information a real scheduler does not have?
 
-**Status:** `DRAFT` (2026-10-12) — Phase 0, hand arms only, live. Not signed; nothing has been launched. Owner S5. Parent question (the user's): *does our
+**Status:** `REGISTERED` (2026-10-12, signed by the coordinator at 827718cf with four rulings, applied below) — Phase 0, hand arms only, live. Owner S5. Parent question (the user's): *does our
 scheduler get information real systems do not, which makes the placement problem pointwise?* Reference arm A0 = `cd_exactS_ib0`
 (`ib0_confirm_v1`, the current hand bar). Parents read: `ib0_confirm_v1`, `decision_cost_s0_v1`.
 
@@ -63,6 +63,25 @@ topologies **19440–19451**. Disjointness: `git grep` of the 194xx–199xx toke
 - Stage 1: A0 + NAIVE/EC for queue and BUNDLE = 5 arms × 12 topologies × 2 rungs × **g0** = **120 cells**; adding g1 doubles it (240).
 - Stage 2: exec, warm, partners = 6 arms × 24 = 144 cells (g0). Walls of the `cd_exactS_ib0` class (about 3 ks median): about 0.4 Mcore-s per 120 cells; one 24-shard array each, about 1 h.
 - Queue: at most 24 of mine. The topologies are new, so their inputs (`wf1_*`) must be minted first (one CPU job, as `ib0_confirm_v1` did).
+
+## Rulings applied (2026-10-12) and how they were implemented
+
+- (a) Stage 1 at g0 only: A0 + NAIVE/EC for queue and BUNDLE = 120 cells. Stage 2 (exec, partners, warmth) after the stage-1 read.
+- (b) Topologies 19440–19451 (`scripts_cosim/sparse_obs_s0_v1_selected.json`), disjointness re-checked at launch.
+- (c) A0 stays the batch exact search. BUNDLE arms search the visible batch exactly with partners known only once placed (`planned_node_name` / `platform`); the batch's own plan is invisible.
+  EC prices a partner with no known node at the node of its bytes-heaviest known partner (the lookahead rule's two-step estimate, `PeerGreedyLookaheadNetworkScheduler._pg_predict_node`). **Deviation:**
+  the event-index self-predict (`PeerGreedySelfPredictNetworkScheduler`) needs the per-arrival orchestrator's event list and is not available inside the batched CD search, so EC uses the two-step estimate. The seat gap (batch search vs per-arrival serving) is reported with the result.
+- (d) BUNDLE degrades row 2 to "running or not": NAIVE charges nothing, EC charges half the running task's type mean service. **Disclosed:** A0 does not read row 2 at all (`HEROSIM_PG_INFLIGHT` is unset for `cd_exactS_ib0`), so for NAIVE this channel is a no-op against A0 and for EC it ADDS a term A0 lacks. `HEROSIM_OBS_INFLIGHT` fails loudly if `HEROSIM_PG_INFLIGHT=1`.
+- Warmth (row 4) stays exact in stage 1 and in the bundle; the `HEROSIM_OBS_WARM` flag is a stage-2 item and is not implemented yet.
+- Exec: one estimator for both arms (table value × the seeded log-normal factor per (task type, platform type)); NAIVE/EC differ only in queue, in-flight and partners.
+
+## Implementation (flags default off, `src/policy/peer_greedy_network/observation.py`)
+
+`HEROSIM_OBS_ESTIMATOR=naive|ec` (required with any channel), `HEROSIM_OBS_QUEUE=count`, `HEROSIM_OBS_EXEC_SIGMA=<s>`, `HEROSIM_OBS_INFLIGHT=running`, `HEROSIM_OBS_PARTNERS=arrival`, `HEROSIM_OBS_SEED` (the cell seed).
+With none set `Observation.from_env()` is None and every score site runs its registered arithmetic (tests/test_sparse_obs.py compares the flag-off terms to the registered functions). Sites: `_pg_choose`, `_pg_plan_cost`, `_pg_standalone`
+(drain, running, exec) and `_pg_peer_nodes` (partners); the exec channel also reaches the exact queue walk (`live_audit.platform_queue_drain_seconds(exec_of=...)`, default None = unchanged).
+Books (`schedulerCounters`): `obs_drain_degraded`, `obs_drain_exact`, `obs_exec_degraded`, `obs_inflight_degraded`, `obs_partner_hidden`, `obs_partner_predicted`. The gate checks that a degraded channel's book is non-zero, that the exact queue walk
+is never used by a queue-degraded arm, and that every other arm's books are zero. Arms: `cd_obs_queue_{naive,ec}`, `cd_obs_bundle_{naive,ec}` (stage 1), `cd_obs_exec`, `cd_obs_partners_{naive,ec}` (stage 2).
 
 ## Rules, written before data
 
