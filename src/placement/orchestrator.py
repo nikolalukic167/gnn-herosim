@@ -219,6 +219,10 @@ class Orchestrator:
             # GNN_SELF_SEARCH (gnn_selfsearch): exact vs ascent batches, plan-changed share, plans scored, search seconds
             "ss_batches", "ss_tasks", "ss_exact_batches", "ss_ascent_batches", "ss_ascent_sweeps", "ss_scored", "ss_changed_batches",
             "ss_changed_tasks", "ss_seconds",
+            # GNN_PLAN_SELECTOR (plan_rerank_v1 Phase 1): the learned selector over the step-0 branches U argmin-S (src/policy/plan_rerank/live.py)
+            "prsel_armed", "prsel_mp_off", "prsel_batches", "prsel_tasks", "prsel_pool_plans", "prsel_branches", "prsel_argmin_s_ties",
+            "prsel_changed_from_decode", "prsel_chose_argmin_s", "prsel_chose_branch_only", "prsel_differs_native",
+            "prsel_argmin_s_differs_native", "prsel_fallback_batches", "prsel_fallback_tasks", "prsel_order_not_id", "prsel_seconds",
             "cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change",
             "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves",
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",

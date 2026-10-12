@@ -482,6 +482,8 @@ def _plan_scores_for_graph(model: nn.Module, data: Data, combos) -> List[Optiona
     ctx.node_caps = data.partial_state_ctx["node_caps_by_alpha"][alpha_key]
     score_fn = make_partial_state_score_fn(model, data, ctx)
     tl = [[tuple(int(v) for v in c) for c in data.task_logit_to_placement[t]] for t in range(int(data.n_tasks))]
+    from src.policy.plan_rerank.pool import plan_score
+
     out: List[Optional[float]] = []
     with torch.no_grad():
         for combo in combos:
@@ -489,11 +491,7 @@ def _plan_scores_for_graph(model: nn.Module, data: Data, combos) -> List[Optiona
             if len(plan) != len(tl) or any(plan[t] not in tl[t] for t in range(len(tl))):
                 out.append(None)
                 continue
-            total = 0.0
-            for t in range(len(tl)):
-                logits = score_fn(t, {j: plan[j] for j in range(len(tl)) if j != t})
-                total += float(logits[tl[t].index(plan[t])])
-            out.append(total)
+            out.append(plan_score(score_fn, tl, plan))
     return out
 
 
@@ -552,24 +550,15 @@ def _decode_variants(model: nn.Module, data: Data, rtt_map) -> Dict[str, Any]:
     def step_logits(t, prefix):
         return [float(v) for v in sf(t, dict(prefix))]
 
-    def greedy_from(prefix, start, acc):
-        prefix = dict(prefix)
-        for t in order[start:]:
-            lg = step_logits(t, prefix)
-            i = min(range(len(lg)), key=lambda j: (-lg[j], tl[t][j]))  # registered tie rule: lowest (node, platform)
-            prefix[t] = tl[t][i]
-            acc += lg[i]
-        return prefix, acc
-
     def finish(prefix, acc):
         combo = tuple(prefix[t] for t in range(n))
         return {"plan": [list(c) for c in combo], "rtt": (float(rtt_map[combo]) if combo in rtt_map else None),
                 "step_logit_sum": acc, "plan_score": None}
 
+    from src.policy.plan_rerank.pool import step0_branches, teacher_forced_sum
+
     out: Dict[str, Any] = {}
-    t0 = order[0]
-    lg0 = step_logits(t0, {})
-    out["branches"] = [finish(*greedy_from({t0: c}, 1, lg0[i])) for i, c in enumerate(tl[t0])]
+    out["branches"] = [finish(dict(enumerate(plan)), acc) for plan, acc in step0_branches(sf, tl, order)]
     for k in (2, 5):
         beams = [({}, 0.0)]
         for t in order:
@@ -590,11 +579,7 @@ def _decode_variants(model: nn.Module, data: Data, rtt_map) -> Dict[str, Any]:
             pl = [tuple(int(v) for v in c) for c in pl]
             if len(pl) != n or any(pl[t] not in tl[t] for t in range(n)):
                 raise RuntimeError(f"FAIL LOUD: extra plan {pl} is outside the candidate slate of {lookup_dataset_id(data)}")
-            acc, prefix = 0.0, {}
-            for t in order:
-                acc += step_logits(t, prefix)[tl[t].index(pl[t])]
-                prefix[t] = pl[t]
-            out["extra"].append(finish(prefix, acc))
+            out["extra"].append(finish(dict(enumerate(pl)), teacher_forced_sum(sf, tl, order, pl)))
     plans = [r for key in out for r in out[key]]
     scores = _plan_scores_for_graph(model, data, [tuple(tuple(c) for c in r["plan"]) for r in plans])
     for r, sc in zip(plans, scores):

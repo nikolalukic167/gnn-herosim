@@ -472,6 +472,12 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             print("[GNN Scheduler] Model set to eval mode", flush=True)
         
         print(f"[GNN Scheduler] After set_models: gnn_model is None = {self.gnn_model is None}", flush=True)
+        from src.policy.plan_rerank.live import LivePlanSelector, selector_path
+
+        if selector_path():
+            if self._decode_mode != PREFIX_DECODE_MODE:
+                raise ValueError("FAIL LOUD: GNN_PLAN_SELECTOR serves on the masked_topo decode's pool")
+            self._plan_selector = LivePlanSelector(self)
 
     def scheduler_process(self) -> Generator:
         if False:
@@ -873,6 +879,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
             for k, i in enumerate(group):
                 placements[i] = sub[k]
+        if getattr(self, "_plan_selector", None) is not None:
+            if len(groups) != 1:
+                raise RuntimeError("FAIL LOUD: GNN_PLAN_SELECTOR needs the batch decoded whole (GNN_SLATE_NO_SPLIT=1)")
+            self._cd_snap = (queue_snapshot, temporal_state)
+            placements = self._plan_selector.choose(batch_tasks, system_state, sl, placements)
         if _self_search_on():
             placements = self._self_search(batch_tasks, system_state, queue_snapshot, temporal_state, sl, placements)
         return placements
@@ -1011,6 +1022,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         return out
 
     def _exact_score_fn(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
+        score_fn, tl, _graph = self._exact_score_fn_graph(batch_tasks, system_state, allowed)
+        return score_fn, tl
+
+    def _exact_score_fn_graph(self, batch_tasks: List[Task], system_state: SystemState, allowed: Dict[int, Any]):
+        """(score_fn, task_logit_to_placement, graph) of `_exact_score_fn`; the graph is the one the score function reads."""
         from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
         from src.policy.gnn.prefix_serving import PrefixServingError, attach_live_prefix_block, build_partial_state_context_from_graph
 
@@ -1030,7 +1046,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if self._prefix_options.alpha_key not in caps:
             raise PrefixServingError(f"alpha_key {self._prefix_options.alpha_key!r} not in node_caps_by_alpha")
         ctx.node_caps = caps[self._prefix_options.alpha_key]
-        return make_partial_state_score_fn(self.gnn_model, graph, ctx), tl
+        return make_partial_state_score_fn(self.gnn_model, graph, ctx), tl, graph
 
     def _self_search(self, batch_tasks: List[Task], system_state: SystemState, queue_snapshot, temporal_state, sl,
                      start_plan: Dict[int, Tuple[int, int]]) -> Dict[int, Tuple[int, int]]:

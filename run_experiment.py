@@ -52,6 +52,11 @@ TRAINERS = {
         "path": REPO_ROOT / "src" / "policy" / "tabular" / "train_mlp_dim22_from_batch.py",
         "wandb": "cli",
     },
+    # plan_rerank_v1 Phase 1: the plan selector over the branch-pool tables
+    "plan_selector": {
+        "path": REPO_ROOT / "src" / "policy" / "plan_rerank" / "train_selector.py",
+        "wandb": "env",
+    },
 }
 
 # Default ceiling on training length for every run (Nikola, 2026-10-01): the long arms
@@ -199,6 +204,9 @@ def resolve(
             # path is models/{wandb.run.name}.pt, so distinct run names are what
             # prevents same-seed draws from overwriting each other's weights.
             env["NEAR_RTT_TRAIN_SEED"] = str(seed)
+        elif cfg["trainer"] == "plan_selector":
+            # seeds torch, the init and the pool order (train_selector.py); the run name (-seed{N}) names the checkpoint
+            env["PRSEL_TRAIN_SEED"] = str(seed)
 
     for flag, value in args.items():
         rendered_flag = f"--{flag}"
