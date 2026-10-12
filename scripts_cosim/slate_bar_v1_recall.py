@@ -135,6 +135,7 @@ def hook(sched, batch_tasks, chosen, system_state, ctx):
 # ---- sample ------------------------------------------------------------------------------------------------------------------------
 
 _FILE_RE = re.compile(r"^cc40s(\d+)_(moderate|heavy)_g(\d)\.jsonl$")
+_TAG_RE = re.compile(r"cc40s(\d+)_(moderate|heavy)_g\d$")
 
 
 def _scan(path):
@@ -158,9 +159,11 @@ def sample(a):
     corpus = Path(a.corpus)
     phys = {}
     for ws in sorted(glob.glob(str(corpus / "gnn_datasets_wf1_train" / "ds_*" / "warm_snapshot.json"))):
-        tag = json.load(open(ws))["provenance"]["source_tag"]  # cc40s<topo>_<rung>_g<w>
-        topo, rung = tag[5:].split("_")[:2]
-        phys.setdefault((topo, rung), str(Path(ws).parent))
+        tag = json.load(open(ws))["provenance"]["source_tag"]  # wf1p_cc40s<topo>_<rung>_g<w>
+        m = _TAG_RE.search(tag)
+        if m is None:
+            raise SystemExit(f"FAIL LOUD: unparsed source_tag {tag!r} in {ws}")
+        phys.setdefault((m.group(1), m.group(2)), str(Path(ws).parent))
     files = []
     for p in sorted((corpus / "snapshots").iterdir()):
         m = _FILE_RE.match(p.name)
