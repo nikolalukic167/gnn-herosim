@@ -237,8 +237,9 @@ def run(a):
     for src in ("accel", "g8"):
         first = [j for j in jobs if j["src"] == src][:a.repeat]
         work += [(j, c, True) for j in first for c in CONTINUATIONS]
-    if a.limit:
-        work = work[:a.limit]
+    if a.limit:  # smoke: evenly spaced over the job list, so every source and rung is touched
+        step = max(1, len(work) // a.limit)
+        work = work[::step][:a.limit]
     print(f"run: {len(work)} replays", flush=True)
     with get_context("spawn").Pool(a.workers, maxtasksperchild=1) as pool, open(a.out, "w") as fh:
         fh.write(json.dumps({"header": lines[0]}) + "\n")
