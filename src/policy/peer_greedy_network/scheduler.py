@@ -42,7 +42,7 @@ from __future__ import annotations
 import json
 import os
 from timeit import default_timer
-from typing import Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
 from src.placement.live_audit import inflight_remaining_seconds, orchestrator_of, platform_queue_drain_seconds
 from src.placement.live_snapshot_seed import _approx_comm
@@ -167,6 +167,7 @@ PG_BATCH_ALPHA_ENV = "HEROSIM_PG_BATCH_ALPHA"
 PG_COLD_TAIL_ENV = "HEROSIM_PG_COLD_TAIL"
 PG_ORACLE_ENV = "HEROSIM_PG_ORACLE"
 PG_ORACLE_MAX_PLANS_ENV = "HEROSIM_PG_ORACLE_MAX_PLANS"
+ORACLE_DIAG_TERMS_ENV = "ORACLE_DIAG_TERMS"  # not a HEROSIM_ name (the datalab sbatch unsets those); logging only, needs ORACLE_DIAG_DIR
 PG_ORACLE_SEARCH_ENV = "HEROSIM_PG_ORACLE_SEARCH"  # ib0_confirm_v1: over-cap batches get a replay-scored local search seeded from the surrogate's plan
 PG_ORACLE_SEARCH_BUDGET_ENV = "HEROSIM_PG_ORACLE_SEARCH_BUDGET"  # replays per batch (default 1500)
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
@@ -1121,6 +1122,64 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             total += score
         return total, service, scores
 
+    def _pg_plan_terms(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch, memo: Dict[str, float], nodes) -> List[List[float]]:
+        """ORACLE_DIAG_TERMS=1 only: `_pg_plan_cost`'s S split per task into [platform drain, in-batch stacking, in-flight, cold, exec, latency, input wait,
+        exchange (x pg_exchange_scale), pull hold, external, S_i], every term as `_pg_plan_cost` charges it (the alpha weights are applied, so the terms add up
+        to S_i of the running configuration; the sum is checked). A read of the same state with the same memo: it changes no book and no decision."""
+        n = len(batch_tasks)
+        planned = {int(batch_tasks[i].id): plan[i][0].node_name for i in range(n)}
+        books = (self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded)
+        peer_nodes_of = []
+        for i in range(n):
+            others = dict(planned)
+            others.pop(int(batch_tasks[i].id), None)
+            peer_nodes_of.append(self._pg_peer_nodes(batch_tasks[i], orch, others) if self.exchange_on else [])
+        self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
+        if self.pg_shared_link:
+            exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
+        else:
+            exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+        in_wait = self._pg_input_link_wait(batch_tasks, plan) if self.pg_input_link else [0.0] * n
+        xf = [self._pg_xf(plan[i][1]) for i in range(n)]
+        exec_s = [float(batch_tasks[i].type["executionTime"].get(plan[i][1].type["shortName"], 0.0) or 0.0) * xf[i] for i in range(n)]
+        comm = [_approx_comm(batch_tasks[i].type) for i in range(n)]
+        service = [exec_s[i] + comm[i] + exch[i] for i in range(n)]
+        committed: Dict[str, float] = {}
+        for i in range(n):
+            key = f"{plan[i][0].node_name}:{plan[i][1].id}"
+            committed[key] = committed.get(key, 0.0) + service[i]
+        _cost, _svc, scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
+        rows = []
+        for i in range(n):
+            node, platform = plan[i]
+            key = f"{node.node_name}:{platform.id}"
+            stack_raw = committed[key] - service[i]
+            plat_drain = platform_queue_drain_seconds(platform, orch, memo, exec_scale=xf[i])
+            infl = inflight_remaining_seconds(platform) if self.pg_inflight else 0.0
+            cold = incoming_cold_start_time(batch_tasks[i], platform)
+            lat = network_latency_between(batch_tasks[i].node_name, node, nodes)
+            ad, ab = (self.pg_drain_alpha, self.pg_batch_alpha) if self.pg_alpha_on else (1.0, 1.0)
+            full = plat_drain + infl + stack_raw
+            hold = 0.0
+            if getattr(self, "pg_pull_hold", False):
+                hold = max(0.0, memo[f"pull_hold:{node.node_name}"] - (full + cold + lat + exch[i] + exec_s[i]))
+            ext = 0.0
+            if self.pg_ext_rate is not None:
+                ext = 0.5 * self._pg_ext_lambda.get(key, 0.0) * ((full + service[i]) ** 2 - full ** 2)
+            row = [ad * plat_drain, ab * stack_raw, ad * infl, cold, exec_s[i], lat, in_wait[i], self.pg_exchange_scale * exch[i], hold, ext]
+            if abs(sum(row) - scores[i]) > 1e-6 * max(1.0, abs(scores[i])):
+                raise RuntimeError(f"FAIL LOUD: the S terms sum to {sum(row)!r}, _pg_plan_cost gives {scores[i]!r} (task {i})")
+            rows.append([round(v, 5) for v in row] + [round(scores[i], 5)])
+        return rows
+
+    def _pg_terms_ctx(self, batch_tasks: List["Task"], plans: Sequence[Sequence[Tuple["Node", "Platform"]]]) -> Dict[str, Any]:
+        """Task types of the batch (batch order) and the platform type / node of every couple the logged plans use."""
+        couples = {}
+        for pl in plans:
+            for c in pl:
+                couples[f"{int(c[0].id)}:{int(c[1].id)}"] = [c[0].node_name, c[1].type["shortName"]]
+        return {"task_types": [t.type["name"] for t in batch_tasks], "task_nodes": [t.node_name for t in batch_tasks], "couples": couples}
+
     def _pg_input_link_wait(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]]) -> List[float]:
         """Seconds each task's input waits on the shared CORE links of its route behind the batch's other inputs (link_bound_s0_v1 L3, see
         PG_INPUT_LINK_ENV). Bandwidths come from the node's fabric, so they follow the configured link bandwidth."""
@@ -1500,12 +1559,32 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                                     "best": list(ident(best)), "best_label": best_label, "pass_label": by_id[ident(plan)],
                                     "wall": default_timer() - t0, "timing": getattr(self._plan_oracle, "last", None), "t_capture": t_capture,
                                     "table": [[list(ident(c)), self._pg_plan_cost(batch_tasks, c, orch, memo, self.nodes.items)[0], lab]
-                                              for c, lab in zip(combos, labels)]})
+                                              for c, lab in zip(combos, labels)]}
+                                   | (self._pg_terms_rec(batch_tasks, orch, memo, combos, labels, [s_plan, best, plan]) if os.environ.get(ORACLE_DIAG_TERMS_ENV) == "1" else {}))
         if ident(best) == ident(plan):
             return 0
         self.pg_exact_tasks_moved += moved
         self._pg_write_books(batch_tasks, best, orch, memo, committed_service, planned, placements, service_of)
         return moved
+
+    def _pg_terms_rec(self, batch_tasks, orch, memo, combos, labels, extra) -> Dict[str, Any]:
+        """The fields ORACLE_DIAG_TERMS=1 adds to a diag record: S terms for the hand plan, the oracle plan, the pass plan (apply and search records) and, on
+        within-cap batches, the 4 best plans by S and by label of the table, keyed by their identity."""
+        ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
+        chosen, seen = [], set()
+        pool = list(extra)
+        if combos:
+            by_s = sorted(range(len(combos)), key=lambda i: (self._pg_plan_cost(batch_tasks, combos[i], orch, memo, self.nodes.items)[0], i))[:4]
+            by_l = sorted(range(len(combos)), key=lambda i: (labels[i], i))[:4]
+            pool += [combos[i] for i in by_s + by_l]
+        for pl in pool:
+            k = ident(pl)
+            if k not in seen:
+                seen.add(k)
+                chosen.append(pl)
+        return {"terms_cols": ["drain", "stack", "inflight", "cold", "exec", "lat", "in_wait", "exch", "hold", "ext", "S"],
+                "terms": [[list(ident(pl)), self._pg_plan_terms(batch_tasks, pl, orch, memo, self.nodes.items)] for pl in chosen],
+                "ctx": self._pg_terms_ctx(batch_tasks, chosen)}
 
     def _pg_oracle_search(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
                           committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
@@ -1598,7 +1677,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         if os.environ.get(plan_oracle.DIAG_DIR_ENV):
             plan_oracle.diag_write({"t": float(self.env.now), "n": n, "search": True, "replays": replays, "steps": steps, "s_plan": list(ident(s_plan)),
                                     "s_label": s_label, "best": list(ident(cur)), "best_label": cur_label, "exhausted": exhausted,
-                                    "wall": default_timer() - t0, "timing": getattr(self._plan_oracle, "last", None)})
+                                    "wall": default_timer() - t0, "timing": getattr(self._plan_oracle, "last", None)}
+                                   | (self._pg_terms_rec(batch_tasks, orch, memo, [], [], [s_plan, cur]) if os.environ.get(ORACLE_DIAG_TERMS_ENV) == "1" else {}))
         if ident(cur) == ident(plan):
             return 0
         self.pg_exact_tasks_moved += moved
