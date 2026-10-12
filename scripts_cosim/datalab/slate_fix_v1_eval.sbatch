@@ -17,6 +17,7 @@
 #SBATCH --mem=96G
 #SBATCH --time=08:00:00
 set -euo pipefail
+ulimit -n 65536 2>/dev/null || true
 WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?}; OUT=${OUT:?}
 OLD_GNN_MODELS=${OLD_GNN_MODELS:-/share/nikola.lukic/accel_prod/gate_inputs/models}
 OLD_TWIN_MODELS=${OLD_TWIN_MODELS:-/share/nikola.lukic/selfsearch/twin_inputs_8c8ebc7f/models}
