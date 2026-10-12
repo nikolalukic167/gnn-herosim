@@ -198,6 +198,12 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Steady-state instrumentation (expert's ruling, 2026-10-12; for later gates, not this one).** The live mean includes a whole-system cold start (autoscaling from zero replicas, no warm-up discard). This gate's raw per-task results are deleted after summarising, so its cells cannot give a latency after a warm-up cut.
+  - Reader (3617175c): a descriptive Q2–Q4 mean-queue-time proxy over the primary pairs, labelled "queue component only, Q1 dropped, outside every family". The primary is untouched.
+  - Harness summarizer, c81f0e88 (summary-only, no physics): `steady_state` = mean latency over tasks dispatched at or after 360 s and at or after the 5th-percentile dispatch time, plus 10 decile means in dispatch order. `<cell>.tasks.npy` = per-task (dispatchedTime, doneTime) float32 next to each summary (400 KB per 50k-task cell). Tests: `tests/test_steady_state_summary.py`.
+  - Smoke identity 864169 at c81f0e88 (`cd` on 16490 g0, both rungs, vs `selfsearch_confirm/gate_79ea002c`): every shared key bit-identical (heavy 399, moderate 397; timing and provenance excluded), none missing, 8 keys added. The `.npy` mean matches averageElapsedTime to 7e-7 (float32); the mean of the deciles equals it exactly.
+  - The smoke cells show the size of the opening; this is the spent topology, CD only, and not a result. Heavy: whole run 2.33 s, after 360 s 1.40 s, first decile 10.69 s. Moderate: 2.98 / 2.69 / 5.57 s.
+  - Expert's PASS ruling on the B2 identity (the added counters, all 0, are instrumentation) is noted.
 - 2026-10-12 — **Cross-commit identity 864138 PASS; B2 is comparable.** `cd_exactS` at d192081f on 16490 g0 equals `selfsearch_confirm/gate_79ea002c` in every shared key (heavy 401, moderate 399), mean latency bit-equal (2.2544150609289058 / 2.610011753432325) and every shared scheduler counter.
   - Disclosed: d192081f adds 33 counters (`pg_exact_gnn_*`, `pg_exact_prune_*`, …) that 79ea002c does not write; all are 0 on both cells. None is missing the other way. Timing and provenance keys excluded, as in smoke B.
   - Expert's ruling (2026-10-12): B2 at d192081f is accepted with this identity as its comparability condition. Had any simulated key differed, B2 would not have been read and the primary would have fallen back to `cd_exactS`, with the bar disclosed as unavailable. One read, once A, B and B2 are all in.
