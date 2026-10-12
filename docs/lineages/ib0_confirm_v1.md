@@ -1,7 +1,10 @@
 # ib0_confirm_v1 — does the hand `ib0` surrogate beat `cd_exactS` on fresh topologies, and does a GNN seed add anything on top of it?
 
-**Status:** `REGISTERED` (2026-10-12, signed by the coordinator at 62e51229 with the amendment below). Owner S4. Parent: `plan_rerank_v1`
-(`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record, read once, 12 oracle cells).
+**Status:** `CLOSED` (2026-10-12) — `IB0-NEW-BAR` / `ORACLE-ROOM-UNDER-3 %`. Owner S4. Parent: `plan_rerank_v1` (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record).
+
+> ⚠ **Not re-measured (2026-10-12).** The GNN seed arm here is trained and served on the cold-mispriced declared slate (`declared_pruning_v1`); `slate_fix_v1` (uncapped, corrected) is running.
+
+**Outcome.** Classical stage: `cd_exactS_ib0` beats `cd_exactS` **−4.73 % / −2.27 %** (moderate / heavy, 12/12) on fresh topologies — the new hand bar. The GNN seed does not clear it. Oracle stage (registered 12-cell read, job 864107): the full-coverage oracle beats `ib0` by only **−2.82 % moderate** (6/6, p .031; 0.18 pp inside the 3 % closing line) and **−1.96 % heavy** (4/6, p .31), coverage 96.0 % / 98.4 % of seen tasks. Consequence: no supervised re-ranker over the declared slate can beat the bar by more than this, so the supervised batch-label family closes; what is left is outside the slate (`slate_fix_v1`) or in decision cost (`decision_cost_s0_v1`).
 
 ## Why
 
@@ -126,6 +129,14 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
 
 ## Record
 
+- 2026-10-12 — **Smokes (topology 19300, g0, moderate + heavy; smokes, not read) and classical launch.** Pin `ib0_d192081f` (d192081f).
+  Flag-off identity: `cd_expand` and `ra_gnn_eng_cdxapply` at c7ceec53 vs d192081f identical on all 4 cells (summary fields and search counters).
+  Hand-seed identity: `ra_gnn_eng_cdxhib0` = `cdx_ib0` on both rungs (moderate total_rtt 111039.48456016854, endTime 9355.114119122141; heavy 97014.7066934928,
+  3998.2349206443687; expansion batches/sweeps/moves/evals equal: 12099/14665/4271/448708 and 11997/14528/4371/587578). Per-task raw files were not kept, so
+  the identity is on the summary and its counters. Measured wall: `cdx_ib0` ~80 s, `ra_gnn_eng_cdxib0` ~290 s per cell (the 0.4 h estimate was high).
+  Launch: main arms g0-g3 in 5 shards (862757-862761), descriptive arms g0-g1 in 2 shards (862762, 862763), inputs from 862754, out
+  `/share/nikola.lukic/ib0_confirm/gate_d192081f`, LIMIT 36000.
+
 - 2026-10-12 — **Signed (62e51229), three notes added before any code runs on data (coordinator).**
   1. The oracle stage runs whatever the classical read shows, an ib0 NO-WIN included. Its closing rule is against ib0 as served. If ib0 does not confirm,
      the oracle vs `cd_exactS` on the same cells is also reported, descriptive.
@@ -143,3 +154,43 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
 
 - 2026-10-12 — Drafted from the coordinator's brief and SCIENTIST's review (λ frozen at 0 with an α = 0.5 control, a hand-seed control `cdx_ib0`, the MP-OFF twin,
   the full-coverage oracle with a pre-registered closing rule). Not signed.
+- 2026-10-12 — **Classical + GNN-seed stage READ ONCE** (job 863671, `ib0_confirm_read.py` at d192081f; `gate_d192081f/read.json`). Counts first: 624
+  summaries, 0 failed, every arm and rung complete (48/48 for the five main arms, 24/24 for the three descriptive ones). 12 topologies 19405–19416.
+  - **PRIMARY: WIN.** `cd_exactS_ib0` vs `cd_exactS`: **−4.73 %** moderate (12/12, Holm p .0010), **−2.27 %** heavy (12/12, Holm p .0010); no rung where
+    `cd_exactS` is faster. g0+g1 sensitivity −5.22 % / −3.01 % (12/12, 11/12). Bucket: the gain is exchange (−5.96 pp moderate, −4.43 pp heavy), lock wait +0.55 / +1.67 pp.
+    `ib0` vs CD −12.07 % / −7.36 % (12/12 each); `cd_exactS` vs CD −8.52 % / −5.57 %.
+  - **GNN-SEED WIN: NO.** `ra_gnn_eng_cdxib0` vs the hand-seed control `cdx_ib0`: −0.99 % (11/12, Holm p .020) moderate, −1.22 % (9/12, Holm p .154) heavy: the
+    direction is the seed's, the size is under the 2 % bar at both rungs and heavy is not significant. Vs `cd_exactS_ib0` itself it is **slower**: +0.73 % moderate
+    (2/12, Holm p .081), +0.41 % heavy (5/12, p .38). The hand-seed control `cdx_ib0` is also slower than `ib0`: +1.61 % / +1.41 % (1/12 each): the exact search over the
+    top-5 slate is what the expansion flow does not reach. Search books are equal (expansion evals 23.2 M vs 24.3 M moderate, 30.6 M vs 31.4 M heavy).
+  - **Descriptive:** MP-OFF twin vs GNN seed +0.55 % / +1.62 % (4/12, 3/12; p .57, .23): no message-passing claim either way. `cd_exactS_a05` (α = 0.5) vs `ib0`
+    +3.63 % / +2.88 % slower (0/12, 2/12): stacking is worth zeroing, half of it is not enough. `cd_exactS_a0` (whole queue term to 0) vs `ib0` −0.37 % moderate
+    (p .34), +2.87 % heavy (3/12): at heavy the platform backlog is worth keeping.
+  - **Predictions scored:** `ib0` vs `cd_exactS` −3 to −5 % moderate **held** (−4.73); −2 to −3 % heavy **held** (−2.27). GNN seed tie: **held** at heavy, partly
+    missed at moderate (vs `ib0` +0.73 inside the +1 to +4 % band only just; vs `cdx_ib0` −0.99 % is inside ±1.5 %). `a05` within ±1 % of `ib0`: **MISSED** (+3.6 / +2.9 %).
+  - Oracle stage (6 topologies, g0, both rungs) still running; reader `ib0_confirm_oracle_read.py` committed (ed02144f) before its data. Not read.
+- 2026-10-12 — **Heavy flag-off identity closed.** The smoke at 8cc890fa (19405 g0) against the gate's d192081f cells: `cd_exactS_ib0` and `cd_exactS` are IDENT at both rungs
+  on total_rtt, mean latency, queue, exchange, cold start, end time and the search counters (heavy total_rtt 92928.903 / 96604.847; moderate 113355.535 / 120892.136). The code
+  that served the oracle stage and the code that served the classical gate agree on the arms they share.
+- 2026-10-12 — **Coordinator's labels for the classical stage (ruling).** PRIMARY **WIN** as registered: `cd_exactS_ib0` is the new hand bar in the accel seat (hand vs hand,
+  unconfounded; the slate caveat only bears on learned arms). GNN seed: **DIRECTION-ONLY at moderate** (−1.0 %, Holm .02, under the −2 % bar), **NOT-SEPARATED at heavy**;
+  not an MP claim. Alpha is monotone through 0.5: `a05` sits between `ib0` and `cd_exactS` (a05 vs `ib0` +3.6 / +2.9 %; `cd_exactS` vs `ib0` +4.7 / +2.3 %; a05 vs `cd_exactS`
+  −1.86 % / −0.28 %), so 0 is not a knife-edge; the ±1 % prediction for `a05` is recorded as **missed**. Status stays ACTIVE until the oracle stage is read once, against `ib0` as served.
+- 2026-10-12 — **INTERIM oracle read, ordered through the coordinator (relayed as a user instruction; not verified by me), before the registered single read.** It changes no bar: the registered 12-cell
+  read still closes the stage and its verdict is the one that counts. Committed reader (`ib0_confirm_oracle_read.py`, ed02144f), job 864002, on the 10 finished cells (**heavy 6/6, moderate 4/6**: 19407 and 19410 pending);
+  no failures. Moderate numbers are 4 of 6 and the exact p cannot go below .125 at n = 4.
+  - **Coverage (replay-labelled tasks, the ≥ 95 % condition):** moderate **95.7 %** (served 62.2 %, searched 33.5 %, unplaced 4.3 %, over-cap unsearched 0; per topology 95.1–96.4 %), heavy **98.4 %**
+    (served 57.1 %, searched 41.3 %, unplaced 1.6 %). Books close. Search: 345 k / 767 k replays, improved 2,293 of 8,665 / 5,025 of 16,581 searched batches, budget never exhausted; exact changed 4,264 of 40,187 / 9,487 of 56,700 covered batches.
+  - **Oracle vs `cd_exactS_ib0` (g0):** moderate **−3.91 %** (4/4 faster, p .125, topologies −0.9 / −5.5 / −5.9 / −2.4); heavy **−1.96 %** (4/6 faster, p .31).
+  - **Oracle vs `cd_exactS` (g0, descriptive):** moderate −8.25 % (4/4, p .125); heavy −6.78 % (6/6, p .031). `ib0` vs `cd_exactS` on the same cells: −5.96 % / −3.73 % (6/6 each, p .031).
+  - **Buckets (pp of the reference's mean latency, oracle − `ib0`):** moderate exchange −1.91, lock wait −1.92, cold start +0.33; heavy exchange +1.21, lock wait −3.56, cold start −0.07. Vs `cd_exactS`: moderate exchange −7.40, heavy exchange −3.35.
+  - **Reading against the prediction (1–2.5 % moderate, 2–4 % heavy):** the moderate interim sits above the 3 % line (−3.91 %), heavy below the predicted band (−1.96 %): both off the prediction, in opposite directions.
+    If −3.91 % held on 6/6, the registered rule would leave the supervised family OPEN at moderate; four cells cannot say that. Each topology is one g0 cell, per-topology spread is wide (−0.9 to −5.9).
+- 2026-10-12 — **REGISTERED oracle read (12 of 12 cells, 0 failed; job 864107, reader ed02144f, `/share/nikola.lukic/ib0_confirm/final/read_oracle.json`). Verdict: `FAMILY-CLOSES` by the pre-registered rule.**
+  - **Coverage (≥ 95 % rule):** moderate **95.97 %** (served 61.7, searched 34.3, unplaced 4.0; per topology 95.08–96.54 %), heavy **98.43 %**; books close, over-cap unsearched 0, budget never exhausted. Moderate passes by 0.97 pp.
+  - **Oracle vs `cd_exactS_ib0` (g0):** moderate **−2.82 %** (6/6 faster, p .031; topologies −0.9 / −5.5 / −3.3 / −5.9 / −2.4 / −0.3); heavy −1.96 % (4/6, p .31; −0.0 / −3.9 / +0.2 / −5.8 / +1.3 / −7.0).
+  - **Rule:** moderate median > −3 % → the supervised batch-label family closes. The margin is 0.18 pp; the two late moderate cells (19407 −3.3, 19410 −0.3) moved the median from the interim −3.91 % to −2.82 %. The rule was fixed before the data and is applied as written; the borderline is recorded, not argued around. The direction is real (6/6) and the size is below the line.
+  - **Descriptive vs `cd_exactS`:** oracle −8.25 % / −6.78 % (6/6 each, p .031); `ib0` vs `cd_exactS` −5.96 % / −3.73 % (6/6). Oracle search covers 34–41 % of tasks by replay-scored local search, so it is a floor on what exact labels would give on over-cap batches, not an exact ceiling there.
+  - **Prediction check (1–2.5 % moderate, 2–4 % heavy):** moderate −2.82 % above the band, heavy −1.96 % just below it.
+
+- 2026-10-12 — **Post-close diagnostic (S7, not a reopening):** where the hand bar loses the oracle, split by batch size, over-cap, cold proxy and slate membership; inside-slate room (the live -2.82 / -1.96 %) is scorer-reachable but deep in the S rank (S top 4 reaches 28 / 21 % of gain seconds), outside-slate room is 9 / 13 % of corpus states (median 92 / 19 % worse, live size unmeasured) — `docs/lineages/ib0_confirm_v1/oracle_loss_diag.md`.

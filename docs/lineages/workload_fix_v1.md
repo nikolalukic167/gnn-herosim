@@ -3,7 +3,9 @@
 **Status:** `CLOSED` (2026-10-08) — **WF1-FROZEN**. Registered 2026-10-07; the stages ran in parallel and were read in order; every amendment is dated, and the post-data ones are labelled. Depends on: `physics_audit_v1` (R1.1). Plan: [`reference_physics_programme.md`](reference_physics_programme.md).
 Created 2026-10-08 from W2–W4 of the withdrawn draft `workload_redesign_v1` (never committed) (W1 moved to `call_graph_pairing_v1`).
 
-**Outcome (2026-10-08).** **WF1** = W2 payloads (`wf1_v1`) + W3 access-link classes on every node + W4 all four task types,
+**Newest (2026-10-09): R1.1-T implementation hole fixed** (`rp/r11t-fix` `c8eb73c2`; a deferred partner no longer counts as placed). Repros finish, 0 of 9 spin cells hang; 37 of 62 rung cells change, CD at moderate by up to +21.5 % (9602 g0). Later nodes run at R1.1 + T-fix.
+
+**Outcome (2026-10-08).** Seat physics: R1.1 with warmth physics `node_disk_v2` (gate-tools 2026-10-12 audit, M3). **WF1** = W2 payloads (`wf1_v1`) + W3 access-link classes on every node + W4 all four task types,
 on R1.1 with batching window 1 s. Code: `rp/starve-w4fix` `97269192`, with the builders on `rp/wf1-w4`; infeasible
 calibration topologies 9603–9606 are excluded. Read on 19 topologies, paired % vs CD (Holm over 6):
 - **W2:** CD is first at light load; self-predict −6.1 % at heavy (19/19, CONFIRMED).

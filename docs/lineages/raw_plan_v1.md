@@ -3,6 +3,8 @@
 **Status:** `CLOSED` (2026-10-01) — **`MP-BEATS-TWIN / CD-FASTER`**. Registered 2026-09-30; every read below was
 fixed before any data.
 
+> ⚠ **Origin model (caveat added 2026-10-12).** Grounded-workload numbers in this node were measured with scattered request origins (97 % of multi-task groups span clients). With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
+
 **Outcome** (12 topologies × 4 windows × 4 seeds per rung; median over topologies of the per-topology median paired
 %; exact Wilcoxon; Holm over the three rungs; read `raw_plan_v1/raw_plan_read.json`):
 - **R1 `CONFIRMED` at every rung.** Without engineered plan context, `rawgnn` beats its MP-OFF twin `rawmlp`

@@ -17,137 +17,64 @@ pointwise control. **The MLP is a control, not a straw man** — the program's r
 finding is that it ties, so treat "the MLP cannot match this" as a hypothesis to test, never
 an assumption to write from.
 
-Three routes to a positive answer. All three have been answered; route 2 was later reopened.
+Routes 1–3 to a positive answer — better co-sim data, a changed environment, a changed objective — are all answered;
+lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `docs/lineages/throughline.md` → "Routes 1–3".
 
-1. **Generate better co-sim data** so a GNN beats Knative and the MLP on latency.
-   **Closed by measurement** (`program_verdict_v1`): the co-sim target is
-   pointwise-separable, so the MLP is the *correctly specified* model class and more data
-   cannot change that. Do not restart without reading that node.
-2. **Change the environment** so exploitable joint structure exists. `route_b_env_pivot_v1`
-   is `PARKED` (could not measure S0 on its overlap rungs). **Reopened** via
-   `peer_affinity_v1`: a cost indexed by *pairs of task instances* under a binding cap is
-   neither node-indexed nor routable-around. Before proposing any contention physics, read
-   that node and `dag_fabric_contention_v1` — the one untried non-node-indexed lever, DAG
-   output over the link fabric, is NO-GO before any code, and node-indexed CPU/memory
-   contention is closed by the count theorem it cites.
-3. **Change the training objective, not the environment** (`objective_pivot_v1`).
-   **CLOSED 2026-09-03.** Phase 1 PASSED (reliability, scope-limited to severe collapse),
-   Phase 2 CLOSED (horizon labels are deterministic chaos), Phase 3 MEASURED-NEGATIVE at
-   n = 120 (−0.85 %, p = 0.928, powered). Do not restart without reading that node.
+**Where the research question stands (rewritten 2026-10-12).**
 
-Options 1 and 2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep the
-numbering. What a GNN needs to have anything to learn from a *supervised* target is
-**multi-task placements under contention**: route A proved coupling alone is not enough, and
-route B proved contention alone is not enough either, which is why option 3 changed the
-objective instead.
+**The bar is `cd_exactS_ib0` (`ib0_confirm_v1`, 2026-10-12) — exact search on CD's surrogate S over the top-5 slate with the
+in-batch stacking term zeroed: −4.7 / −2.3 % vs `cd_exactS` (12/12 fresh topologies), which itself is −7 to −11 % vs CD across the
+accel gates (24 topologies −8.6 / −6.8 %, `link_bound_s0_v1` −11.1 / −8.0 %, G8 −9.2 / −7.7 %). No learned arm beats
+either, a full-coverage oracle beats `ib0` by only −2.8 / −2.0 %, and no learned win in this programme is a message-passing win.** Seat: R1.1 + WF1, warmth physics `node_disk_v2`, replicas on the fastest
+compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm names: `CONTEXT.md` → Arms.
+> ⚠ The GNN numbers here are on the cold-mispriced declared slate and not re-measured (`slate_fix_v1` running). Audit: gate-tools → "Numbers measured before a change".
+- **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 %
+  (`accel_nosplit_v1`), `gnn_selfsearch` −8.5 / −10.1 % (`selfsearch_confirm_v1`). Heavy: −1 to −4 %, under the −5 % bar.
+  `gnn_selfsearch` ties its MP-OFF twin.
+- **Against hand search** (`cd_exactS`, `cdxapply`): tie at moderate, 1.8–3.7 % slower at heavy, **but that deficit is a candidate-set
+  handicap, not a scorer deficit** (`slate_bar_v1`, 2026-10-12): the GNN is trained and served on a declared top-5 slate whose cost charges
+  no cold start on an initialized platform (the simulation does; gate-tools 2026-10-12), while `cd_exactS` may use any candidate. Restricting
+  `cd_exactS` to that slate costs it +4.9 / +5.0 %; with matched information the GNN self-search beats it −4.85 % moderate (21/24, Holm .0003)
+  / −1.94 % heavy (16/24, Holm .04). Still not an MP win (ties its twin). Whether the GNN reaches full-information `cd_exactS` on the uncapped
+  candidate set is `slate_fix_v1` (training). The new hand bar is `cd_exactS_ib0` (`ib0_confirm_v1`, CLOSED: −4.7 / −2.3 % vs `cd_exactS`, 12/12); a full-coverage oracle beats it only −2.8 / −2.0 %, so no supervised re-ranker over the slate can clear it by more than that.
+- **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 %
+  (regret 6 %); platforms 95–99 % idle; one-step lookahead headroom 3–5 %; more servers made it easier.
+- **Closed levers:** post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links
+  (`link_bound_s0_v1`), a high-but-stable rung (`high_rho_s0_v1`), a longer horizon (`long_horizon_s0_v1`: 24 h, the GNN's deficit to cd_exactS widens, not narrows), supervised plan reranking (`plan_rerank_v1`), GNN self-search on over-cap batches only (`gnn_overcap_v1`: +0.2 / +2.5 % vs cd_exactS, HAND-FALLBACK-FASTER), GNN-ordered pruning of over-cap batches (`prune_g8_s0_v1`: pruning beats the expansion fallback −1.4 / −2.1 %, but any top-k order does; not learned, not MP). Numbers in
+  their index rows.
+- **Knative under R1:** quote only the concurrency-key arm (+48 / +68 % vs CD); the queue-keyed arm herds (gate-tools,
+  2026-10-11).
 
-**Where the research question stands (rewritten 2026-10-07).**
-
-**On the faithful workload, no learned arm beats coordinate-descent search (CD); the earlier "beats CD" headline was an
-artifact of scattered request origins.** The setting is the Alibaba-grounded workload at ×2 / ×3 / ×5 on 19 unseen
-topologies (`grounded_workload_v1` → `peak_load_v1` → `small_batch_confirm_v1`). The grounded mint gave each task of a peer
-group its own client (97 % of groups span clients); a trace request has one caller (`client_local_v1`). With one origin
-per group every rule runs 26–82 % faster, and:
-
-- **The engineered GNN `sb1load` no longer beats CD**, zero-shot or retrained on a single-origin corpus
-  (`small_batch_so_v1`, NO-WIN): +13.1 / +7.3 % (CD faster) and −3.5 % (not separated); retraining moves it 1–2 %. It
-  still beats Knative −40 / −54 / −68 % and self-predict ~−27 %, ties locality-first and the one-pass greedy, and ties its
-  MP-OFF twin. Under scattered origins it had beaten CD −10 / −35 / −17 % — **quote that only with the origin model named.**
-- **Message passing is real but small, and never where it beats search.** The raw-plan GNN beats its same-input MLP
-  (`local_features_v1` −11 / −24 / −20 %; retrained single-origin −10 / −7 % at ×2 / ×3, ×5 not separated) and its no-conv
-  twin, but CD is faster at every rung (+13 to +19 %). Per-relation weights (`hetero_conv_v1`) add up to −7 % at ×5 and
-  nothing else; edge physics in the convs (`raw_plan_v2`) and sum aggregation were worse or tied. Where a learned arm has
-  beaten CD it was the engineered pointwise context, never the convolutions (`small_batch_confirm_v1`, `peak_controls_v1`).
-- **Client execution does not pay** (`client_local_v1`): 2–7 of 20 clients can host the functions at all, and local
-  execution is 0.1–2 % of calls under every policy.
-
-**Earlier settings, still true:** per arrival the self-predict rule is the bar (`selfpredict_bar_v1`); in the 6-server burst
-seat uncapped `gnnedge0` beats the one-pass greedy and loses to CD (`joint_burst_v2`); the co-sim single-batch target is
-pointwise-separable (`program_verdict_v1`); rollout imitation and lookahead are closed (`rollout_imitation_v1`,
-`lookahead_mp_v1`). Every client-rung "vs reactive" number before 2026-09-20 flips sign when paired.
+**Earlier settings, still true:** on the grounded workload with one origin per group no learned arm beats CD
+(`small_batch_so_v1`) — every grounded win before 2026-10-05 is scattered-origin; message passing helps raw inputs, not
+engineered ones (`local_features_v1`, `r1_attribution_v1`); self-predict is the per-arrival bar (`selfpredict_bar_v1`);
+the single-batch co-sim target is pointwise-separable (`program_verdict_v1`); every client-rung "vs reactive" number
+before 2026-09-20 flips sign when paired.
 
 **Pair on the environment before you take a median; quote a DIRECTION from a small design and a MAGNITUDE only from a
 large one; a rule with the model's information is the bar, never Knative alone; name the origin model with any grounded
-number.** Never a `peer_affinity` live number without its load factor, never an arm comparison without its corpus. Start at
-`docs/lineages/small_batch_so_v1.md`, `client_local_v1.md`, `local_features_v1.md` and `throughline.md`.
+number.** Never a `peer_affinity` live number without its load factor, never an arm comparison without its corpus.
 
 ## Current research entry points
 
-For L2D job-shop architecture claims, read `docs/lineages/literature_reeval_v1.md`,
-`docs/lineages/l2d_size_transfer_v1.md`, and
-`docs/lineages/l2d_learning_efficiency_v1.md` before proposing transfer or
-sample-efficiency experiments. For future-action rollout targets in L2D, also read
-`docs/lineages/l2d_rollout_headroom_v1.md`.
+Read the node before proposing work in its area. Current seat: `docs/lineages/selfsearch_confirm_v1.md`, `docs/lineages/accel_nosplit_v1.md`,
+`docs/lineages/big_groups_s0_v1.md`, `docs/lineages/cost_to_go_v1.md`, `docs/lineages/link_bound_s0_v1.md`, `docs/lineages/plan_rerank_v1.md`, `docs/lineages/throughline.md`.
 
-For the compiled exact-search control required before workflow move-value training,
-read `docs/lineages/workflow_move_value_v1.md`, `docs/lineages/workflow_basin_v1.md`,
-`docs/lineages/radical_physics_v1.md`, `docs/lineages/mixed_physics_learning_v1.md`,
-and `docs/lineages/mixed_pair_learning_v1.md`. For the active execution-order
-control challenge, read `docs/lineages/mixed_dispatch_v1.md`.
-Its learned children `docs/lineages/mixed_dispatch_learning_v1.md`,
-`docs/lineages/mixed_dispatch_state_v1.md`, and
-`docs/lineages/mixed_dispatch_value_v1.md` close total-rank imitation,
-ready-set teacher imitation, and unguarded ready-set action values respectively.
-All lose to the hand rule; the value model has only a small uncertain edge over
-learned controls. Read all three before proposing another ordering learner.
-For irregular DAG reservation proposals, also read
-`docs/lineages/dag_reservation_learning_v1.md` before proposing another
-complete-plan learner or training on the same physics.
-For hidden-arrival online reservations, read
-`docs/lineages/online_reservation_s0_v1.md` before repeating a one/two-decision
-search or treating a materialized replay as a live policy callback.
+| Area | Read first |
+|---|---|
+| L2D job-shop architecture, transfer, sample efficiency, rollout targets | `docs/lineages/literature_reeval_v1.md`, `docs/lineages/l2d_size_transfer_v1.md`, `docs/lineages/l2d_learning_efficiency_v1.md`, `docs/lineages/l2d_rollout_headroom_v1.md` |
+| Workflow move values, exact-search control | `docs/lineages/workflow_move_value_v1.md`, `docs/lineages/workflow_basin_v1.md`, `docs/lineages/radical_physics_v1.md`, `docs/lineages/mixed_physics_learning_v1.md`, `docs/lineages/mixed_pair_learning_v1.md` |
+| Execution order (all learners lose to the hand rule) | `docs/lineages/mixed_dispatch_v1.md`, `docs/lineages/mixed_dispatch_learning_v1.md`, `docs/lineages/mixed_dispatch_state_v1.md`, `docs/lineages/mixed_dispatch_value_v1.md` |
+| DAG reservations, online reservations | `docs/lineages/dag_reservation_learning_v1.md`, `docs/lineages/online_reservation_s0_v1.md` |
+| Complete-plan proposal search, amortised workflows | `docs/lineages/workflow_proposal_v1.md`, `docs/lineages/workflow_amortized_v1.md` |
+| DAG output memory, cache, recomputation | `docs/lineages/dag_memory_lifetime_s0_v1.md`, `docs/lineages/dag_memory_value_learning_v1.md`, `docs/lineages/dag_remat_s0_v1.md` |
+| Burst seat, peer greedy, rollout imitation | `docs/lineages/joint_burst_v2.md`, `docs/lineages/rollout_imitation_v1.md`, `docs/lineages/peer_affinity_v1.md`, `docs/lineages/peer_greedy_live_v1.md` |
+| Learned seeds and proposals for search (learned-seed win ≠ MP win) | `docs/lineages/gnn_seeded_cd_fixed_v1.md`, `docs/lineages/gnn_seeded_cd_mp_ablation_v1.md`, `docs/lineages/gnn_proposal_selector_v1.md` |
+| 32-task slates, selection, move pools | `docs/lineages/g32_sampled_slate_v1.md`, `docs/lineages/g32_exact_val_selection_v1.md`, `docs/lineages/g32_fourtype_move_s0_v1.md` |
+| Peer-transfer fabric, prefetch, core contention, valleys | `docs/lineages/g32_peer_fabric_s0_v1.md`, `docs/lineages/g32_peer_prefetch_s0_v1.md`, `docs/lineages/g32_core_prefetch_s0_v1.md`, `docs/lineages/g32_coordinated_valley_s0_v1.md` |
+| 128-operation block proposals | `docs/lineages/dag_block_proposer_128_s0_v1.md` |
 
-For the follow-up complete-plan proposal-search experiment, read
-`docs/lineages/workflow_proposal_v1.md`.
-
-For DAG output-memory proposals, read `docs/lineages/dag_memory_lifetime_s0_v1.md`,
-`docs/lineages/dag_memory_value_learning_v1.md`, and
-`docs/lineages/dag_remat_s0_v1.md` before changing cache or recomputation physics.
-
-For the complete-workflow environment search and its trained pilot, read
-`docs/lineages/workflow_amortized_v1.md`. Its checkpoint, data and timing contracts
-are separate from the historical peer-affinity arms.
-
-Read `docs/lineages/joint_burst_v2.md`, `docs/lineages/rollout_imitation_v1.md`,
-`docs/lineages/peer_affinity_v1.md`, `docs/lineages/peer_greedy_live_v1.md`, and
-`docs/lineages/throughline.md` before proposing the next experiment.
-For the fixed-replica burst result, also read
-`docs/lineages/gnn_seeded_cd_fixed_v1.md`: the GNN seed beats matched hand
-coordinate search on fresh topologies when eligible replicas are held fixed.
-Its dynamic-autoscaler predecessor is negative, and
-`docs/lineages/gnn_seeded_cd_mp_ablation_v1.md` shows its separately trained
-MP-OFF twin beats the GNN seed in the fixed seat. Keep the learned-seed win
-distinct from a message-passing win.
-For the later fixed-replica proposal-portfolio result, read
-`docs/lineages/gnn_proposal_selector_v1.md`; it tests the GNN checkpoint as one
-candidate inside a deterministic selector, not as a stand-alone policy.
-For its matched 32-task training and architecture test, read
-`docs/lineages/g32_sampled_slate_v1.md` before attributing proposal value to
-bipartite message passing. Its exact-validation-selected successor is
-`docs/lineages/g32_exact_val_selection_v1.md`; read both before proposing
-another checkpoint-selection or 16-plan sampled-slate training run.
-For the four-type lower-payload fixed-replica move-pool screen, read
-`docs/lineages/g32_fourtype_move_s0_v1.md` before proposing move-value training
-from single-task reassignments or occupancy-preserving swaps.
-For the contended 32-task peer-transfer fabric pilot, read
-`docs/lineages/g32_peer_fabric_s0_v1.md` before changing peer-transfer physics
-or attributing route-link contention to a GNN.
-For group-commit transfer prefetch and its finite-pipe counterfactual, read
-`docs/lineages/g32_peer_prefetch_s0_v1.md` before proposing training.
-For the core-only capacity successor and route-aware controls, read
-`docs/lineages/g32_core_prefetch_s0_v1.md` before changing the physics or training.
-For two-task valley proposals under that physics, read
-`docs/lineages/g32_coordinated_valley_s0_v1.md` before repeating same-node peer-pair search.
-For 128-operation critical/lock/setup/block-swap proposals from a strong workflow start,
-read `docs/lineages/dag_block_proposer_128_s0_v1.md` and its closed 384-operation parent
-before training a move proposer or changing the block pool.
-
-Keep the arms distinct: `jb2_mpoff` is a separately trained MP-OFF bipartite
-scorer on group-optimum labels in the burst seat; `peer_greedy_learned_network`
-is the five-feature rollout scorer served per arrival. A defect in one does not
-establish a defect in the other. Pair on the environment before aggregation;
-training draws and repeated environments are not independent replicates.
-A rule with the model's information is the bar, never Knative alone.
+Pair on the environment before aggregation; training draws and repeated environments are not independent replicates.
 
 ## Where knowledge lives — READ FIRST
 

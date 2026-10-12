@@ -1,6 +1,6 @@
 # scheduler_residence_v1 — where the learned arms' scheduler-side time actually goes
 
-**Status:** `REGISTERED` (2026-09-15). Every bar below is a module constant in
+**Status:** `CLOSED` (2026-09-16) — **RESIDENCE-IS-COLLECTION · LOPSIDEDNESS-DOES-NOT-REPLICATE**. Registered 2026-09-15. Every bar below is a module constant in
 `scripts_cosim/scheduler_residence_v1_read.py`, committed **before** the arms it reads exist.
 Amend by dated amendment only.
 
