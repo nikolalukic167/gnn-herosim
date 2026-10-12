@@ -166,7 +166,7 @@ irregular-DAG smoke check therefore disagreed on the aggregate even though every
 operation's start and completion matched independent replay. The historical
 field is not redefined and no frozen source is changed.
 
-The successor `src/placement/radical/dag_reservation_live.py` reports
+The successor `local-record-2026-10-06:src/placement/radical/dag_reservation_live.py` (not merged) reports
 `job_completion_sum` from the unique terminal sink of each zero-release-time
 application and retains the original aggregate as `total_task_rtt`. Gates use
 the former for the declared summed job completion objective. Its diamond
@@ -177,7 +177,7 @@ Validate sink coverage, the actual served DAG and every operation's completion.
 
 ## 2026-09-22 — Filter timing eligibility before choosing a live control
 
-The frozen `scripts_cosim/mixed_dispatch_block_screen.py` selected its live hand
+The frozen `local-record-2026-10-06:scripts_cosim/mixed_dispatch_block_screen.py` (not merged) selected its live hand
 control by maximum objective improvement without first excluding arms with a
 wall-time repeat above budget. Its separate timing gate correctly failed, but
 the selected arm could not be called a qualified equal-wall-time control.
@@ -187,7 +187,7 @@ Keep the original source and artifacts for provenance. Run
 to filter on **every measured repeat**, choose the strongest remaining fixed
 arm, and execute/audit the missing live replays. The correction freezes its own
 protocol and hashes and preserves the original screen report. The regression in
-`tests/test_dispatch_block_moves.py` rejects an over-budget winner and raises
+`local-record-2026-10-06:tests/test_dispatch_block_moves.py` (not merged) rejects an over-budget winner and raises
 when no eligible control exists. New gates must apply this filter before
 selection. The experimental outcome belongs to
 [mixed_dispatch_v1](../lineages/mixed_dispatch_v1.md#2026-09-22--capacity-scaled-block-search-result).
@@ -207,7 +207,7 @@ platform and one executing ten more seconds could both score zero drain. Changin
 the field itself would double-count work in snapshot replay, which separately adds
 current-task and communication residuals.
 
-`src/placement/availability.py` introduces a separate observation and estimate.
+`local-record-2026-10-06:src/placement/availability.py` (not merged) introduces a separate observation and estimate.
 `Platform.platform_process` records phases from dequeue through ingress, cold
 start, input I/O, peer rendezvous, execution and output I/O, plus virtual warmup.
 Existing SimPy events and their durations are preserved. Timed work decreases with
@@ -238,7 +238,7 @@ replicates. The launch manifest adds these explicit fingerprints and source hash
 the older opaque hash entries are retained for historical reference. Existing
 result artifacts and their embedded pre-run configurations are unchanged.
 
-Regression coverage: `tests/test_availability.py`, snapshot tests and source
+Regression coverage: `local-record-2026-10-06:tests/test_availability.py` (not merged), snapshot tests and source
 preflight tests. The retained 16-task immediate-rule case reproduces its task
 timings, placements and total RTT exactly under the legacy contract; v2 completes
 a small rule-only smoke with its contract recorded. This maintenance neither
