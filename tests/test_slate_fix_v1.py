@@ -140,6 +140,22 @@ def test_reader_win_and_gap(tmp_path):
     assert set(m["mp"]["rung_labels"].values()) == {"NOT-SEPARATED"}  # gnn and twin cells are identical here: no difference, no p
 
 
+def test_reader_reports_the_served_slate_per_arm(tmp_path, capsys):
+    rd = importlib.import_module("slate_fix_v1_gate_read")
+    new, old = _gate_dirs(tmp_path, -3.0, 3.6)
+    f = Path(new) / "cc40s19420__g0heavy__ra_gnn_eng_selfsearch_s1.summary.json"
+    d = json.loads(f.read_text())
+    d["schedulerCounters"] = {"slate_declared_batches": 100, "slate_declared_sub_batched": 10, "slate_declared_unsplit": 10,
+                              "slate_declared_tasks": 400, "slate_declared_sub_batched_tasks": 80, "ss_batches": 100,
+                              "ss_exact_batches": 70, "ss_ascent_batches": 30}
+    f.write_text(json.dumps(d))
+    r = rd.read(new, old)
+    c = r["slate"]["new:ra_gnn_eng_selfsearch|heavy"]
+    assert c["slate_declared_sub_batched"] == 10 and c["sub_batched_task_share"] == 0.2 and c["ss_ascent_share"] == 0.3
+    rd.print_report(r)
+    assert "served slate per arm" in capsys.readouterr().out
+
+
 def test_reader_loss_and_refusals(tmp_path):
     rd = importlib.import_module("slate_fix_v1_gate_read")
     new, old = _gate_dirs(tmp_path, 2.5, 3.6)
