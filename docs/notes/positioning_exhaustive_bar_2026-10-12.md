@@ -1,0 +1,151 @@
+# Positioning: an exhaustive hand bar for learned schedulers (DRAFT, 2026-10-12)
+
+**DRAFT for the user's morning read; not a submission, not the paper.** It frames what the program has
+established as a contribution. Every number links to the node that owns it; the caveats on those nodes'
+heads are carried here. Paper texts are cited as `file:line` in `/root/papers_text/`.
+
+## The contribution in one paragraph
+
+Learned (GNN) schedulers are reported as wins over hand heuristics. We built the hand baseline those
+papers do not run: an exhaustive search over the placement plans of each batch, scored with the same
+information the model receives. Against that bar, no GNN arm we trained wins, and a per-batch oracle is
+under 3 % ahead of it live. Most of the oracle's remaining room sits in the cluster's cold start, not in
+steady-state placement. The GNN's own wins are real, but they are wins over plain coordinate descent (CD)
+and over its own message-passing-off twin. Those are the same kinds of baseline the literature reports
+against. The result is a measurement: in this setting the problem is enumerable, and a learned
+scheduler must be read against an enumerating hand bar.
+
+## 1. The bar
+
+`cd_exactS_ib0` (`ib0_confirm_v1.md:7`, `:14`; arm table `CONTEXT.md:233`) is the hand bar:
+
+- CD over the batch's peer group;
+- exact enumeration of the surrogate S over the top-5 candidate slate per task (100k-plan cap,
+  expansion fallback above it);
+- the in-batch stacking term zeroed (`HEROSIM_PG_BATCH_ALPHA=0`), with the platform backlog kept.
+
+S uses the information the GNN is given: queues, warmth, execution time per platform type, and partner
+placements. `sparse_obs_s0_v1` asks whether that information is more than a real scheduler has (§2).
+
+**What the published learned schedulers compared against.** "Model's information" asks whether the
+strongest baseline scores candidates with the same inputs the learned policy sees.
+
+| paper | learned policy | strongest baseline | model's information? | exhaustive over the decision? |
+|---|---|---|---|---|
+| Decima (Mao+ SIGCOMM'19) | GNN + RL, Spark DAG jobs | tuned weighted fair, α grid-swept (`01_learned_placement_and_NCO/Decima_SIGCOMM19.txt:612–618`, 21 % gain `:703–704`); Graphene\* with grid search (`:622–626`, 32–43 % `:649`) | partly: the heuristics see job size and DAG structure, but not Decima's learned parallelism control | **closest case:** App. H searches all n! job orderings on a 10-job batch (`:1393–1400`), and Decima matches it or beats it by 9 % (`:1450–1451`). That search covers job order only, not executor placement or parallelism. |
+| L2D (Zhang+ NeurIPS'20) | GNN + PPO, job-shop dispatching | priority rules SPT, MWKR, FDD/MWKR, MOPNR (`L2D_NeurIPS20.txt:379–383`); OR-Tools only as a gap reference (`:385–386`) | yes for the rules (static instance, exact times) | no exhaustive arm. **Our re-run** in their own environment: FDD/MWKR 547.5 beats learned 572.1 at 6×6 (`literature_reeval_v1.md:89`, `:103`). |
+| Placeto (Addanki+ NeurIPS'19) | GNN + RL, device placement | Single GPU, Scotch, human expert, the RNN placer (`Placeto_NeurIPS19.txt:302–306`; 16.5 % vs RNN `:92`, `:356`) | Scotch sees the graph but uses its own cost model | no |
+| Mirhoseini'17 (ICML) | seq2seq RL, device placement (not a GNN) | Scotch, MinCut, human expert (`Mirhoseini_DevicePlacement_ICML17.txt:76`, `:133–134`) | no (Scotch balances partitions and does not see measured runtime) | no |
+| Sparrow (Ousterhout+ SOSP'13) | none (hand) | random, per-task sampling; "within 12 % of an ideal scheduler" (`p69-ousterhout.txt:24–25`) | — | no; batch sampling = least loaded of d·m probes (`:95–97`) |
+| Firmament (Gog+ OSDI'16) | none (hand) | Quincy, distributed schedulers (`osdi16-gog.txt:45`, `:99–117`) | — | **yes, for its cost model:** min-cost max-flow over all tasks of a batch (`:39`, `:98`). Exact batch optimisation is a known hand technique; no learned scheduler we read compares against it. |
+| HEFT/CPOP (Topcuoglu+ TPDS'02) | none (hand) | DLS, MH, LMT list heuristics (`HEFT_CPOP_Topcuoglu_TPDS02.txt:333–336`) | — | no |
+| SONIC (Mahgoub+ ATC'21) | none (hand) | AWS Lambda, SAND, OpenLambda ± Pocket (`04_serverless_data_passing_coldstart_queueing/SONIC_ATC21_full.txt:55–57`) | — | **yes, for its own decision:** Viterbi over the DAG's data-passing choices (`:368`, `:377`) |
+
+**Read.**
+
+- Every learned scheduler in the table is measured against priority rules, partitioners or tuned
+  heuristics. Decima is the one exception, and its exhaustive search covers the job-ordering part of the
+  decision only; there, it matched the search.
+- Exact batch optimisation exists as a hand technique (Firmament, SONIC). Our bar is not new as an
+  optimisation idea. What is new is using it as the control for a learned placement policy, with the
+  model's own information.
+- Scope of the literature claim: these are the papers in the local mirror plus the earlier table
+  (Gasse, GDP, Lachesis, WeCAN, EP-NCO, GRAF, Raith; scratchpad, not in the repo). "No published GNN
+  scheduler" needs a systematic search before it can be written as such.
+
+## 2. The measurements
+
+All live results are in the accel seat (160 clients × 24 servers, R1.1 + WF1, warmth `node_disk_v2`,
+`fastest_compatible`, moderate ×11.6139 / heavy ×27.6227). A negative % means the first arm is faster.
+
+**Against the bar, every GNN arm loses.**
+
+- `slate_fix_v1.md:6`: GNN retrained and served on the uncapped, correctly cold-priced slate vs
+  `cd_exactS_ib0`: self-search +2.6 / **+5.3 %**, no-split +2.8 / **+7.4 %** (moderate / heavy; E-FASTER,
+  Holm ≤ .03; 12 fresh topologies × g0–g1). The heavy gap grew by about 1 pp (`:8`).
+- `selfsearch_confirm_v1.md:19`: earlier checkpoints, vs `cd_exactS` (the bar before `ib0`): +3.66 /
+  +3.40 % at heavy (2/24), tie at moderate.
+- Caveats: two training seeds per arm; whole-run means only, with no steady-state number for this gate
+  (`slate_fix_v1.md:20`). The cells ran at two commits, joined by a 2-cell identity (`:21`).
+
+**The bar is within 3 % of a per-batch oracle, live.**
+
+- `ib0_confirm_v1.md:7`: the full-coverage label oracle beats `cd_exactS_ib0` by **−2.82 %** moderate
+  (6/6, p .031) and **−1.96 %** heavy (4/6, p .31), on 6 topologies.
+- This is a myopic per-batch oracle (the best plan for each batch on its co-simulated label), not a global
+  optimum over the trace. "Within 3 % of optimal" must be written as "within 3 % of a per-batch label
+  oracle".
+- The bar itself beats `cd_exactS` by −4.73 / −2.27 % (12/12) and CD by −12.07 / −7.36 % (`ib0_confirm_v1.md:161`).
+
+**The remaining room is mostly the deploy transient.**
+
+- `ib0_confirm_v1/oracle_loss_diag.md:38`, `:55–56` (time split): 84 % (heavy) / 68 % (moderate) of the
+  oracle's label gain over the bar sits in the first 5 % of each trace. That opening is the whole
+  system's cold start (autoscale from zero, no warm-up discard; `docs/adr/0004-steady-state-primary-statistic.md`,
+  PROPOSED). After it, the batch-level gain is 5.35 / 2.75 % of hand seconds, and less live.
+- Caveats: within-cap batches only, 6 cells per rung; label seconds, not live latency.
+
+**Information sparsity does not move it.**
+
+- `sparse_obs_s0_v1.md:5–10` (HAND-RECOVERS-UNDER-SPARSITY):
+  - queue counts instead of the exact drain walk cost the bar +0.7 / +0.3 % (DRAIN-NO-VOI);
+  - a naive warmth estimate costs +11.1 / +6.4 %, but a per-platform-class prior recovers it
+    (+0.1 / −1.8 %, n.s.); no residual is left for a learner;
+  - the partner channel is not testable in this seat; exec was skipped by argument.
+- Steady-state lines agree with the whole-run reads (`:11`).
+
+**The GNN's wins are over weak or ablated baselines, the kind the literature reports.**
+
+- **Over plain CD:**
+  - `selfsearch_confirm_v1.md:12–13`: self-search −8.46 % moderate (23/24, Holm < .0001) and −3.09 %
+    heavy; the physMP checkpoint −10.09 / −3.76 %. Confirmed at moderate; heavy is under the −5 % bar.
+  - `accel_nosplit_v1.md:10`: the no-split decode −6.93 / −7.71 % at moderate (CONFIRMED).
+  - Caveat: both are on the cold-mispriced declared slate (`declared_pruning_v1`) and not re-measured;
+    `slate_fix_v1` re-measured against the hand bars, not against CD.
+- **Over its MP-off twin:** `slate_fix_v1.md:11–13`: no-split −2.57 % heavy (12/12, Holm .002) and
+  −1.55 % moderate (11/12), two seeds. That is DIRECTION-ONLY as an arm under the registered −2 % bar,
+  self-search is n.s., and both modes lose to `cd_exactS_ib0`. The 4-seed replication is `slate_fix_v2`
+  (REGISTERED, not read).
+- **Matched slate:** `slate_bar_v1.md:5`: with the hand search restricted to the GNN's declared top-5, the
+  GNN self-search is ahead by −4.85 / −1.94 % (21/24, 16/24). The restriction costs `cd_exactS`
+  +4.9 / +5.0 %. This is a candidate-set handicap, not an MP win.
+
+## 3. The claim
+
+In a serverless placement environment like this one:
+
+- deterministic costs;
+- trace-grounded fan-out batches with a mean group size of about 4 tasks (3.91–4.09, max 10;
+  `big_groups_s0_v1.md:211`);
+- a few candidates per task (median eligible 4–6, p90 9–10, max 13–22 without a slate limit; served
+  slate 5; `big_groups_s0_v1.md:205`).
+
+**Under these conditions the batch placement problem is enumerable.** An exhaustive hand search with the
+model's information comes within 3 % of a per-batch label oracle live. No GNN we trained beats it, with
+or without message passing. GNN scheduling wins reported over heuristic baselines in comparable
+settings (small batches, enumerable candidate sets, costs a hand model can price) should be re-read
+against such a bar.
+
+Out of scope (each is a separate claim):
+
+- sequencing problems with a non-decomposable objective (makespan, critical path), where Decima and L2D
+  live;
+- hidden information that a class prior cannot recover;
+- batches too large to enumerate. `big_groups_s0_v1` at G = 8: the hand search is still faster live.
+
+## 4. When would a GNN be necessary?
+
+_(Placeholder. SCIENTIST is answering this separately.)_
+
+## Caveats that travel with every quote
+
+- **Declared-slate cold defect.** Every accel GNN number before `slate_fix_v1` is on the cold-mispriced
+  declared slate and not re-measured.
+- **Deploy transient.** Every live number is a whole-run mean including the scale-from-zero opening
+  (about 40 % of heavy mean latency). Steady-state is a secondary line from 2026-10-12. Making it primary
+  is the user's decision (ADR 0004, PROPOSED).
+- **Seeds.** GNN contrasts use two training seeds per arm. `slate_fix_v2` adds seeds 3–4.
+- **Not MP.** No message-passing win over any hand bar exists in the record.
+- **One seat.** Every number is the accel seat; no claim transfers to another seat without a gate.
+- **Oracle scope.** The oracle is per batch and myopic, on 6 topologies, with 96.0 % / 98.4 % coverage of seen tasks
+  (`ib0_confirm_v1.md:7`).
