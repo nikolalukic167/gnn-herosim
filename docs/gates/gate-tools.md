@@ -34,6 +34,38 @@ One row per change after which earlier numbers no longer mean what they said. Ea
 | 2026-10-12 | Declared top-5 slate charges cold 0 on initialized platforms; `cd_exactS` is not slate-restricted | GNN-vs-hand-search contrasts as scorer verdicts: matched-slate, the GNN self-search wins −4.85 / −1.94 % | [slate_bar_v1](../lineages/slate_bar_v1.md); the section below |
 | 2026-10-12 | Hand bar moves to `cd_exactS_ib0` (S without in-batch stacking): −4.73 / −2.27 % vs `cd_exactS`, 12/12 | `cd_exactS` as the bar | [`ib0_confirm_v1`](../lineages/ib0_confirm_v1.md) |
 
+### Numbers measured before a change that affects them (audit 2026-10-12)
+
+Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LINEAGES.md` rows and the heads of the nodes they link. "Slate" is the 2026-10-12 declared-slate cold defect, "ib0" the 2026-10-12 bar move, "R1" the 2026-10-08 physics and workload freeze. Every row marked NO now carries a caveat at its quote site.
+- Not affected by these changes: hand-vs-hand numbers (`cd_exactS` and `cd_exactS_ib0` vs CD, Knative +48 / +68 % vs CD, `high_rho_s0_v1`, `sparse_obs_s0_v1` on `ib0`), because CD's cost is not the declared slate.
+- The accel rungs (×11.6139 / ×27.6227) were calibrated in `accel_replica_v1` on 2026-10-10, after the multiplier retraction. So no accel-seat number predates the rung or multiplier changes; `r1_attribution_v1` ran on `load_recalibration_v1`'s rungs.
+
+| Number | Quoted in | Measured (date, against) | Affected by | Re-measured? |
+|---|---|---|---|---|
+| "The bar is `cd_exactS` … no learned arm beats it" | AGENTS lead | 2026-10-10/11, vs CD | ib0 | Superseded by [ib0_confirm_v1](../lineages/ib0_confirm_v1.md); caveat added |
+| `gnn_eng_nosplit` −6.9 / −7.7 % vs CD | AGENTS, throughline, [accel_nosplit_v1](../lineages/accel_nosplit_v1.md) | 2026-10-11, gnn-eng g4 on `declared_pruning_v1` | Slate | NO (`slate_fix_v1` running) |
+| `gnn_selfsearch` −8.5 / −10.1 % vs CD; heavy −3.1 / −3.8 %; ties MP-OFF twin | AGENTS, throughline, [selfsearch_confirm_v1](../lineages/selfsearch_confirm_v1.md) | 2026-10-11/12, same corpus and slate | Slate (twin contrast: both sides) | vs CD NO; vs `cd_exactS` matched-slate by [slate_bar_v1](../lineages/slate_bar_v1.md) |
+| gnn_eng −5.45 % / physmp −6.05 % vs CD; CD←GNN −5.03 / −3.40 % | [accel_replica_v1](../lineages/accel_replica_v1.md) | 2026-10-10 | Slate | NO |
+| G8 self-search −9.7 / −1.5 % vs CD, +0.5 / +5.5 % vs `cd_exactS` | AGENTS (closed levers), [big_groups_s0_v1](../lineages/big_groups_s0_v1.md) | 2026-10-11 | Slate; ib0 | NO |
+| self-search −1.4 / +1.2 % vs CD; "hand search stays the bar" | [link_bound_s0_v1](../lineages/link_bound_s0_v1.md) row | 2026-10-11 | Slate; ib0 | NO |
+| GNN 4–12 % ahead of CD per block; deficit to `cd_exactS` +2.7 pp / 24 h | AGENTS, [long_horizon_s0_v1](../lineages/long_horizon_s0_v1.md) | 2026-10-12, vs `cd_exactS` | Slate; ib0 | NO |
+| over-cap self-search +0.2 / +2.5 % vs `cd_exactS` | AGENTS, [gnn_overcap_v1](../lineages/gnn_overcap_v1.md) | 2026-10-12 | Slate (in head); ib0 | NO |
+| top-k prune −1.4 / −2.1 % vs `cd_exactS`'s fallback; GNN order ties cost order | AGENTS, [prune_g8_s0_v1](../lineages/prune_g8_s0_v1.md) | 2026-10-12 | ib0 (prune not tried on `ib0`); slate (GNN order only) | NO |
+| label oracle −0.9 / −4.2 % vs `cd_exactS`; hand ib0 −4.6 / −3.2 % | [plan_rerank_v1](../lineages/plan_rerank_v1.md) row | 2026-10-11/12, 6 topologies | ib0 | YES: [ib0_confirm_v1](../lineages/ib0_confirm_v1.md) (ib0 −4.73 / −2.27 % on 12 fresh topologies; oracle vs ib0 −2.82 / −1.96 %) |
+| matched-slate self-search −4.85 / −1.94 % vs restricted `cd_exactS` | AGENTS, throughline, rows | 2026-10-12 | None for its claim (scoped to `cd_exactS`; both sides on the same slate) | n/a |
+| GNN seed −0.99 / −1.22 % vs hand seed; +0.73 / +0.41 % vs `ib0` | throughline, [ib0_confirm_v1](../lineages/ib0_confirm_v1.md) | 2026-10-12 | Slate (seed checkpoint) | NO |
+| MLP V ties `cd_exactS` | [cost_to_go_v1](../lineages/cost_to_go_v1.md) row | 2026-10-11 | Slate (training tables); ib0 | NO (caveat already present) |
+| argmin-S optimal 79 % (regret 6.1 %), median 3 tasks | AGENTS ("little room"), [big_groups_s0_v1](../lineages/big_groups_s0_v1.md) | 2026-10-11, 413 held-out accel tables | Slate: tables enumerate the declared top 5 | NO |
+| raw MP vs twin −4.75 / −4.62 / −7.99 %; physmp +3.4 / +5.9 / +5.1 % vs CD | throughline, AGENTS | 2026-10-09/10, 40 × 6, declared pruning | Slate | NO |
+| +5.14 pp offline; −15.94 % live | [peer_affinity_v1](../lineages/peer_affinity_v1.md) row | 2026-09, pre-R1 | R1 | NO; caveat added |
+| −11.9 % vs one-pass; CD +12.5 % | [joint_burst_v2](../lineages/joint_burst_v2.md) row | 2026-09-20, burst seat | R1; `krank` fix 721d44f | krank bounded (+1.4 %, [load_repr_v1](../lineages/load_repr_v1.md)); R1 NO; caveat added |
+| Phase 2 TIE p = 0.25 | [route_b_v1](../lineages/route_b_v1.md) row | 2026-08/09, co-sim | R1 | NO; caveat added |
+| CD 5.6 / 5.0 / 5.6 % above the batch optimum | [live_headroom_v1](../lineages/live_headroom_v1.md) row | 2026-10-01, scattered origins | R1; origin (caveat present) | NO; physics caveat added |
+| D1: H-MYOPIA | [drainable_debug_v1](../lineages/drainable_debug_v1.md) row | 2026-09 | R1 | NO; caveat added |
+| re-gate 5/5 | [siv1_full_corpus](../lineages/siv1_full_corpus.md) row | 2026-08 | R1 | NO; caveat added |
+| mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
+| L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
+
 ## 2026-10-12 — The declared slate charges no cold start on an `initialized` platform; the simulation does
 
 **Where.** `declared_slate.standalone_cost` (`src/placement/declared_slate.py:46`) sets cold = 0 whenever the candidate payload's

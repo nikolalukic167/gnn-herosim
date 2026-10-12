@@ -2,6 +2,8 @@
 
 > **Status:** `ACTIVE` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-09-09 → (open)
 
+> ⚠ **Physics (caveat added 2026-10-12).** Measured before reference physics R1.1 + WF1 (2026-10-08, `physics_audit_v1`, `workload_fix_v1`); not re-measured on it. Breaking-changes table in `docs/gates/gate-tools.md`.
+
 **Newest (2026-09-13, H5): CONFOUNDED by its own registered control, and both headline live results are contingent on the cluster's platform mix.** The live cluster serves `xavierGpu`, which no training dataset ever had as a candidate (7.6 % of live candidates). With it removed, `gnn` beats `mpoff` live (+3.94 %, p = 0.0076, x200 p2) but loses to Knative by 14.0 % on every seed, and the +21.9 % platform-cap win over Knative reverses. No measurement has `gnn` beating both `mpoff` and Knative. The T1b result below is offline only (`throughline`, 2026-09-12).
 
 **Outcome.** **T1b (2026-09-11) supersedes T1's reading: message passing DOES help on this

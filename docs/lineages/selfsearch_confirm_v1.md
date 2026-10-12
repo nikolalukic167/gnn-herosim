@@ -3,7 +3,7 @@
 **Status:** `CLOSED` (2026-10-11) — **DIRECTION-ONLY** (moderate CONFIRMED, heavy DIRECTION-ONLY; no WIN). Registered
 2026-10-11; every bar below was signed before its data.
 
-> **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win.
+> **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win. Its vs-CD numbers are on the cold-mispriced slate and not re-measured (`slate_fix_v1` running); the hand bar is now `cd_exactS_ib0`.
 
 **Outcome.** A pure learned policy, the no-split GNN choosing the slate plan with the best score of its own (no S, no
 CD), beats CD on 24 fresh topologies. The margin is confirmed at moderate; at heavy it is significant but under the −5 %

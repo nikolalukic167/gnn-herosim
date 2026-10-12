@@ -26,6 +26,7 @@ lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `doc
 gates (24 topologies −8.6 / −6.8 %, `link_bound_s0_v1` −11.1 / −8.0 %, G8 −9.2 / −7.7 %). No learned arm beats
 it, and no learned win in this programme is a message-passing win.** Seat: R1.1 + WF1, replicas on the fastest
 compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm names: `CONTEXT.md` → Arms.
+> ⚠ Since 2026-10-12 the hand bar is `cd_exactS_ib0` (below); the GNN numbers here are on the cold-mispriced declared slate and not re-measured (`slate_fix_v1` running). Audit: gate-tools → "Numbers measured before a change".
 - **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 %
   (`accel_nosplit_v1`), `gnn_selfsearch` −8.5 / −10.1 % (`selfsearch_confirm_v1`). Heavy: −1 to −4 %, under the −5 % bar.
   `gnn_selfsearch` ties its MP-OFF twin.

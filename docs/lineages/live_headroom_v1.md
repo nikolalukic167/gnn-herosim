@@ -2,6 +2,8 @@
 
 **Status:** `CLOSED` (2026-10-01) — **MIDDLE** (offline, descriptive). Registered 2026-10-01. The bar and the expectations below were fixed before any sweep of these states was read.
 
+> ⚠ **Physics (caveat added 2026-10-12).** Measured before reference physics R1.1 + WF1 (2026-10-08, `physics_audit_v1`, `workload_fix_v1`); not re-measured on it. Breaking-changes table in `docs/gates/gate-tools.md`.
+
 > ⚠ **Origin model (caveat added 2026-10-12).** Captured on the grounded windows with scattered request origins. With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
 
 **Outcome (2026-10-01, offline, descriptive): `MIDDLE`.** On 3,935 live batches (mean 3.8 tasks, 138 of 144 capture units; the six
