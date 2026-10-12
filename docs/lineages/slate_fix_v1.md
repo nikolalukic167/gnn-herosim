@@ -1,6 +1,6 @@
 # slate_fix_v1 — does the GNN trained and served on the uncapped candidate set close its heavy gap to `cd_exactS`?
 
-**Status:** `REGISTERED` (signed by the expert 2026-10-12 at d66ab923; drafted by S6). Launched 2026-10-12; no gate cell, no data yet.
+**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert at d66ab923; drafted by S6). Training done, gates A/B/B2 running; single read pending.
 
 **Now (2026-10-12).** Code and configs are on `rp/slate-fix`; the jobs run at the pinned code 4d90119c (438fa161 plus the eval `ulimit` fix; later commits are this node only). Launch order:
 1. S7's recache and the cache check (`scripts_cosim/slate_fix_v1_cache_check.py`): PASSED.
