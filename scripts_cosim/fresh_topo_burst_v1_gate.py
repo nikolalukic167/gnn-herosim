@@ -59,6 +59,9 @@ RULE_POLICY = {
     "cd_exactS_a0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with S's whole queue term scaled to 0 (HEROSIM_PG_DRAIN_ALPHA=0, S6's S_alpha)
     "cd_exactS_a05": "peer_greedy_network_cd",  # ib0_confirm_v1 descriptive: batch alpha 0.5, to show alpha = 0 is not a knife-edge
     "cdx_ib0": "peer_greedy_network_cd",  # ib0_confirm_v1 hand-seed control: the cd_expand flow (greedy first pass, passes, one expansion, passes) on the ib0 surrogate
+    **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
+        "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
+        "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
     "cd_exactS_ib0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with only the in-batch stacking term zeroed (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_oracle": "peer_greedy_network_cd",  # plan_rerank_v1 Phase 0: cd_exactS with the exact search scored by the real single-batch RTT (HEROSIM_PG_ORACLE=1); a measurement arm
     "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
@@ -150,6 +153,21 @@ R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "rea
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
 EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"}}  # plan_rerank_v1 S_alpha arms
+_BUNDLE = {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_PARTNERS": "arrival"}
+OBS_ARMS = {  # sparse_obs_s0_v1 degradations (the estimator is the naive/ec arm); every one searches exactly as cd_exactS_ib0
+    "cd_obs_queue_naive": {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_queue_ec": {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_ESTIMATOR": "ec"},
+    "cd_obs_bundle_naive": {**_BUNDLE, "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_bundle_ec": {**_BUNDLE, "HEROSIM_OBS_ESTIMATOR": "ec"},
+    "cd_obs_exec": {"HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_partners_naive": {"HEROSIM_OBS_PARTNERS": "arrival", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_partners_ec": {"HEROSIM_OBS_PARTNERS": "arrival", "HEROSIM_OBS_ESTIMATOR": "ec"},
+    "cd_obs_a0plus": {"HEROSIM_PG_COLD_TAIL": "1"},  # stage 2: A0 with the cold term priced against the type the task follows
+    "cd_obs_w1_naive": {"HEROSIM_PG_COLD_TAIL": "1", "HEROSIM_OBS_WARM": "seconds", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_w1_ec": {"HEROSIM_PG_COLD_TAIL": "1", "HEROSIM_OBS_WARM": "seconds", "HEROSIM_OBS_ESTIMATOR": "ec"},
+}
+OBS_ENV = ("HEROSIM_OBS_QUEUE", "HEROSIM_OBS_EXEC_SIGMA", "HEROSIM_OBS_INFLIGHT", "HEROSIM_OBS_PARTNERS", "HEROSIM_OBS_WARM", "HEROSIM_PG_COLD_TAIL", "HEROSIM_OBS_ESTIMATOR", "HEROSIM_OBS_SEED")
+EXACT_ALPHA.update({k: {"HEROSIM_PG_BATCH_ALPHA": "0"} for k in OBS_ARMS})  # sparse_obs_s0_v1
 ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
 
 
@@ -166,7 +184,7 @@ def check_alias(kind: str) -> str:
         if kind.endswith(suffix):
             return kind[:-len(suffix)] + "_cdxapply"
     return kind
-R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cdx_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_DIAG = (*OBS_ARMS, "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cdx_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
@@ -787,6 +805,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
               "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV, *ORACLE_ENV):
         env.pop(k, None)
+    for k in OBS_ENV:
+        env.pop(k, None)
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
@@ -921,6 +941,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")
         if kind in EXACT_ALPHA:
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", **EXACT_ALPHA[kind])
+        if kind in OBS_ARMS:
+            env.update(OBS_ARMS[kind])
+            if "HEROSIM_OBS_ESTIMATOR" in OBS_ARMS[kind]:
+                env["HEROSIM_OBS_SEED"] = str(seed)
         if kind == "cd_oracle":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
                        HEROSIM_ORACLE_SIM_INPUT=os.path.join(REPO, "data/nofs-ids"),
@@ -1073,6 +1097,34 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     if kind in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+    obs_want = OBS_ARMS.get(kind, {})
+    for name in OBS_ENV:
+        want_o = obs_want.get(name, str(seed) if (name == "HEROSIM_OBS_SEED" and "HEROSIM_OBS_ESTIMATOR" in obs_want) else None)
+        if out["env"].get(name) != want_o:
+            problems.append(f"{name} served {out['env'].get(name)!r}, want {want_o!r} for {kind}")
+    used = {n: int(c.get(n) or 0) for n in ("obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted", "obs_cold_degraded", "obs_cold_exact")}
+    tail_calls = int(c.get("pg_cold_tail_calls") or 0)
+    if bool(obs_want.get("HEROSIM_PG_COLD_TAIL")) != bool(tail_calls):
+        problems.append(f"cold-tail instrument: HEROSIM_PG_COLD_TAIL={obs_want.get('HEROSIM_PG_COLD_TAIL')!r} but pg_cold_tail_calls {tail_calls}")
+    if obs_want.get("HEROSIM_OBS_WARM") and (not used["obs_cold_degraded"] or used["obs_cold_exact"]):
+        problems.append(f"warmth channel: degraded cold prices {used['obs_cold_degraded']}, exact {used['obs_cold_exact']}")
+    if not obs_want.get("HEROSIM_OBS_WARM") and used["obs_cold_degraded"]:
+        problems.append("cold seconds degraded on an arm that does not degrade them")
+    if not obs_want and any(used.values()):
+        problems.append(f"an exact-observation arm used degraded channels: {used}")
+    if obs_want:
+        if obs_want.get("HEROSIM_OBS_QUEUE") and (not used["obs_drain_degraded"] or used["obs_drain_exact"]):
+            problems.append(f"queue channel: degraded drains {used['obs_drain_degraded']}, exact walks {used['obs_drain_exact']}")
+        if not obs_want.get("HEROSIM_OBS_QUEUE") and used["obs_drain_degraded"]:
+            problems.append("queue degraded on an arm that does not degrade it")
+        if obs_want.get("HEROSIM_OBS_EXEC_SIGMA") and not used["obs_exec_degraded"]:
+            problems.append("exec channel off: obs_exec_degraded == 0")
+        if obs_want.get("HEROSIM_OBS_PARTNERS") and not used["obs_partner_hidden"]:
+            problems.append("partner channel off: obs_partner_hidden == 0")
+        if obs_want.get("HEROSIM_OBS_ESTIMATOR") == "ec" and obs_want.get("HEROSIM_OBS_PARTNERS") and not used["obs_partner_predicted"]:
+            problems.append("ec partner prediction off: obs_partner_predicted == 0")
+        if not obs_want.get("HEROSIM_OBS_INFLIGHT") and used["obs_inflight_degraded"]:
+            problems.append("in-flight degraded on an arm that does not degrade it")
     for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
         want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(name)
         if out["env"].get(name) != want:

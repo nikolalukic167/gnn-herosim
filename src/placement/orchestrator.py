@@ -254,6 +254,9 @@ class Orchestrator:
             "decima_allowed_platforms", "decima_fallbacks",
             # lookahead_mp_v1 P0: unarrived partners priced / left unpriced
             "pg_lookahead_priced", "pg_lookahead_blind",
+            # sparse_obs_s0_v1: degraded observation channels actually used
+            "obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted",
+            "obs_cold_degraded", "obs_cold_exact", "pg_cold_tail_calls",
         )
         out: Dict[str, Any] = {}
         for name in names:
