@@ -161,6 +161,58 @@ epoch is not the run**, and a two-arm contrast read at last epoch can invert aga
 contrast at the selected checkpoint (measured in `route_b_v1` Phase 2, and in `peer_affinity_v1`
 T1b in the other direction).
 
+## Prefix-free accuracy drifts down as the selector improves (2026-10-12)
+
+The user read the W&B `val/acc` and `val/task_acc` panels of the accel, scale_160, r1_attribution and slate_fix runs as "terrible". They are not
+the runs' decision. Every one of these runs is teacher-forced (`NEAR_RTT_PARTIAL_STATE_EDGES=1`, so `TEACHER_FORCED`, `train_near_rtt.py:270`), and for
+those runs `evaluate()` zeroes the prefix block before the per-task forward (`_prefix_free_prefix_block`, `:462`, called at `:1221`). `val/task_acc`,
+`val/task_acc_choice`, `val/acc`, `val/regret_greedy` and `val/regret_topk` score every task as if **no partner had been placed**, against **one**
+label index (`data.y`) although the loss accepts any tied-optimal plan. The served decision, which the checkpoint is selected on, is the
+prefix-conditioned masked-topo decode: `val/regret_masked_topo` (`ranking_checkpoint_metric`, `:1428`), with `val/mt_task_acc_choice` and
+`val/mt_plan_exact` as its accuracies. The run summary says so (`readout/decision_metrics`, `readout/prefix_free_metrics`).
+
+**Mechanism.** The label co-locates a task with its placed partners. A model that learns to use the partner columns (exchange seconds, peer mass)
+puts its evidence for the label's choice into exactly the inputs the diagnostic zeroes. So as the selector improves, the empty-prefix
+forward drifts away from the label. Curve sweep of 2026-10-12 (16 runs read in full, a 261-run pool; per-family best → final in the table below):
+- prefix-free `task_acc` falls 1–8 pp from its early peak on the GNN arms, and 7–11 pp on `mlp-same`;
+- the prefix-free accuracies are **positively** rank-correlated with the selector's regret (ρ +0.2 … +0.8): lower accuracy goes with *better* decisions;
+- `mt_plan_exact` rises 0.40 → 0.60–0.64 with ρ −0.6 … −0.9 to the regret;
+- the prefix-free `regret_greedy` *rises* while `regret_masked_topo` falls (slate_fix seed 2: 6.4 → 9.3 s at its worst, against 3.86 → 0.77 s).
+
+The one arm whose prefix-free accuracy does not drift, r1_attribution `twin-raw`, is also the one whose regret barely moves (4.3 → 4.2 s, about 0.33 of
+the random plan). A flat prefix-free curve is the worse sign.
+
+**Floors** (`baseline/val_*` in each summary, written by `_chance_baselines`; the plan NLL floor is for the any-of-K whole-plan CE):
+
+| family (val split) | cand./task | chance task_acc | chance whole-plan acc | chance val/ce | random-plan regret | prefix-free task_acc best → final | selected regret (share of random) |
+|---|---|---|---|---|---|---|---|
+| accel_replica_v1, capped (438) | 3.92 | 0.313 | 0.044 | 4.66 | 22.66 s | 0.58–0.62 → 0.53–0.60 | 0.61–0.94 s (0.03–0.04) |
+| slate_fix_v1/v2, uncapped (438) | 5.03 | 0.290 | 0.039 | 5.23 | 24.17 s | 0.59 → 0.52–0.53 | 0.77–0.96 s (0.03–0.04) |
+| scale_160_v1 (451) | 4.18 | 0.274 | 0.034 | 4.89 | — | 0.53–0.56 → 0.46–0.54 | 0.83–1.01 s (0.05–0.06) |
+| r1_attribution_v1 (805) | 2.87 | 0.478 | 0.109 | 3.47 | — | 0.73–0.76 → 0.62–0.75 | 0.83–0.98 s engineered GNN / twin / set-transformer, 1.15–1.23 s mlp-same, 1.7–2.3 s raw, 4.2–4.4 s twin-raw |
+
+Guards held on every run in these families: every val dataset decoded (438, 451 or 805 of the split) and mapped 100 %. `val/ce` at selection was 1.36–1.38 against the 5.23 floor
+(uncapped). GNN vs twin and seed vs seed differ by less than the per-epoch noise (±0.15 s against a step sd of 0.08–0.24 s).
+`val/acc` moves in steps of 1/438. Its identical peaks across runs (151/438 = 0.3447) are quantisation, not a ceiling.
+
+⇒ **On a teacher-forced run, read `regret_masked_topo` (with its `_frac`), `mt_plan_exact` and `mt_task_acc_choice`. Treat the prefix-free
+accuracies as a probe of the empty-prefix scorer, never as the run's accuracy, and expect them to fall.** For the same checkpoint (accel g4 seed 1,
+best) the two families read prefix-free task_acc 52.4 % / acc 24.4 % against served choice accuracy 73.5 % / plan-exact 62.6 %.
+
+**Two defects in `scripts_cosim/read_training_curves.py` found by this sweep** (S6 is fixing them):
+1. **Direction of the `mt_*` accuracies.** The SELECTION block takes the minimum of `val/mt_plan_exact`, `val/mt_task_acc_choice` and
+   `val/task_acc_choice` as their "peak", so it prints "peaks at epoch 0, not 96 — the selector is not optimising it" for metrics that in fact rise to
+   their maximum near the selected epoch (slate_fix seed 2: `mt_plan_exact` 0.395 @ 0 → 0.614 @ 99). These are higher-is-better.
+2. **Floor of `train/ce`.** The reader compares `train/ce` with `baseline/val_chance_ce`. With `NEAR_RTT_FULL_CONTEXT_CE_WEIGHT=1.0` the training loss
+   is the prefix any-of-K plan NLL **plus** a full-context plan NLL (`train_near_rtt.py:626–635`, `:1086`), so its uniform-scorer floor is about twice
+   `chance_ce`. That is ≈ 10.5 uncapped, not 5.23. `train/ce` and `val/ce` (prefix term only, `:1224`) are different quantities and must not be
+   read as a train/val gap in either direction.
+
+Not a defect, still a trap: several W&B run names occur 3–4 times in `gnn-slate-fix-v1` (relaunches; only one per name carries
+`best_val_regret_masked_topo`), and the slate_fix_v2 seeds 3–4 log into that same project. Group by run ID before overlaying curves. And clean
+offline curves are not live evidence: these runs' 0.03–0.04 of random-plan regret still lost live (`slate_fix_v1` +2.6 / +5.3 % vs
+`cd_exactS_ib0`; `offline_live_transfer_v1`).
+
 ## An offline score can say "worse than it was" without being able to say "worse than that one" (2026-09-15)
 
 `offline_live_transfer_v1` measured both readings of the same number on the same checkpoints
