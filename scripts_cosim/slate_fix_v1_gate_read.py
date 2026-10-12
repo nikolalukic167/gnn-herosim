@@ -4,14 +4,15 @@
 Topologies 19420-19431 (anything else is refused), windows g0-g1, moderate and heavy. Two gate submissions run the same harness kinds on
 different checkpoints, so the reader renames a learned kind by the directory it came from: --new (R1A_STEM=slate-fix-v1, the uncapped retrain)
 -> "new:<kind>", --old (R1A_STEM=accel-replica-v1, the capped g4 checkpoints) -> "old:<kind>". The hand arms (cd, cd_exactS) keep their names
-and must appear in exactly one directory.
+and must appear in exactly one directory. Gate B2 (cd_exactS_ib0, run at d192081f, the commit that defines it) is passed as a second --old dir.
 
 Statistic as every gate of the line (r1_attribution_v1_read): per topology the median over (window, seed) of the paired % of an arm's mean
 latency against the reference (the reference's own seed if seeded, else its seed 0), then the median over topologies and an exact two-sided
 Wilcoxon. Negative = the arm is faster.
-  * primary, Holm over 4: new gnn_eng self-search and new gnn_eng no-split vs cd_exactS x {moderate, heavy}. Per arm: E-FASTER (cd_exactS
-    Holm-confirmed faster at some rung), else WIN (median <= -2 % with Holm p < .05 at BOTH rungs), else DIRECTION-ONLY (median < 0 at both),
-    else NOT-SEPARATED. Per rung: CONFIRMED / E-FASTER / DIRECTION-ONLY / NOT-SEPARATED;
+  * primary, Holm over 8 (amended 2026-10-12 before any gate read: the hand bar is cd_exactS_ib0 from ib0_confirm_v1; cd_exactS stays as the
+    secondary reference): new gnn_eng self-search and new gnn_eng no-split vs cd_exactS_ib0 and vs cd_exactS x {moderate, heavy}. Per arm and
+    reference: E-FASTER (the reference Holm-confirmed faster at some rung), else WIN (median <= -2 % with Holm p < .05 at BOTH rungs), else
+    DIRECTION-ONLY (median < 0 at both), else NOT-SEPARATED. Per rung: CONFIRMED / E-FASTER / DIRECTION-ONLY / NOT-SEPARATED;
   * secondary "data effect", Holm over 4: new vs old checkpoint, self-search and no-split x 2 rungs;
   * secondary "MP", Holm over 4: new gnn_eng vs new twin_eng, self-search and no-split x 2 rungs;
   * descriptive, outside every family: the gap change (new vs cd_exactS minus old vs cd_exactS, pp, per topology then median), old arms vs
@@ -36,8 +37,8 @@ import r1_attribution_v1_read as R  # noqa: E402
 RUNGS = ("moderate", "heavy")
 WINDOWS = ("g0", "g1")
 TOPO_RANGE = (19420, 19431)
-E, CD = "cd_exactS", "cd"
-HAND = (E, CD)
+E, CD, IB0 = "cd_exactS", "cd", "cd_exactS_ib0"
+HAND = (E, CD, IB0)
 SS, NS = "ra_gnn_eng_selfsearch", "ra_gnn_eng_nosplit"
 TWIN_SS, TWIN_NS = "ra_twin_eng_selfsearch", "ra_twin_eng_nosplit"
 CDX = "ra_gnn_eng_cdxapply"
@@ -110,14 +111,16 @@ def gap_change(cells: dict, topos: List[int], arm: str, rung: str) -> dict:
 
 
 def families(cells: dict, topos: List[int]) -> dict:
-    prim = fam(cells, topos, [(f"new:{SS}", E, "new self-search vs cd_exactS"), (f"new:{NS}", E, "new no-split vs cd_exactS")], "E-FASTER")
-    prim["labels"] = {n: arm_label([prim["tests"][f"{n}|{r}"] for r in RUNGS]) for n in ("new self-search vs cd_exactS", "new no-split vs cd_exactS")}
+    pp = [(f"new:{SS}", IB0, "new self-search vs cd_exactS_ib0"), (f"new:{NS}", IB0, "new no-split vs cd_exactS_ib0"),
+          (f"new:{SS}", E, "new self-search vs cd_exactS"), (f"new:{NS}", E, "new no-split vs cd_exactS")]
+    prim = fam(cells, topos, pp, "E-FASTER")
+    prim["labels"] = {n: arm_label([prim["tests"][f"{n}|{r}"] for r in RUNGS]) for _, _, n in pp}
     data = fam(cells, topos, [(f"new:{SS}", f"old:{SS}", "self-search new vs old"), (f"new:{NS}", f"old:{NS}", "no-split new vs old")], "OLD-FASTER")
     mp = fam(cells, topos, [(f"new:{SS}", f"new:{TWIN_SS}", "self-search gnn vs twin"), (f"new:{NS}", f"new:{TWIN_NS}", "no-split gnn vs twin")],
              "TWIN-FASTER")
     desc = {}
     for a, b, n in ((f"old:{SS}", E, "old self-search vs cd_exactS"), (f"old:{NS}", E, "old no-split vs cd_exactS"),
-                    (f"new:{CDX}", E, "new cdxapply vs cd_exactS"), (f"new:{CDX}", CD, "new cdxapply vs cd"), (E, CD, "cd_exactS vs cd"),
+                    (f"new:{CDX}", E, "new cdxapply vs cd_exactS"), (f"new:{CDX}", CD, "new cdxapply vs cd"), (E, CD, "cd_exactS vs cd"), (IB0, E, "cd_exactS_ib0 vs cd_exactS"), (IB0, CD, "cd_exactS_ib0 vs cd"),
                     (f"new:{SS}", CD, "new self-search vs cd"), (f"new:{SS}", f"new:{NS}", "new self-search vs new no-split")):
         for r in RUNGS:
             desc[f"{n}|{r}"] = R.contrast(cells, a, b, r, topos)

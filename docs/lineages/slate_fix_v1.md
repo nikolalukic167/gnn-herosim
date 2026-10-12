@@ -5,7 +5,7 @@
 **Now (2026-10-12).** Code and configs are on `rp/slate-fix`; the jobs run at the pinned code 4d90119c (438fa161 plus the eval `ulimit` fix; later commits are this node only). Launch order:
 1. S7's recache and the cache check (`scripts_cosim/slate_fix_v1_cache_check.py`): PASSED.
 2. **User-ordered amendment (2026-10-12, relayed by the expert):** training starts now and no longer waits for the `slate_bar_v1` read. The gate order is unchanged.
-3. Eval-only identity task (job 863950, task 8; the first try 863945 died on a launch defect, see Record) → training (863951, gnn_eng / twin_eng, seeds 1–2; `afterok` on the identity) → offline screen (863952, tasks 0–7; `afterok` on training) → identity and smoke on 16490 → gate A and B → single read. A failed identity is fixed in code, never rerun.
+3. Eval-only identity task (job 863950, task 8; the first try 863945 died on a launch defect, see Record) → training (863951, gnn_eng / twin_eng, seeds 1–2; `afterok` on the identity) → offline screen (863952, tasks 0–7; `afterok` on training) → identity and smoke on 16490 → gate A, B and B2 (amendment) → single read. A failed identity is fixed in code, never rerun.
 
 **What the fix does not touch: read this first if the gap does not move.**
 - **54 over-cap train datasets** (> 100,000 full plans) keep their capped top-5 labels: `untouched_over_cap` in `extend_manifest.*.jsonl`.
@@ -95,8 +95,9 @@ This gate asks whether the same architecture, retrained and served on the full c
 | new `cdxapply` (`ra_gnn_eng_cdxapply`: no-split plan, CD refine with expansion) | A | `slate-fix-v1`, 1–2 | 96 |
 | old self-search / no-split, capped g4 (md5 0f915a36 / 446f99fd) | B (`R1A_SLATE` unset) | `accel-replica-v1`, 1–2 | 192 |
 | `cd_exactS`, `cd` | B | seed 0 | 96 |
+| **`cd_exactS_ib0`** (amended 2026-10-12, the hand bar) | B2, at d192081f | seed 0 | 48 |
 
-- Total: **768 cells**.
+- Total: **816 cells** (768 registered + 48 by the B2 amendment).
 - The old checkpoints are served capped (their sidecar says `declared_pruning_v1`), exactly as every earlier gate served them. They are the "same model, old data" control.
 - The old twin is not in the gate. Its offline numbers are in the screen.
 
@@ -135,23 +136,24 @@ This gate asks whether the same architecture, retrained and served on the full c
 
 **Statistic** (`scripts_cosim/slate_fix_v1_gate_read.py`, committed now, before data).
 - Per topology: the median over (window, seed) of the paired % of mean latency. The reference is its own seed when seeded, else seed 0; new vs old pairs seed s with seed s.
-- Then the median over 12 topologies, the sign count and the exact two-sided Wilcoxon (n = 12: p floor 0.00049, Holm over 4 floor 0.002).
+- Then the median over 12 topologies, the sign count and the exact two-sided Wilcoxon (n = 12: p floor 0.00049; Holm floor 0.002 over 4, 0.004 over 8).
 - Negative = the first arm is faster.
 - The reader renames learned kinds by directory (`new:` / `old:`), refuses topologies outside 19420–19431, windows other than g0–g1, and a hand cell present in both directories.
 - A second pass repeats every family without the topologies that have a failure.
 
 **Registered families (Holm within each).**
-- **PRIMARY (Holm over 4):** new self-search vs `cd_exactS` and new no-split vs `cd_exactS`, × moderate and heavy.
+- **PRIMARY (Holm over 8, amended 2026-10-12 before any gate read):** new self-search and new no-split vs **`cd_exactS_ib0`** (the hand bar) and vs `cd_exactS` (secondary reference), × moderate and heavy. Labels are given per arm and reference.
+  - Registered as Holm over 4 vs `cd_exactS` only; the amendment enlarged it.
 - **SECONDARY, data effect (Holm over 4):** new vs old checkpoint, self-search and no-split, × 2 rungs.
 - **SECONDARY, MP (Holm over 4):** new gnn vs new twin, self-search and no-split, × 2 rungs.
 - **Descriptive, untested:**
   - the gap change, i.e. (new vs `cd_exactS`) − (old vs `cd_exactS`) in pp, per topology then the median. This is the quantity both predictions are about;
-  - old arms vs `cd_exactS`; new `cdxapply` vs `cd_exactS` and vs CD; new self-search vs new no-split and vs CD;
+  - old arms vs `cd_exactS`; new `cdxapply` vs `cd_exactS` and vs CD; new self-search vs new no-split and vs CD; `cd_exactS_ib0` vs `cd_exactS` and vs CD;
   - per-arm slate counters: pruned, sub-batched, unsplit, exact vs ascent batches.
 
 **Labels (standard, fixed now).**
 - **WIN** for an arm: median ≤ −2 % with Holm p < .05 at **both** rungs.
-- **E-FASTER:** `cd_exactS` faster with Holm p < .05 at either rung (a LOSS).
+- **E-FASTER:** the reference (`cd_exactS_ib0` or `cd_exactS`) faster with Holm p < .05 at either rung (a LOSS).
 - Otherwise **DIRECTION-ONLY** (median < 0 at both rungs) or **NOT-SEPARATED**, reported with both medians and p-values.
 - Per rung: CONFIRMED / E-FASTER / DIRECTION-ONLY / NOT-SEPARATED.
 - **NOT-COMPARABLE** if `cd_exactS` is not faster than CD at both rungs (the seat is then not the one selfsearch_confirm_v1 measured).
@@ -169,7 +171,7 @@ This gate asks whether the same architecture, retrained and served on the full c
   - Uncapping widens per-task candidates 5 → 7–13 and mainly fixes small and mid batches, where recall was already 85–97 %.
   - A wider slate also pushes more batches past self-search's 625-plan exact limit, which can cost some of the gain.
 
-**Not claimed:** a message-passing win; any seat other than the accel seat; other recipes or seeds; G8; "beats the best hand rule" unless the primary is a WIN.
+**Not claimed:** a message-passing win; any seat other than the accel seat; other recipes or seeds; G8; "beats the best hand rule" unless the primary is a WIN **against `cd_exactS_ib0`**.
 
 ## Cost and queue plan
 
@@ -196,6 +198,12 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12, 20:26 cluster time — **Amendment, signed by the expert before any gate read: the hand bar is `cd_exactS_ib0`** (ib0_confirm_v1, CLOSED today), not `cd_exactS`.
+  - Reason (expert): ib0_confirm_v1 closed today with `cd_exactS_ib0` (`cd_exactS` with only the in-batch stacking term zeroed, `HEROSIM_PG_BATCH_ALPHA=0`) as the strongest hand rule, so a WIN must be measured against it. `cd_exactS` stays as the secondary reference.
+  - Gate B2 864137: `cd_exactS_ib0`, seed 0 (deterministic), same seat, 19420–19431 × g0–g1 × both rungs, 48 cells, PAR 24, LIMIT 8,100; OUT `/share/nikola.lukic/slate_fix/gate_B2_d192081f`.
+  - **Deviation, decided by S6:** the expert asked for 4d90119c, but the kind and the `HEROSIM_PG_BATCH_ALPHA` hook exist only at ib0_confirm_v1's d192081f (`r1a_gate.sbatch` wipes `HEROSIM_*`, so it cannot be set from outside). B2 runs at d192081f in ib0's pinned worktree `~/gnn-herosim-wt/ib0_d192081f`, as ib0_confirm_v1 ran it, on this gate's inputs.
+  - Cross-commit identity 864138: `cd_exactS` at d192081f on 16490 g0, both rungs, must equal `selfsearch_confirm/gate_79ea002c` in every simulated key (smoke B showed 4d90119c does). If it does not, B2 is not comparable and the primary falls back to `cd_exactS` alone; reported either way.
+  - Reader amended (`slate_fix_v1_gate_read.py`): primary Holm over 8; two descriptive lines. Read: `--new gate_A_4d90119c --old gate_B_4d90119c gate_B2_d192081f`.
 - 2026-10-12 — **Smokes PASS; gate A and B launched.**
   - Smoke B 864098 (32 m; 4/4, 0 failed): **flag-off identity PASS.** `cd_exactS` and old `ra_gnn_eng_selfsearch` s1 on 16490 g0 at both rungs equal `selfsearch_confirm/gate_79ea002c` in every simulated key (mean latency bit-equal: heavy 2.2544 / 2.2196, moderate 2.6100 / 2.5902; every scheduler counter). The only differing keys are measured timing (`decisionTiming.*`, `ss_seconds`, `total_rtt_plus_inference`), code provenance and the model path (same md5).
   - Smoke A 864099 (21 m; 10/10, 0 failed): served `GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1_uncapped` and the loader's slate check passed; `slate_declared_pruned` = 0 on every cell; `ss_batches` = `slate_declared_batches` on both self-search kinds; `slate_declared_unsplit` = `slate_declared_sub_batched` on every cell. Slowest cell 1,268 s (heavy gnn self-search), so `LIMIT` = max(8,100, 2.5 × 1,268) = 8,100 s. Smokes are not results.
