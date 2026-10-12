@@ -206,7 +206,7 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
   - Co-located pairs go up in 51.3 % / 44.9 %, stay the same in 46.0 % / 46.9 %, and go down in 2.6 % / 8.2 %.
   - Label regret of the old best (old minus new, s): median 0.285 / 0.309, mean 3.02 / 3.18, p90 7.19 / 7.61, max 104.9 / 43.3.
   - Caveat: the simulation cost applies the previous-task rule only and ignores CD's "current task present → cold 0" rule (`scheduling_cost.py:73`).
-  - So most of the label gain is the cold-cost defect `slate_bar_v1` named (a `declared_pruning_v2`-style fix would have caught ~62 % of train cases). The rest needs the wider slate itself.
+  - So most of the label gain is the cold-cost defect `slate_bar_v1` named (a top-5 slate priced with the simulation's cold charge would have reached the new best in ~62 % of train cases; `declared_pruning_v2` is the partner rule, not top-5, and was not scored here). The rest needs the wider slate itself.
 - 2026-10-12 — **Uncapped corpus and cache written** (S7). The fix's denominators are here.
   - Corpus: `/share/nikola.lukic/accel_uncap/4f41b771/{train,heldout}`, from `gnn_datasets_wf1_{train,heldout}`; rule `declared_pruning_v1_uncapped`, max-plans 100,000, `--link-untouched`.
   - Runs: extension at 4f41b771; check job 863723 (`scripts_cosim/extend_corpus_check.py`, `accel_uncap/4f41b771/check_{train,heldout}.json`); recache job 863752 at rp/corpus-uncap 836e469d.
