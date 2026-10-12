@@ -1,6 +1,6 @@
 # offline_live_transfer_v1 — does the offline score have any resolving power over serving?
 
-**Status:** `REGISTERED` (2026-09-15). Bars below are signed **before** any registered family
+**Status:** `CLOSED` (2026-09-15) — **OFFLINE-SCORE-RESOLVES-WITHIN-RUN-ONLY**. Registered 2026-09-15. Bars below are signed **before** any registered family
 is read. Nothing in this node may be edited after its data exists except by a dated
 amendment that says what changed and why.
 
