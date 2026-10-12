@@ -1,6 +1,6 @@
 # slate_bar_v1 — is the GNN's heavy-rung deficit against `cd_exactS` a candidate handicap?
 
-**Status:** `DRAFT` for signature (2026-10-12, S5). Nothing launches before the coordinator signs. S6 owns only the dated recall-audit section below.
+**Status:** `REGISTERED` (2026-10-12, signed by the coordinator at f9570adb with four rulings, applied below). Reader committed before any cell runs. S6 owns only the dated recall-audit section below.
 
 **Question** (SCIENTIST's review). The GNN is trained and served on the declared top-5 slate (each task's five cheapest candidates by a standalone cost with
 no exchange term; `src/placement/declared_slate.py`). `cd_exactS` is not slate-restricted: its CD passes and its kept pass plan may use any
@@ -34,8 +34,9 @@ ranks the same width by CD's own cost.
   `pg_declared_out_of_slate` counts any pick outside the slate and must read **0** in S and K.
 - **Reuse is conditional on identity.** The new arms run on this branch's code, the reused cells on 79ea002c. Before the full run, `cd_exactS` is re-run on this
   head on two cells (topology 16490, g0, one per rung); latency and every counter other than the new ones must match the parent's cells. If either differs
-  the E and C cells are re-run on this head (192 each, cheap) and the reused ones are not used. The GNN cells are served by an unchanged path (flag off); the
-  node records that their identity was not re-checked on this head.
+  the E and C cells are re-run on this head (192 each, cheap) **and** the G cells (seeds 1 and 2, 192 each), because their reuse rests on the same code identity
+  (ruling 1). Identity means byte-identical summaries: `total_rtt`, `endTime` and every scheduler counter that exists at both commits (the new counters are absent
+  at 79ea002c and are listed, not compared). No blanket rerun otherwise.
 - **Code (committed with the node, flags default off):** `HEROSIM_PG_SLATE_COST=cd` and a whole-batch decode in `_pg_decide_declared`
   (`GNN_SLATE_NO_SPLIT` honoured there), the counter `pg_declared_out_of_slate`, the harness kinds `cd_exactS_slate` and `cd_exactS_top5cd`, instrument checks
   (slate served on every batch, out-of-slate = 0, expected env). Tests: `tests/test_cd_declared.py` (whole-batch group, out-of-slate count, slate-cost
@@ -48,8 +49,11 @@ ranks the same width by CD's own cost.
   - **SECONDARY:** S vs E (the size of the handicap) at both rungs. Holm over 2.
   - **Descriptive:** K vs S, K vs E, G vs K, G vs E (reproduces the parent's +3.66 / +3.40 % at heavy as a check), S vs C, G vs C.
 - **Reading rules (fixed now), by the heavy rung** (the rung with the deficit):
-  - **SLATE-HANDICAP:** G vs S at heavy has median ≤ 0, or is positive but not Holm-significant (p_holm ≥ 0.05). The GNN ties or beats the hand search holding
-    its own slate, so the deficit against `cd_exactS` is the slate. The fix is a wider or exchange-aware slate (S6's `partner` rule, `declared_pruning_v2`).
+  - **SLATE-HANDICAP:** G vs S at heavy has median ≤ 0, or is positive but not Holm-significant (p_holm ≥ 0.05), **and** S vs E at heavy is slower with
+    Holm p < 0.05. The GNN ties or beats the hand search holding its own slate, and the slate costs the hand search something, so the deficit against
+    `cd_exactS` is the slate. The fix is a wider or exchange-aware slate (S6's `partner` rule, `declared_pruning_v2`).
+  - **SLATE-IRRELEVANT** (ruling 2): G vs S as above, but S does not lose to E with Holm p < 0.05, i.e. the slate costs `cd_exactS` nothing. Then the GNN's
+    deficit against `cd_exactS` is not the slate and the parent's verdicts (`selfsearch_confirm_v1`) stand unchanged. The reader prints this case as its own label.
   - **SLATE-IS-DISCLOSED-LIMIT:** G is slower than S at heavy with Holm p < 0.05. The slate is a disclosed limit but does not explain the deficit; the GNN
     loses to the hand search with the same candidates.
   - **Moderate** is labelled the same way and reported next to it; the node label is the heavy one, and a split is stated as a split.

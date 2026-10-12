@@ -105,5 +105,5 @@ def test_harness_serves_the_nosplit_kinds_and_keeps_them_out_of_the_default_grid
     for k in ("cd", "selfpredict", "ra_gnn_eng", "ra_gnn_eng_physmp", "ra_gnn_eng_cdapply", "cd_pull"):
         assert k in G.R1A_ARMS
     src = open(G.__file__).read()
-    assert 'if kind.endswith("_nosplit"):\n            env["GNN_SLATE_NO_SPLIT"] = "1"' in src
-    assert '"GNN_SLATE_NO_SPLIT", *KEEPWARM_ENV' in src          # scrubbed per cell before the kind sets it
+    assert 'if kind.endswith(("_nosplit", "_selfsearch")):\n            env["GNN_SLATE_NO_SPLIT"] = "1"' in src
+    assert '"GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV' in src          # scrubbed per cell before the kind sets it
