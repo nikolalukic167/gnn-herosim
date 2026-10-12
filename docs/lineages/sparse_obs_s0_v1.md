@@ -1,6 +1,16 @@
 # sparse_obs_s0_v1 — how much of the hand scheduler's lead comes from information a real scheduler does not have?
 
-**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the coordinator at 827718cf with four rulings, applied below) — Phase 0, hand arms only, live. Owner S5. Parent question (the user's): *does our
+**Status:** `CLOSED` (2026-10-12) — **HAND-RECOVERS-UNDER-SPARSITY.** Owner S5. Phase 0, hand arms only, live. Reference arm A0 = `cd_exactS_ib0` (the bar). Parents: `ib0_confirm_v1`, `decision_cost_s0_v1`.
+
+**Answer to the question (the user's: does the scheduler get information real systems do not, which makes the placement problem pointwise?).** The hand bar's lead does not rest on information a real scheduler lacks.
+- **Drain channel: DRAIN-NO-VOI** (queue counts instead of the exact walk: +0.7 / +0.3 %).
+- **Warmth channel:** VoI_W1 (a naive warmth estimate against A0+) is +11.1 / +6.4 % (0/12, 2/12 wins), but a per-platform-class prior (W1-EC) recovers it: R_W1 +0.1 / −1.8 %, not significant, and the steady-state lines agree. There is no residual for a learner.
+- **A0+** (cold priced at the queue tail / the in-batch predecessor) does **not** beat A0 (+0.4 / +2.1 %, not significant), so the bar stays `cd_exactS_ib0`.
+- **Partner channel: NOT-TESTABLE-IN-SEAT**; **exec skipped by argument** (R≡0 recorded).
+- **Bundle** +113 / +170 % is the price of hiding the batch plan, a mixed read, not a pass/kill input.
+- Steady-state lines (`after_360s`, `after_p5`) agree with the whole-run reads everywhere. Flag-off identities: 24/24 (stage 2) and 120/120 (stage 1).
+
+Stage-1 and stage-2 read records are under Record; the stage-2 table is below it.
 scheduler get information real systems do not, which makes the placement problem pointwise?* Reference arm A0 = `cd_exactS_ib0`
 (`ib0_confirm_v1`, the current hand bar). Parents read: `ib0_confirm_v1`, `decision_cost_s0_v1`.
 
@@ -165,3 +175,22 @@ A degraded arm with a better predictor could therefore beat A0 legitimately. Eve
   - **Bundle (mixed read, not a pass/kill input): VoI +113.2 % moderate / +169.6 % heavy** (0/12, Holm .002), R +124.3 % / +181.7 % (n=11 heavy), EC vs NAIVE +6.7 % / +2.4 %. The bundle hides the batch plan the exact search prices in-batch partners from; this is the measured price of removing the batch plan (how much of the margin is in-batch co-location). It also contains the queue count and exec noise (exec noise was not isolated in stage 1).
   - **Partner row: NOT-TESTABLE-IN-SEAT.** Cross-batch pairs are 0.1–0.4 % of pairs, so hiding unarrived partners removes nothing from either degraded arm; the EC two-step estimate has no inputs.
   - Prediction: bundle VoI ≥ 10 % at heavy (~40 %) held; R ≥ 5 % (~20 %) held formally on a vacuous EC. Decision time not scored.
+
+### Stage 2 read (warmth), 2026-10-12
+
+Gate `/share/nikola.lukic/sparse_obs/gate_s2` at pin a3b782f2, read once with `sparse_obs_v2_gate_read.py` (`read_s2.json`). 96/96 summaries, 0 failed, 12 topologies (19440–19451), g0, both rungs. Identity: 24 cells of `cd_exactS_ib0` stage 1 vs stage 2, 0 differ (IDENTITY_OK); new-only counters `obs_cold_degraded`, `obs_cold_exact`, `pg_cold_tail_calls`. Instrument books OK (A0 no tail calls; A0+ tail calls, no cold degradation; W1 tail calls = cold_degraded, exact = 0).
+
+Paired % of mean latency, negative = first arm faster; steady-state lines descriptive, outside every family.
+
+| contrast | rung | whole run | wins | Holm p | after_360s | after_p5 |
+|---|---|---|---|---|---|---|
+| A0+ vs A0 | moderate | +0.38 | 5/12 | 0.42 | +0.29 | +0.05 |
+| A0+ vs A0 | heavy | +2.09 | 3/12 | 0.128 | +2.63 | +2.57 |
+| VoI_W1 (W1-NAIVE vs A0+) | moderate | +11.10 | 0/12 | 0.001 | +11.38 | +11.47 |
+| VoI_W1 | heavy | +6.37 | 2/12 | 0.0034 | +8.64 | +9.67 |
+| R_W1 (W1-EC vs A0+) | moderate | +0.14 | 6/12 | 1.0 | −0.13 | −0.03 |
+| R_W1 | heavy | −1.77 | 7/12 | 1.0 | −2.96 | −3.23 |
+
+Flags: A0P_GE_1 False (the bar does not move); VOI_GE_10 True moderate / False heavy; R_GE_5 False at both; LEAK False for both W arms; W1_PASS False. Descriptive: W1-EC vs W1-NAIVE −8.83 % (12/12) moderate, −6.67 % (10/12) heavy; W1-EC vs A0 +0.58 / +2.26 %.
+
+Outcome for the warmth channel: HAND-RECOVERS-UNDER-SPARSITY (R_W1 < 5 % at both rungs). Raw naive warmth costs the hand 6–11 %; the EC estimate recovers it to within noise of A0+. Decision time not scored. Node status unchanged pending the coordinator's ruling.
