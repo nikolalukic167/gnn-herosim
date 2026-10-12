@@ -143,6 +143,78 @@ def hook(sched, batch_tasks, chosen, system_state, ctx):
             "decl_mismatch": decl_mismatch}
 
 
+# ---- cold probe (expert ruling 1): which cold charge does the simulation apply on an initialized platform? -----------------------
+
+def probe_hook(sched, batch_tasks, chosen, system_state, ctx):
+    """At the batch decision: the dataset index of every batch task, and the target platform's warmth state."""
+    from src.placement.scheduling_cost import incoming_cold_start_time
+    from src.placement.warmth import sandbox_is_warm
+
+    pr = ctx["job"]["probe"]
+    t = next(t for t in batch_tasks if int(t.id) == int(pr["tid"]))
+    node = next(n for n in sched.nodes.items if int(n.id) == int(pr["couple"][0]))
+    plat = next(p for p in node.platforms.items if int(p.id) == int(pr["couple"][1]))
+    prev, cur = plat.previous_task, plat.current_task
+    return {"index": {str(k): v for k, v in ctx["local_of"].items()}, "initialized": bool(plat.initialized.triggered),
+            "previous_type": prev.type["name"] if prev is not None else None, "current_type": cur.type["name"] if cur is not None else None,
+            "inflight": len(getattr(plat, "inflight", []) or []), "queue": len(plat.queue.items), "task_type": t.type["name"],
+            "sandbox_warm": sandbox_is_warm(plat, t), "incoming_cold": incoming_cold_start_time(t, plat),
+            "table_cold": float(t.type["coldStartDuration"].get(plat.type["shortName"], 0.0) or 0.0)}
+
+
+def _probe_one(args):
+    row, job, task, m, = args
+    import rollout_replay
+
+    base = dict(H=-1.0, continuation="cd", table=None, eps=0.0)
+    if job["src"] == "accel":
+        base.update(ds=job["physics_from"], group=dict(snapfile=job["snapfile"], snapshot_id=job["snapshot_id"], time=job["time"],
+                                                       physics_from=job["physics_from"]))
+    else:
+        base.update(ds=job["ds"])
+    probe = {"tid": task["tid"], "couple": m["c"]}
+    r1 = rollout_replay._one(dict(base, plan="policy", decision_hook="slate_bar_v1_recall:probe_hook", probe=probe))
+    if "error" in r1 or not r1.get("hook"):
+        return {"error": r1.get("error", "no hook")}
+    st0 = r1["hook"]
+    idx = st0["index"][str(task["tid"])]
+    plan = [list(p) for p in r1["plan"]]
+    plan[idx] = list(m["c"])
+    r2 = rollout_replay._one(dict(base, plan=plan))
+    if "error" in r2:
+        return {"error": r2["error"]}
+    d = r2["batch_detail"][idx]
+    return {"id": row["id"], "tid": task["tid"], "couple": m["c"], "decl_cost": m["decl_cost"], "cd_cost": m["cd_cost"],
+            "payload_cold": m["payload_cold"], "state_at_decision": {k: v for k, v in st0.items() if k != "index"},
+            "simulated": {"executionPlatform": d.get("executionPlatform"), "coldStarted": d.get("coldStarted"),
+                          "coldStartTime": d.get("coldStartTime")}}
+
+
+def cold_probe(a):
+    jobs = {}
+    lines = [json.loads(l) for l in open(a.jobs) if l.strip()][1:]
+    for j in lines:
+        jobs[j.get("ds") if j["src"] == "g8" else f"{j['snapfile']}#{j['snapshot_id']}@{j['time']}"] = j
+    work = []
+    for l in open(a.rows):
+        r = json.loads(l)
+        if "hook" not in r or r.get("repeat") or r["cont"] != "cd":
+            continue
+        for t in r["hook"]["tasks"]:
+            for m in (t.get("decl_mismatch") or []):
+                if m["initialized"] and m["decl_cost"] < m["cd_cost"] - 1e-9 and m["in_decl"]:
+                    work.append((r, jobs[r["id"]], t, m))
+                    break
+            if len(work) and work[-1][0] is r:
+                break
+        if len(work) >= a.n:
+            break
+    with get_context("spawn").Pool(min(a.n, a.workers), maxtasksperchild=1) as pool, open(a.out, "w") as fh:
+        for res in pool.imap(_probe_one, work):
+            fh.write(json.dumps(res) + "\n")
+            print(json.dumps(res), flush=True)
+
+
 # ---- sample ------------------------------------------------------------------------------------------------------------------------
 
 _FILE_RE = re.compile(r"^cc40s(\d+)_(moderate|heavy)_g(\d)\.jsonl$")
@@ -377,6 +449,13 @@ def main():
     r.add_argument("--repeat", type=int, default=20)
     r.add_argument("--limit", type=int, default=None)
     r.set_defaults(fn=run)
+    c = sub.add_parser("cold-probe")
+    c.add_argument("out")
+    c.add_argument("rows")
+    c.add_argument("jobs")
+    c.add_argument("--n", type=int, default=6)
+    c.add_argument("--workers", type=int, default=6)
+    c.set_defaults(fn=cold_probe)
     d = sub.add_parser("read")
     d.add_argument("rows")
     d.add_argument("--json", default=None)

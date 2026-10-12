@@ -1,6 +1,6 @@
 #!/bin/bash
 # slate_bar_v1 recall audit (docs/lineages/slate_bar_v1.md, S6 section): scripts_cosim/slate_bar_v1_recall.py sample | run. CPU only.
-#   sbatch --export=ALL,WT=<pinned worktree>,EXPECT_HEAD=<sha>,MODE=sample|run,ROOT=<out dir>[,LIMIT=<n>,REPEAT=<n>] slate_bar_recall.sbatch
+#   sbatch --export=ALL,WT=<pinned worktree>,EXPECT_HEAD=<sha>,MODE=sample|run|cold-probe,ROOT=<out dir>[,LIMIT=<n>,REPEAT=<n>] slate_bar_recall.sbatch
 #   sample writes ROOT/jobs.jsonl; run reads it and writes ROOT/rows.jsonl (ROOT/smoke_rows.jsonl when LIMIT is set)
 #   submit with --output=/share/nikola.lukic/slate_bar/logs/sb-recall-%j.out (/home is near quota)
 #SBATCH --job-name=sb-recall
@@ -43,5 +43,9 @@ case "$MODE" in
     [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
     python3 scripts_cosim/slate_bar_v1_recall.py run "$OUT" "$ROOT/jobs.jsonl" --workers "${WORKERS:-15}" $EXTRA
     python3 scripts_cosim/slate_bar_v1_recall.py read "$OUT" --json "${OUT%.jsonl}.read.json" > "${OUT%.jsonl}.read.txt"; head -1 "${OUT%.jsonl}.read.txt";;
+  cold-probe)
+    # expert ruling 1: force a batch task onto a couple the two standalone costs price differently; read the cold start the simulation applied
+    [[ ! -e "$ROOT/cold_probe.jsonl" ]] || { echo "FAIL LOUD: $ROOT/cold_probe.jsonl exists"; exit 1; }
+    python3 scripts_cosim/slate_bar_v1_recall.py cold-probe "$ROOT/cold_probe.jsonl" "${ROWS:-$ROOT/rows.jsonl}" "$ROOT/jobs.jsonl" --n "${N:-6}";;
   *) echo "FAIL LOUD: MODE=$MODE"; exit 1;;
 esac
