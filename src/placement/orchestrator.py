@@ -254,6 +254,9 @@ class Orchestrator:
             "decima_allowed_platforms", "decima_fallbacks",
             # lookahead_mp_v1 P0: unarrived partners priced / left unpriced
             "pg_lookahead_priced", "pg_lookahead_blind",
+            # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
+            "sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
+            "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max",
         )
         out: Dict[str, Any] = {}
         for name in names:

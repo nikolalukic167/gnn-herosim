@@ -264,6 +264,9 @@ def _require_peer_physics(policy_name: str) -> None:
         )
 
 
+from src.placement.decision_cost import meter as _meter
+
+
 class _PeerGreedyCore:
     """The score and its counters. Mixed into two scheduler stacks; holds no SimPy state."""
 
@@ -479,6 +482,7 @@ class _PeerGreedyCore:
     ) -> Tuple["Node", "Platform", float]:
         """Argmin of S over `candidates`; returns the couple and the service seconds the task
         adds to its platform's backlog (for in-batch commitments)."""
+        _meter(self, len(candidates))
         peer_nodes = self._pg_peer_nodes(task, orch, planned) if self.exchange_on else []
         comm = _approx_comm(task.type)
         scored = []
@@ -811,6 +815,7 @@ class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
         planned: Dict[int, str],
         nodes,
     ) -> Tuple["Node", "Platform", float]:
+        _meter(self, len(candidates))
         if getattr(self, "pg_pull_hold", False):
             raise ValueError(f"FAIL LOUD: {PG_PULL_HOLD_ENV}=1 is priced by the hand rule only; the learned scorer has no such term")
         peer_nodes = self._pg_peer_nodes(task, orch, planned) if self.exchange_on else []
@@ -1008,6 +1013,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         state recomputed from the plan itself: every partner's node is the plan's, and the backlog a task sees on its platform
         is the platform's drain plus the service (exec + I/O + exchange) of every OTHER batch task the plan puts there.
         Returns (sum of S, per-task service, per-task S). No counters: this is the expansion's objective, not a decision."""
+        _meter(self, 1)
         n = len(batch_tasks)
         planned = {int(batch_tasks[i].id): plan[i][0].node_name for i in range(n)}
         # _pg_peer_nodes keeps the partner books of the DECISIONS; a scored trial plan is not one, so they are restored
@@ -1247,6 +1253,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
     def _pg_standalone(self, task: "Task", node: "Node", platform: "Platform", orch, memo: Dict[str, float], nodes) -> float:
         """A task's S on a couple with no partner known and nothing committed: drain + cold + exec + latency, the terms the declared
         pruning ranks candidates by (src/placement/declared_slate.py), computed as `_pg_choose` computes them."""
+        _meter(self, 1)
         xf = self._pg_xf(platform)
         drain = platform_queue_drain_seconds(platform, orch, memo, exec_scale=xf)
         if self.pg_inflight:
