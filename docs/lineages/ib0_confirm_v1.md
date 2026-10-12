@@ -173,3 +173,13 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
   unconfounded; the slate caveat only bears on learned arms). GNN seed: **DIRECTION-ONLY at moderate** (−1.0 %, Holm .02, under the −2 % bar), **NOT-SEPARATED at heavy**;
   not an MP claim. Alpha is monotone through 0.5: `a05` sits between `ib0` and `cd_exactS` (a05 vs `ib0` +3.6 / +2.9 %; `cd_exactS` vs `ib0` +4.7 / +2.3 %; a05 vs `cd_exactS`
   −1.86 % / −0.28 %), so 0 is not a knife-edge; the ±1 % prediction for `a05` is recorded as **missed**. Status stays ACTIVE until the oracle stage is read once, against `ib0` as served.
+- 2026-10-12 — **INTERIM oracle read, ordered through the coordinator (relayed as a user instruction; not verified by me), before the registered single read.** It changes no bar: the registered 12-cell
+  read still closes the stage and its verdict is the one that counts. Committed reader (`ib0_confirm_oracle_read.py`, ed02144f), job 864002, on the 10 finished cells (**heavy 6/6, moderate 4/6**: 19407 and 19410 pending);
+  no failures. Moderate numbers are 4 of 6 and the exact p cannot go below .125 at n = 4.
+  - **Coverage (replay-labelled tasks, the ≥ 95 % condition):** moderate **95.7 %** (served 62.2 %, searched 33.5 %, unplaced 4.3 %, over-cap unsearched 0; per topology 95.1–96.4 %), heavy **98.4 %**
+    (served 57.1 %, searched 41.3 %, unplaced 1.6 %). Books close. Search: 345 k / 767 k replays, improved 2,293 of 8,665 / 5,025 of 16,581 searched batches, budget never exhausted; exact changed 4,264 of 40,187 / 9,487 of 56,700 covered batches.
+  - **Oracle vs `cd_exactS_ib0` (g0):** moderate **−3.91 %** (4/4 faster, p .125, topologies −0.9 / −5.5 / −5.9 / −2.4); heavy **−1.96 %** (4/6 faster, p .31).
+  - **Oracle vs `cd_exactS` (g0, descriptive):** moderate −8.25 % (4/4, p .125); heavy −6.78 % (6/6, p .031). `ib0` vs `cd_exactS` on the same cells: −5.96 % / −3.73 % (6/6 each, p .031).
+  - **Buckets (pp of the reference's mean latency, oracle − `ib0`):** moderate exchange −1.91, lock wait −1.92, cold start +0.33; heavy exchange +1.21, lock wait −3.56, cold start −0.07. Vs `cd_exactS`: moderate exchange −7.40, heavy exchange −3.35.
+  - **Reading against the prediction (1–2.5 % moderate, 2–4 % heavy):** the moderate interim sits above the 3 % line (−3.91 %), heavy below the predicted band (−1.96 %): both off the prediction, in opposite directions.
+    If −3.91 % held on 6/6, the registered rule would leave the supervised family OPEN at moderate; four cells cannot say that. Each topology is one g0 cell, per-topology spread is wide (−0.9 to −5.9).
