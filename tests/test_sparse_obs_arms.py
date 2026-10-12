@@ -13,10 +13,10 @@ def test_arms_registered_like_ib0():
         assert set(G.OBS_ARMS[k]) <= set(G.OBS_ENV) and G.OBS_ARMS[k]["HEROSIM_OBS_ESTIMATOR"] in ("naive", "ec")
 
 
-def test_bundle_degrades_four_channels_and_leaves_warmth():
+def test_bundle_degrades_queue_exec_partners_and_leaves_warmth_and_inflight():
     b = G.OBS_ARMS["cd_obs_bundle_ec"]
-    assert {"HEROSIM_OBS_QUEUE", "HEROSIM_OBS_EXEC_SIGMA", "HEROSIM_OBS_INFLIGHT", "HEROSIM_OBS_PARTNERS"} <= set(b)
-    assert not any("WARM" in k for k in b)
+    assert {"HEROSIM_OBS_QUEUE", "HEROSIM_OBS_EXEC_SIGMA", "HEROSIM_OBS_PARTNERS"} <= set(b)
+    assert not any("WARM" in k or "INFLIGHT" in k for k in b)  # the reference does not read in-flight; warmth is stage 2
 
 
 def test_obs_env_is_scrubbed_served_and_recorded():

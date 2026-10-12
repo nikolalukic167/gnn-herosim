@@ -156,7 +156,7 @@ R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
 EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"},
                "cd_exactS_ib0_prune": {"HEROSIM_PG_BATCH_ALPHA": "0"}}  # plan_rerank_v1 S_alpha arms
-_BUNDLE = {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_INFLIGHT": "running", "HEROSIM_OBS_PARTNERS": "arrival"}
+_BUNDLE = {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_PARTNERS": "arrival"}
 OBS_ARMS = {  # sparse_obs_s0_v1 degradations (the estimator is the naive/ec arm); every one searches exactly as cd_exactS_ib0
     "cd_obs_queue_naive": {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_ESTIMATOR": "naive"},
     "cd_obs_queue_ec": {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_ESTIMATOR": "ec"},
@@ -1099,8 +1099,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("partner channel off: obs_partner_hidden == 0")
         if obs_want.get("HEROSIM_OBS_ESTIMATOR") == "ec" and obs_want.get("HEROSIM_OBS_PARTNERS") and not used["obs_partner_predicted"]:
             problems.append("ec partner prediction off: obs_partner_predicted == 0")
-        if obs_want.get("HEROSIM_OBS_ESTIMATOR") == "ec" and obs_want.get("HEROSIM_OBS_INFLIGHT") and not used["obs_inflight_degraded"]:
-            problems.append("ec in-flight estimate off: obs_inflight_degraded == 0")
+        if not obs_want.get("HEROSIM_OBS_INFLIGHT") and used["obs_inflight_degraded"]:
+            problems.append("in-flight degraded on an arm that does not degrade it")
     for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
         want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(name)
         if out["env"].get(name) != want:

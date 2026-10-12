@@ -71,7 +71,7 @@ topologies **19440–19451**. Disjointness: `git grep` of the 194xx–199xx toke
 - (c) A0 stays the batch exact search. BUNDLE arms search the visible batch exactly with partners known only once placed (`planned_node_name` / `platform`); the batch's own plan is invisible.
   EC prices a partner with no known node at the node of its bytes-heaviest known partner (the lookahead rule's two-step estimate, `PeerGreedyLookaheadNetworkScheduler._pg_predict_node`). **Deviation:**
   the event-index self-predict (`PeerGreedySelfPredictNetworkScheduler`) needs the per-arrival orchestrator's event list and is not available inside the batched CD search, so EC uses the two-step estimate. The seat gap (batch search vs per-arrival serving) is reported with the result.
-- (d) BUNDLE degrades row 2 to "running or not": NAIVE charges nothing, EC charges half the running task's type mean service. **Disclosed:** A0 does not read row 2 at all (`HEROSIM_PG_INFLIGHT` is unset for `cd_exactS_ib0`), so for NAIVE this channel is a no-op against A0 and for EC it ADDS a term A0 lacks. `HEROSIM_OBS_INFLIGHT` fails loudly if `HEROSIM_PG_INFLIGHT=1`.
+- (d) Row 2 (in-flight remaining) is **not degraded**, ruled after the draft: the reference A0 does not read it (`HEROSIM_PG_INFLIGHT` is unset for `cd_exactS_ib0`), so a term there would be information A0 lacks and EC could beat A0 for the wrong reason. The BUNDLE degrades rows 1, 3, 7, 8. The `HEROSIM_OBS_INFLIGHT` flag exists in the module, is tested, and is used by no arm.
 - Warmth (row 4) stays exact in stage 1 and in the bundle; the `HEROSIM_OBS_WARM` flag is a stage-2 item and is not implemented yet.
 - Exec: one estimator for both arms (table value × the seeded log-normal factor per (task type, platform type)); NAIVE/EC differ only in queue, in-flight and partners.
 
@@ -79,8 +79,8 @@ topologies **19440–19451**. Disjointness: `git grep` of the 194xx–199xx toke
 
 `HEROSIM_OBS_ESTIMATOR=naive|ec` (required with any channel), `HEROSIM_OBS_QUEUE=count`, `HEROSIM_OBS_EXEC_SIGMA=<s>`, `HEROSIM_OBS_INFLIGHT=running`, `HEROSIM_OBS_PARTNERS=arrival`, `HEROSIM_OBS_SEED` (the cell seed).
 With none set `Observation.from_env()` is None and every score site runs its registered arithmetic (tests/test_sparse_obs.py compares the flag-off terms to the registered functions). Sites: `_pg_choose`, `_pg_plan_cost`, `_pg_standalone`
-(drain, running, exec) and `_pg_peer_nodes` (partners); the exec channel also reaches the exact queue walk (`live_audit.platform_queue_drain_seconds(exec_of=...)`, default None = unchanged).
-Books (`schedulerCounters`): `obs_drain_degraded`, `obs_drain_exact`, `obs_exec_degraded`, `obs_inflight_degraded`, `obs_partner_hidden`, `obs_partner_predicted`. The gate checks that a degraded channel's book is non-zero, that the exact queue walk
+(drain, exec; the running term is 0 for every arm) and `_pg_peer_nodes` (partners); the exec channel also reaches the exact queue walk (`live_audit.platform_queue_drain_seconds(exec_of=...)`, default None = unchanged).
+Books (`schedulerCounters`): `obs_drain_degraded`, `obs_drain_exact`, `obs_exec_degraded`, `obs_inflight_degraded`, `obs_partner_hidden`, `obs_partner_predicted`. The gate checks that a degraded channel's book is non-zero, that the in-flight book is 0, that the exact queue walk
 is never used by a queue-degraded arm, and that every other arm's books are zero. Arms: `cd_obs_queue_{naive,ec}`, `cd_obs_bundle_{naive,ec}` (stage 1), `cd_obs_exec`, `cd_obs_partners_{naive,ec}` (stage 2).
 
 ## Rules, written before data
