@@ -110,6 +110,7 @@ def _gate_dirs(tmp_path, new_pct, old_pct, twin_pct=0.0):
                 e = 10.0 + 0.1 * i
                 _cell(old, t, w, r, "cd_exactS", 0, e)
                 _cell(old, t, w, r, "cd", 0, e * 1.2)
+                _cell(old, t, w, r, "cd_exactS_ib0", 0, e * 0.99)
                 for s in (1, 2):
                     jit = 0.01 * (i + 1)
                     for kind in ("ra_gnn_eng_selfsearch", "ra_gnn_eng_nosplit"):
@@ -125,8 +126,9 @@ def test_reader_win_and_gap(tmp_path):
     rd = importlib.import_module("slate_fix_v1_gate_read")
     r = rd.read(*_gate_dirs(tmp_path, -3.0, 3.6))
     m = r["main"]
-    assert m["comparable"] and r["n_summaries"] == 12 * 2 * 2 * (2 + 2 * 7)
-    assert set(m["primary"]["labels"].values()) == {"WIN"}
+    assert m["comparable"] and r["n_summaries"] == 12 * 2 * 2 * (3 + 2 * 7)
+    assert m["primary"]["holm_over"] == 8 and set(m["primary"]["labels"].values()) == {"WIN"}
+    assert "new self-search vs cd_exactS_ib0|heavy" in m["primary"]["tests"]
     assert all(c["holm_p"] < 0.05 for c in m["primary"]["tests"].values())
     g = m["gap_change_pp"]["ra_gnn_eng_selfsearch|heavy"]
     assert g["n_topologies"] == 12 and -6.9 < g["median_pp"] < -6.4 and g["shrank"] == 12
