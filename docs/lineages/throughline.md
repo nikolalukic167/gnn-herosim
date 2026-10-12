@@ -3,7 +3,7 @@
 > **Status:** `SYNTHESIS` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-18 → 2026-09-09
 
 **Now (2026-10-12, head rewritten).** Accel seat (R1.1 + WF1, 160 clients × 24 servers, moderate and heavy rungs).
-- **The hand bar is `cd_exactS_ib0`**: exact search on CD's surrogate S with the in-batch stacking term zeroed. It beats `cd_exactS` −4.73 / −2.27 % (12/12 each, Holm .001) and CD −12.07 / −7.36 % (`ib0_confirm_v1`, branch `rp/plan-rerank`, not yet merged).
+- **The hand bar is `cd_exactS_ib0`**: exact search on CD's surrogate S with the in-batch stacking term zeroed. It beats `cd_exactS` −4.73 / −2.27 % (12/12 each, Holm .001) and CD −12.07 / −7.36 % ([`ib0_confirm_v1`](ib0_confirm_v1.md)).
 - **Against plain CD a learned scorer wins at moderate only, CONFIRMED on fresh topologies:** whole-group GNN −6.9 / −7.7 % ([accel_nosplit_v1](accel_nosplit_v1.md)), GNN self-search −8.5 / −10.1 % ([selfsearch_confirm_v1](selfsearch_confirm_v1.md)). Heavy −1 to −4 %, under the −5 % bar.
 - **Against `cd_exactS` the heavy deficit is a candidate-set handicap:** matched-slate, the GNN self-search wins −4.85 / −1.94 % ([slate_bar_v1](slate_bar_v1.md)).
 - **Against the `ib0` bar the GNN is under it:** a GNN seed inside the `ib0` expansion search beats the same search hand-seeded by −0.99 % (11/12, Holm .020) / −1.22 % (9/12, Holm .154), DIRECTION-ONLY at moderate and NOT-SEPARATED at heavy, but is +0.73 / +0.41 % slower than `cd_exactS_ib0` itself. Even a full-coverage label oracle beats `ib0` by only −2.82 % at moderate (6/6), above the registered −3 % line, so the supervised batch-label family closes (`ib0_confirm_v1`).
