@@ -1,6 +1,73 @@
-# slate_bar_v1
+# slate_bar_v1 — is the GNN's heavy-rung deficit against `cd_exactS` a candidate handicap?
 
-<!-- Header, status and the live plan: S5 (rp/slate-bar). S6 owns only the dated recall-audit section below. -->
+**Status:** `DRAFT` for signature (2026-10-12, S5). Nothing launches before the coordinator signs. S6 owns only the dated recall-audit section below.
+
+**Question** (SCIENTIST's review). The GNN is trained and served on the declared top-5 slate (each task's five cheapest candidates by a standalone cost with
+no exchange term; `src/placement/declared_slate.py`). `cd_exactS` is not slate-restricted: its CD passes and its kept pass plan may use any
+reachable candidate. At heavy, `selfsearch_confirm_v1` has the GNN's own-score self-search slower than `cd_exactS` by **+3.66 % (gnn_eng) / +3.40 % (physmp)**
+(2/24 topologies). Restricting greedy CD to the declared slate cost +4.1–4.5 % against full CD at 9483. So the deficit may be a candidate handicap of about the
+same size, not a learning deficit. This node measures the handicap and re-reads the contrast with the handicap removed from the hand side.
+
+**What S6's audit changes** (section below). The declared cost charges cold = 0 on initialized platforms, where the simulation cold-starts at the table value
+(cold-probe 863493, 5/5). The declared top 5 differs from CD's own on 26 % of tasks; `cd_exactS` batch recall at G=8 is 79.5 % under the declared top 5.
+The primary arm keeps that slate **as is, defect included**, because it is the information the GNN actually has (expert ruling, 2026-10-12). A descriptive arm
+ranks the same width by CD's own cost.
+
+## Design (fixed on signature)
+
+- **Seat:** the `selfsearch_confirm_v1` seat, unchanged: 24 fresh topologies 16490–16513, windows g0–g3, moderate and heavy rungs, 192 cells per arm
+  (not the 12-topology subset; the cost allows the full 24). Inputs: the parent's `gate/inputs` directory, same files (checked on launch: the file
+  list and mtimes of `manifest_*.json` and `inputs` unchanged since the parent's read).
+- **Arms:**
+
+  | | arm | what | seed | cells | source |
+  |---|---|---|---|---|---|
+  | **S** | `cd_exactS_slate` | `cd_exactS` with every candidate set restricted to the declared top-5 slate, in the CD passes, the exact enumeration and the kept pass; the batch decoded **whole** (`GNN_SLATE_NO_SPLIT=1`, as the GNN self-search arm is served); over-cap batches fall back to the expansion over the same restricted candidates | 0 | 192 | **new** |
+  | **K** | `cd_exactS_top5cd` (descriptive) | the same, the slate ranked by CD's own standalone cost (`HEROSIM_PG_SLATE_COST=cd`: cold start charged on initialized platforms) | 0 | 192 | **new** |
+  | **G** | `ra_gnn_eng_selfsearch` | the GNN's own-score self-search (the parent's primary arm) | 1, 2 | 192 each | **reused** from `/share/nikola.lukic/selfsearch_confirm/gate_79ea002c` |
+  | **E** | `cd_exactS` | the hand bar, unrestricted | 0 | 192 | **reused** |
+  | **C** | `cd` | plain CD | 0 | 192 | **reused** |
+
+  Why whole-batch decoding: the GNN self-search is served `GNN_SLATE_NO_SPLIT=1` (exact up to 625 plans, coordinate ascent above), so the matched hand arm
+  must also see whole 9–10-task batches, not sub-batches of 4. Why the restriction reaches the kept pass: the pass candidates come from the same
+  restricted set (`_pg_restrict` in `_pg_candidates`), so the kept pass plan cannot use an out-of-slate candidate; the new counter
+  `pg_declared_out_of_slate` counts any pick outside the slate and must read **0** in S and K.
+- **Reuse is conditional on identity.** The new arms run on this branch's code, the reused cells on 79ea002c. Before the full run, `cd_exactS` is re-run on this
+  head on two cells (topology 16490, g0, one per rung); latency and every counter other than the new ones must match the parent's cells. If either differs
+  the E and C cells are re-run on this head (192 each, cheap) and the reused ones are not used. The GNN cells are served by an unchanged path (flag off); the
+  node records that their identity was not re-checked on this head.
+- **Code (committed with the node, flags default off):** `HEROSIM_PG_SLATE_COST=cd` and a whole-batch decode in `_pg_decide_declared`
+  (`GNN_SLATE_NO_SPLIT` honoured there), the counter `pg_declared_out_of_slate`, the harness kinds `cd_exactS_slate` and `cd_exactS_top5cd`, instrument checks
+  (slate served on every batch, out-of-slate = 0, expected env). Tests: `tests/test_cd_declared.py` (whole-batch group, out-of-slate count, slate-cost
+  ranking, and the existing flag-off group/slate assertions unchanged), `tests/test_slate_bar_v1_arms.py`. Flag-off identity is the existing
+  `cd_declared` and `cd_exactS` assertions plus the two live identity cells above.
+- **Statistic:** per topology, the median over its 4 windows (and over seeds 1 and 2 for G) of the paired % of mean latency; the median over the 24
+  topologies; the sign count (wins = topologies where the first arm is faster); the exact two-sided Wilcoxon. Negative = the first arm faster.
+- **Families (Holm within each; everything else is descriptive and labelled so):**
+  - **PRIMARY:** G vs S at moderate and heavy. Holm over 2.
+  - **SECONDARY:** S vs E (the size of the handicap) at both rungs. Holm over 2.
+  - **Descriptive:** K vs S, K vs E, G vs K, G vs E (reproduces the parent's +3.66 / +3.40 % at heavy as a check), S vs C, G vs C.
+- **Reading rules (fixed now), by the heavy rung** (the rung with the deficit):
+  - **SLATE-HANDICAP:** G vs S at heavy has median ≤ 0, or is positive but not Holm-significant (p_holm ≥ 0.05). The GNN ties or beats the hand search holding
+    its own slate, so the deficit against `cd_exactS` is the slate. The fix is a wider or exchange-aware slate (S6's `partner` rule, `declared_pruning_v2`).
+  - **SLATE-IS-DISCLOSED-LIMIT:** G is slower than S at heavy with Holm p < 0.05. The slate is a disclosed limit but does not explain the deficit; the GNN
+    loses to the hand search with the same candidates.
+  - **Moderate** is labelled the same way and reported next to it; the node label is the heavy one, and a split is stated as a split.
+  - **NOT COMPARABLE for a cell** when its instrument fails (slate not served on every batch, out-of-slate ≠ 0, wrong env); it is counted and never rerun.
+  - **Not claimed, in any outcome:** a GNN win over `cd_exactS` (E is unrestricted and stays the bar), a message-passing effect, other group sizes, a
+    retrained or wider-slate GNN (a successor node).
+- **Prediction, written before data:**
+  - **S vs E (handicap):** S slower than E, about **+2 to +5 % at heavy** and **+1 to +3 % at moderate** (below the greedy-CD handicap of +4.1–4.5 %
+    because the exact search re-optimises inside the slate).
+  - **G vs S:** heavy median between **−1 and +1 %** (a tie, label SLATE-HANDICAP at about 60 % confidence); moderate **−1 to −3 %** (the GNN already
+    ties E there, −0.16 / −1.96 %).
+  - **K vs S:** K faster by about **−1 to −3 %**: about half the recall gap is the cold-cost defect (+9.8 of +13.4 pp batch recall).
+- **Sealed.** The reader (`scripts_cosim/slate_bar_v1_gate_read.py`, with tests) is committed before any cell runs, from `prune_g8_gate_read.py`. Stuck
+  cells are killed by the progress-rate watchdog, excluded and counted, never rerun. Decision time (per-task mean of `decisionTiming`) is reported and not scored.
+- **Cost, estimated.** New cells: 384, each about the `cd_exactS` cell of the parent (median 2.9–3.2 ks, max 4.3 ks). About 1.2 Mcore-s, so
+  about **2 h on 24 shards** (`PAR=8`, `LIMIT=30000`). Inputs: none (reused). Identity cells: 2, about 1 h before the array.
+- **Queue:** at most 44 jobs counting any other session's, so at most 24 of mine (one 24-shard array) plus the 2 identity cells.
+- **Owners:** S5 runs the live part; S6 owns the recall audit below. LINEAGES.md and AGENTS.md are the coordinator's.
 
 ## 2026-10-12 — recall audit (S6)
 

@@ -59,7 +59,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
     "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
-    "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
+    "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups", "pg_declared_out_of_slate",
     "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
     "pg_expand_gain_seconds", "pg_expand_labels_skipped",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
@@ -131,6 +131,9 @@ PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves"
 # 72.6-79 % of batches against the expansion's 62.8 %, at ~1.6k S-evaluations per batch (S6, 2026-10-10). 0 (the default) is
 # the registered CD rule, byte-identical.
 PG_CD_EXACT_ENV = "HEROSIM_PG_CD_EXACT"
+# slate_bar_v1: "cd" ranks the declared slate (cd_declared / cd_exactS_slate) by CD's own standalone cost, which charges the table cold start on an
+# initialized platform; unset is the declared cost, byte-identical.
+PG_SLATE_COST_ENV = "HEROSIM_PG_SLATE_COST"
 # Diagnostic only: when set, every exact batch appends one JSON line (the pass plan's standalone rank per task, its S, the slate optimum's S) to
 # <dir>/exact_diag_<pid>.jsonl. Not a HEROSIM_ name on purpose (the datalab sbatch unsets those); changes no decision.
 _EXACT_DIAG_DIR = os.environ.get("EXACT_SLATE_DIAG_DIR", "").strip()
@@ -269,6 +272,7 @@ class _PeerGreedyCore:
         self.pg_declared_pruned = 0
         self.pg_declared_sub_batched = 0
         self.pg_declared_groups = 0
+        self.pg_declared_out_of_slate = 0
         self.pg_decisions = 0
         self.pg_partners_known = 0
         self.pg_partners_unknown = 0
@@ -915,18 +919,26 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.pg_declared_batches += 1
         self.pg_declared_pruned += int(sl.pruned)
         self.pg_declared_sub_batched += int(sl.sub_batched)
+        kept = [{(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for i in range(len(batch_tasks))]
+        if os.environ.get(PG_SLATE_COST_ENV, "").strip() == "cd":
+            # slate_bar_v1 top5cd: the same width and tie-break, ranked by CD's own standalone cost (cold start charged on initialized platforms)
+            orch, memo, nodes = self._pg_orchestrator(), {}, self.nodes.items
+            for i, task in enumerate(batch_tasks):
+                valid = self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task)
+                ranked = sorted(valid, key=lambda r: (self._pg_standalone(task, r[0], r[1], orch, memo, nodes), int(r[0].id), int(r[1].id)))
+                kept[i] = {(int(n.id), int(p.id)) for n, p in ranked[:declared_slate.top_k()]}
+        groups = [list(range(len(batch_tasks)))] if declared_slate.serving_no_split() else sl.groups
         placements: Dict[int, Tuple[int, int]] = {}
         try:
-            for group in sl.groups:
-                self._pg_allowed = {
-                    int(batch_tasks[i].id): {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for i in group
-                }
+            for group in groups:
+                self._pg_allowed = {int(batch_tasks[i].id): kept[i] for i in group}
                 sub = self._pg_decide([batch_tasks[i] for i in group], system_state)
                 for k, i in enumerate(group):
                     placements[i] = sub[k]
                 self.pg_declared_groups += 1
         finally:
             self._pg_allowed = None
+        self.pg_declared_out_of_slate += sum(1 for i, pl in placements.items() if (int(pl[0]), int(pl[1])) not in kept[i])
         return placements
 
     def _pg_decide(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[int, Tuple[int, int]]:

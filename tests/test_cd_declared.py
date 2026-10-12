@@ -73,3 +73,40 @@ def test_a_bad_slate_value_fails_loudly(monkeypatch):
     s, tasks, state, _, _ = _sched(monkeypatch)
     with pytest.raises(ValueError, match=declared_slate.ENV):
         s._prefix_inference(tasks, state, {}, None)
+
+
+def test_no_split_decodes_the_whole_batch_in_one_group(monkeypatch):
+    monkeypatch.setenv(declared_slate.ENV, declared_slate.RULE)
+    monkeypatch.setenv(declared_slate.MAX_PLANS_ENV, "10")
+    monkeypatch.setenv(declared_slate.NO_SPLIT_ENV, "1")
+    s, tasks, state, calls, _ = _sched(monkeypatch, n_tasks=6)
+    monkeypatch.setattr(s, "_pg_orchestrator", lambda: SimpleNamespace(peer_exchange={i: {i + 1: 1.0} for i in range(5)}))
+    s._prefix_inference(tasks, state, {}, None)
+    assert [c[0] for c in calls] == [[0, 1, 2, 3, 4, 5]] and s.pg_declared_groups == 1 and s.pg_declared_sub_batched == 1
+    assert all(len(a) == declared_slate.TOP_K for a in calls[0][1].values())
+
+
+def test_out_of_slate_picks_are_counted(monkeypatch):
+    monkeypatch.setenv(declared_slate.ENV, declared_slate.RULE)
+    s, tasks, state, calls, _ = _sched(monkeypatch)
+    s._prefix_inference(tasks, state, {}, None)  # the stub decides (10, 100), platform 100 is the cheapest, so inside the slate
+    assert s.pg_declared_out_of_slate == 0
+    s._pg_decide = lambda batch, st: {i: (17, 107) for i in range(len(batch))}  # the 8th couple is outside the top 5
+    s._prefix_inference(tasks, state, {}, None)
+    assert s.pg_declared_out_of_slate == len(tasks)
+
+
+def test_slate_cost_cd_ranks_by_the_cd_standalone_cost(monkeypatch):
+    monkeypatch.setenv(declared_slate.ENV, declared_slate.RULE)
+    monkeypatch.setenv("HEROSIM_PG_SLATE_COST", "cd")
+    s, tasks, state, calls, _ = _sched(monkeypatch)
+    # CD's cost is cheapest on the LAST five platforms, the declared cost on the first five
+    s.nodes = SimpleNamespace(items={})
+    s._pg_standalone = lambda task, node, platform, orch, memo, nodes: float(-platform.id)
+    s._prefix_inference(tasks, state, {}, None)
+    want = {(10 + i, 100 + i) for i in range(3, 8)}
+    assert all(a == want for a in calls[0][1].values())
+    monkeypatch.delenv("HEROSIM_PG_SLATE_COST")
+    calls.clear()
+    s._prefix_inference(tasks, state, {}, None)
+    assert all(a == {(10 + i, 100 + i) for i in range(5)} for a in calls[0][1].values())
