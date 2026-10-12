@@ -335,6 +335,9 @@ not a rule bolted onto serving.
 **Direction:** "the GNN beats CD at peak load (`peak_load_v1`) because message passing lets it coordinate the
 group."
 
+⚠ The peak-load win itself is scattered-origin; with one origin per group no learned arm beats CD
+(`small_batch_so_v1`, 2026-10-07).
+
 **What closed it** (`peak_controls_v1`, live gate, 12 topologies × 4 windows × 4 seeds per rung): the MP-OFF twin
 has the same corpus, labels, `partial_state_v4` context and self-refine. It beats CD by −11 / −18.5 / −19.8 % at
 ×2 / ×3 / ×5. It ties the GNN at ×2 / ×3 (−1.5 % direction, −2.2 % p = .91), and at ×5 the GNN is +13.1 % slower

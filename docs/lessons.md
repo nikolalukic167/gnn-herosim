@@ -650,7 +650,8 @@ addition is lost, and only they can reconcile that.
 passing could see the 5-column task↔platform `edge_attr` the `GIN` has no `edge_dim` for. The
 new arm beat the old by **−20.4 %** at 80 servers (16/16) and **−28.7 %** at 40 clients, and
 took the arm from *losing* to reactive Knative (+8.44 %) to beating it by **−20.8 %** at an
-unsaturated rung. Every part of that is real.
+unsaturated rung. Every part of that is real — except the −20.8 % vs Knative, later shown to be an unpaired
+ratio of medians that reverses when paired (`unsaturated_edge_v1`); the arm-vs-arm contrasts stand.
 
 The obvious write-up — "edge-conditioning repairs the bipartite stage" — is **wrong**, and only
 one thing caught it: a second arm, `gnnedge0`, trained identically with the attributes
