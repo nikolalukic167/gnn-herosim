@@ -198,6 +198,9 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
+- 2026-10-12 — **Cross-commit identity 864138 PASS; B2 is comparable.** `cd_exactS` at d192081f on 16490 g0 equals `selfsearch_confirm/gate_79ea002c` in every shared key (heavy 401, moderate 399), mean latency bit-equal (2.2544150609289058 / 2.610011753432325) and every shared scheduler counter.
+  - Disclosed: d192081f adds 33 counters (`pg_exact_gnn_*`, `pg_exact_prune_*`, …) that 79ea002c does not write; all are 0 on both cells. None is missing the other way. Timing and provenance keys excluded, as in smoke B.
+  - Expert's ruling (2026-10-12): B2 at d192081f is accepted with this identity as its comparability condition. Had any simulated key differed, B2 would not have been read and the primary would have fallen back to `cd_exactS`, with the bar disclosed as unavailable. One read, once A, B and B2 are all in.
 - 2026-10-12, 20:26 cluster time — **Amendment, signed by the expert before any gate read: the hand bar is `cd_exactS_ib0`** (ib0_confirm_v1, CLOSED today), not `cd_exactS`.
   - Reason (expert): ib0_confirm_v1 closed today with `cd_exactS_ib0` (`cd_exactS` with only the in-batch stacking term zeroed, `HEROSIM_PG_BATCH_ALPHA=0`) as the strongest hand rule, so a WIN must be measured against it. `cd_exactS` stays as the secondary reference.
   - Gate B2 864137: `cd_exactS_ib0`, seed 0 (deterministic), same seat, 19420–19431 × g0–g1 × both rungs, 48 cells, PAR 24, LIMIT 8,100; OUT `/share/nikola.lukic/slate_fix/gate_B2_d192081f`.
