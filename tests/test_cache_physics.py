@@ -6,6 +6,22 @@ import pytest
 
 from scripts_cosim.make_warm_corpus import SINGLE_NODE_REASON, batch_peer_components, candidate_nodes
 from src.placement.cache_physics import current_physics_env, require_matching_physics_env
+from src.placement.network_graph import NETWORK_GRAPH_CONTRACT_ENV
+from src.placement.queue_features import QUEUE_FEATURE_CONTRACT_ENV
+from src.placement.topology_features import TOPOLOGY_FEATURE_CONTRACT_ENV
+
+
+@pytest.fixture(autouse=True)
+def _isolate_contract_env(monkeypatch):
+    """The loaders adopt a checkpoint's contracts into os.environ; register an undo for each name so nothing leaks into later
+    test files (monkeypatch.delenv on an absent name records no undo, so set it first, then delete)."""
+    import os
+
+    for name in (QUEUE_FEATURE_CONTRACT_ENV, TOPOLOGY_FEATURE_CONTRACT_ENV, NETWORK_GRAPH_CONTRACT_ENV):
+        absent = name not in os.environ
+        monkeypatch.setenv(name, os.environ.get(name, ""))
+        if absent:
+            monkeypatch.delenv(name)
 
 
 def test_current_physics_env_follows_the_environment(monkeypatch):
