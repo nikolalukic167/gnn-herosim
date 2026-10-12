@@ -165,3 +165,22 @@ A degraded arm with a better predictor could therefore beat A0 legitimately. Eve
   - **Bundle (mixed read, not a pass/kill input): VoI +113.2 % moderate / +169.6 % heavy** (0/12, Holm .002), R +124.3 % / +181.7 % (n=11 heavy), EC vs NAIVE +6.7 % / +2.4 %. The bundle hides the batch plan the exact search prices in-batch partners from; this is the measured price of removing the batch plan (how much of the margin is in-batch co-location). It also contains the queue count and exec noise (exec noise was not isolated in stage 1).
   - **Partner row: NOT-TESTABLE-IN-SEAT.** Cross-batch pairs are 0.1–0.4 % of pairs, so hiding unarrived partners removes nothing from either degraded arm; the EC two-step estimate has no inputs.
   - Prediction: bundle VoI ≥ 10 % at heavy (~40 %) held; R ≥ 5 % (~20 %) held formally on a vacuous EC. Decision time not scored.
+
+### Stage 2 read (warmth), 2026-10-12
+
+Gate `/share/nikola.lukic/sparse_obs/gate_s2` at pin a3b782f2, read once with `sparse_obs_v2_gate_read.py` (`read_s2.json`). 96/96 summaries, 0 failed, 12 topologies (19440–19451), g0, both rungs. Identity: 24 cells of `cd_exactS_ib0` stage 1 vs stage 2, 0 differ (IDENTITY_OK); new-only counters `obs_cold_degraded`, `obs_cold_exact`, `pg_cold_tail_calls`. Instrument books OK (A0 no tail calls; A0+ tail calls, no cold degradation; W1 tail calls = cold_degraded, exact = 0).
+
+Paired % of mean latency, negative = first arm faster; steady-state lines descriptive, outside every family.
+
+| contrast | rung | whole run | wins | Holm p | after_360s | after_p5 |
+|---|---|---|---|---|---|---|
+| A0+ vs A0 | moderate | +0.38 | 5/12 | 0.42 | +0.29 | +0.05 |
+| A0+ vs A0 | heavy | +2.09 | 3/12 | 0.128 | +2.63 | +2.57 |
+| VoI_W1 (W1-NAIVE vs A0+) | moderate | +11.10 | 0/12 | 0.001 | +11.38 | +11.47 |
+| VoI_W1 | heavy | +6.37 | 2/12 | 0.0034 | +8.64 | +9.67 |
+| R_W1 (W1-EC vs A0+) | moderate | +0.14 | 6/12 | 1.0 | −0.13 | −0.03 |
+| R_W1 | heavy | −1.77 | 7/12 | 1.0 | −2.96 | −3.23 |
+
+Flags: A0P_GE_1 False (the bar does not move); VOI_GE_10 True moderate / False heavy; R_GE_5 False at both; LEAK False for both W arms; W1_PASS False. Descriptive: W1-EC vs W1-NAIVE −8.83 % (12/12) moderate, −6.67 % (10/12) heavy; W1-EC vs A0 +0.58 / +2.26 %.
+
+Outcome for the warmth channel: HAND-RECOVERS-UNDER-SPARSITY (R_W1 < 5 % at both rungs). Raw naive warmth costs the hand 6–11 %; the EC estimate recovers it to within noise of A0+. Decision time not scored. Node status unchanged pending the coordinator's ruling.
