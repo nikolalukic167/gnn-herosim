@@ -53,6 +53,55 @@ strongest baseline scores candidates with the same inputs the learned policy see
   (Gasse, GDP, Lachesis, WeCAN, EP-NCO, GRAF, Raith; scratchpad, not in the repo). "No published GNN
   scheduler" needs a systematic search before it can be written as such.
 
+### What the repos ship (2026-10-12)
+
+An agent cloned the open-source repos and read their code. I re-checked the table below against the
+clones by grep and file listing; commits are in `positioning_exhaustive_bar_2026-10-12/README.md`.
+"Reproducible < 1 day" is a yes only where something was actually run. "MP-off twin" means a trained
+checkpoint or config with message passing disabled; a depth knob alone is not one.
+
+| repo | strongest baseline in code | MP-off twin shipped? | costs deterministic? | reproducible < 1 day? |
+|---|---|---|---|---|
+| `decima-sim` (Mao, TF1) | dynamic-partition fair share with an executor cap (`heuristic_agent.py:8`, `:28`) | no (`--max_depth` knob only, `param.py:94`) | no: task durations drawn at random from profiled TPC-H samples (`spark_env/node.py:64–90`, seeded) | not run |
+| `spark-sched-sim` (PyG port, with pretrained Decima) | round-robin fair / FIFO and random (`schedulers/heuristics/`) | no | no: durations sampled (`data_samplers/tpch.py:211`), Poisson arrivals (`:70`), seeded | **yes, with shims** (minutes per seed; see below) |
+| `L2D` (Zhang+) | none runnable: PDRs are not shipped; `env_lab.py:63` imports an `ortools_baseline` module that is not in the repo | no | yes (static job-shop) | **yes** (pretrained 10×10, 100-instance test set, 21 s) |
+| `L2S` (Zhang+ ICLR'24) | greedy local-search baselines from SPT / FDD÷MWKR / plist starts (`conventional_baselines_with_long-term-mem.py:90–95`, `:154`); OR-Tools CP-SAT as gap reference (`ortools_solver.py:3–68`) | no (GIN / DGHAN / GIN+DGHAN module ablations, not MP-off) | yes | not run |
+| `ScheduleNet` (reimpl., zcaicaros) | none found in code | no | yes (job-shop) | not run |
+| `park` (Mao+) | environments only (`park/envs/spark`, `spark_sim`, `load_balance`, `tf_placement`, …); no scheduler baselines found | no | per environment; `spark` needs a real Spark cluster | not run |
+| `goal-co` (GOAL, Naver) | none in code; pretrained checkpoints and test sets only (README) | no | yes (static CO instances) | not run |
+| `wheatley` (Jolibrain) | dispatching rules incl. MOPNR (`jssp/dispatching_rules/heuristics.py:88`); OR-Tools with a duration-estimate strategy (`args.py:253–381`) | no (`--n_layers_features_extractor` knob, `args.py:405`) | optional: `--duration_type stochastic` (`docs/JSSP.md:90–100`) | not run |
+
+Not found as public code: Placeto, Spotlight, Lachesis, GDP, the official ScheduleNet.
+
+**Cross-cutting.** No repo ships a baseline that does exhaustive search with the model's information,
+and none ships an MP-off twin. The closest things are OR-Tools as a gap reference (L2S, wheatley) and
+the depth knobs.
+
+**Two measured lines, smoke scale, direction only.** Scripts and logs are in
+`positioning_exhaustive_bar_2026-10-12/`.
+
+- **(a) L2D, in the authors' own environment** (their left-shift insertion), with their pretrained
+  10×10 model on their 100-instance test set (seed 200; L2D mean makespan 982.3). Hand dispatch rules
+  tie or beat it:
+  - MWKR 976.5, −0.59 % (53/100 instances better, 1 tie);
+  - FDD/MWKR 952.8, −3.00 % (65/100);
+  - MOPNR −0.20 % (43/100);
+  - SPT +22.96 % (1/100);
+  - a one-step lower-bound lookahead +26.68 % (2/100).
+
+  The paper's 15–20 pp PDR deficit does not reproduce here, and the paper's PDR construction is not
+  shipped. This agrees with `literature_reeval_v1` (FDD/MWKR beats the learned policy in their env,
+  `literature_reeval_v1.md:89`, `:103`).
+- **(b) Decima PyG port** (`spark-sched-sim`, pretrained weights, 10 executors, 50 TPC-H jobs). On seed
+  1234, a ~20-line hand rule has mean job duration 527 s against Decima's 638 s, which is **−17.4 %**
+  (fair 988 s). The rule is shortest-remaining-work job first with a per-job executor cap; at cap 10 it
+  is uncapped, because the cluster has 10 executors.
+  - **One seed.** Both runs hit their timeout (exit 124), so seeds 1–3 of the hand rule did not run. A
+    4-seed table is coming and replaces this line before anything is quoted.
+  - **Decima is not reproducible across runs here.** The same seed gave 610.1 s in `sss_smoke.log` and
+    638 s in `sss_handrule.log`. Against 610.1 s the hand rule is −13.6 %. The 4-seed table must
+    report Decima's run-to-run spread, or pin it.
+
 ## 2. The measurements
 
 All live results are in the accel seat (160 clients × 24 servers, R1.1 + WF1, warmth `node_disk_v2`,

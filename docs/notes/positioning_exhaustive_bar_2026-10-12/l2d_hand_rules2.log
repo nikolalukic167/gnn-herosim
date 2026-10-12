@@ -1,0 +1,8 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+mopnr      mean makespan 980.4  L2D 982.3  rule/L2D-1 = -0.20%  wins(rule<L2D) 43/100 ties 1  time 1.1s
+fddmwkr    mean makespan 952.8  L2D 982.3  rule/L2D-1 = -3.00%  wins(rule<L2D) 65/100 ties 0  time 1.3s
+greedy_lb  mean makespan 1244.4  L2D 982.3  rule/L2D-1 = +26.68%  wins(rule<L2D) 2/100 ties 0  time 14.0s
+EXIT 0
