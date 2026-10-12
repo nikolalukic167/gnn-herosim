@@ -42,7 +42,6 @@ node. `tests/test_record_hygiene.py` enforces it.
 | [**reference_physics_programme**](docs/lineages/reference_physics_programme.md) | `REGISTERED` | Programme plan (9 nodes): KPA scale-out → audit and freeze R1 → fix workload WF1 → recalibrate load → train once and attribute; stopping rule after nodes 1–5. |
 | [**scale_160_v1**](docs/lineages/scale_160_v1.md) | `REGISTERED` | 160 clients × 24 servers (full top-5 slates, about 69 % of batches with joint headroom); gnn_eng and physmp vs CD, exact labels on replay F; go/no-go first. |
 | [**accel_replica_v1**](docs/lineages/accel_replica_v1.md) | `REGISTERED` | Per-server replicas on the fastest compatible platform (today no GPU/DLA replica exists at t = 0); 160 × 24; worth-it screen (accelerator use, joint headroom, I11) before any corpus. |
-| [**long_horizon_s0_v1**](docs/lineages/long_horizon_s0_v1.md) | `REGISTERED` | Does the GNN-vs-hand gap change over a 24 h stationary accel window (L24, 1 spent topology, 7 cells)? Directional slope bar over hourly bins 2–24; only GNN-GAINS opens a multi-day gate. |
 | [**call_graph_pairing_v1**](docs/lineages/call_graph_pairing_v1.md) | `REGISTERED` | Trace-derived pairing, synthetic exchange semantics: Casper call graphs decide which siblings exchange (2 partners kept); learned arms zero-shot. |
 | [**access_link_contention_v1**](docs/lineages/access_link_contention_v1.md) | `REGISTERED` | Hypothesis: peer exchange through shared access-link pipes; precondition link wait ≥ 15 % of exchange; best learned vs contention-aware CD. |
 | [**live_headroom_v1**](docs/lineages/live_headroom_v1.md) | `REGISTERED` | Offline single-batch headroom of CD on the live states it produces at ×2/×3/×5 (exhaustive sweep, no synthetic backlog): is the environment closed for any learned model? |
@@ -59,6 +58,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**long_horizon_s0_v1**](docs/lineages/long_horizon_s0_v1.md) | `CLOSED` | HORIZON-HAND-GAINS: over a 24 h stationary window (1 topology) the GNN stays 5–10 % ahead of CD (slope within ±1.8 pp) and its gap to cd_exactS widens (+2.6–2.7 pp); no multi-day gate, no daily-cycle download. |
 | [**r1_attribution_v1**](docs/lineages/r1_attribution_v1.md) | `CLOSED` | CD-FASTER: best learned arm (physMP) +3.4/+5.9/+5.1 % vs CD, Holm-confirmed at all 3 rungs; MP ties its twin; CD←GNN −0.4/−1.9/−1.7 % but ties CD←Twin (learned seed, not MP). Successor scale_160_v1. |
 | [**load_recalibration_v1**](docs/lineages/load_recalibration_v1.md) | `CLOSED` | RUNGS-FIXED on R1.1 + WF1 by CD effective queue share (queue + compute-lock wait): light ×1.26, moderate ×5.94, heavy ×11.61; all CD guards pass; Knative collapses at moderate and heavy. |
 | [**workload_fix_v1**](docs/lineages/workload_fix_v1.md) | `CLOSED` | WF1-FROZEN: W2 payloads + W3 access links + W4 four types on R1.1; CD first at both rungs (self-predict's W2 lead gone); reactive saturates at heavy. |
