@@ -3,6 +3,10 @@
 **Status:** `CLOSED` (2026-09-30) — **`LEARNED-SCORER-WIN / NOT-MP`**. Registered 2026-09-30, and every read below
 was fixed before its data.
 
+> ⚠ **Surge model (caveat added 2026-10-12).** Each ×k rung multiplies every timestamp of the whole window by 1/k (`scripts_cosim/cd_gap_v1_build_b.py:47–49`), so the surge runs from t = 0 onto an empty cluster (live runs autoscale from zero) and includes the deploy transient.
+
+> ⚠ **Origin model (caveat added 2026-10-12).** Grounded-workload numbers in this node were measured with scattered request origins (97 % of multi-task groups span clients). With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
+
 **Outcome.** The peak-load win is a **learned-scorer** win, not a message-passing one, and only part of it is the
 objective.
 - **C2, MP-OFF twin.** `xs1mpoff_selfref` beats CD at every rung: −11.0 / −18.5 / −19.8 % (Holm ≤ .005). It also

@@ -1,7 +1,22 @@
 # scale_160_v1 — does a GNN beat CD at 160 clients × 24 servers?
 
-**Status:** `REGISTERED` (2026-10-10). No data yet. The go/no-go screen is running. Every bar below was signed before
-its data.
+**Status:** `CLOSED` (2026-10-10) — **CD-FASTER**. Registered 2026-10-10; every bar below was signed before its data.
+
+**Outcome.** Size did not change the r1a answer: no learned arm beats CD at 160c × 24s.
+- **Gate:** 855623 at 493fd2f1. 12 fresh topologies; 576 of 576 learned cells and 192 of 192 classical cells; 0 failed
+  or killed.
+- **Paired % vs CD at moderate / heavy:**
+  - gnn_eng: +1.23 % (Holm .85) / +3.95 % (Holm .007).
+  - physmp: +1.13 % (Holm .91) / +3.73 % (Holm .006).
+  - CD is Holm-confirmed faster at heavy; moderate is not separated.
+- **CD←GNN beats CD** by −3.53 / −3.31 % (12 and 11 of 12 topologies; uncorrected p .0005 / .001; descriptive). It is
+  the learned-seed effect again. No MP twin was trained, because the trigger was a GNN win.
+- **Self-predict ties CD:** −0.83 / +0.49 %.
+- **Cost:** the GNN decision takes about 6–7 ms per task, against CD's 160 µs.
+- **Offline vs live:** offline, physmp's validation regret was 0.83 s, against 4.51 s for the additive argmin. That
+  offline edge did not survive live.
+- **Do not quote** "message passing helps", and do not quote the CD←GNN gain as a GNN win.
+- **Sibling:** `accel_replica_v1` (replica placement) is gated separately.
 
 **Why.** At 40c × 6s the placement problem is close to trivial:
 - median candidates per task is 2–3, and 11–37 % of slots have one candidate;
@@ -11,8 +26,8 @@ its data.
 
 `r1_attribution_v1` found that every learned arm loses to CD and that MP ties its twin there. The scale feasibility
 report (S5, probe job 855065, `rp/scale-probe` 38aa87ab) found that at 160c × 24s with p = 0.6, every task has a full
-top-5 slate. There, 69 % of batches carry more than 1 % joint (non-pointwise) headroom, with median regret about 15 %,
-against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on the declared top-5 slate cost about
+top-5 slate. There, 69 % of batches carry more than 1 % joint (non-pointwise) headroom, against 36 % at 40 × 6 (one seed, about 50 batches). The regret is bimodal: about half the batches are at 0, and p90 is
+288–494 % on the production screen (S5). Quote the share above 1 % and the tail, never the median. Exact labels on the declared top-5 slate cost about
 33 node-h.
 
 ## Design (fixed now)
@@ -50,6 +65,137 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
 
 ## Record (newest first)
 
+- 2026-10-10 09:45 — **Gate read: CD-FASTER, closed** (S4; learned array 855623 and classical 855254 at 493fd2f1,
+  SEALED; one read, job 855675, `~/s160_read.sh`; output `s160_gate/read_493fd2f1.{json,txt}` on datalab; 768 summaries,
+  0 failed, 12 topologies; the sensitivity pass is identical).
+
+  | Arm vs CD | Moderate | Heavy |
+  |---|---|---|
+  | gnn_eng | +1.23 % (3/12 faster, p .42, Holm .85) | +3.95 % (1/12, p .0024, Holm .0073) |
+  | physmp | +1.13 % (5/12, p .91, Holm .91) | +3.73 % (1/12, p .0015, Holm .0059) |
+  | self-predict (descriptive) | −0.83 % (7/12, p .27) | +0.49 % (5/12, p .85) |
+  | CD←GNN (descriptive) | −3.53 % (12/12, p .0005) | −3.31 % (11/12, p .0010) |
+
+  - **Labels (registered rule):** both arms CD-FASTER. CD is Holm-confirmed faster at heavy; moderate is
+    NOT-SEPARATED. No WIN, so `twin_eng` is not trained.
+  - **Median decision cost per task:** CD 158 / 164 µs, gnn_eng 7.3 / 6.4 ms, physmp 7.0 / 6.2 ms, self-predict
+    109 / 121 µs.
+  - **Spin:** no cell has deferrals above 5× CD's.
+  - **Reachability failures:** CD 51 / 101, CD←GNN 100 / 206, plain GNN arms 3.5–7.5.
+- 2026-10-10 08:35 — **Training done and checkpoints selected** (S7; array 855580 all COMPLETED, slowest task 3 h 00 m;
+  selection 855581 exited clean; validation only).
+  - **Rule:** lowest mean `val/regret_masked_topo` over 3 seeds. The split has 451 datasets on 8 held-out topologies; the
+    unit is seconds, as a mean of per-dataset regret.
+
+    | Arm | Chosen | Mean ± sd | Seeds | All configs g0–g5 |
+    |---|---|---|---|---|
+    | gnn_eng | g4 | 0.882 ± 0.014 | 0.890 / 0.894 / 0.863 | 1.007 / 0.969 / 0.975 / 0.997 / 0.882 / 0.953 |
+    | gnn_eng_physmp | g5 | 0.828 ± 0.094 | 0.928 / 0.855 / 0.702 | 0.913 / 0.897 / 0.887 / 0.937 / 0.860 / 0.828 |
+
+  - **Disclosed:** physmp g5 wins on the mean through one seed (0.702). g4 is the tightest (0.860 ± 0.001) and within
+    noise of g5. The rule picks g5, and it stands as registered.
+  - **Floors on the same split:** random plan 16.42 s, additive argmin 4.51 s, worst plan 29.28 s.
+  - **Scale:** the mean optimal batch latency is 2.31 s (`val_opt_rtt`, `train_near_rtt.py:1852–1880`). So physmp's
+    0.83 s regret sits about 36 % above the optimum.
+  - Staged at `s160_prod/gate_inputs/models/` (6 .pt + 6 sidecars). Sentinel `selection.json` has split sha
+    b8fe5007…. S4's trigger submits the learned arms.
+- 2026-10-10 01:15 (recorded 08:20) — **Size-transfer probe: r1a checkpoints served at 80c×12s** (S6; jobs 855114 and
+  855128; 32 of 32 cells, 0 hung; results `simulation_data/r1a_gate/scale80_9101_263dd915` on datalab; descriptive only,
+  never closes anything).
+  - **Scope:** one topology, 9101, at 80 clients × 12 servers, uncalibrated. The size is out of distribution, but 9101 is
+    in r1a's train split at its native size, so the topology is not.
+  - **Vs CD at moderate / heavy:**
+
+    | Arm | Moderate | Heavy |
+    |---|---|---|
+    | physmp | +5.5 % | +11.3 % |
+    | gnn_eng | +3.5 % | +11.4 % |
+    | CD←GNN | −4.9 % | −0.5 % |
+    | self-predict | +3.5 % | +7.0 % |
+
+  - CD effective share is 0.23–0.27 at moderate and 0.44–0.49 at heavy, inside the bands.
+  - **Reading:** the r1a pattern holds at the larger size. Plain learned arms are slower than CD, and the learned seed
+    helps CD. It is n = 1 topology, so it gives a direction, not a magnitude. It is no input to this study's gate.
+- 2026-10-10 06:00 — **Epoch-30 read** (S7; seed 1 per config, epochs 21–42; offline and descriptive).
+  - Current validation masked-topo regret is 1.03–1.40 s (best so far 0.93–1.17 s). The curves fell from about 2.2 to
+    about 1.1 in 10 epochs and have since sat on a noisy plateau (±0.2 s per epoch), with the best epoch often early.
+  - That is about 6–8 % of the random-plan regret and about a quarter of the additive argmin. Validation CE is
+    1.41–1.49 (chance 4.89).
+  - No config is at chance. Selection noise on a plateau is expected; it is handled by selecting on validation across
+    3 seeds.
+- 2026-10-10 05:30 — **Early training curves** (S7; offline and descriptive; never closes anything, rule 6).
+  - Units: `val/regret_masked_topo` is the mean over the 451 validation datasets of the served-decode plan RTT minus
+    the optimum RTT, in batch-total seconds. The `_frac` companion divides by the random-plan regret, not the optimum.
+  - Floors on the same split:
+    - random plan 16.42 s;
+    - additive argmin 4.51 s (median 0.15 s; 424 of 451 scored);
+    - mean optimum 2.31 s.
+  - **At epochs 7–11, all 12 configs are below the additive-argmin floor:** gnn_eng 1.09–1.39 s, physmp 0.95–1.74 s.
+    task_acc is 0.52–0.55 (chance 0.256).
+  - The empty-prefix `val/regret_greedy` (about 5 s, rising) is not a selection metric; it is the same artifact as in
+    r1a.
+- 2026-10-10 — **Production-corpus headroom screen (S6, 855588; descriptive, gates nothing; all 3,170 datasets read).**
+  "Regret" means the additive (pointwise) argmin plan against the joint optimum.
+  - Train moderate / heavy:
+    - median regret 13.4 / 21.2 %;
+    - share above 1 %: 61.7 / 68.6 %;
+    - exact ties 35.9 / 49.3 %;
+    - multi-node optimum 29.6 / 25.5 %;
+    - single-candidate slots 3.6 / 1.8 %.
+  - Held-out is similar (median 14.1 / 21.4 %).
+  - **Against the E corpus (40 × 6) through the same reader:** median regret 0.85 %, single-candidate slots 21.5 %,
+    median plans 20 (here 80–125).
+  - The regret is bimodal: train p25 / p50 / p75 are 0 / 17.5 / 137 %. Median regret is 1.3 % on batches with ≤ 25
+    plans and 23.7 % on those with > 25. So the joint structure sits in the large sweeps that the bigger cluster opens
+    up. Read the median as "the additive fit often picks a very bad plan", not as a typical gap.
+- 2026-10-10 — **Corpus PASS; training launched.**
+  - **Corpus** (S6, 855298/855339/855373; check 855392 exit 0, `workload_fix_v1/scale160_corpus`):
+    - 464 cells, 2,784 batches (exactly the target) giving 3,170 datasets (train 2,719, held-out 451);
+    - 149 rejected (4.5 %), 0 discarded, 0 capture failures, 0 cap hits;
+    - fidelity replay: 0 problem datasets, max |diff| 5.7e-14.
+  - **Training** (S7, `rp/scale160-prep` 7afb4efd, pinned worktree): cache 855579, then a 12-task array 855580
+    (gnn_eng and physmp × 6 configs × 3 seeds, 80G), then selection 855581.
+    - The held-out 16151–16158 are validation; the test split is an unscored 1-topology placeholder.
+    - Checkpoints are staged as `scale-160-v1-<arm>-seed<N>.pt`.
+- 2026-10-10 — **Calibrated-rung screen PASS; GO for the Phase 2 labels** (S5, 855164; seeds 9901 / 9902 / 9904
+  screened, 9903 still finishing and can only add; 0 hung).
+  - Share above 1 % joint regret: 67 / 71 / 63 %.
+  - Per rung: **moderate ×16.42: 69 %** (median regret 15.8 %; ties 49 %; multi-node optimum 39 %); heavy ×23.23: 65 %
+    (median 9.4 %; ties 41 %; multi-node 26 %).
+  - **Final, with 9903:** 9903 is 60 %, so 4 of 4 pass. Per rung: heavy 66 % (median regret 14.2 %, ties 41 %),
+    moderate 64 % (median 8.7 %, ties 43 %). One seed × rung cell is below 50 % on its own (9903 moderate, 48 %); the
+    bar is per seed. Ties are fewer than at the probe load (41–43 % against 50–66 %).
+  - Captures (S6): all 70 seeds 16101–16170 ok (0 failed, 0 hung).
+  - **Split:** train 16101–16150, held-out 16151–16158. 16159–16170 are captured and held as an unused reserve.
+- 2026-10-10 — **(a) PASS; GO for the Phase 1 captures; labels held for a re-screen** (S5, 855119; top-5, fresh seeds,
+  2 rungs × 2 windows × 12 batches; 16/16 captures per seed ok, 0 hung).
+  - Share of scored batches above 1 % joint regret: 9901 70 %, 9903 60 %, 9904 73 % (median regret 19–30 %). 9902 is
+    still pending and can only add. The bar of at least 3 of 4 is met. **Final: 9902 is 69 %, so 4 of 4 pass**, with
+    0 of 16 captures hung.
+  - Per probe rung, ×23.2 / ×46.5: 68 % / 67 % of scored batches. The probe's lower rung (×23.2) is the calibrated
+    heavy multiplier itself, so heavy is covered. Calibrated moderate (×16.42) is not covered.
+  - Ties within 1 %: 48–59 %. Multi-node optima: 20–31 %.
+  - **Caveat:** the probe captured at its uncalibrated multipliers ×23.76 / ×46.46, above the calibrated rungs.
+  - **Ruling (coordinator):** (a) passes as registered, so all three go/no-go checks pass, and S6 has GO for the Phase 1
+    inputs and captures. The **Phase 2 labels wait** for S5's repeat of the same screen and bar at the calibrated
+    rungs (×16.4245 / ×23.2278). If that repeat fails, nothing is labelled and the design is revisited.
+- 2026-10-10 — **Gate sizing** (S4, 855149, spare 16020, g0, one cell per arm and rung; no latencies read into the
+  record).
+  - Wall per cell: CD 43–44 s, self-predict 32 s, gnn_eng with smoke weights 242–250 s.
+  - Decision cost per task: CD about 110 µs, self-predict 85 µs, GNN 3.3 ms.
+  - MaxRSS 1.46 GB.
+  - **Ruling:** CELL_MEM 4G and LIMIT 2,000 s with the standard watchdog. The limit is wider than 2× because one benign
+    cell cannot size the heavy tail. The gate uses the exact moderate multiplier.
+- 2026-10-10 — **Corpus staged; moderate multiplier pinned exactly** (S6, `rp/scale160` cbada10e; dry run 855139–855142
+  on 16101 passed as a pipeline test: 53 datasets, re-simulated plans match to ≤ 4e-15).
+  - **Ruling (coordinator):** moderate is m = 16.42453489 (factor 0.06088452468), the value CD was calibrated on. The
+    rounded 16.4245 differs by 3.5e-6 relative. Heavy ×23.2278 is byte-identical to S5's calibration inputs.
+  - Arrival check (S5's corrected figures): heavy g0 last arrival 4,676.8 s at 10.69/s; moderate g0 6,614.0 s at
+    7.56/s. S5's earlier "402.7 s, 124/s" was a wrong check note; the inputs themselves were right.
+  - Pool 16101–16170, extending in order to 16200 if fewer than 58 seeds are feasible. Launch waits on (a).
+- 2026-10-10 — **(b) binding I11 at the calibrated heavy rung: PASS** (S5, 855148; seed 9905, g0, ×23.2278, CD capture,
+  40 of 40 states replayed). Median 0.000 %, p95 0.057 %, max 0.091 % (a 3-task batch, 1.2730 s vs 1.2742 s). It passes
+  cleanly, so no cause is needed. The PASS-WITH-CAUSE condition is discharged. Only (a) remains for GO.
 - 2026-10-10 — **Calibration finals** (S5, 855146/855147; `rp/scale-probe` 462a411d,
   `scale_160_v1/calibration_{heavy,moderate}_{steps,result}.json`; 8 cells per arm, median).
   - Elapsed seconds per task, heavy / moderate:
@@ -70,7 +216,7 @@ against 36 % and 0 % at 40 × 6 (one seed, about 50 batches). Exact labels on th
     - **Ruling (coordinator):** scale_160_v1 keeps R1.1 as registered. Changing replica placement is new physics
       (recalibration, I11, new labels), so it would be a separate lineage, decided after this gate.
 - 2026-10-10 — **(c) PASS: rungs calibrated** (S5, 855146/855147; seeds 9905–9908, g0 + g1, CD-steered).
-  - **Heavy ×23.2278** (CD effective share 0.415, step 3). **Moderate ×16.4245** (0.284, step 4). m is the final
+  - **Heavy ×23.2278** (CD effective share 0.415, step 3). **Moderate ×16.4245**, exactly 11.6139·√2 = 16.42453489 (0.284, step 4); heavy is exactly 2 × 11.6139. m is the final
     multiplier on the ×1 windows, with factor 1/m.
   - Every CD cell passed every guard at every step, except the ×185.8 bracket end (8/8 guard failures, as expected).
   - **Ruling (coordinator): (c) PASS.** S5 attaches the step table under `scale_160_v1/`. These are the rungs for the

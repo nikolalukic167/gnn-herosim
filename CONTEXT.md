@@ -221,3 +221,28 @@ A declared compatibility promise checked before a model is served. Never use bar
 **queue-feature contract** (`legacy_v0` / `scale_invariant_v1`), **checkpoint contract** (the
 `.contract.json` sidecar), **training-cache contract**, or **serving layout**. A checkpoint
 without a checkpoint contract is not evidence.
+
+### Arms in the reference-physics accel seat
+
+One name per arm. Write the canonical name in prose and tables; the aliases occur in older records and harness kinds.
+
+| Canonical | What it is | Aliases seen in the record |
+|---|---|---|
+| `cd` | Coordinate descent on the hand surrogate S (one-pass greedy start) — the registered bar | CD, `classical_fcd47841` |
+| `cd_expand` | `cd` plus exact α-expansion moves in its refine | CD + expansion |
+| `cd_exactS` | Exhaustive minimum of S over the top-5 slate (100k cap, expansion fallback) — the strongest hand rule | exact-S |
+| `cd_pull` | `cd` plus an in-flight pull term — information the GNN lacks; descriptive only | — |
+| `gnn_eng` | Engineered-context GNN, one-pass decode on the declared slate, groups above 100k plans split | `ra_gnn_eng` |
+| `gnn_eng_physmp` | `gnn_eng` with physics columns inside message passing | physmp, physMP |
+| `gnn_eng_nosplit` | `gnn_eng` (or `_physmp`) decoding split groups whole (`GNN_SLATE_NO_SPLIT=1`) | nosplit, "no-split" |
+| `gnn_selfsearch` | GNN plan refined by search on the model's own score; no S, no CD | self-search, GNN self-search, `ra_gnn_eng_selfsearch` |
+| `cdapply` | `cd`'s refine started from the GNN plan | CD←GNN |
+| `cdxapply` | `cd_expand`'s refine started from the GNN plan | cdx |
+| `knative` | Reactive placement keyed on in-flight concurrency (`reactive_conc`). The queue-keyed arm herds under replica release; never quote it as Knative | Knative, reactive |
+| `selfpredict` | Peer-greedy rule pricing each unarrived partner at its current best node | self-predict |
+| `onepass` | One greedy pass of S in task order | one-pass, 1-pass greedy |
+| `<arm>_mpoff` | The same arm separately trained with message passing off | MP-OFF twin, `twin_raw` (for `gnn_raw`) |
+
+Burst-seat arms, kept distinct: `jb2_mpoff` is a separately trained MP-OFF bipartite scorer on group-optimum labels;
+`peer_greedy_learned_network` is the five-feature rollout scorer served per arrival. A defect in one does not establish a
+defect in the other.

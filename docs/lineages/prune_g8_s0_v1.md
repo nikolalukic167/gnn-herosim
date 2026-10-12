@@ -1,9 +1,17 @@
 # prune_g8_s0_v1 — does a learned slate-pruning order beat hand expansion once half the batches are over the cap?
 
-**Status:** `REGISTERED` (2026-10-11). Drafted by S5, ruled by the coordinator (full design, 5 arms). Every bar below is fixed before any live data, and
-the reader (`scripts_cosim/prune_g8_gate_read.py`, tests in `tests/test_prune_g8_gate_read.py`) is committed before any cell runs.
+**Status:** `CLOSED` (2026-10-12) — **WIN-FOR-PRUNING / ORDER-NOT-LEARNED / NOT-MP.** Drafted by S5, ruled by the coordinator. Every bar below was fixed before any live data;
+the reader (`scripts_cosim/prune_g8_gate_read.py`, tests in `tests/test_prune_g8_gate_read.py`) was committed before any cell ran.
 
-**Now.** Node and reader committed, topologies 18700–18711. No live data yet.
+> ⚠ **Bar moved (2026-10-12).** Contrasts here are to `cd_exactS`; the hand bar is now `cd_exactS_ib0` (`ib0_confirm_v1`, −4.73 / −2.27 % vs `cd_exactS`), and they were not re-measured against it.
+
+**Outcome.** Pruning an over-cap batch to its top-k and enumerating that exactly beats `cd_exactS`'s expansion fallback at G=8, 12 fresh topologies × g0–g3, seed 1:
+**−1.43 % moderate (11/12, Holm p 0.0049) and −2.13 % heavy (9/12, Holm p 0.0068).** The registered primary fired, so the label is WIN FOR LEARNED SEARCH ORDER by the
+reading rules, and both attribution clauses fail: GNN order against cost order −0.26 % / +0.32 % (Holm p 1.0) and against the MP-OFF twin order −0.36 % / −0.05 % (Holm p 1.0).
+The plain reading: **top-k pruning, by any order, of the over-cap batches beats the hand expansion fallback by 1.4–2.1 % at G=8. It is a hand-search improvement, not a GNN
+result.** The cost order alone (arm B, no model) beats `cd_exactS` by −1.89 % / −2.11 %, so *`cd_exactS` plus a top-k prune on over-cap batches* is a new hand-bar candidate.
+**My prediction, a tie with `cd_exactS`, missed.** `cd_exactS` beats `cd` by −9.55 % / −8.15 % (12/12), so the environment is the one `big_groups_s0_v1` measured.
+**Slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win.
 
 **Why.** `cdxprune` cuts each task's top-5 slate to its top-k in over-cap batches and enumerates the cut slate exactly on S.
 It was run at the current group size (`accel_replica_v1`, 12 topologies, g0, seed 1; harness fix e1cbffa8) and tied live.
@@ -111,6 +119,16 @@ It was run at the current group size (`accel_replica_v1`, 12 topologies, g0, see
   - **Queue:** at most 44 jobs counting S7's gate 858137 (4 tasks at the time of writing), so at most 40 of mine at any time.
 
 ## Record (newest first)
+
+- 2026-10-12 — **Live gate read once (array 862599, 24 shards, 480 cells); WIN-FOR-PRUNING / ORDER-NOT-LEARNED / NOT-MP.** Read with `prune_g8_gate_read.py`, counts first; output `/share/nikola.lukic/prune_g8/read.json`.
+  - **Counts:** 479 of 480 summaries. One cell failed: `ra_twin_eng_cdxpra` 18710 g2 moderate, killed by the progress watchdog (projected 47,464 s at 615 s, over 1.5 × 30,000 s); counted, never rerun. All other arm × rung cells 48/48, so T moderate is 47/48.
+  - **Books:** for A, B and T `pg_exact_prune_batches` equals `pg_exact_fallbacks` (91.2k / 91.6k / 90.8k moderate, 153.9k / 154.5k / 152.7k heavy). Over-cap share of `cd_exactS` batches 29.5 % moderate, 51.2 % heavy. The pruned optimum differs from the expansion plan in 59.5 / 61.2 / 59.4 % (moderate) and 51.9 / 53.3 / 52.1 % (heavy) of over-cap batches (A / B / T); better : worse for A is 37,498 : 13,283 moderate and 51,885 : 21,829 heavy, B 33,021 : 20,791 and 48,498 : 29,849. `pg_batches` reads 0 in the prune arms, so their own over-cap share was not computed.
+  - **Primary (Holm over 2), A vs E:** −1.43 % moderate (11/12, p 0.0024, Holm 0.0049); −2.13 % heavy (9/12, p 0.0068, Holm 0.0068). `PRIMARY_BOTH_RUNGS_FASTER` and `PRIMARY_HOLM_SIG` both true.
+  - **Secondary (Holm over 6):** A vs B −0.26 % / +0.32 % (6/12, 5/12; Holm 1.0); A vs T −0.36 % / −0.05 % (7/12, 6/12; Holm 1.0); A vs C −10.29 % / −9.75 % (12/12 each; Holm 0.0029).
+  - **Descriptive:** B vs C −9.83 / −10.11 %; T vs C −10.20 / −10.04 %; E vs C −9.55 / −8.15 % (12/12 each, so the E-beats-C condition holds); B vs E −1.89 % (11/12, p 0.0010) / −2.11 % (10/12, p 0.0122); T vs E −1.59 % (10/12, p 0.052) / −1.32 % (10/12, p 0.0093); T vs B +0.68 / +1.03 % (p 0.11 / 0.57).
+  - **Decision time (descriptive, per-task mean of `decisionTiming`, moderate / heavy):** A 0.259 / 0.340 s, B 0.261 / 0.341 s, T 0.262 / 0.340 s, E 0.119 / 0.104 s, C 0.0001 / 0.0002 s. The prune arms cost about 2.5–3.3 × `cd_exactS` per task, and B equals A, so the cost is the exact enumeration of the cut slate, not the model.
+  - **Disclosed:** the inputs job 858973 failed (`replica_placement_rule None, want 'fastest_compatible'`: the default base config lacks the rule); inputs were re-minted as 858999 with the G=8 config as `BASECFG`. The smoke ran arm A alone (859018, `R1A_ARMS` truncated at commas by `sbatch --export`); the other arms were smoked in 860021. Corpus-build equality of the twin is still unverified. The 2026-10-11 offline screen was NO-GO and the live gate ran regardless (rule 6); that screen's S ordering (cost order better than GNN order) is not what the live gate shows either, so S gain did not predict live latency here.
+  - **Not claimed:** other seeds, other group sizes, a retrained arm, a GNN-specific or message-passing effect.
 
 - 2026-10-11 — **Offline S screen, run before this node was signed; verdict NO-GO.** The GO bar was mine, written into the draft before any row was read, but it was not registered before data.
   Branch `rp/prune-g8-screen` (40a74d4b), 112 G=8 states (56 per rung). Over-cap share: heavy 41/55 = 74.5 %, moderate 24/50 = 48.0 %. Median S gain against the expansion plan is
