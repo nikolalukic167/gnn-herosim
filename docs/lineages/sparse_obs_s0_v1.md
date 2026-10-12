@@ -8,7 +8,7 @@
 - **A0+** (cold priced at the queue tail / the in-batch predecessor) does **not** beat A0 (+0.4 / +2.1 %, not significant), so the bar stays `cd_exactS_ib0`.
 - **Partner channel: NOT-TESTABLE-IN-SEAT**; **exec skipped by argument** (R≡0 recorded).
 - **Bundle** +113 / +170 % is the price of hiding the batch plan, a mixed read, not a pass/kill input.
-- Steady-state lines (`after_360s`, `after_p5`) agree with the whole-run reads everywhere. Flag-off identities: 24/24 (stage 2) and 120/120 (stage 1).
+- Steady-state lines (`after_360s`, `after_p5`) agree with the whole-run reads everywhere. Flag-off identity 24/24 (stage 2, cd_exactS_ib0 re-run vs stage 1); stage 1 completed 120/120 cells, 0 failed, with a 2-cell flag-off identity in its smoke.
 
 Stage-1 and stage-2 read records are under Record; the stage-2 table is below it.
 scheduler get information real systems do not, which makes the placement problem pointwise?* Reference arm A0 = `cd_exactS_ib0`
