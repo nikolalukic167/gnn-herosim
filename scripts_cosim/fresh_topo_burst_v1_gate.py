@@ -1098,10 +1098,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if kind in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     obs_want = OBS_ARMS.get(kind, {})
-    for name in OBS_ENV:
-        want_o = obs_want.get(name, str(seed) if (name == "HEROSIM_OBS_SEED" and "HEROSIM_OBS_ESTIMATOR" in obs_want) else None)
-        if out["env"].get(name) != want_o:
-            problems.append(f"{name} served {out['env'].get(name)!r}, want {want_o!r} for {kind}")
+    for var in OBS_ENV:
+        want_o = obs_want.get(var, str(seed) if (var == "HEROSIM_OBS_SEED" and "HEROSIM_OBS_ESTIMATOR" in obs_want) else None)
+        if out["env"].get(var) != want_o:
+            problems.append(f"{var} served {out['env'].get(var)!r}, want {want_o!r} for {kind}")
     used = {n: int(c.get(n) or 0) for n in ("obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted", "obs_cold_degraded", "obs_cold_exact")}
     tail_calls = int(c.get("pg_cold_tail_calls") or 0)
     if bool(obs_want.get("HEROSIM_PG_COLD_TAIL")) != bool(tail_calls):
@@ -1125,10 +1125,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("ec partner prediction off: obs_partner_predicted == 0")
         if not obs_want.get("HEROSIM_OBS_INFLIGHT") and used["obs_inflight_degraded"]:
             problems.append("in-flight degraded on an arm that does not degrade it")
-    for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
-        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(name)
-        if out["env"].get(name) != want:
-            problems.append(f"{name} served {out['env'].get(name)!r}, want {want!r} for {kind}")
+    for var in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
+        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(var)
+        if out["env"].get(var) != want:
+            problems.append(f"{var} served {out['env'].get(var)!r}, want {want!r} for {kind}")
     exact_arm = kind in ("cd_exactS", "cd_oracle", *EXACT_ALPHA) or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb"))
     prune_arm = kind.endswith(("_cdxpra", "_cdxprb"))
     if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
