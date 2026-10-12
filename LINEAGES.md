@@ -56,6 +56,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
+| [**plan_rerank_v1**](docs/lineages/plan_rerank_v1.md) | `CLOSED` | SUPERVISED-CEILING-AT-BAR: live label-optimal oracle vs cd_exactS −0.9 % moderate / −4.2 % heavy (bar missed at moderate); no learned selector run. Hand ib0 (S without in-batch stacking) −4.6 / −3.2 %, descriptive. |
 | [**high_rho_s0_v1**](docs/lineages/high_rho_s0_v1.md) | `CLOSED` | RHO-UNREACHABLE-STABLE: no stable rung reaches ρ 0.70 in the accel seat (CD, 6 topologies; highest stable ×5 heavy, median ρ 0.64); instability is I/O-bound, so the oracle step for a ~20 % win does not run. |
 | [**link_bound_s0_v1**](docs/lineages/link_bound_s0_v1.md) | `CLOSED` | NO-GO, links do not bind (≤ 1.6 % of latency at 3.9 MB/s, the lowest CD-healthy rate); live: self-search vs CD −1.4/+1.2 %, cd_exactS −11.1/−8.0 % vs CD (12/12). Hand search stays the bar. |
 | [**big_groups_s0_v1**](docs/lineages/big_groups_s0_v1.md) | `CLOSED` | NO-GO; live G8 HAND-SEARCH-FASTER: cd_exactS −9.2/−7.7 % vs CD (12/12); GNN self-search −9.7/−1.5 % vs CD, +0.5/+5.5 % vs cd_exactS. Bigger groups open no learned gap. |
