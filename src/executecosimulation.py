@@ -3034,6 +3034,23 @@ def execute_brute_force_optimized(
         allow_non_unique_replicas=allow_non_unique_replicas
     )
     
+    skip_file = os.environ.get("COSIM_SKIP_PLANS_FILE", "").strip()
+    only_file = os.environ.get("COSIM_ONLY_PLANS_FILE", "").strip()
+    if skip_file or only_file:
+        # extend_corpus_slate.py: SKIP drops plans an earlier sweep of this dataset already scored; ONLY keeps just the listed ones (the re-score
+        # check). The sweep keeps its own enumeration, so what is left is the generator's plan space cut by the list; the counts are recorded.
+        if skip_file and only_file:
+            raise RuntimeError("FAIL LOUD: COSIM_SKIP_PLANS_FILE and COSIM_ONLY_PLANS_FILE are exclusive")
+        listed = {tuple(sorted((int(k), int(v[0]), int(v[1])) for k, v in json.loads(line)["placement_plan"].items()))
+                  for line in open(skip_file or only_file) if line.strip()}
+        enumerated = len(placement_combinations)
+        in_list = lambda pl: tuple(sorted((int(k), int(v[0]), int(v[1])) for k, v in pl.items())) in listed
+        placement_combinations = [pl for pl in placement_combinations if in_list(pl) != bool(skip_file)]
+        with open((final_dataset_dir or output_dir) / "skip_plans_report.json", "w") as fh:
+            json.dump({"mode": "skip" if skip_file else "only", "enumerated": enumerated, "listed": len(listed),
+                       "to_simulate": len(placement_combinations),
+                       "listed_in_enumeration": enumerated - len(placement_combinations) if skip_file else len(placement_combinations)}, fh)
+        _log(f"  plan list ({'skip' if skip_file else 'only'}): {len(placement_combinations)} of {enumerated} plans to simulate")
     num_placements = len(placement_combinations)
     _log(f"Generated {num_placements} placement combinations")
     
