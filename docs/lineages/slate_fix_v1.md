@@ -2,10 +2,10 @@
 
 **Status:** `REGISTERED` (signed by the expert 2026-10-12 at d66ab923; drafted by S6). Launched 2026-10-12; no gate cell, no data yet.
 
-**Now (2026-10-12).** Code and configs are on `rp/slate-fix`; the jobs run at the pinned code 438fa161 (later commits are this node only). Launch order:
+**Now (2026-10-12).** Code and configs are on `rp/slate-fix`; the jobs run at the pinned code 4d90119c (438fa161 plus the eval `ulimit` fix; later commits are this node only). Launch order:
 1. S7's recache and the cache check (`scripts_cosim/slate_fix_v1_cache_check.py`): PASSED.
 2. **User-ordered amendment (2026-10-12, relayed by the expert):** training starts now and no longer waits for the `slate_bar_v1` read. The gate order is unchanged.
-3. Eval-only identity task (job 863945, task 8) → training (863946, gnn_eng / twin_eng, seeds 1–2; `afterok` on the identity) → offline screen (863947, tasks 0–7; `afterok` on training) → identity and smoke on 16490 → gate A and B → single read. A failed identity is fixed in code, never rerun.
+3. Eval-only identity task (job 863950, task 8; the first try 863945 died on a launch defect, see Record) → training (863951, gnn_eng / twin_eng, seeds 1–2; `afterok` on the identity) → offline screen (863952, tasks 0–7; `afterok` on training) → identity and smoke on 16490 → gate A and B → single read. A failed identity is fixed in code, never rerun.
 
 **What the fix does not touch: read this first if the gap does not move.**
 - **54 over-cap train datasets** (> 100,000 full plans) keep their capped top-5 labels: `untouched_over_cap` in `extend_manifest.*.jsonl`.
@@ -196,7 +196,7 @@ Walls are measured on `selfsearch_confirm_v1`'s g0–g1 cells (`wallclock_s`, me
 
 ## Record (newest first)
 
-- 2026-10-12 — **Identity task 863945 FAILED on a launch defect, before any number:** `OSError: [Errno 24] Too many open files` in the eval DataLoader 33 s in. `slate_fix_v1_eval.sbatch` lacked `ulimit -n 65536` (datalab-pitfalls #11; the training sbatch had it). The `afterok` chain dropped 863946 and 863947, so nothing trained. Fixed in code (this commit) and relaunched at a new pin; job ids in the next entry.
+- 2026-10-12 — **Identity task 863945 FAILED on a launch defect, before any number:** `OSError: [Errno 24] Too many open files` in the eval DataLoader 33 s in. `slate_fix_v1_eval.sbatch` lacked `ulimit -n 65536` (datalab-pitfalls #11; the training sbatch had it). The `afterok` chain dropped 863946 and 863947, so nothing trained. Fixed in code at 4d90119c and relaunched in worktree `~/gnn-herosim-wt/sf_4d90119c`: identity 863950, training 863951, screen 863952 (`/share/nikola.lukic/slate_fix/screen_4d90119c`), same `afterok` chain.
 - 2026-10-12 — **Launched, by user-ordered amendment** (relayed by the expert): training no longer waits for the `slate_bar_v1` read; the gate order is unchanged.
   - Datalab worktree `~/gnn-herosim-wt/sf_438fa161` (code 438fa161), with `models/` → `~/gnn-herosim/models` and the g4 cache path → `accel_prod/20261010_061132/cache_run/cache` (the identity task's own capped cache).
   - Jobs: identity 863945 (task 8); training 863946 (tasks 0–1, `afterok` on 863945); screen 863947 (tasks 0–7, throttle 4, `afterok` on 863946). Screen output `/share/nikola.lukic/slate_fix/screen_438fa161`.
