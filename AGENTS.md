@@ -34,7 +34,7 @@ compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm na
   no cold start on an initialized platform (the simulation does; gate-tools 2026-10-12), while `cd_exactS` may use any candidate. Restricting
   `cd_exactS` to that slate costs it +4.9 / +5.0 %; with matched information the GNN self-search beats it −4.85 % moderate (21/24, Holm .0003)
   / −1.94 % heavy (16/24, Holm .04). Still not an MP win (ties its twin). Whether the GNN reaches full-information `cd_exactS` on the uncapped
-  candidate set is `slate_fix_v1` (training). The new hand bar is `cd_exactS_ib0` (`ib0_confirm_v1`: −4.7 / −2.3 % vs `cd_exactS`).
+  candidate set is `slate_fix_v1` (training). The new hand bar is `cd_exactS_ib0` (`ib0_confirm_v1`, CLOSED: −4.7 / −2.3 % vs `cd_exactS`, 12/12); a full-coverage oracle beats it only −2.8 / −2.0 %, so no supervised re-ranker over the slate can clear it by more than that.
 - **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 %
   (regret 6 %); platforms 95–99 % idle; one-step lookahead headroom 3–5 %; more servers made it easier.
 - **Closed levers:** post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links
