@@ -30,9 +30,23 @@ each repo at the commit below and adjust `sys.path`. Smoke scale, direction only
   50 TPC-H jobs. Seeds 1234, 1 and 2 finished; seed 3 hit the timeout (exit 124).
 - `sss_handrule.py`, `sss_handrule.log`: fair, the SJF-remaining-work rule at caps 2/3/5/10, and Decima.
   Only seed 1234 finished before the timeout (exit 124).
+- `sss_handrule_seed.py`, `sss_handrule_seeds.log` (Table A): 10 executors, 50 jobs. Run once per
+  seed (`python sss_handrule_seed.py <seed>`) for seeds 1234, 1, 2 and 3. It runs fair, SJF caps 5 and
+  10, and Decima 3 times with torch, `random` and numpy seeded `1000·seed + repeat`. The log's last line
+  (all RNGs pinned to 7, env seed 1234: 600.84 s three times) comes from a check whose script is not
+  attached.
+- `sss_handrule_seed50.py`, `sss_handrule50_seed_{1234,1}.log` (Table B): 50 executors, 200 jobs, the
+  environment of `config/decima_tpch.yaml:81–83`. It execs the head of `sss_handrule_seed.py` from its
+  scratch path, so both files are needed. Seed 2 produced an empty log. `sss_handrule50_seeds.log`
+  concatenates both seeds and the SJF2 lines.
+- `sss_handrule_seed50b.py`, `sss_handrule50b_seed_{1234,1}.log`: `SJF2`, SJF with unknown stage
+  durations filled from the job's mean (else the global mean) of known durations, at caps 10/25/50.
+- **Decima's run-to-run spread** without seeding comes from `random.choices` in
+  `schedulers/decima/utils.py:21`, Python's global RNG, which the env seed does not set. The earlier
+  `sss_smoke.log` (610.1 s) vs `sss_handrule.log` (638 s) difference on seed 1234 is this.
 - `shims/torch_scatter.py`, `shims/torch_sparse.py`: **shims caveat.** `torch_scatter` and
   `torch_sparse` would not install, so these pure-PyTorch replacements (`segment_csr` via `index_add`,
   sparse matmul via `sparse_coo_tensor`) stand in for them. They are not the libraries the port was
   written against. Decima's numbers here are under the shims, and a shim bug would show up as a
-  Decima-only error. Decima's run-to-run difference on seed 1234 (610.1 s vs 638 s) has not been
-  attributed: it could be policy sampling, the shims, or a nondeterministic reduction.
+  Decima-only error. Decima's run-to-run difference on seed 1234 (610.1 s vs 638 s) is policy
+  sampling: with every RNG pinned, three runs are identical (see above).

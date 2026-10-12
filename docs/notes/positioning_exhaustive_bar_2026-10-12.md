@@ -92,15 +92,55 @@ the depth knobs.
   The paper's 15–20 pp PDR deficit does not reproduce here, and the paper's PDR construction is not
   shipped. This agrees with `literature_reeval_v1` (FDD/MWKR beats the learned policy in their env,
   `literature_reeval_v1.md:89`, `:103`).
-- **(b) Decima PyG port** (`spark-sched-sim`, pretrained weights, 10 executors, 50 TPC-H jobs). On seed
-  1234, a ~20-line hand rule has mean job duration 527 s against Decima's 638 s, which is **−17.4 %**
-  (fair 988 s). The rule is shortest-remaining-work job first with a per-job executor cap; at cap 10 it
-  is uncapped, because the cluster has 10 executors.
-  - **One seed.** Both runs hit their timeout (exit 124), so seeds 1–3 of the hand rule did not run. A
-    4-seed table is coming and replaces this line before anything is quoted.
-  - **Decima is not reproducible across runs here.** The same seed gave 610.1 s in `sss_smoke.log` and
-    638 s in `sss_handrule.log`. Against 610.1 s the hand rule is −13.6 %. The 4-seed table must
-    report Decima's run-to-run spread, or pin it.
+- **(b) Decima PyG port** (`spark-sched-sim`, pretrained weights, under the shims; see the README).
+  - **The hand rule:** shortest-remaining-work job first, with a per-job executor cap (about 20 lines).
+    A cap equal to the executor count means no cap.
+  - **Decima repeats:** each seed runs Decima 3 times with torch, `random` and numpy seeded per repeat,
+    and the table reports their mean. The policy samples its action with Python's global
+    `random.choices` (`schedulers/decima/utils.py:21`), which the environment seed does not set. That
+    is the source of the unseeded run-to-run difference seen earlier (610 vs 638 s).
+  - **Spread across the 3 repeats:** 2–9 % of the mean (e.g. 587–637 s on seed 1234). With every RNG
+    pinned to one value, 3 runs gave 600.84 s each, identical (`sss_handrule_seeds.log`, last line).
+    The script for that pinned check is not among the attachments.
+
+  **Table A: 10 executors, 50 jobs, 4 seeds** (`sss_handrule_seeds.log`; mean job duration in s; % vs
+  Decima's mean).
+
+  | seed | fair | Decima (3 repeats) | SJF cap 5 | SJF cap 10 (no cap) | Decima vs fair |
+  |---|---|---|---|---|---|
+  | 1234 | 988 | 611 (587–637) | 551 (−9.9 %) | 527 (−13.7 %) | −38.2 % |
+  | 1 | 958 | 553 (537–585) | 447 (−19.2 %) | 490 (−11.3 %) | −42.3 % |
+  | 2 | 842 | 506 (498–510) | 420 (−17.0 %) | 462 (−8.7 %) | −39.9 % |
+  | 3 | 1124 | 827 (812–848) | 678 (−18.0 %) | 691 (−16.5 %) | −26.4 % |
+
+  Both caps beat Decima on 4/4 seeds, by −8.7 to −19.2 %. Picking the better cap per seed would be post
+  hoc, so quote each cap's own range. Decima beats fair by −26 to −42 %.
+
+  **Table B: 50 executors, 200 jobs** (Decima's training environment, `config/decima_tpch.yaml:81–83`;
+  `sss_handrule50_seeds.log`; 2 seeds only, about 225 s each; seed 2 produced an empty log).
+
+  | seed | fair | Decima (3 repeats) | cap 5 | cap 10 | cap 25 | cap 50 (no cap) | Decima vs fair |
+  |---|---|---|---|---|---|---|---|
+  | 1234 | 62 | 54 (53–54) | 144 (+168.3 %) | 81 (+50.7 %) | 69 (+29.0 %) | 92 (+70.7 %) | −12.9 % |
+  | 1 | 43 | 39 (39–40) | 107 (+171.8 %) | 62 (+56.4 %) | 48 (+22.2 %) | 59 (+49.9 %) | −9.3 % |
+
+  - A variant that fills unknown stage durations with the job's mean known duration (`SJF2`,
+    `sss_handrule_seed50b.py`) gives the same numbers as SJF at caps 10 / 25 / 50 on both seeds
+    (`sss_handrule50b_seed_*.log`). Filling durations changes nothing here.
+  - Every hand variant loses to Decima, by +22 to +172 %.
+
+  **Reading.**
+  - The 10-executor win is over a model served out of its training distribution (trained at 50
+    executors, served at 10), in a small, heavily loaded pool (fair 842–1,124 s against 43–62 s at the
+    training config). That is the load-contingency pattern our own record documents
+    (`unsaturated_edge_v1`, `peer_affinity_v1`: live headlines that depend on load).
+  - At the training config, a 20-line SJF rule does not transfer. The paper's tuned weighted-fair
+    heuristic, which it reports 21 % behind Decima (`Decima_SIGCOMM19.txt:703–704`), is not shipped. So
+    the right hand bar for Decima is still untested here.
+  - **Decima is the one system we dissected where the shipped GNN beats the best shipped baseline in its
+    own regime.** That baseline is fair share, and the hand bar we would hold it to (tuned weighted-fair
+    or better, with Decima's information) has not been run.
+  - Smoke scale, direction only: 4 seeds and 2 seeds, under the shims.
 
 ## 2. The measurements
 
