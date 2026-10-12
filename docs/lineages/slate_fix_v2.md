@@ -1,6 +1,6 @@
 # slate_fix_v2 — does the deploy transient hide or inflate the GNN's heavy deficit, and does the no-split MP direction hold on 4 seeds?
 
-**Status:** `REGISTERED` (draft by S6, 2026-10-12, for the expert's signature). Training of seeds 3–4 started before signature, by the expert's order (job 864264); no gate cell yet.
+**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert as drafted at 24672635, plus one descriptive line; drafted by S6); gate launched 2026-10-12 (H 864289, L12 864290) after the cross-commit identity passed 8/8. Training of seeds 3–4 runs as job 864264. The expert flips the status to ACTIVE.
 
 **Parent.** `slate_fix_v1` (CLOSED E-FASTER / UNCAPPED-DATA-NOT-THE-LEVER). Its statistic, averageElapsedTime over all 50k tasks, includes the cluster's own scale-from-zero cold start. SCIENTIST estimates that is about 40 % of heavy mean latency. Its per-task results were deleted, so no steady-state number exists for it. Its no-split MP contrast (new gnn vs new twin) was −2.57 % heavy (12/12, Holm .002) and −1.55 % moderate on two seeds.
 
@@ -44,7 +44,8 @@
   - deciles of each arm's latency in dispatch order (median over cells);
   - per-arm served-slate counters (as slate_fix_v1's M4 table);
   - self-search vs no-split on after_360s;
-  - the queue proxy.
+  - the queue proxy;
+  - **the bar's own transient share** (added at signature): per rung, the median over `cd_exactS_ib0` cells of the whole-run mean, the after-360 s mean and 1 − after-360 / whole. It is the first steady-state number on the bar itself.
 
 **Labels (fixed now).**
 - Transient, per contrast and rung:
@@ -84,4 +85,6 @@
 
 ## Record (newest first)
 
+- 2026-10-12 — **Cross-commit identity PASSED; gate launched.** Jobs 864268 (learned, s1) and 864269 (`cd_exactS`) at 6a5c922c, 8/8 cells on 16490 g0, both rungs, `/share/nikola.lukic/slate_fix/v2_identity_6a5c922c`. Every cell is SIM-IDENTICAL on all shared keys (385–434 per cell; timing and provenance excluded) with `smoke_A_4d90119c` or `identity_B2_d192081f`. No reference key is missing. Each cell has 9 new keys, all instrumentation: `steady_state.*` (7), `task_times_rows` and `env.HEROSIM_WARMTH_PHYSICS`. Submitted at the pin: H 864289 (`cd_exactS_ib0` s0, 48 cells, `v2_H_6a5c922c`) and L12 864290 (`--array=0-2`, 288 cells, `v2_L12_6a5c922c`). L34 waits for training 864264 and its sidechecks.
+- 2026-10-12 — **Signed** by the expert as drafted, adding the bar's transient-share line. Reader `scripts_cosim/slate_fix_v2_read.py` and `tests/test_slate_fix_v2.py` are committed before any gate cell. The expert writes the LINEAGES.md row (REGISTERED → ACTIVE at launch).
 - 2026-10-12 — Drafted (S6) on the expert's request. Seeds 3–4 training submitted at 6a5c922c (job 864264, `--array=0-1`, `SEEDS="3 4"`) before signature, by the expert's order.
