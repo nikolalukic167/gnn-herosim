@@ -789,7 +789,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_INFLIGHT_CAPTURE"] = SERVICE_END
         if kind.endswith("_spread"):
             env["GNN_PREFIX_SIBLING_SPREAD"] = "1"
-        if kind.endswith("_slate"):
+        if kind.endswith("_slate") and kind not in SLATE_EXACT:
             env["GNN_SERVE_CORPUS_SLATE"] = "1"
         if kind.endswith("_cdshadow"):
             env["GNN_CD_REFINE"] = "shadow"
@@ -1006,9 +1006,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append(f"served HEROSIM_CD_RANDOM_SEED={out['env'].get('HEROSIM_CD_RANDOM_SEED')!r}, cell seed {seed}")
     elif int(c.get("pg_random_seed_batches") or 0):
         problems.append("a non-random-seed arm drew a random seed plan")
-    if kind.endswith("_slate") and int(c.get("slate_batches") or 0) == 0:
+    corpus_slate = kind.endswith("_slate") and kind not in SLATE_EXACT
+    if corpus_slate and int(c.get("slate_batches") or 0) == 0:
         problems.append("slate instrument off: slate_batches == 0")
-    if not kind.endswith("_slate") and int(c.get("slate_batches") or 0):
+    if not corpus_slate and int(c.get("slate_batches") or 0):
         problems.append("unslated arm was slated")
     if RULE_POLICY.get(kind) == "decima_wfair_network":
         if int(c.get("decima_batches") or 0) == 0:
