@@ -6,7 +6,7 @@ Revision 2026-10-08 (before any run): added I11, I12 and the I5 fallback.
 
 **Outcome (2026-10-08).** R1 is frozen: `HEROSIM_TRANSFER_MODEL=pipelined`, `HEROSIM_REPLICA_RELEASE=1`,
 `HEROSIM_SCALEOUT=kpa`, `HEROSIM_POLICY_TIME_SCALE=1.0` on every rung (gates: `GATE_FIXED_POLICY_TIME_SCALE=1.0`),
-peer exchange on, single origin, server-only replicas. At that time scale every invariant passes except I5, which is
+peer exchange on, single origin, server-only replicas, warmth physics `node_disk_v2` (set by the gate environment, not enforced by sidecars; gate-tools 2026-10-12 audit, M3). At that time scale every invariant passes except I5, which is
 FAIL-WITH-CAUSE: on CD only 22 % of replica creations are load-caused (the rest reachability), and replica counts do
 not follow instantaneous load under either arm. **Quote R1 replica counts as partly reachability-driven.** I11 (the
 co-simulation reproduces live) passes on 216 states: median 0.00 %, p95 0.15 %, one state 4.3 % undiagnosed. **Labels

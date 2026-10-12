@@ -66,9 +66,30 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
 | L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
 
+## 2026-10-12 — Audit after three breaking changes
+
+An independent audit (relayed by the coordinator) of the three 2026-10-12 breaking changes: the `cd_exactS_ib0` bar, the declared-slate cold defect, and the WF1 / multiplier rows. It found no cited number wrong, and four MAJOR reproducibility or contract items, which S6 is fixing on `rp/slate-fix`.
+
+**Verified correct.**
+- **The `ib0` headline**, recomputed from the 624 summaries: −4.734 / −2.267 %, 12/12 ([ib0_confirm_v1](../lineages/ib0_confirm_v1.md)).
+- **The multiplier is applied once.** Realised arrival rates are 5.347 /s = 0.46039 × 11.6139 (moderate) and 12.717 /s = 0.46039 × 27.6227 (heavy).
+- **Labels are the `placements.jsonl` minimum**, 42 of 42 sampled.
+- **`cd_exactS` is bit-equal** across 79ea002c, d192081f and 4d90119c on 16490 g0, at both rungs.
+- **Batch α multiplies only committed in-batch service** (`scheduler.py:501–502` and `:1044–1045` on `rp/plan-rerank`).
+- **Venue parity:** logits max|Δ| 0, 0/256 argmax flips.
+
+**MAJOR findings and their fixes.**
+- **M1 — the primary comparison pairs two commits on divergent branches.** No branch has both, and `reference-physics` has neither. Fix: integration branch `rp/slate-fix-int`; the read records both commits.
+- **M2 — `experiments/accel_replica_v1_split.json` is untracked on every branch**, though every accel and `slate_fix` sidecar names it (sha f5bc4f51…). Fix: track it and add a test.
+- **M3 — warmth physics is not enforced for any GNN arm.**
+  - Sidecars and caches carry no `warmth_physics`.
+  - `resolve_warmth_physics` defaults to `platform_reuse_v1` (`src/placement/warmth.py:123–138`). Live runs get `node_disk_v2` only from the gate's environment: `HEROSIM_WARMTH_PHYSICS="node_disk_v2"` in `scripts_cosim/fresh_topo_burst_v1_gate.py`, at :535 on `reference-physics` and :769 on `rp/slate-fix`.
+  - Fix: a physics environment block plus a serving whitelist. The R1.1 definition now names the warmth physics (`physics_audit_v1`, `workload_fix_v1`, AGENTS seat line).
+- **M4 — the uncapped slate doubles the sub-batched share:** 20.2 % vs 10.3 % of tasks on 19420 heavy. Its counters go in the `slate_fix_v1` read.
+
 ## 2026-10-12 — The declared slate charges no cold start on an `initialized` platform; the simulation does
 
-**Where.** `declared_slate.standalone_cost` (`src/placement/declared_slate.py:46`) sets cold = 0 whenever the candidate payload's
+**Where.** `declared_slate.standalone_cost` (`src/placement/declared_slate.py:46` at the measured commits on `rp/slate-bar` / `rp/plan-rerank`; :48 on `rp/slate-fix`, after two RULE lines) sets cold = 0 whenever the candidate payload's
 `initialized` flag is true. That flag is `platform.initialized.triggered` (`src/placement/live_audit.py:197`), a platform-level
 event.
 
