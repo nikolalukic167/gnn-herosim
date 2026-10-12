@@ -29,7 +29,7 @@ python3 -m pytest tests/test_record_hygiene.py -q 2>&1 | tail -6 || echo "NOTE: 
 echo "== 2. topology names"
 hits=$(find $L -maxdepth 7 \( -name 'cc40s1920[6-9]*' -o -name 'cc40s1921[0-7]*' \) -not -path "$O/*" 2>/dev/null | head -5)
 [[ -z "$hits" ]] || { echo "FAIL LOUD: topology names already used: $hits"; exit 1; }
-[[ ! -e $O/inputs_G8 && ! -e $O/inputs_G0 ]] || { echo "FAIL LOUD: $O/inputs_* exist"; exit 1; }
+[[ -n "${REUSE_INPUTS:-}" || ( ! -e $O/inputs_G8 && ! -e $O/inputs_G0 ) ]] || { echo "FAIL LOUD: $O/inputs_* exist"; exit 1; }
 mkdir -p $O
 python3 - <<P
 import json
@@ -42,6 +42,7 @@ echo "== 3. inputs"
 export BASECFG=/share/nikola.lukic/accel_confirm/basecfg_fastest.json
 export M_MODERATE=11.6139 M_HEAVY=27.622665025860204 REPLICA_RULE=fastest_compatible
 for G in 8 0; do
+  [[ -n "${REUSE_INPUTS:-}" ]] && { echo "reusing $O/inputs_G$G (built and rate-checked by prep 860573, same inputs code)"; continue; }
   WT=$WT EXPECT_HEAD=$EXPECT_HEAD ROOT=$O/inputs_G$G X1=$B/x1_G$G TOPOS="$TOPOS" bash scripts_cosim/datalab/big_groups_inputs.sbatch 2>&1 | tee $O/inputs_G$G.log | grep -E "^\[(rate|check)\]|inputs ready"
   cp -a /share/nikola.lukic/prune_g8/gate_inputs/inputs/models $O/inputs_G$G/inputs/models
   ln -s /share/nikola.lukic/accel_gate/inputs_41ef627b/inputs/accel_replica_v1_split.json $O/inputs_G$G/inputs/accel_replica_v1_split.json
@@ -65,6 +66,7 @@ export R1A_SEEDS=1 R1A_STEM=accel-replica-v1 R1A_SPLIT=accel_replica_v1_split.js
 export HEROSIM_RAW_DIR=/tmp/herosim_raw_${SLURM_JOB_ID:-$$}; mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 GATE=$O/gate_G8; SM=$O/smoke; ID=$O/ident
+rm -rf $GATE $SM $ID $O/gate_raw $O/gate_log $O/smoke_raw $O/smoke_log   # the cells below are the smoke of this commit; a failed earlier smoke leaves nothing to keep
 mkdir -p $GATE $SM $ID $O/gate_raw $O/gate_log $O/smoke_raw $O/smoke_log
 run() {  # run <label> <inputs> <select> <out> <arms> <topo> <rung> <par> [extra env k=v ...]
   local label=$1 in=$2 sel=$3 out=$4 arms=$5 topo=$6 rung=$7 par=$8; shift 8
