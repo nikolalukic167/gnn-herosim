@@ -45,7 +45,7 @@ def top_k() -> int:
 
 
 def standalone_cost(candidate: Mapping[str, Any]) -> float:
-    cold = 0.0 if candidate.get("initialized", True) else float(candidate.get("cold_start_time", 0.0) or 0.0)
+    cold = 0.0 if candidate["initialized"] else float(candidate.get("cold_start_time", 0.0) or 0.0)
     return (float(candidate.get("queue_drain_seconds", 0.0) or 0.0) + cold
             + float(candidate.get("execution_time", 0.0) or 0.0) + float(candidate.get("network_latency", 0.0) or 0.0))
 
