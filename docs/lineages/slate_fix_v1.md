@@ -10,7 +10,7 @@
 **What the fix does not touch: read this first if the gap does not move.**
 - **54 over-cap train datasets** (> 100,000 full plans) keep their capped top-5 labels: `untouched_over_cap` in `extend_manifest.*.jsonl`.
 - **648 sub-batched train datasets** are tables cut from a batch whose pruned plan space exceeded the cap. Each is extended within its sub-batch of ≤ 4 tasks, but the peer cut across sub-batches stays in the label.
-- Both counts are from S7's census as relayed by the expert. They are to be re-counted from the final manifests when the build completes; on 2026-10-12, 1,607 train manifest rows were in, with 35 `untouched_over_cap`.
+- Both counts were given by the expert; their source is not yet established, and S7 has not computed a sub-batched count. S7 and S6 re-count both from the final manifests and the census when the build completes. On 2026-10-12, 1,609 train manifest rows were in: 1,067 extended, 507 already full, 35 `untouched_over_cap`.
 - The heavy deficit to `cd_exactS` sits in exactly these large, split groups:
   - the accel GNN's loss is on split 9–10-task groups, about 22 % of tasks;
   - `selfsearch_gap_v1` found self-search loses on batches ≤ 8 and wins on 9+;
