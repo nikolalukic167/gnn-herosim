@@ -126,6 +126,14 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
 
 ## Record
 
+- 2026-10-12 — **Smokes (topology 19300, g0, moderate + heavy; smokes, not read) and classical launch.** Pin `ib0_d192081f` (d192081f).
+  Flag-off identity: `cd_expand` and `ra_gnn_eng_cdxapply` at c7ceec53 vs d192081f identical on all 4 cells (summary fields and search counters).
+  Hand-seed identity: `ra_gnn_eng_cdxhib0` = `cdx_ib0` on both rungs (moderate total_rtt 111039.48456016854, endTime 9355.114119122141; heavy 97014.7066934928,
+  3998.2349206443687; expansion batches/sweeps/moves/evals equal: 12099/14665/4271/448708 and 11997/14528/4371/587578). Per-task raw files were not kept, so
+  the identity is on the summary and its counters. Measured wall: `cdx_ib0` ~80 s, `ra_gnn_eng_cdxib0` ~290 s per cell (the 0.4 h estimate was high).
+  Launch: main arms g0-g3 in 5 shards (862757-862761), descriptive arms g0-g1 in 2 shards (862762, 862763), inputs from 862754, out
+  `/share/nikola.lukic/ib0_confirm/gate_d192081f`, LIMIT 36000.
+
 - 2026-10-12 — **Signed (62e51229), three notes added before any code runs on data (coordinator).**
   1. The oracle stage runs whatever the classical read shows, an ib0 NO-WIN included. Its closing rule is against ib0 as served. If ib0 does not confirm,
      the oracle vs `cd_exactS` on the same cells is also reported, descriptive.
