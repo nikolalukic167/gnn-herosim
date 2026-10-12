@@ -1,6 +1,10 @@
 # slate_bar_v1 — is the GNN's heavy-rung deficit against `cd_exactS` a candidate handicap?
 
-**Status:** `REGISTERED` (2026-10-12, signed by the coordinator at f9570adb with four rulings, applied below). Reader committed before any cell runs. S6 owns only the dated recall-audit section below.
+**Status:** `CLOSED` (2026-10-12) — SLATE-HANDICAP at both rungs (registered label read at heavy). Signed at f9570adb. S6 owns only the dated recall-audit section below.
+
+**Outcome (read once, 24 topologies, 192 cells per arm and seed per rung, 0 failed after the relaunch).** Restricting `cd_exactS` to the declared top-5 costs **+4.89 % moderate / +4.98 % heavy** (S vs E, 0/24 and 1/24 wins, Holm < 0.0001). With that handicap on the hand side the GNN self-search is *ahead*: **G vs S −4.85 % moderate (21/24, Holm .0003) / −1.94 % heavy (16/24, Holm .0395)**. So the GNN's +3.66 % heavy deficit against `cd_exactS` is a candidate handicap in sign and size; the GNN is not behind a hand rule that sees the same slate. Ranking the slate by CD's own cost (K) recovers about half the gap (K vs S −2.95 % / −2.11 %, 23/24 and 20/24), but K is still +1.55 % / +2.50 % behind `cd_exactS`, and G vs K is a tie (−1.64 % / +0.59 %, p = .16). The honest bar for the GNN in this seat is therefore the slate-restricted hand arm, and a GNN that matches `cd_exactS` needs a wider slate, not a better scorer. Instrument: out-of-slate placements 0 in S and K; whole-batch decode on every batch.
+
+**Prediction (written before data):** S vs E +2 to +5 % heavy held (+4.98), +1 to +3 % moderate missed (+4.89); G vs S heavy −1 to +1 % missed (−1.94, label held); K vs S −1 to −3 % held.
 
 **Question** (SCIENTIST's review). The GNN is trained and served on the declared top-5 slate (each task's five cheapest candidates by a standalone cost with
 no exchange term; `src/placement/declared_slate.py`). `cd_exactS` is not slate-restricted: its CD passes and its kept pass plan may use any
@@ -78,6 +82,7 @@ ranks the same width by CD's own cost.
   (both uses exempt `SLATE_EXACT`, with a test). Ruled a relaunch, not a rerun, by the coordinator. Wave 2: the 192 S cells at **3eb4b37c**
   (array 863803, `slate_bar/gate_s`), plus 2 K identity cells at 3eb4b37c (16490 g0, both rungs; job 863804, `slate_bar/gate_kid`) to be shown byte-identical to
   the 168db8ca K cells. **Pins: K at 168db8ca, S at 3eb4b37c, reused E, C, G at 79ea002c.**
+- **Read record (2026-10-12).** Gate dirs: E, C and G reused from `selfsearch_confirm/gate_79ea002c` (symlinks in `slate_bar/reuse`), K from `slate_bar/gate` (168db8ca), S from `slate_bar/gate_s` (3eb4b37c). K identity at 3eb4b37c (16490 g0, both rungs, `gate_kid`): total_rtt, endTime, averageElapsedTime and all 92 counters equal to the 168db8ca cells. The earlier identity of E at 168db8ca vs 79ea002c is in this node's design. Reader output `slate_bar/read.json`. Decision time was not scored. Disclosures: the wave-1 S failure above; the reused arms ran at a different head from the new ones.
 - **Owners:** S5 runs the live part; S6 owns the recall audit below. LINEAGES.md and AGENTS.md are the coordinator's.
 
 ## 2026-10-12 — recall audit (S6)
