@@ -114,7 +114,9 @@ def ckpt_arm(arm):
 
 
 def asserts(cells, pin, learned, ckpt):
+    warmth = {}
     for key, s in cells.items():
+        warmth.setdefault((s.get("env") or {}).get("HEROSIM_WARMTH_PHYSICS"), []).append(key)
         code = s.get("code") or {}
         if not str(code.get("commit", "")).startswith(pin) or code.get("dirty") is not False:
             raise SystemExit(f"FAIL LOUD: {key} code {code.get('commit')} dirty={code.get('dirty')} is not the gate pin {pin}")
@@ -141,6 +143,10 @@ def asserts(cells, pin, learned, ckpt):
             path = (s.get("env") or {}).get("GNN_MODEL_PATH")
             if want is None or path is None or md5(path) != want:
                 raise SystemExit(f"FAIL LOUD: {key} checkpoint {path} md5 does not match the training log ({want})")
+    if None in warmth or len(warmth) != 1:
+        raise SystemExit(f"FAIL LOUD: cells do not all record one HEROSIM_WARMTH_PHYSICS: "
+                         f"{ {w: len(k) for w, k in warmth.items()} }, unrecorded e.g. {warmth.get(None, [])[:3]}")
+    return next(iter(warmth))
 
 
 def means(s):
@@ -334,9 +340,9 @@ def main(argv=None):
                 if k in ckpt and ckpt[k] != v:
                     raise SystemExit(f"FAIL LOUD: checkpoint md5 files disagree on {k}")
                 ckpt[k] = v
-    asserts(cells, a.pin, learned, ckpt)
+    warmth = asserts(cells, a.pin, learned, ckpt)
     ref_seeds = (1,)
-    res = {"filed": FILED, "pin": a.pin, "topos": topos}
+    res = {"filed": FILED, "pin": a.pin, "topos": topos, "warmth_physics": warmth}
     res["health"] = {arm: health(cells, failed, arm, sd, topos) for arm, sd in
                      [(a.primary, SEEDS), (a.twin, SEEDS)] + ([(a.mlp, SEEDS)] if a.mlp else []) + ([(a.reference, ref_seeds)] if a.reference else [])
                      + [(BAR, (0,)), (CD, (0,))]}
