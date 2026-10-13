@@ -91,3 +91,29 @@ def test_reader_mean_share_p90_and_replay_rules():
 def test_reader_refuses_rows_without_a_replayed_regret():
     with pytest.raises(ValueError, match="FAIL LOUD"):
         U.read_rows([{"bucket": "11_50", "n": 12}])
+
+
+def test_make_jobs_fails_loud_on_a_missing_file_and_keeps_every_state(tmp_path):
+    cells, inputs = tmp_path / "cells", tmp_path / "inputs"
+    (inputs / "wf1_heavy" / "cfg").mkdir(parents=True)
+    cells.mkdir()
+    (inputs / "wf1_heavy" / "cfg" / "cc40s1.json").write_text("{}")
+    st = {"state_id": "heavy_g0_00", "topology": 1, "window": "g0", "rung": "heavy", "bucket": "11_50", "group_size": 12, "trigger_task_id": 7}
+    with pytest.raises(FileNotFoundError, match="FAIL LOUD"):
+        U.make_jobs([st], cells, "cd_expand_k100", inputs, "x")
+    for suf in (".snapshots.jsonl", ".summary.json"):
+        (cells / f"cc40s1__g0heavy__cd_expand_k100_s0{suf}").write_text("")
+    (job,) = U.make_jobs([st], cells, "cd_expand_k100", inputs, "x")
+    assert job["trigger_task_id"] == 7 and job["cell_config"].endswith("wf1_heavy/cfg/cc40s1.json") and job["bucket"] == "11_50"
+
+
+def _snap(chosen):
+    return {"fidelity": {"batch": [{"gid": 5}, {"gid": 3}]}, "chosen": chosen}
+
+
+def test_chosen_check_is_bit_equal_and_fails_loud():
+    assert U.check_chosen(_snap({"3": [1, 2], "5": [4, 5]}), [[1, 2], [4, 5]], "s")
+    with pytest.raises(RuntimeError, match="differs from the served plan"):
+        U.check_chosen(_snap({"3": [1, 2], "5": [4, 5]}), [[1, 2], [4, 6]], "s")
+    with pytest.raises(ValueError, match="not a map over the batch"):
+        U.check_chosen(_snap({"3": [1, 2]}), [[1, 2], [4, 5]], "s")

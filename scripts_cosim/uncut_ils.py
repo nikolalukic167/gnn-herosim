@@ -12,6 +12,7 @@ pulled onto one label) and a new descent; a kick is kept only when it beats the 
 trajectory with the evaluation index, ties broken by candidate order (node id, platform id), nothing depends on set order: two runs at one seed are byte-identical.
 
   uncut_ils.py run   JOBS.jsonl OUT.jsonl [--arm cd_expand] [--seed 0] [--max-evals N | --evals-per-task-cand 200] [--max-seconds T] [--replay all|final|none]
+  uncut_ils.py make-jobs SEALED.json CELLS_DIR JOBS.jsonl --token <arm token> --inputs <inputs_group>
   uncut_ils.py read  ROWS.jsonl [--json OUT]       K1(b): mean (RTT(hand) - RTT(ILS)) / RTT(ILS), share within 1 %, p90, per bucket, S-regret beside it
 
 A job: {"state_id", "bucket", "snapfile", "trigger_task_id", "cell_config", "sim_input", "cell_summary" (its `env` is the physics env of the capture), "time" (optional)}.
@@ -38,12 +39,15 @@ CAP = 256
 EPS = 1e-9
 BUCKETS = (("11_50", 11, 50), ("51_100", 51, 100), ("101_226", 101, 226))
 Key = Tuple[int, int]
+ARM_KEYS = ("HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_CD_EXACT_PRUNE")
 
 # the hand arms a K1 hand plan can come from: (strategy, env of the arm's decision); the capture's own physics env is applied first
 ARMS = {
     "cd": ("peer_greedy_network_cd_peer_greedy_network_cd", {}),
     "cd_expand": ("peer_greedy_network_cd_peer_greedy_network_cd", {"HEROSIM_PG_CD_EXPANSION": "1"}),
     "cd_exactS": ("peer_greedy_network_cd_peer_greedy_network_cd", {"HEROSIM_PG_CD_EXACT": "1", "HEROSIM_PG_CD_EXPANSION": "1"}),
+    "cd_ib0": ("peer_greedy_network_cd_peer_greedy_network_cd", {"HEROSIM_PG_BATCH_ALPHA": "0"}),
+    "cdx_ib0": ("peer_greedy_network_cd_peer_greedy_network_cd", {"HEROSIM_PG_CD_EXPANSION": "1", "HEROSIM_PG_BATCH_ALPHA": "0"}),
     "cd_exactS_ib0": ("peer_greedy_network_cd_peer_greedy_network_cd", {"HEROSIM_PG_CD_EXACT": "1", "HEROSIM_PG_CD_EXPANSION": "1", "HEROSIM_PG_BATCH_ALPHA": "0"}),
 }
 
@@ -218,9 +222,14 @@ def _setup_env(arm: str, job: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
             if k.startswith("HEROSIM_") or k == "COSIM_AUTOSCALER_RECONCILE_INTERVAL":
                 os.environ[k] = str(v)
     if cell_summary:
-        for k, v in (json.load(open(cell_summary)).get("env") or {}).items():
+        cell_env = json.load(open(cell_summary)).get("env") or {}
+        for k, v in cell_env.items():
             if k.startswith("HEROSIM_") or k.startswith("GNN_"):
                 os.environ[k] = str(v)
+        norm = lambda d: {k: str(v) for k, v in d.items() if k in ARM_KEYS and (str(v) not in ("0", "") or k == "HEROSIM_PG_BATCH_ALPHA")}
+        have, want = norm(cell_env), norm(ARMS[arm][1])
+        if have != want:
+            raise RuntimeError(f"FAIL LOUD: --arm {arm} decides with {want}, the cell's own env says {have}")
     for k in ("HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_SEARCH",
               "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_MAX_EVENTS", "GNN_CD_REFINE", "GNN_SLATE_NO_SPLIT", "GNN_SERVE_CANDIDATE_SLATE"):
         os.environ.pop(k, None)
@@ -324,7 +333,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     finally:
         PG.PeerGreedyNetworkBatchScheduler._prefix_inference = orig_inf
         GO.GNNOrchestrator.monitor_process = orig_monitor
-    out.update(t0=t0, types=types, spec=spec)
+    out.update(t0=t0, types=types, spec=spec, snap=snap)
     return out
 
 
@@ -339,6 +348,8 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
             pinned.add(i)
     ckeys = [[(int(a.id), int(b.id)) for a, b in cs] if i not in pinned else [placements[i]] for i, cs in enumerate(cands_o)]
     start = tuple(placements[i] for i in idx)
+    slate_log10 = sum(math.log10(min(sched.pg_cd_exact_top_k, len(c))) for i, c in enumerate(ckeys) if i not in pinned)   # cd_exactS's slate product
+    exact_cap_hit = bool(sched.pg_cd_exact and slate_log10 > math.log10(sched.pg_cd_exact_max_plans))
     saved = (sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha)
     sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha = True, 1.0, 0.0     # ib0 (HEROSIM_PG_BATCH_ALPHA=0)
     memo: Dict[str, float] = {}
@@ -376,6 +387,7 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
     return {"n": len(batch_tasks), "n_batch": len(order), "n_pinned": len(pinned), "cands_mean": sum(len(c) for c in ckeys) / len(ckeys),
             "hand": to_batch(start), "start_S": r["start_S"], "best": to_batch(r["best"]), "best_S": r["best_S"], "n_evals": r["n_evals"], "budget": budget,
             "stopped": r["stopped"], "iters": r["iters"], "s_calls": ils_calls, "search_wall": wall_s, "exhaustive": exh,
+            "slate_log10": slate_log10, "exact_cap_hit": exact_cap_hit,
             "trajectory": [{"eval": t["eval"], "S": t["S"], "iter": t["iter"], "plan": to_batch(t["plan"])} for t in r["trajectory"]],
             "evals_log": [(e["eval"], e["S"], e["iter"]) for e in r["evals"]]}
 
@@ -400,11 +412,27 @@ def bucket_of(n: int) -> str:
     raise ValueError(f"group of {n} tasks is outside the K1 buckets")
 
 
+def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], state_id: Any) -> bool:
+    """The served plan the capture recorded (`chosen`: {"<gid>": [node id, platform id]} for every batch task) against the replayed re-decision, bit-equal, batch order
+    = gid ascending. A mismatch stops the run: nothing is read until it is understood."""
+    gids = [int(r["gid"]) for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
+    ch = snap["chosen"]
+    if not isinstance(ch, dict) or {int(k) for k in ch} != set(gids):
+        raise ValueError(f"FAIL LOUD: state {state_id}: snapshot `chosen` is not a map over the batch's gids")
+    live = [[int(ch[str(g)][0]), int(ch[str(g)][1])] for g in gids]
+    if live != [[int(a), int(b)] for a, b in hand]:
+        raise RuntimeError(f"FAIL LOUD: state {state_id}: the replayed re-decision differs from the served plan; "
+                           f"{sum(a != list(map(int, b)) for a, b in zip(live, hand))} of {len(gids)} tasks differ")
+    return True
+
+
 def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float], replay: str) -> Dict[str, Any]:
     t0 = time.time()
     d = decision_pass(job, arm, seed, max_evals, per, max_seconds)
     row = {k: d[k] for k in ("n", "n_batch", "n_pinned", "cands_mean", "start_S", "best_S", "n_evals", "budget", "stopped", "iters", "s_calls", "search_wall",
-                             "hand", "best", "t0", "exhaustive")}
+                             "hand", "best", "t0", "exhaustive", "slate_log10", "exact_cap_hit")}
+    row["time_bound"] = d["stopped"] == "seconds"          # the per-state --max-seconds bound, logged where it binds
+    row["chosen_match"] = check_chosen(d["snap"], d["hand"], job.get("state_id")) if d["snap"].get("chosen") is not None else None
     row.update(state_id=job.get("state_id"), bucket=job.get("bucket") or bucket_of(d["n_batch"]), arm=arm, seed=seed,
                s_per_call_ms=1000.0 * d["search_wall"] / max(d["s_calls"], 1), n_incumbents=len(d["trajectory"]),
                trajectory=[{"eval": t["eval"], "S": t["S"], "iter": t["iter"]} for t in d["trajectory"]], evals_log=d["evals_log"])
@@ -443,6 +471,21 @@ def read_rows(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
+def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs: Path, sim_input: str, seed: int = 0) -> List[Dict[str, Any]]:
+    """One job per sealed state from a hand-cell directory: cells/cc40s<topo>__<window><rung>__<token>_s<seed>.{snapshots.jsonl,summary.json}; the config is
+    inputs/wf1_<rung>/cfg/cc40s<topo>.json. A missing file fails loud (a state is never dropped)."""
+    jobs = []
+    for st_ in sealed:
+        stem = cells / f"cc40s{st_['topology']}__{st_['window']}{st_['rung']}__{token}_s{seed}"
+        cfg = inputs / f"wf1_{st_['rung']}" / "cfg" / f"cc40s{st_['topology']}.json"
+        for f in (Path(str(stem) + ".snapshots.jsonl"), Path(str(stem) + ".summary.json"), cfg):
+            if not f.exists():
+                raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: {f} does not exist")
+        jobs.append({"state_id": st_["state_id"], "bucket": st_["bucket"], "group_size": st_["group_size"], "snapfile": str(stem) + ".snapshots.jsonl",
+                     "trigger_task_id": st_["trigger_task_id"], "cell_summary": str(stem) + ".summary.json", "cell_config": str(cfg), "sim_input": sim_input})
+    return jobs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -450,10 +493,23 @@ def main() -> int:
     r.add_argument("jobs"); r.add_argument("out")
     r.add_argument("--arm", default="cd_expand", choices=sorted(ARMS)); r.add_argument("--seed", type=int, default=0)
     r.add_argument("--max-evals", type=int, default=None); r.add_argument("--evals-per-task-cand", type=int, default=200)
-    r.add_argument("--max-seconds", type=float, default=None); r.add_argument("--replay", default="all", choices=("all", "final", "none"))
+    r.add_argument("--max-seconds", type=float, default=300.0, help="per-state bound on the ILS search; logged as time_bound where it binds"); r.add_argument("--replay", default="all", choices=("all", "final", "none"))
+    m = sub.add_parser("make-jobs")
+    m.add_argument("sealed"); m.add_argument("cells"); m.add_argument("out"); m.add_argument("--token", required=True, help="the hand cell's arm token, e.g. cd_ib0_k100")
+    m.add_argument("--inputs", required=True, help="gate inputs_group dir"); m.add_argument("--sim-input", default=str(REPO / "data" / "nofs-ids"))
+    m.add_argument("--only", default=None, help="comma list of state ids (a shard)")
     d = sub.add_parser("read")
     d.add_argument("rows"); d.add_argument("--json", default=None)
     a = ap.parse_args()
+    if a.cmd == "make-jobs":
+        sealed = json.load(open(a.sealed))
+        if a.only:
+            keep = set(a.only.split(","))
+            sealed = [x for x in sealed if x["state_id"] in keep]
+        jobs = make_jobs(sealed, Path(a.cells), a.token, Path(a.inputs), a.sim_input)
+        Path(a.out).write_text("".join(json.dumps(j) + "\n" for j in jobs))
+        print(f"{len(jobs)} jobs -> {a.out}")
+        return 0
     if a.cmd == "run":
         with open(a.out, "a") as fh:
             for line in open(a.jobs):
