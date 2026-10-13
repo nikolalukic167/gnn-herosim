@@ -299,6 +299,21 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Bucketed clock verified live; served-plan sidecar identities PASS.**
+  - **Live bucketed charge (job 864626, PASS):** `cd_exactS_ib0_k100`, 19461 g0 moderate, pin 33629f1f, `inputs_group`.
+    - All 50,000 tasks finished (6,420 s wall), and the harness's served-cost check passed.
+    - The env names `HEROSIM_DECISION_COST_MS_BY_BUCKET` = {le10 0.06882, 11_50 0.23546, gt50 0.47271} (the frozen moderate w(n), k = 1). `HEROSIM_DECISION_COST_MS` is absent.
+    - `sched_busy_seconds` 8,666.3479 equals Σ w(b) × `decisionTiming.by_bucket` plan_evals(b) to a relative 2.5e-15. Plan evaluations by bucket: 38,273,987 / 13,224,854 / 6,173,781, over 9,486 batches charged.
+  - **Uncharged evaluations (inferred by code read, no counter):** 298 in cell 864626, 5e-6 of 57.67 M (`sched_plan_evals` 57,672,920 against the bucket sum 57,672,622).
+    - They are metered by the stale-placement re-decode (`src/policy/gnn/scheduler.py:1295`, called at `:1442`, after the charge at `:1405`). It decodes a task again, alone, when its decoded replica was evicted before its turn. That is outside the batch window and not in decisionTiming.
+    - It is not the 0-decodable path: those batches are charged at w(le10), and the exact charge identity shows they carried 0 evaluations.
+    - Each re-decode is a 1-task decision, so the charge is understated by ≤ 298 × w(le10) = 0.0205 s against 8,666 s.
+    - The same path exists in every k > 0 arm, so decision_cost_s0_v1's charges are understated the same way, by a similarly negligible amount (sent to S4 for that close).
+    - Recorded, not instrumented, under the paper pivot.
+  - **Sidecar identities (PASS):** 864741 at de7ed1f3 (sidecar only) and 864749 at 1929fd3c (sidecar + once-per-trigger capture), each against 864574 (16490 g0 heavy `cd_exactS`, hook on, `slate_fix/smoke_inputs`).
+    - Both summaries are SIM-IDENTICAL on 448 shared keys; the only new keys are the 9 `decisionTiming.by_bucket` counters, which postdate 6d1764bd.
+    - The snapshots are byte-equal, and each cell wrote 3 lines to `.chosen.jsonl` (triggers 9743, 24617, 39530; plan_evals 1,698 / 594 / 17,578; `cap_hit` false / true / false).
+    - Disclosed: for classical arms, the sidecar's `arm` field is the policy label (`peer_greedy_network_cd`), because the harness sets `GNN_ARM_KIND` only for learned arms. The cell name carries the arm.
 - 2026-10-13 — **`cdxapply` is wall-feasible where `cd_expand` is not** (S4, smoke 864642; 19461 g0, k = 0; slate_fix_v1 checkpoints trained on cut groups; descriptive, not a gate number; OUT `/share/nikola.lukic/uncut_groups/smoke_learned`).
   - `cdxapply` (GNN seed + α-expansion) finished at both rungs: 3,425 s (moderate) and 4,654 s (heavy) of wall time, `pgb_max_batch` 199, SUB_BATCH violation 0.
   - Hand `cd_expand` runs the same expansion from the hand seed and is wall-infeasible at heavy.
