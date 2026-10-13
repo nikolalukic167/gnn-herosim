@@ -1,6 +1,6 @@
 # cost_to_go_v1 — does a learned post-batch value beat exact batch-myopic search?
 
-**Status:** `CLOSED` (2026-10-11) — **NO-WIN** (both arms). Registered 2026-10-10; every bar below was signed before any data.
+**Status:** `CLOSED` (2026-10-11) — **NO-WIN** (both arms). Registered 2026-10-10; every bar below was signed before any data. (record audited 2026-10-13: one offline replay served a 4-task batch instead of 18, see gate-tools; no number changes)
 
 > **Declared-slate caveat (2026-10-12):** `slate_bar_v1` read SLATE-HANDICAP for the GNN (matched-slate, the GNN self-search wins −4.85 / −1.94 %); it did not re-test this MLP V, whose training tables are declared-slate tables.
 
@@ -57,6 +57,7 @@ rollout (SCIENTIST, 2026-10-10).
 
 ## Record (newest first)
 
+- 2026-10-13 — 1 of 2,173 offline replays (train_h5) served a 4-task batch instead of 18 ([gate-tools](../gates/gate-tools.md), batch_size ignore); immaterial to the recorded result, no number changes.
 - 2026-10-11 02:00 — **Gate read: NO-WIN for both V arms; lineage CLOSED** (S6; reader 579f7346, read once at code
   22c46038 with a clean tree; /share/nikola.lukic/cost_to_go_gate/gate_22c46038/read.{json,txt}).
   - **Health:** 768/768 cells, 0 failed, 0 watchdog kills. Worst end-to-last-arrival ≤ 1.047. The sensitivity read is

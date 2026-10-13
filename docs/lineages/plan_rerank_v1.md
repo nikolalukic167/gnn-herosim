@@ -1,6 +1,6 @@
 # plan_rerank_v1 — can a learned plan-level scorer beat `cd_exactS` in the accel seat, and is there anything left to learn?
 
-**Status:** `CLOSED` (2026-10-12) — **SUPERVISED-CEILING-AT-BAR**. Registered 2026-10-11 by S4 and signed by the coordinator, from the coordinator's brief and its amendment after SCIENTIST's review. Every bar was signed before its data.
+**Status:** `CLOSED` (2026-10-12) — **SUPERVISED-CEILING-AT-BAR**. Registered 2026-10-11 by S4 and signed by the coordinator, from the coordinator's brief and its amendment after SCIENTIST's review. Every bar was signed before its data. (record audited 2026-10-13: one offline replay served a 4-task batch instead of 18, see gate-tools; no number changes)
 
 > **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win.
 
@@ -105,6 +105,7 @@ The model is SCIENTIST's version, not the top-10 reranker.
 
 ## Record
 
+- 2026-10-13 — 1 of 3,103 offline replays (S_alpha job 859727) served a 4-task batch instead of 18 ([gate-tools](../gates/gate-tools.md), batch_size ignore); immaterial to the recorded result, no number changes.
 - 2026-10-12 — **Phase 0 read (once, all 12 oracle g0 cells in, 0 failed; reader plan_oracle_read.py at b05e99f5, output `gate_c7ceec53/read.json`). NO-GO: `SUPERVISED-CEILING-AT-BAR`.**
   - **O vs cd_exactS (g0, paired, negative = O faster):** moderate **−0.92 %**, 5/6 faster, p = 0.219; heavy **−4.17 %**, 6/6, p = 0.031.
     The bar needs ≤ −4 % at both rungs, so moderate misses and GO is False. Per topology, moderate: −0.1 / −1.3 / −3.4 / +1.3 / −3.5 / −0.6; heavy: −5.1 / −1.4 / −1.1 / −4.4 / −5.7 / −3.9.
