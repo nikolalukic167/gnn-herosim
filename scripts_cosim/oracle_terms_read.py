@@ -76,6 +76,42 @@ def batch_row(r, cols):
             "nodes_used": nn_o - nn_h, "search": bool(r.get("search"))}
 
 
+def random_rows(r):
+    """Plans outside the selected set vs the hand plan: d_label, grouped term deltas, d_S. Unbiased by the S/label selection."""
+    if r.get("terms_selected") is None or len(r["terms"]) <= r["terms_selected"]:
+        return []
+    hand = plan_terms(r, r["s_plan"])
+    if hand is None:
+        return []
+    ci = {c: i for i, c in enumerate(r["terms_cols"])}
+    lab = {tuple(map(tuple, k)): (sv, lv) for k, sv, lv in r["table"]}
+    out = []
+    for k, rows in r["terms"][r["terms_selected"]:]:
+        key = tuple(map(tuple, k))
+        if key not in lab:
+            continue
+        a = np.array(rows, float)
+        d = {c: float(a[:, ci[c]].sum() - hand[:, ci[c]].sum()) for c in r["terms_cols"]}
+        out.append({"t": r["t"], "d_label": lab[key][1] - r["s_label"], "d": d, "d_S": d["S"]})
+    return out
+
+
+def ols(rows):
+    X = np.array([[sum(r["d"][c] for c in cs) for cs in GROUP.values()] for r in rows])
+    y = np.array([r["d_label"] for r in rows])
+    out = {"n": len(rows)}
+    if len(rows) > len(GROUP) + 5:
+        beta, *_ = np.linalg.lstsq(X, y, rcond=None)
+        res = y - X @ beta
+        ss = max(1e-12, ((y - y.mean()) ** 2).sum())
+        dS = np.array([r["d_S"] for r in rows])
+        out["beta"] = {k: float(b) for k, b in zip(GROUP, beta)}
+        out["r2_terms"] = float(1 - (res ** 2).sum() / ss)
+        out["r2_S_as_is"] = float(1 - ((y - dS) ** 2).sum() / ss)
+        out["corr_dS_dlabel"] = float(np.corrcoef(dS, y)[0, 1])
+    return out
+
+
 def summarize(rows):
     out = {"batches": len(rows)}
     if not rows:
@@ -105,6 +141,12 @@ def summarize(rows):
         cell["share_with_stack_raw_down"] = float(np.mean([r["d"]["stack_raw"] < -1e-6 for r in sel]))
         mv = Counter((m["type"], m["from"], m["to"]) for r in sel for m in r["moved"])
         cell["moved_task_top"] = [[list(k), v] for k, v in mv.most_common(8)]
+        bt = defaultdict(list)
+        for r in sel:
+            for m in r["moved"]:
+                bt[(m["type"], m["from"], m["to"])].append(m["d"])
+        cell["moved_task_terms"] = [{"move": list(k), "n": len(v), **{c: float(np.mean([d[c] for d in v])) for c in ("drain", "stack_raw", "cold", "exec", "lat", "exch", "S")}}
+                                    for k, v in sorted(bt.items(), key=lambda kv: -len(kv[1]))[:8]]
         out[name] = cell
     return out
 
@@ -114,6 +156,7 @@ def main():
     ap.add_argument("oracle"); ap.add_argument("--json", default=None)
     a = ap.parse_args()
     cells = {}
+    randoms = {}
     for d in sorted(glob.glob(os.path.join(a.oracle, "oracle_diag", "cc40s*__g0*__*"))):
         recs = load(d)
         if not recs or "terms" not in recs[0]:
@@ -124,6 +167,10 @@ def main():
             if "terms" not in r:
                 continue
             b = batch_row(r, COLS)
+            rr = random_rows(r)
+            for x in rr:
+                x["bin"] = "t<360" if r["t"] < T0 else ("360<=t<p5" if r["t"] < p5 else "steady")
+                randoms.setdefault(cell_of(d)[1], []).append(x)
             if b:
                 b["bin"] = "t<360" if r["t"] < T0 else ("360<=t<p5" if r["t"] < p5 else "steady")
                 rows.append(b)
@@ -135,6 +182,9 @@ def main():
         for bn in ("t<360", "360<=t<p5", "steady", "all"):
             sel = allrows if bn == "all" else [r for r in allrows if r["bin"] == bn]
             res[rung][bn] = summarize(sel)
+            rsel = [x for x in randoms.get(rung, []) if bn == "all" or x["bin"] == bn]
+            res[rung][bn]["random_plans"] = ols(rsel)
+            print(f"  random unselected plans vs hand: {ols(rsel)}")
             s = res[rung][bn]
             print(f"\n== {rung} {bn}: {s['batches']} batches, improved {s.get('improved')}, big(>10 %) {s.get('big')}")
             for name in ("improved", "big"):
@@ -146,6 +196,8 @@ def main():
                 print("     mean d_term hand->oracle: " + ", ".join(f"{k} {v:+.3f}" for k, v in c["mean_d_term_hand_to_oracle"].items()))
                 if "ols_label_on_terms" in c:
                     print("     OLS d_label on d_terms (1.0 = S prices it right): " + ", ".join(f"{k} {v:.2f}" for k, v in c["ols_label_on_terms"].items()) + f"  R2 {c['ols_r2']:.2f}")
+                for m in c["moved_task_terms"][:4]:
+                    print("     moved " + str(m["move"]) + f" n={m['n']}: " + ", ".join(f"{k} {m[k]:+.2f}" for k in ("drain", "stack_raw", "cold", "exec", "lat", "exch", "S")))
                 print(f"     cold lower in oracle plan {100 * c['share_with_cold_down']:.0f} %, raw stacking lower {100 * c['share_with_stack_raw_down']:.0f} %; moved tasks (type, from, to): {c['moved_task_top'][:5]}")
     if a.json:
         json.dump(res, open(a.json, "w"), indent=1, default=float)
