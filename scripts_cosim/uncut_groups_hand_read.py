@@ -35,13 +35,24 @@ NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.(summary|fa
 
 
 def load_gate(gate):
-    cells, failed = {}, {}
-    for f in sorted(os.listdir(gate)):
-        m = NAME.match(f)
-        if not m:
-            continue
-        key = (m.group(4), int(m.group(1)), m.group(2), m.group(3))
-        (cells if m.group(6) == "summary" else failed)[key] = os.path.join(gate, f)
+    """`gate` is one directory or several joined by commas (a sibling completion OUT). A key present in two directories must be a
+    byte-identical copy (sha256), else fail loud; the pause rule pools hung cells across arms, so completions run in a sibling OUT."""
+    cells, failed, seen = {}, {}, {}
+    for g in gate.split(","):
+        for f in sorted(os.listdir(g)):
+            m = NAME.match(f)
+            if not m:
+                continue
+            key = (m.group(4), int(m.group(1)), m.group(2), m.group(3))
+            p = os.path.join(g, f)
+            sha = hashlib.sha256(open(p, "rb").read()).hexdigest()
+            dk = (key, m.group(6))
+            if dk in seen:
+                if seen[dk] != sha:
+                    raise SystemExit(f"FAIL LOUD: duplicate cell {key} {m.group(6)} differs between gates")
+                continue
+            seen[dk] = sha
+            (cells if m.group(6) == "summary" else failed)[key] = p
     return {k: json.load(open(p)) for k, p in cells.items()}, failed
 
 

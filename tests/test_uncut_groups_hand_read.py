@@ -135,3 +135,14 @@ def test_wall_infeasible_is_its_own_count(tmp_path):
     assert (w["wall_infeasible"], w["wall_infeasible_g0"], w["other_failed"]) == (1, 1, 1)
     assert w["cells"][0]["detail"] == "projected: 287/3933"
     assert U.counts(cells, failed, ["cd_exactS"], TOPOS)["cd_exactS|heavy"]["finished"] == 1
+
+
+def test_sibling_gate_union_asserts_identical_duplicates(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir(); b.mkdir()
+    write(a, "cd", 1, "g0", "heavy", cell(10.0)); write(b, "cd", 1, "g0", "heavy", cell(10.0)); write(b, "cd", 2, "g0", "heavy", cell(11.0))
+    cells, _ = U.load_gate(f"{a},{b}")
+    assert len(cells) == 2
+    write(b, "cd", 1, "g0", "heavy", cell(99.0))
+    with pytest.raises(SystemExit):
+        U.load_gate(f"{a},{b}")
