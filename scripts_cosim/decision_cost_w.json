@@ -75,7 +75,19 @@
     "11_50": 0.28611,
     "gt50": 0.52777
    }
+  },
+  "cd_exactS_ib0_prune": {
+   "heavy": {
+    "le10": 0.09034,
+    "11_50": 0.2504,
+    "gt50": 0.49467
+   },
+   "moderate": {
+    "le10": 0.09134,
+    "11_50": 0.24498,
+    "gt50": 0.55072
+   }
   }
  },
- "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). IMPUTED: cd_exactS heavy and cd_expand heavy (their heavy smoke cells were watchdog-killed, WALL-INFEASIBLE) = the arm's heavy scalar w x its own moderate ratio to le10 (expert ruling 2026-10-13). Scalar w stands for cd and cd_ib0. The gate charges k x these by served batch-size bucket (HEROSIM_DECISION_COST_MS_BY_BUCKET); arms without an entry keep HEROSIM_DECISION_COST_MS."
+ "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). IMPUTED: cd_exactS heavy and cd_expand heavy (their heavy smoke cells were watchdog-killed, WALL-INFEASIBLE) = the arm's heavy scalar w x its own moderate ratio to le10 (expert ruling 2026-10-13). Scalar w stands for cd and cd_ib0. The gate charges k x these by served batch-size bucket (HEROSIM_DECISION_COST_MS_BY_BUCKET); arms without an entry keep HEROSIM_DECISION_COST_MS. cd_exactS_ib0_prune: S6's prune smoke, job 864605 at c671281c (19461 g0, k = 0, both rungs finished: 4,551 s heavy, 3,900 s moderate wall), /share/nikola.lukic/uncut_groups/wnprune_c671281c, same rule (calibrated scalar x ratio to le10)."
 }
