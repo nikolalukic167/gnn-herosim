@@ -148,3 +148,15 @@ def test_task_bsz_sidecar_rows_follow_tasks_npy(tmp_path):
     assert write_task_bsz(trs, str(tmp_path / "a.tasks_bsz.npy")) == write_task_times(trs, str(tmp_path / "a.tasks.npy")) == 2
     b, t = np.load(tmp_path / "a.tasks_bsz.npy"), np.load(tmp_path / "a.tasks.npy")
     assert (b[:, 1:3] == t).all() and b[:, 0].tolist() == [3, 7] and b[:, 3:].tolist() == [[-1, -1], [3, 2]]
+
+
+def test_task_lock_sidecar_rows_follow_tasks_bsz(tmp_path):
+    import numpy as np
+    from scripts_cosim.fresh_topo_burst_v1_gate import write_task_bsz, write_task_lock
+
+    trs = [{"taskId": 7, "dispatchedTime": 2.0, "doneTime": 5.0, "ioEndTime": 2.5, "computeStartTime": 3.25},
+           {"taskId": 3, "dispatchedTime": 1.0, "doneTime": 4.0},
+           {"taskId": -1, "dispatchedTime": 0.5, "doneTime": 0.6, "ioEndTime": 0.5, "computeStartTime": 0.55}]
+    assert write_task_lock(trs, str(tmp_path / "a.tasks_lock.npy")) == write_task_bsz(trs, str(tmp_path / "a.tasks_bsz.npy")) == 2
+    lk, b = np.load(tmp_path / "a.tasks_lock.npy"), np.load(tmp_path / "a.tasks_bsz.npy")
+    assert (lk[:, 0] == b[:, 0]).all() and np.isnan(lk[0, 1:]).all() and lk[1, 1:].tolist() == [2.5, 3.25, 0.75]
