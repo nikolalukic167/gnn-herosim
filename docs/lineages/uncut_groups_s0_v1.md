@@ -299,6 +299,25 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **PRE-DATA: the user approves the Arm 1 label build, in parallel with the oracle; `ils12` launches without waiting for the smoke.** Filed before any label is built.
+  - **The user's words, verbatim** (typed in S6's session): "let's just run the data generation in parallel. it's not worth waiting this much".
+    - The expert's reading, confirmed: the Arm 1 **label build** is approved now and is not gated on `ils_oracle_live`.
+    - **Training is not approved** and needs the user's separate word.
+    - The oracle's registered label still decides how the labels are used (§ 5 of the `ils_oracle_live` design below).
+  - **Cost:** labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule. S7 builds them.
+  - **Arm 1 corpus spec (SCIENTIST, as relayed by the expert; SCIENTIST's verbatim block with the exact sampling numbers is requested and will be filed beside this):**
+    - The registered D corpus: option (a) libraries from G0, fresh topologies disjoint from the gate, and snapshot runs serving uncut (§ 4 "Corpus requests" and "Giant groups").
+    - Sampling is heavy on the 11–100-task groups and on the co-location shape.
+    - PLUS opening states (t < 360 s) at ≥ 25 % of states.
+    - The label set is capped at 256 tasks.
+    - Labels follow the r ≥ 0.10 rule (dd2e44e0, entry below).
+    - The fresh-100 below/above split is printed without re-tuning, and the per-bucket ILS share is reported.
+    - **Disclosed tension, for the expert or SCIENTIST to resolve before the build:** § 4 registered "MIN_TIME stays 360 s". The opening-state requirement (≥ 25 % at t < 360 s) departs from it for the label corpus.
+  - **The expert's ruling on `ils12`:** launch now, without waiting for the smoke, matching the user's "not worth waiting".
+    - LIMIT stays 21,600 s.
+    - A cell killed at the limit is WALL-INFEASIBLE under the registered rule and is never rerun with another budget.
+  - S4 launches `ils12`.
+
 - 2026-10-13 — **Arm 1 label rule (SCIENTIST): proposed and accepted by the expert; Arm 1 itself awaits the user's approval.** The rule, verbatim:
 
   > Arm 1 label (2026-10-13, SCIENTIST, before any label is built): a state's label is the ILS plan only if ILS's replayed batch-only RTT gain over the hand (cd_ib0) plan is ≥ 10 % of the hand plan's replayed batch RTT, i.e. r = (RTT_hand − RTT_ILS) / RTT_hand ≥ 0.10, at N = 0 with one replay of each plan. Otherwise the label is the hand plan. States whose hand plan cannot be replayed whole (SPLIT / UNPLACED) take the hand label. The share of states labelled ILS is reported per bucket.
