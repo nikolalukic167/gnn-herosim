@@ -38,15 +38,15 @@ def _rtt(stats: Dict[str, Any]) -> float:
 
 
 def build_state(label: Dict[str, Any], state: Dict[str, Any], root: str, out_dir: Path, idx: int, caches: Dict[str, Any]) -> Dict[str, Any]:
-    from src.executecosimulation import DataclassJSONEncoder
-    from src.placement import declared_slate, fidelity_replay
-    from scripts_cosim import make_warm_corpus as M
-
     job = {"snapfile": state["snapfile"], "trigger_task_id": int(state["trigger"]), "time": state["time"],
            "cell_summary": f"{root}/cap/A/cc40s{state['topology']}__{state['window']}{state['rung']}__cd_ib0_s0.summary.json",
            "cell_config": f"{root}/inputs{state['set']}/inputs_group/wf1_{state['rung']}/cfg/cc40s{state['topology']}.json", "sim_input": str(SIM_INPUT)}
     U._setup_env("cd_ib0", job, check_arm=False)
     os.environ.update(HEROSIM_RETAIN_TASK_TIMES="1", HEROSIM_RETAIN_PEER_STATS="1")
+    # the physics env is read at import time (infrastructure.FIDELITY, PULL_LEDGER), so it is set before the first src import
+    from src.executecosimulation import DataclassJSONEncoder
+    from src.placement import declared_slate, fidelity_replay
+    from scripts_cosim import make_warm_corpus as M
     snap = U._load_snapshot(job)
     cell_path = Path(job["cell_config"])
     key = str(cell_path)
