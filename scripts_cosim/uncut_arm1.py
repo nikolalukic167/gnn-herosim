@@ -79,6 +79,119 @@ def plan_pool(wls: Dict[Tuple[str, str, str], Dict[str, Any]], topos: Sequence[i
     return {"pool": pool, "census": census, "plans": plans, "groups_over_256": dict(over256)}
 
 
+GATE_SHARES = {"11_50": 0.39, "51_100": 0.44, "101_256": 0.17}      # the gate windows' task-weighted shares within batches > 10 (node § 4)
+
+
+def _median(xs: Sequence[float]) -> float:
+    ys = sorted(xs)
+    n = len(ys)
+    return float(ys[n // 2]) if n % 2 else 0.5 * (ys[n // 2 - 1] + ys[n // 2])
+
+
+def draw_states(rows: Sequence[Dict[str, Any]], seed: int) -> Dict[str, Any]:
+    """rows: the captured pool, each with bucket, early (snapshot time < 360 s), cross (cross-node in-batch partner pairs of the served cd_ib0 plan), key (unique id).
+    Per bucket x time stratum: the draw (30 / 70 by time); for batches > 10, 2/3 above the stratum's median cross and 1/3 at or below it (ties go to at-or-below), the median taken
+    on the capture pool. 101-256 opening fallback (SCIENTIST / expert): when that stratum's pool is < 3 x its draw, draw floor(pool / 3) and move the rest to late.
+    Returns the drawn rows (tagged side), the census and the stop flags (the corpus-wide opening floor of 25 % fails loud)."""
+    rng = random.Random(f"arm1_draw:{seed}")
+    by: Dict[Tuple[str, bool], List[Dict[str, Any]]] = collections.defaultdict(list)
+    for r in rows:
+        by[(r["bucket"], bool(r["early"]))].append(r)
+    plan_draw = {}
+    for b in DRAWS:
+        d_early = cell_draw(b, True)
+        pool_early = len(by[(b, True)])
+        fallback = False
+        if pool_early < MIN_MULT * d_early:
+            if b != "101_256":
+                raise SystemExit(f"FAIL LOUD: {b} opening pool {pool_early} < {MIN_MULT} x its draw {d_early}; only 101-256 has the registered fallback")
+            d_early, fallback = pool_early // MIN_MULT, True
+        plan_draw[(b, True)] = d_early
+        plan_draw[(b, False)] = DRAWS[b] - d_early
+        plan_draw[(b, "fallback")] = fallback
+    drawn, census, problems = [], [], []
+    for b in DRAWS:
+        for early in (True, False):
+            pool = by[(b, early)]
+            n = plan_draw[(b, early)]
+            if b == "le10":
+                sides = {"all": (pool, n)}
+            else:
+                med = _median([r["cross"] for r in pool]) if pool else 0.0
+                above = [r for r in pool if r["cross"] > med]
+                below = [r for r in pool if r["cross"] <= med]
+                n_above = round(n * 2 / 3)
+                sides = {"above": (above, n_above), "below": (below, n - n_above)}
+            for side, (cand, k) in sides.items():
+                if len(cand) < k:
+                    problems.append(f"{b} {'early' if early else 'late'} {side}: pool {len(cand)} < draw {k}")
+                take = rng.sample(sorted(cand, key=lambda r: r["key"]), min(k, len(cand)))
+                for r in take:
+                    drawn.append({**r, "side": side})
+                census.append({"bucket": b, "early": early, "side": side, "pool": len(cand), "draw": k, "drawn": len(take), "ratio": len(cand) / k if k else None,
+                               "fallback": bool(plan_draw[(b, "fallback")] and early)})
+    n_open = sum(1 for r in drawn if r["early"])
+    open_share = n_open / len(drawn) if drawn else 0.0
+    if open_share < 0.25:
+        problems.append(f"corpus-wide opening share {open_share:.3f} < 0.25")
+    task_w = {b: sum(r["size"] for r in drawn if r["bucket"] == b) for b in GATE_SHARES}
+    tot = sum(task_w.values())
+    shares = {b: task_w[b] / tot for b in task_w} if tot else {}
+    for b, sh in shares.items():
+        if not 0.5 <= sh / GATE_SHARES[b] <= 2.0:
+            problems.append(f"task-weighted share of {b} within batches > 10 is {sh:.3f} against the gate's {GATE_SHARES[b]} (outside 2x)")
+    return {"drawn": drawn, "census": census, "problems": problems, "opening_share": open_share,
+            "opening_share_by_bucket": {b: sum(1 for r in drawn if r["bucket"] == b and r["early"]) / max(1, sum(1 for r in drawn if r["bucket"] == b)) for b in DRAWS},
+            "counts": {b: sum(1 for r in drawn if r["bucket"] == b) for b in DRAWS}, "task_weighted_shares_gt10": shares}
+
+
+def served_cross_pairs(snap: Dict[str, Any], chosen: Dict[str, Any]) -> Tuple[int, int]:
+    """(in-batch partner pairs on different nodes under the served plan, tasks the served decision deferred)."""
+    node = {int(t): int(n) for t, n, _p in chosen["chosen"]}
+    cross = sum(1 for a, b, _pay in snap["fidelity"]["pairs"] if int(a) in node and int(b) in node and node[int(a)] != node[int(b)])
+    return cross, len(chosen.get("deferred") or [])
+
+
+def capture_rows(pool: Sequence[Dict[str, Any]], cap_root: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Join the pool to the captured snapshots (+ chosen sidecars). Returns (rows for draw_states, pool pairs that were not captured)."""
+    cells: Dict[str, List[Dict[str, Any]]] = collections.defaultdict(list)
+    for r in pool:
+        cells[f"{r['set']}/cc40s{r['topology']}__{r['window']}{r['rung']}__cd_ib0_s0"].append(r)
+    rows, missing = [], []
+    for cell, prs in sorted(cells.items()):
+        stem = f"{cap_root}/{cell}"
+        snapf = stem + ".snapshots.jsonl"
+        if not os.path.exists(snapf):
+            missing += prs
+            continue
+        want = {r["trigger"]: r for r in prs}
+        chosen = {}
+        if os.path.exists(snapf + ".chosen.jsonl"):
+            for line in open(snapf + ".chosen.jsonl"):
+                if line.strip():
+                    c = json.loads(line)
+                    chosen[int(c["trigger_task_id"])] = c
+        seen = set()
+        for line in open(snapf):
+            if not line.strip():
+                continue
+            snap = json.loads(line)
+            trig = int(snap["trigger_task_id"])
+            if trig not in want or trig in seen or trig not in chosen:
+                continue
+            seen.add(trig)
+            r = want[trig]
+            cross, n_def = served_cross_pairs(snap, chosen[trig])
+            n_batch = len(snap["fidelity"]["batch"])
+            b = bucket_of(n_batch)
+            if b is None:
+                continue
+            rows.append({**r, "key": f"{cell}#{trig}", "snapfile": snapf, "time": float(snap["time"]), "early": float(snap["time"]) < EARLY_T, "n_batch": n_batch, "bucket": b,
+                         "size": n_batch, "cross": cross, "n_deferred": n_def, "cell": cell})
+        missing += [want[t] for t in want if t not in seen]
+    return rows, missing
+
+
 def truncate_workload(wl: Dict[str, Any], open_s: float) -> Dict[str, Any]:
     """The workload cut to events arriving by open_s (ids unchanged: events are in arrival order); pairs touching a dropped event go."""
     keep = sum(1 for e in wl["events"] if float(e["timestamp"]) <= open_s)
@@ -96,6 +209,8 @@ def main() -> int:
     p.add_argument("--sets", nargs="+", required=True, help="NAME=inputs_group_dir ... (the inputs tree whose wf1_<rung>/wl windows are the corpus windows)")
     p.add_argument("--open-sets", nargs="*", default=[], help="names of the sets whose cells are opening-only")
     p.add_argument("--topos", nargs="+", type=int, required=True); p.add_argument("--seed", type=int, required=True); p.add_argument("--out", required=True)
+    d = sub.add_parser("draw")
+    d.add_argument("--pool", required=True); d.add_argument("--cap-root", required=True); d.add_argument("--seed", type=int, required=True); d.add_argument("--out", required=True)
     o = sub.add_parser("openings")
     o.add_argument("--src", required=True); o.add_argument("--dst", required=True); o.add_argument("--open-s", type=float, default=420.0)
     a = ap.parse_args()
@@ -111,6 +226,27 @@ def main() -> int:
                 json.dump(wl, open(f"{a.dst}/{f}", "w"), separators=(",", ":"))
                 print(f"[open] {rung} {w}: {wl['rps']} events kept (arrival <= {a.open_s} s)")
         return 0
+    if a.cmd == "draw":
+        pool = json.load(open(a.pool))
+        rows, missing = capture_rows(pool, a.cap_root)
+        print(f"pool {len(pool)} pairs; captured {len(rows)}; not captured {len(missing)}")
+        if missing:
+            print("  first missing:", [(m["set"], m["topology"], m["window"], m["rung"], m["trigger"]) for m in missing[:5]])
+        res = draw_states(rows, a.seed)
+        out = Path(a.out)
+        text = json.dumps({"seed": a.seed, "states": res["drawn"], "census": res["census"], "counts": res["counts"], "opening_share": res["opening_share"],
+                           "opening_share_by_bucket": res["opening_share_by_bucket"], "task_weighted_shares_gt10": res["task_weighted_shares_gt10"], "problems": res["problems"],
+                           "n_not_captured": len(missing)}, indent=1)
+        out.write_text(text)
+        for c in res["census"]:
+            print(f"{c['bucket']:8s} {'early' if c['early'] else 'late ':5s} {c['side']:5s} pool {c['pool']:6d} draw {c['draw']:5d} drawn {c['drawn']:5d}{' (fallback)' if c['fallback'] else ''}")
+        print("counts", res["counts"], "opening share %.3f" % res["opening_share"], {k: round(v, 3) for k, v in res["opening_share_by_bucket"].items()})
+        print("task-weighted shares within > 10:", {k: round(v, 3) for k, v in res["task_weighted_shares_gt10"].items()}, "gate", GATE_SHARES)
+        print("states with a deferral in the served plan:", sum(1 for r in res["drawn"] if r["n_deferred"]))
+        print("ids file sha256", hashlib.sha256(text.encode()).hexdigest())
+        for p_ in res["problems"]:
+            print("PROBLEM:", p_)
+        return 3 if res["problems"] else 0
     wls = {}
     for spec in a.sets:
         name, d = spec.split("=", 1)
