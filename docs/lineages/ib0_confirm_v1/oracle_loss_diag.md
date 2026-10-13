@@ -69,3 +69,18 @@ A diagnostic on the bar, not a new lineage. `ORACLE_DIAG_TERMS=1` (default off; 
 | steady, moderate 19405 | +0.66 | +1.09 | 2.4 |
 
 Reading. The residual is predictable (R2 far above 0.05) and, in steady state, carried by one term: queue. Correcting S with it buys within +-1 % with a fold-dependent sign, so there is no steady-state plan gain; type awareness adds nothing in steady state. The +6..+19 % in the opening is the cold-start deploy transient and is recorded as such, not as a lever. The single-term branch is tested live by the S_drain_weight probe above (drain weight scaled), not by a learned residual arm. Ruling (coordinator): no learned-residual arm, no new lineage; moderate cells fold in as a one-line update unless moderate steady pool-A gain exceeds +2 % on >= 3 topologies.
+
+## 2026-10-13: S_drain_weight read — `DRAIN-WEIGHT-NEUTRAL` (moderate), heavy inconclusive and leaning slower
+
+72 cells, jobs 864522-864524, pin 9bd1b145 (reference-physics 18161421 + the one arm), g0, 12 topologies per rung, seed 0, output `/share/nikola.lukic/ib0_confirm/drain_weight_9bd1b145`, reader `dw_read.py` there. **Identity:** the 24 weight-1 reruns (`cd_exactS_ib0`) equal their d192081f summaries in `total_rtt` exactly (max relative difference 0.0, 24/24). Paired per topology against weight 1; mean task latency, whole run (`total_rtt / num_tasks`) and `steady_state.after_360s.mean`; Holm over the two arms.
+
+| rung, statistic | w = 0.5 mean (median), faster | w = 0 mean (median), faster | Holm p (w0.5 / w0) |
+|---|---|---|---|
+| moderate whole run | -0.08 % (+0.26), 6/12 | -0.45 % (-0.41), 8/12 | 0.91 / 1.0 |
+| moderate after_360s | +0.07 % (+0.01), 6/12 | -0.88 % (-1.08), 8/12 | 0.94 / 0.59 |
+| heavy whole run | +2.19 % (+2.77), 4/12 | +1.99 % (+1.54), 4/12 | 0.13 / 0.07 |
+| heavy after_360s | +4.21 % (+5.78), 4/12 | +1.30 % (+0.12), 6/12 | 0.20 / 0.31 |
+
+Per-topology ranges are wide (moderate after_360s -4.6..+5.9 %, heavy -8.1..+16.6 %). **Collapse count** (end - last arrival > 300 s, or mean > 5x the weight-1 median): 0/12 in every arm and rung; the largest end - last arrival is 81 s; 0 request failures.
+
+Labels. Moderate: no arm is faster by >= 2 %, the means sit within +-1 % -> `DRAIN-WEIGHT-NEUTRAL`, as predicted. Heavy: no arm is faster; the point estimates are slower (w = 0.5 +4.2 % after_360s, +2.2 % whole run; w = 0 +1.3 % / +2.0 %) but no contrast survives Holm (smallest 0.07), so neither `S-PRICES-DRAIN-RIGHT` nor neutrality is established at n = 12. What it does rule out: removing or halving the drain term is not a hand improvement at either rung, so the regression coefficient of about 0 on the queue term (random logged plans) does not translate into a better S by down-weighting it; the bar `cd_exactS_ib0` does not move.
