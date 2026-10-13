@@ -299,6 +299,30 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **The expert's rulings on Arms 2 and 3 (relayed by SCIENTIST), filed before Arm 2 trains.** This node holds the Arm 1/2 gate, so the GNN-program rulings are filed here.
+  - Verbatim:
+
+    > (1) Arm 2 adds random-prefix teacher forcing (LEHD-style): K = 2 extra seeded random commit orders per training state, loss averaged over orders, MP and twin alike, flag NEAR_RTT_RANDOM_PREFIX_K in the contract, identity at K = 0. K rises to 4 only if Arm 2's first run shows the prefix count limiting, judged offline from the curves, never from the gate.
+    >
+    > (2) Registered option, not built: a folded-commit B1 variant (BQ-NCO-style tail subproblem; committed tasks removed and folded into platform and peer features). Revisited only if Arm 2's K2 composition match at 51+ tasks stays near Arm 1's.
+    >
+    > (3) Arm 3 definition (not launched): SLIM / Gumbeldore-style self-labelling seeded into ILS. Per training state, β = 32 plans sampled without replacement from the trained Arm 1 model, plus the hand plan, seed ILS; label = best by S, replay-gated by r ≥ 0.10 against the hand plan. Runs only if S7's ILS doubling check shows ≥ 0.5 % S gain from 2× budget in a bucket, or Arm 1's K2 shows the model's best-of-32 beating its ILS label on ≥ 10 % of states. Sources: SLIM (Corsini et al., arXiv 2401.11849; venue unverified), Pirnay & Grimm (TMLR 06/2024).
+
+  - Also filed in the Arm 1 gate text below: the MLP same-input arm is trained (seeds 1 and 2), and F2 is Holm over 8.
+- 2026-10-13 — **The `ils_oracle_live` reader is committed: `scripts_cosim/ils_oracle_read.py` + `tests/test_ils_oracle_read.py` (3473f39d, 8 tests pass).** It follows the amended read (9f119675) and SCIENTIST's checklist.
+  - **Keys:**
+    - mean latency is `averageElapsedTime` over the whole run and `steady_state.after_360s.mean` after 360 s;
+    - exchange is `totalPeerExchangeTime / num_tasks` and queue is `averageQueueTime`, **whole-run only**, because the per-task `.tasks.npy` holds only latency and arrival;
+    - cap counts are `pg_ils_batches_<b>` / `pg_ils_cap_hits_<b>`;
+    - provenance is `code.commit` (must match the pin) plus `code.dirty`.
+  - Two things have no counter and print "not available": the served ≠ bar plan count and the S-gain on those batches.
+  - **Dry run on the smoke cell (descriptive, 1 cell, job 868697, pin bf0a2c0d, against gate_k0):**
+    - Contrast A heavy: whole-run −9.98 %, **after 360 s −15.06 %**.
+    - Exchange −0.162 s/task, queue +0.035 s/task (the mechanism holds).
+    - Cap share at > 50 tasks: 0.216 (16/74).
+    - Oracle vs `cd_exactS_ib0` (confounded on ≤ 10 batches): +1.56 % whole-run, +3.19 % after 360 s.
+    - Output: `/share/nikola.lukic/uncut_groups/s6_reader/smoke_dryrun.json`.
+
 - 2026-10-13 — **PRE-DATA: `ils_oracle_live` amendment (SCIENTIST), filed after one descriptive smoke cell, before any ils12 cell.** No `ils12` (868854) cell has landed: its OUT has no summary or failed file at filing.
   - SCIENTIST's text, verbatim:
 
@@ -386,7 +410,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     > - `uncut_arm1_twin_eng` nosplit, seeds 1 and 2 (attribution)
     > - `cd_ib0` (bar) and `cd` (robust fallback)
     > - the slate_fix_v1 s1 nosplit checkpoint (reference, descriptive)
-    > - MLP same-input s1 if trained, else NOT RUN
+    > - ~~MLP same-input s1 if trained, else NOT RUN~~ **[update, the expert's ruling via SCIENTIST:]** MLP same-input, seeds 1 and 2, cell latency = mean of the two seeds (`uncut_arm1_mlp_same`, served as `ra_mlp_same` nosplit)
     >
     > Statistic: as uncut_groups F1. Paired % per topology (median over windows), median over 12, sign count, exact Wilcoxon, Holm (`R.holm`). A learned arm's cell latency is the mean of its two seeds; each seed is also reported alone.
     >
@@ -397,6 +421,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     > - Labels: WIN-ROBUST / WIN-OVER-BRITTLE-BAR / TIES / E-FASTER (the bar Holm-faster) / MIXED (any other pattern, e.g. a win on after-360 s only).
     >
     > F2 (Holm over 4; 8 if the MLP ran): primary vs twin, × 2 rungs × 2 statistics (and primary vs MLP).
+    > - **[update:]** the MLP is trained, so F2 is Holm over 8 (primary vs twin and primary vs MLP, × 2 rungs × 2 statistics).
     > - MP-ATTRIBUTED only if F1 is WIN and the primary beats the twin by ≤ −2 % with Holm p < .05 at both rungs on both statistics.
     > - Otherwise MP-DIRECTION (right sign, not Holm) or NOT-SEPARATED.
     >
