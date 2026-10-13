@@ -49,3 +49,21 @@ def test_gate_plan_lookup(tmp_path, monkeypatch):
     assert G.sealed_triggers(19461, "g1heavy") is None
     with pytest.raises(SystemExit):
         G.sealed_triggers(19462, "g0heavy")
+
+
+def test_snapshot_estimate_prices_peer_exchange_without_booking_it(monkeypatch):
+    """identity (m) failure, 2026-10-13: the fidelity capture's input-stage estimate booked each popped task's peer
+    exchange into the fabric's access-class tally (8 counters moved; the trajectory did not). record=False prices only."""
+    from src.placement import infrastructure as inf
+    monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
+    booked = []
+    fabric = SimpleNamespace(access_classes=True, record_exchange=lambda a, b, t: booked.append((a, b, t)))
+    peer = SimpleNamespace(platform=None, planned_node_name="n2")
+    orch = SimpleNamespace(peer_exchange={1: {2: 1e6}}, task_by_id={2: peer})
+    p = inf.Platform.__new__(inf.Platform)
+    p.node = SimpleNamespace(node_name="n1", orchestrator_ref=orch, fabric=fabric, network_map={"n2": {"latency": 0.01}})
+    monkeypatch.setattr(inf.Platform, "_payload_transfer_time", lambda self, n, b: 0.5, raising=False)
+    monkeypatch.setattr(inf, "_AUDIT", None)
+    priced = p._peer_exchange_time(SimpleNamespace(id=1), record=False)
+    assert booked == [] and priced == pytest.approx(0.51)
+    assert p._peer_exchange_time(SimpleNamespace(id=1)) == pytest.approx(0.51) and len(booked) == 1

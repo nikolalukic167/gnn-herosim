@@ -129,7 +129,7 @@ def _expected_input_seconds(platform: Any, task: Any) -> float:
     speed = min(storage.type["throughput"]["read"], node.network["bandwidth"])
     seconds = float(state["input"]) / (speed * 1024 * 1024) + float(storage.type["latency"]["read"])
     try:
-        seconds += float(platform._peer_exchange_time(task))
+        seconds += float(platform._peer_exchange_time(task, record=False))  # an estimate: books nothing
     except RuntimeError:
         pass  # a partner with no placement yet: the live task rendezvouses, which is not capturable
     return seconds
