@@ -11,6 +11,7 @@ Pins what the arm depends on:
 from __future__ import annotations
 
 import math
+from pathlib import Path
 import os
 
 import numpy as np
@@ -389,3 +390,18 @@ def test_rows_only_composes_with_reencode_anchor_and_random_prefix(train):
 def test_training_loop_with_rows_only_is_bit_identical():
     a, b = _train_two_epochs(rows_only=True), _train_two_epochs(rows_only=True)
     assert all(torch.equal(a[k], b[k]) for k in a)
+
+
+def test_trainers_init_weights_accepts_the_bias_free_b1_modules():
+    """train_near_rtt.py runs model.apply(init_weights) at import; its zeros_(module.bias) died on the bias-free B1 Linears (first launch)."""
+    import ast
+    import torch.nn as nn
+
+    src = (Path(__file__).resolve().parents[1] / "src/notebooks/train_near_rtt.py").read_text()
+    fn = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == "init_weights")
+    ns = {"nn": nn}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), "init_weights", "exec"), ns)
+    model = _model(every="auto", anchor=True)
+    model.apply(ns["init_weights"])
+    assert model.committed_task_enc.bias is None
+    assert float(model.committed_task_enc.weight.abs().sum()) > 0
