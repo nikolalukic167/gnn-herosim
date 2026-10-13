@@ -1,6 +1,8 @@
 # slate_fix_v2 — does the deploy transient hide or inflate the GNN's heavy deficit, and does the no-split MP direction hold on 4 seeds?
 
-**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert as drafted at 24672635, plus one descriptive line; drafted by S6). As of 2026-10-13: H 48/48 and L12 288/288 are complete, with cells at two pins (6a5c922c and f4f0453f, identity-tied; see the record). L34 864486 is running at f4f0453f. No cell has been read.
+**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert as drafted at 24672635, plus one descriptive line; drafted by S6). The single read ran 2026-10-13 (job 864505, reader 645152de, 528/528 cells); the close is the expert's.
+
+**Outcome (read 2026-10-13).** Transient: **self-search INFLATES** at both rungs. Measured after 360 s, its deficit to `cd_exactS_ib0` shrinks to +0.73 % (moderate) and +1.70 % (heavy), NOT-SEPARATED (Holm .60). Whole-run it is +2.62 / +5.34 %, a Δ of −1.66 / −5.05 pp (p .016 / .0005). **No-split stays E-FASTER** in steady state at +3.60 / +7.09 % (Holm .014 / .021), NEUTRAL (Δ −0.27 / −1.14 pp). **MP: DIRECTION-ONLY on both metrics.** Whole-run, gnn no-split beats its twin −1.49 / −2.41 % (12/12 each, Holm .002), but moderate misses the −2 % bar. After 360 s it is −0.65 / −1.19 % (Holm .052 / .032). Seeds 3–4 repeat the whole-run direction (−1.01 / −2.81 %). The MP edge sits mostly in the opening. The bar's own opening is 18.1 % (moderate) and 47.1 % (heavy) of its whole-run mean. A model-class result, never a hand win: no arm beats `cd_exactS_ib0` on any metric. Cells ran at two identity-tied pins (record).
 
 **Parent.** `slate_fix_v1` (CLOSED E-FASTER / UNCAPPED-DATA-NOT-THE-LEVER). Its statistic, averageElapsedTime over all 50k tasks, includes the cluster's own scale-from-zero cold start. SCIENTIST estimates that is about 40 % of heavy mean latency. Its per-task results were deleted, so no steady-state number exists for it. Its no-split MP contrast (new gnn vs new twin) was −2.57 % heavy (12/12, Holm .002) and −1.55 % moderate on two seeds.
 
@@ -85,6 +87,23 @@
 
 ## Record (newest first)
 
+- 2026-10-13 — **Single read** (job 864505 at reader pin 645152de; `/share/nikola.lukic/slate_fix/read_v2_645152de.json`, md5 05c1880a; full output [read_645152de.txt](slate_fix_v2/read_645152de.txt)).
+  - 528 summaries, 0 failed, 12 topologies, windows g0–g1. Cells per pin: 6a5c922c 79, f4f0453f 449. Whole-run identity vs slate_fix_v1: 336 cells checked, 0 mismatched, so nothing leaves the steady-state families.
+  - **PRIMARY** (after 360 s, Holm over 4), vs `cd_exactS_ib0`. Columns: steady % (wins/12), Holm, label | whole % | Δ pp (p) transient label.
+    - self-search moderate: +0.73 % (6/12), .6025, NOT-SEPARATED | +2.62 % | −1.66 pp (.016) **INFLATES**.
+    - self-search heavy: +1.70 % (4/12), .6025, NOT-SEPARATED | +5.34 % | −5.05 pp (.0005) **INFLATES**.
+    - no-split moderate: +3.60 % (1/12), .0137, E-FASTER | +2.78 % | −0.27 pp (.91) NEUTRAL.
+    - no-split heavy: +7.09 % (2/12), .0205, E-FASTER | +7.38 % | −1.14 pp (.092) NEUTRAL.
+  - **SECONDARY** (after the p5 dispatch): self-search +0.85 / +1.76 % (Holm .53), Δ −1.97 / −5.28 pp INFLATES; no-split +3.24 / +7.46 % (Holm .0098 / .028), NEUTRAL. It agrees with the primary.
+  - **MP** (gnn no-split vs twin no-split, seeds 1–4, Holm over 4): whole −1.49 % (12/12, .002) and −2.41 % (12/12, .002); after 360 s −0.65 % (8/12, .052) and −1.19 % (9/12, .032). Labels: whole DIRECTION-ONLY (moderate misses −2 %), s360 DIRECTION-ONLY.
+  - **Descriptive.**
+    - MP replication. Seeds 1–2: whole −1.55 / −2.57 %, s360 −0.33 / −0.89 %. Seeds 3–4: whole −1.01 / −2.81 %, s360 −0.24 / −0.13 %.
+    - Self-search vs no-split after 360 s: −2.38 / −4.05 % (10/12, 9/12).
+    - The bar's transient: moderate whole 2.520 s, after-360 2.040 s, share 18.1 %; heavy 2.182 s, 1.152 s, 47.1 % (n 24 each).
+    - Deciles: every arm's first decile is 6.3–6.6 s (moderate) and 11.3–12.8 s (heavy) against 1.1–2.2 s after. The bar's heavy first decile, 11.32 s, is the lowest.
+  - **S6 predictions.**
+    - Missed: self-search HIDES at heavy, +7 to +12 % (read: INFLATES, +1.70 %); both arms E-FASTER at heavy (self-search is NOT-SEPARATED); moderate NEUTRAL for both (self-search INFLATES).
+    - Held: no-split NEUTRAL, +7 to +11 % (read: +7.09 %); MP heavy −1.5 to −3 % (−2.41 %), moderate −1 to −2 % (−1.49 %); at most one CONFIRMED (none), moderate the likely miss; seeds 3–4 point the same way (whole-run, yes).
 - 2026-10-13 — **Second-pin identity PASSED; H and L12 complete; L34 launched.**
   - Identity at f4f0453f: 864369 and 864370 are SIM-IDENTICAL to the 6a5c922c cells on every shared key (369 and 418). No reference key is missing. `cd_exactS` adds 9 scheduler counters (`obs_*`, `pg_cold_tail_calls`), all 0.
   - Relaunch of the missing registered cells into the same OUT dirs, `R1A_WINDOWS=g0,g1`: H 864446 ran 48 tasks, the 36 missing ones plus 12 skipped; L12 864447 ran 3 × 96. Every job COMPLETED. H holds 48/48 summaries and L12 288/288, with 0 failed cells in each. `.tasks.npy` is now written per cell for the f4f0453f cells.
