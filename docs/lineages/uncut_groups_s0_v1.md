@@ -300,6 +300,14 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Arm 1 gate mint assigned: S5 mints the gate inputs for 19537–19548 now** (the expert). Minting does not depend on any checkpoint.
+  - **Minted (S5).** Root `/share/nikola.lukic/uncut_groups/gate_inputs_arm1`.
+    - `inputs/` (batch size 10): MD5SUMS md5 `071becf4c9940952125500c0b3afbb05`.
+    - `inputs_group/` (whole-group, the one to serve): MD5SUMS md5 `1e65ce22ab82bd2a80f250d2eafa0b7b`, 34 files, 24 cfgs rewritten 10 → "group".
+    - Recipe: `big_groups_inputs.sbatch`, job 869271 at f8814905, X1=x1_uncut, M_MODERATE=11.6139, M_HEAVY=27.622665025860204, REPLICA_RULE=fastest_compatible, BASECFG=cc40s16345.json. Group derivation is job 869272.
+    - No `cc40s<id>` ROOT existed, and the sbatch fails loud on one.
+    - Rates: 12.7173 tasks/s (heavy g0) and 5.3470 tasks/s, matching the re-stretch. The window mints are identical to the 19461 mint (g0 max group 199).
+    - Selection file: `/share/nikola.lukic/uncut_groups/arm1_selected.json`.
+    - Verified at filing: both MD5SUMS hashes match, `md5sum -c` passes in both trees, and the selection file lists exactly 19537–19548 × g0–g3.
   - **Ids:** 19537–19548 (12), the filed list (sha256 `553ef17d…`).
   - **Recipe:** the same mint and x1_uncut rule as the uncut_groups gate inputs, per the Arm 1 gate text's "Seat": accel 160 × 24, single origin, whole-group serving, windows g0–g3, both rungs, re-stretched to 12.7173 / 5.3470 tasks/s.
   - **The prep fails loud on any existing `cc40s<id>` ROOT.** S5 owns the inputs.
