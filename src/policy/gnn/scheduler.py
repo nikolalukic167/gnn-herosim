@@ -1332,8 +1332,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         """
         from src.placement import decision_cost
 
-        cost_c = decision_cost.cost_ms()
-        if cost_c > 0.0:
+        cost_on = decision_cost.enabled()
+        if cost_on:
             # decision_cost_s0_v1: the scheduler is one FIFO server; a batch queues behind it before it takes the state mutex
             server = decision_cost.server_of(self)
             server_req = server.request()
@@ -1395,8 +1395,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 f"[ {self.env.now} ] GNN masked_topo: batch of {len(batch_tasks)} "
                 f"({len(decodable)} decoded, {len(deferred)} deferred) in {inference_time*1000:.2f}ms"
             )
-        if cost_c > 0.0:
-            charge = cost_c * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
+        if cost_on:
+            charge = decision_cost.rate_ms(len(decodable)) * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
             if charge > 0.0:
                 waiting = len(self.mutex.get_queue)
                 yield self.env.timeout(charge)

@@ -5,6 +5,7 @@
 - **Authorised now:** the mint of the 12 fresh topologies and the uncut libraries from the raw shards, identities (a)–(m), and the hand-arm cells (150–350 CPU-h).
 - **Labels and training are gated by this node's own kills** (the expert, 2026-10-13, after S4's attribution read): labels start only after K0 and K1 are read and neither fires. If K1 fires, there are no labels, and the lineage closes on the hand read.
 - **Scope (measured on the gate windows):** the gate serves groups up to about 230 tasks (window max 135–226). 31.8–43.2 % of tasks sit in groups > 10 per window, and 1.2–3.5 % in groups > 100. The 2,876-task and other giant groups lie past the windows' first 50k tasks and are **not tested**: no outcome of this node may be quoted as covering groups in the thousands.
+- **Post-data amendments (2026-10-13, after k = 0 cells started returning):** WALL-INFEASIBLE is a third health count; K0's load question is read on `cd`; the k = 1 hand bar is `cd`, `cd_ib0` and the prune if it is wall-feasible. See [Post-data amendments](#post-data-amendments-2026-10-13-flagged-post-data). **Result:** hand expansion run to termination is wall-infeasible on uncut heavy groups (projected ~33,000 s per cell), measured before any learned arm ran.
 - **Labels are ILS incumbents, not optima.** For groups above the 100,000-plan cap, label quality is bounded by the registered convergence check (ruling 3). `placements.jsonl` for those groups is a headed sample, not a sweep (F; the expert's exemption of 2026-10-13).
 
 **Why.** Every grounded and accel gate so far served Alibaba peer groups cut to at most 10 tasks. The library builder keeps only the first `--max-size 10` siblings of a fan-out (`scripts_cosim/grounded_workload_v1_extract.py:74–76`), and the served batch is capped at the cell's `batch_size` 10 (code ceiling 16).
@@ -249,6 +250,26 @@ Closed 2026-10-13:
 - late members (today's rule);
 - the code-path list (SCIENTIST spot-checked items 3, 6, 7 and 8).
 
+## Post-data amendments (2026-10-13, flagged POST-DATA)
+
+Written after k = 0 cells started returning. Signed by SCIENTIST and the expert, 2026-10-13. Trigger: S5's whole-group smoke at c671281c could not finish heavy `cd_exactS` or heavy `cd_expand` inside the 21,600 s watchdog (projected about 33,000 s of wall time per cell), and the k = 0 array had 29 watchdog kills, all in exact, expansion or prune arms; `cd` is healthy 12/12 at heavy.
+
+- **(b) K0's load question is answered by `cd`** (healthy 12/12 at heavy). `cd_exactS` heavy health is WALL-INFEASIBLE, which is unknown, not healthy. Admissibility is read on `cd` when the bar arm has no finished cells. The moderate-only fallback is not applied by itself.
+- **(c) WALL-INFEASIBLE is a third health count**, beside collapse and the tail flag.
+  - Arms wall-infeasible at k = 0 are not launched at k = 1 at that rung (a known-failing launch).
+  - Their k = 1 charge is derived from all k = 0 cells, including the killed cells' partial counters, as frozen w(n) × plan evaluations per bucket. It is a lower bound, and each cell reports the wall-versus-simulated-length inequality (utilisation > 1) as the basis for "out of budget".
+  - The rule applies identically to the learned arms: one heavy uncut smoke each at k = 0 before any k = 1 cell.
+- **The k = 1 hand bar** is `cd`, `cd_ib0` and `cd_exactS_ib0_prune` if the prune is wall-feasible (its smoke, below, decides). Otherwise it is `cd` and `cd_ib0`, and any learned win is labelled **WIN-VS-CD-ONLY**.
+- **Finding:** `cd_expand`'s "in-budget bar at k = 1" status came from the capped seat ([decision_cost_s0_v1](decision_cost_s0_v1.md)). Under whole-group serving it is not in budget at heavy.
+- **Result:** "hand expansion run to termination is wall-infeasible on uncut heavy groups (projected ~33,000 s per cell), measured before any learned arm ran".
+- **Contingency arm `cd_expand_cap`**, defined now so it cannot be chosen from outcomes; built only if the prune's smoke is wall-infeasible at heavy. SCIENTIST's fixed form:
+  - cap per batch = floor(B × n_tasks ÷ w(n_bucket)) evaluations, with B = 10 ms per task and w(n) the frozen `cd_expand` per-bucket ms per plan;
+  - the expansion stops at the cap and serves its incumbent;
+  - identity: on batches whose uncapped expansion finishes under the cap, the plan is bit-equal to `cd_expand`'s;
+  - one heavy smoke for wall feasibility before k = 1.
+  - Signed SCIENTIST + expert 2026-10-13, post-data, not built.
+- **w(n):** per served-batch-size bucket for `cd_exactS`, `cd_exactS_ib0` and `cd_expand` (see the record). Scalar w stands for `cd` and `cd_ib0`. `cd_exactS` heavy and `cd_expand` heavy are **imputed**.
+
 ## Code paths that assume groups of at most 10 tasks (to change; not edited)
 
 Read at reference-physics 18161421. "Cut" is where tasks are dropped; "cap" is where a larger group would be split or refused.
@@ -275,6 +296,24 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Learned-arm wall smoke** (S4, job 864633; 19461 g0, k = 0, pin f36f293f; slate_fix_v1 checkpoints seed 1, trained on cut groups; descriptive, not a gate number; OUT `/share/nikola.lukic/uncut_groups/smoke_learned`).
+  - `ra_gnn_eng_selfsearch` is **WALL-INFEASIBLE at both rungs**: killed at about 600 s of wall time, projected 32,584 s (moderate) and 72,480 s (heavy). It leaves F1 by the symmetry rule (post-data amendment (c)).
+  - `ra_gnn_eng_nosplit` **finished** in 200 s (moderate) and 193 s (heavy) of wall time, with `pgb_max_batch` 199.
+    - Decision wall: 3.23 / 3.06 ms per task, which is 0.13 % of mean latency (2.55 / 2.11 s).
+    - The forward pass on a 199-task group fits inside the 8 GB cell cap. The job-level sacct MaxRSS is 3.10 GB for 4 cells, not per cell.
+  - **SUB_BATCH assertion, defined:** the violation counter is `slate_declared_sub_batched − slate_declared_unsplit` and must be 0. It is 0 here (1,225 and 1,641, each equal to its pair).
+  - **Open:** the nosplit cells split more peer groups than `cd` (heavy > 100 bucket: 45 against 0). S4 is computing the learned arm's whole-group task share and tracing the cause; the hypothesis is the decode wall during collection.
+  - F1's learned slate is now `nosplit`, plus `cdxapply` only if its feasibility smoke (running next) passes at a rung.
+- 2026-10-13 — **Pause rule and NOT-RUN cells.**
+  - The harness's 5 % pause line (`scripts_cosim/datalab/r1a_gate.sbatch:4`): "production pauses for a rung when more than 5 % of its decided non-Knative cells hang". In code (`scripts_cosim/progress_watchdog.py:21–22, :96–97`), it acts once at least 40 cells are decided, and a timeout, watchdog kill or unreadable result counts as hung.
+  - In the k = 0 array, the pause left 110 cells **NOT-RUN**, a fourth category that is neither failed nor healthy.
+  - S5 launches completion arrays for the never-run cells of feasible arms (`cd_exactS_ib0` heavy 12; prune moderate 48; prune heavy 28 if the prune smoke is wall-feasible). **Completion is not a rerun:** these cells never started, and no failed or killed cell is run again.
+- 2026-10-13 — **w(n) frozen per bucket; the clock charges it** (rp/uncut-wn, from 3a59a70c).
+  - Source: S5's whole-group smoke at c671281c, one cell per arm × rung, `/share/nikola.lukic/uncut_groups/wn_smoke.json` (sha256 6b2c22d4…), script `scripts_cosim/uncut_groups_wn_table.py` (rp/uncut-hand 92dc22d3).
+  - Ms per plan, ratio to the arm's own ≤ 10 bucket (11–50 / 51+): `cd_exactS` moderate 4.2 / 8.6×; `cd_exactS_ib0` heavy 3.6 / 6.0×, moderate 3.4 / 6.9×; `cd_expand` moderate 12.2 / 22.5×; `cd` ≤ 1.17×; `cd_ib0` ≤ 1.11×.
+  - **Scalar w stands for `cd` and `cd_ib0`.**
+  - `scripts_cosim/decision_cost_w.json` key `w_ms_per_plan_by_bucket`: value = calibrated scalar w × measured ratio to ≤ 10, so ≤ 10 equals the scalar. `cd_exactS` heavy and `cd_expand` heavy are **imputed** (their heavy smoke cells were watchdog-killed): the arm's heavy scalar × its own moderate ratio.
+  - The clock: `HEROSIM_DECISION_COST_MS_BY_BUCKET` (JSON, `src/placement/decision_cost.py`) charges the rate of the decided batch's bucket; the gate serves it for arms with a bucket entry and keeps `HEROSIM_DECISION_COST_MS` for every other arm. Tests in `tests/test_decision_cost_by_bucket.py`.
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
 - 2026-10-13 — **Per-size decision counters for w(n)** (S5's request, approved by the expert as measurement only).
   - c671281c on eb22be53 adds `decisionTiming.by_bucket.{le10,11_50,gt50}.{calls,total_s,plan_evals}`, by served batch size.
