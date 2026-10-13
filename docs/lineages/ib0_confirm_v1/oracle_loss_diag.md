@@ -32,3 +32,15 @@ On the 519 states of `rp/surrogate-gap` frontier_v1 (held-out 373), the full-tab
 corpus states are not the 12 live cells and a per-state regret is not a latency.
 
 Not measured here: the labels' cold-start mix on the live cells, and an oracle over a wider slate.
+
+## Amendment 2026-10-13: S term decomposition (interim) and the registered S_drain_weight diagnostic
+
+A diagnostic on the bar, not a new lineage. `ORACLE_DIAG_TERMS=1` (default off; `rp/oracle-terms`, logging only, identity cell 19405 heavy equal to `oracle_8cc890fa` in every key but timings) writes per-plan S terms into the oracle diag. Interim read, 6 heavy cells and moderate 19405 (moderate 19406-19410 pending), in `oracle_terms_8b6f7352`:
+- 87 % (heavy) / 66 % (moderate) of the oracle's gain seconds fall before t < 360 s, the cold-start deploy transient; heavy p5 arrival is at 184-186 s, so the middle bin is empty there.
+- On 8 uniformly random logged plans per within-cap batch (unselected), S explains the label change in steady state with R2 0.98 (heavy, moderate), but not in the opening (heavy t < 360: 0.30, 0.68 with the terms re-weighted). Per-second label response: cold 0.9, exchange 1.0, **queue (drain + inflight) -0.06 heavy / -0.14 moderate, i.e. about 0**, while S charges it at weight 1. Collinearity of drain with the other terms is not excluded.
+- In steady-state batches where the oracle gains >10 %, S prefers the hand plan in 95 % of them; the term S charges against the oracle plan is queue (+0.7 s heavy, +2.4 s moderate), most visibly on cnn xavierGpu->xavierGpu node moves (drain +1.4 to +1.7 s).
+
+**Registered before data (signed by the coordinator): S_drain_weight.** Live test of whether S overprices queue drain. Arms, all `cd_exactS_ib0` with the platform's own drain weight w (in-batch stacking stays 0): w = 1 the registered ib0 (reference), w = 0.5 `cd_exactS_ib0_d05` (`HEROSIM_PG_DRAIN_ALPHA=0.5`, `HEROSIM_PG_BATCH_ALPHA=0`), w = 0 the existing `cd_exactS_a0` (`HEROSIM_PG_DRAIN_ALPHA=0`, which also zeroes the batch alpha). g0, both rungs, the 12 `ib0_confirm_selected` topologies, seed 0, at a pin carrying the steady summarizer (c81f0e88) and the name-shadow fix (e3d5e069); the reference arm is rerun at the pin (the d192081f summaries lack the after-360 s keys), and each rerun is checked against its d192081f summary. No default changes; the only code is the one arm entry (`rp/s7-drain-weight`).
+- Predictions (coordinator): w = 0 moves ib0 by at most 1 % either way, whole-run and after_360s (sparse_obs stage 1: the drain channel is worth < 1 %).
+- Labels, per rung on after_360s with Holm over w in {0, 0.5}: faster by >= 2 % -> `S-OVERPRICES-DRAIN` (a hand improvement, reported as one, the bar moves); within +-1 % -> `DRAIN-WEIGHT-NEUTRAL`; slower by >= 2 % -> `S-PRICES-DRAIN-RIGHT` (the regression coefficient is a collinearity artefact).
+- Also reported per arm: the collapse count (end - last arrival > 300 s, or mean > 5x the cd median) beside the medians, since `warm_surge` found ib0 brittle under surges.
