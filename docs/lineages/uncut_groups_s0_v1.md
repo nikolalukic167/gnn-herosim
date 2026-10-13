@@ -299,6 +299,31 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Exact-search cap hits at k = 0** (S7, `scripts_cosim/uncut_caphit.py`, `/share/nikola.lukic/uncut_groups/caphit_k0.json`, read from the finished cells of `gate_k0`).
+  - Counters per cell summary: `pg_exact_fallbacks` (batches over the 100,000-plan cap; the scheduler's own cap counter), `pg_exact_batches`, `pg_exact_plans`. Served batches by size are `pgb_whole_*` + `pgb_split_*`. Share = hits ÷ (exact + hits).
+
+    | arm | rung | cells (failed) | exact batches | cap hits | share | plans / exact batch | served ≤ 10 / 11–50 / 51–100 / > 100 |
+    |---|---|---|---|---|---|---|---|
+    | `cd_exactS_ib0` | heavy | 36 (0) | 312,590 | 33,026 | 9.6 % | 2,431 | 1,154,495 / 496,171 / 134,553 / 35,692 |
+    | `cd_exactS_ib0` | moderate | 47 (1) | 415,122 | 38,154 | 8.4 % | 1,869 | 1,526,808 / 655,960 / 178,247 / 48,110 |
+    | `cd_exactS` | heavy | 1 (2) | 9,027 | 839 | 8.5 % | 2,486 | 33,031 / 12,321 / 4,407 / 693 |
+    | `cd_exactS` | moderate | 34 (4) | 299,317 | 28,366 | 8.7 % | 2,064 | 1,103,110 / 470,346 / 130,471 / 35,640 |
+    | `cd_exactS_ib0_prune` | heavy | 18 (2) | 156,631 | 16,749 | 9.7 % | 2,402 | 576,634 / 248,822 / 65,606 / 18,122 |
+    | `cd_exactS_ib0_prune` | moderate | 38 (0) | 344,540 | 28,647 | 7.7 % | 1,820 | 1,268,943 / 493,351 / 154,511 / 30,881 |
+
+  - **The summary has no per-bucket cap counter**, so cap hits cannot be split by served-size bucket. None is added now, since K1 does not need it (the expert).
+  - `cd_exactS` heavy rests on one finished cell. The table is re-run when S5's `gate_k0_completion` cells land.
+  - The expert's earlier expectation that "almost every big batch hits the cap" is contradicted: cap hits are 8–10 % of exact batches, and at most about 5 % of 11+ batches.
+- 2026-10-13 — **Sealed capture lost 3 k = 1 states (launch defect, fixed at 1929fd3c); recaptured as a code fix.**
+  - Cause:
+    - The gate sets `LIVE_AUDIT_MAX_SNAPSHOTS` to the number of sealed ids in the cell.
+    - A postponed task's retry can lead a second batch with a trigger already captured, and the hook captured it again.
+    - That capture took the last slot, so a later sealed trigger could not be captured whether or not it fired.
+    - Evidence from summary counts only: each of the 3 cells with a missing id has written = wanted (19463 g1 moderate `cd_ib0_k100` 3/3, missing 45393; 19463 g3 moderate `cd_k100` 2/2, missing 46539; 19465 g1 moderate `cd_ib0_k100` 3/3, missing 41168).
+  - Fix (1929fd3c): a sealed trigger is captured once; the retry batch it leads takes no slot. K1(b) already takes the first capture per id, so nothing it reads changes.
+  - The same pin writes the served plan of each sealed batch to `<snapshots>.chosen.jsonl` (`live_audit.load_chosen`), so K1(b) can check re-decided = served.
+  - S5's line, corrected: the 3 missing ids are "missing: cap exhausted by a retry capture; whether the id triggered is unknown (launch defect, fixed 1929fd3c)", not "never a trigger at k = 1".
+  - **Ruled (the expert):** recapture, not impute. The 3 cells run at 1929fd3c (jobs 864752–864754, OUT `gate_k1_recap_1929fd3c`). Acceptance: SIM-IDENTICAL summaries, and byte-equal snapshots for the ids already captured. Imputation at the bucket max (signed rule (1)) is the fallback only if that identity fails. Imputation was written for a trigger that never fired; here the state can be measured.
 - 2026-10-13 — **K1(b) tool and label engine built** (S7, `rp/uncut-ils` dee6e4eb, `scripts_cosim/uncut_ils.py`, tests `tests/test_uncut_ils.py`).
   - ILS runs on the scheduler's own `_pg_plan_cost` (ib0). Replay runs only on the hand plan and on each new incumbent. The K1(b) reader works per bucket.
   - **Smoke 2 (validation):** 20 frontier states (n ≤ 6). ILS reaches the exhaustive S-optimum 20/20, replay equals the stored table RTT to within 7e-15, and ILS is at the label optimum on 17/20.
