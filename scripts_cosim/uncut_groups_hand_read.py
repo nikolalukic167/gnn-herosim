@@ -102,7 +102,11 @@ def wall_infeasible(failed, arms, topos, suffix=""):
                 if str(d.get("why", "")).startswith("watchdog: projected"):
                     row["wall_infeasible"] += 1
                     row["wall_infeasible_g0"] += w == "g0"
-                    row["cells"].append({"topo": t, "window": w, "detail": (d.get("watchdog") or {}).get("detail")})
+                    wd = d.get("watchdog") or {}
+                    proj, last = wd.get("projected_s"), d.get("last_arrival_s")
+                    row["cells"].append({"topo": t, "window": w, "detail": wd.get("detail"), "limit_s": d.get("limit_s"), "sim_now_at_kill": wd.get("sim_now"),
+                                         "last_arrival_s": last, "projected_wall_s": proj,
+                                         "wall_over_sim_length": proj / last if proj and last else None})
                 else:
                     row["other_failed"] += 1
                     row["other"].append({"topo": t, "window": w, "why": str(d.get("why"))[:120]})
