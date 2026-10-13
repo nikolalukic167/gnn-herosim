@@ -1,6 +1,10 @@
 # uncut_groups_s0_v1 — does a learned scorer beat the time-bounded hand bar when Alibaba peer groups are served uncut and decision time is charged?
 
-**Status:** `DRAFT — NOT REGISTERED; registration waits on decision_cost kill check 2 (cd_exactS loses ≥ 3 % to its own decision time at k=1, S4 grid read)`. Drafted 2026-10-13 by S6 on the expert's request. The design is SCIENTIST's (pick D); SCIENTIST keeps the name.
+**Status:** `DRAFT — NOT REGISTERED` (2026-10-13). Drafted by S6 on the expert's request; the design is SCIENTIST's (pick D), and SCIENTIST keeps the name.
+- decision_cost kill check 2 PASSED (S4 interim read, job 864514): `cd_exactS` loses +9.53 % (moderate) and +197.4 % (heavy) to its own decision time at k = 1, 0/12 at both rungs.
+- Registration waits on SCIENTIST closing the [M] items, and on the expert's ruling on the `placements.jsonl` exemption (Serving and corpus, F).
+- Authorised by the expert once registered: the topology and library mint, identities (a)–(j), and the hand-arm cells.
+- **On hold:** ILS labels and all training wait for S4's decision_cost attribution read (`cd_expand` vs `cdxapply`).
 
 **Why.** Every grounded and accel gate so far served Alibaba peer groups cut to at most 10 tasks. The library builder keeps only the first `--max-size 10` siblings of a fan-out (`scripts_cosim/grounded_workload_v1_extract.py:74–76`), and the served batch is capped at the cell's `batch_size` 10 (code ceiling 16).
 
@@ -36,14 +40,17 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 **1. The bar.**
 - **(a) Enumeration limit:** the existing 100,000-plan cap (`HEROSIM_PG_CD_EXACT_MAX_PLANS`, `peer_greedy_network/scheduler.py:170`, `:356`) [V]. ib0 was confirmed there and decision_cost's w was calibrated there. On top-5 slates it means exact search up to n = 7.
 - **(b) Fallback: both expansion and prune.** The bar is decision_cost Amendment 2's hand frontier: the best hand arm per rung, chosen at the arm level by median.
-  - Candidates: `cd`, `cd_ib0`, `cd_exactS` (expansion), `cd_exactS_ib0` (expansion), `cd_exactS_ib0_prune`.
-  - The prune arm is in because cost-order top-k prune beat expansion −1.89 / −2.11 % vs `cd_exactS` at G=8 (`prune_g8_s0_v1`) [V]. It needs the alpha×prune refusal lifted as a registered change, with its own flag-off identity (8c). Amendment 2 lists it as NOT RUN. **No WIN is claimable without it.**
+  - Candidates: `cd`, `cd_ib0`, `cd_exactS` (expansion), `cd_exactS_ib0` (expansion), `cd_exactS_ib0_prune`, plus the expert's 2026-10-13 additions:
+    - **`cd_expand`**, a hand seed with the same α-expansion as `cdxapply`;
+    - **a time-bounded `exactS` prune at the same expansion limits as `cdxapply`**.
+    These two exist so that a learned win cannot be the search's. decision_cost's interim read has `cdxapply` beating the hand frontier at k = 1, whole-run (−3.57 / −2.96 %), on a grid with no hand-seeded expansion.
+  - The prune arm is in because cost-order top-k prune beat expansion −1.89 / −2.11 % vs `cd_exactS` at G=8 (`prune_g8_s0_v1`) [V]. It needs the alpha×prune refusal lifted as a registered change (the expert's ruling), with its own identity against the current prune arm at alpha = 1 (8c), before any cell of this node uses it. Amendment 2 lists it as NOT RUN. **No WIN is claimable without it.**
   - `cd` and `cd_exactS` are bar candidates, not reference lines: under a warm heavy surge ib0 ran away on 3/12 topologies (×2) and 5/11 (×3) while they held (warm_surge 0b) [M]. Uncut giant groups are surges.
 - **(c) Time bound: no wall-clock cap.** Decision time is charged per decision_cost Amendment 3: `t_batch = k × w[arm][rung] × plans_evaluated`, one FIFO scheduler server, mutex held [V].
   - Expansion and prune run to their own termination and pay for it on the clock. That is the bound.
   - k = 1 (as measured on the cluster CPU) is primary, and is where kill check 2 reads. k = 0.25 is a secondary family; k = 0 is a reference.
   - **w is recalibrated for size.** On the smoke, report ms per plan by batch size (≤ 10, 11–50, 51+). If any bucket differs from ≤ 10 by more than 1.5×, fit `w(n) = a + b·n` per arm and rung and freeze it in `decision_cost_w.json` under a new key, before any gate cell.
-- **(d) Collapse:** use warm_surge's gate-tools collapse rule verbatim if it has landed (none found on reference-physics [M]). Otherwise register this extension of gate-tools 2026-10-08:
+- **(d) Collapse:** warm_surge's collapse rule has not landed; S5 writes it after the 0c diagnostic (the expert, 2026-10-13). Until it lands, this extension of gate-tools 2026-10-08 is registered, and the node switches to warm_surge's rule verbatim when it does:
   - a cell collapses if its end minus its last arrival is more than 300 s (the request timeout), **or** its mean latency is more than 5× the median of the hand arms' means on that topology × window × rung;
   - the collapse count per arm is a registered line beside every median.
 
@@ -78,7 +85,7 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 - **Load:** the uncut workload is re-stretched so tasks per second match each rung within 2 % (heavy 12.7173, moderate 5.3470 tasks/s). Groups per second then fall about 23 % (mean group size about 4.0 → 5.18; disclosed). Without the re-stretch, uncut means more load, and the contrast becomes a load lever.
 
 **5. Statistic.** Paired per topology (median over windows of the paired %), then the median over topologies, the sign count, an exact Wilcoxon and Holm (`R.holm`).
-- **Whole-run and after-360 s are both reported, and a WIN must clear both.** Steady state as the sole primary is breaking change #4, the user's call, not taken [M]. Requiring both also guards against a win that lives in the opening, the way slate_fix_v2's self-search deficit did.
+- **Whole-run and after-360 s are both reported, and a WIN must clear both.** Steady state as the sole primary is breaking change #4, still PROPOSED and the user's decision (confirmed by the expert, 2026-10-13). Requiring both also guards against a win that lives in the opening, the way slate_fix_v2's self-search deficit did.
 - **F1, primary, k = 1** (Holm over 4): self-search vs the bar and `cdxapply` vs the bar, × 2 rungs.
   - **WIN:** median ≤ −2 % and Holm p < .05 at both rungs for the same arm, **and** that arm's collapse count ≤ the bar arm's, **and** decision_cost's anchor rule: the crossover k is ≤ the anchor k of the hand arm it beats, else NO-GO.
 - **F2, attribution, k = 1** (Holm over 4): self-search vs its MP-OFF twin and vs MLP same-input, × 2 rungs.
@@ -107,28 +114,81 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 **8. Identities before launch.**
 - (a) **Cut path:** with every group ≤ 10, the uncut path is bit-equal to today's on grounded cells, and the mint at `--max-size 10` reproduces `workloads.sha256`.
 - (b) **k = 0:** bit-equal to no charge. decision_cost has this 20/20 IDENT [V]; it is re-run on the new code.
-- (c) **Alpha×prune:** the relaxation with the flag off is bit-equal on the 24 identity cells.
+- (c) **Alpha×prune:** the relaxation is a registered change. The relaxed arm at alpha = 1 is bit-equal to the current prune arm, and with the flag off it is bit-equal on the 24 identity cells.
 - (d) **No silent cut:** a synthetic 3,000-task batch through every arm's serving path returns a plan of length n. Every gate cell asserts tasks served == tasks minted, and any internal size limit fails loud. This covers the list below.
 - (e) **Determinism with a big group:** two runs at one seed give byte-identical summaries.
 - (f) **Instrument rule:** the smoke shows `sched_plan_evals` and busy time non-zero on batches > 10, and the w(n) table, before the gate.
 - (g) **Load check:** the uncut workload's tasks per second are within 2 % of each rung (a gate, not an identity).
 - (h) **Label determinism:** two ILS runs are byte-identical.
-- (i) **Library rebuild** (S6): the uncut library reproduces the committed library's first 10 offsets and `size_raw` for every group.
+- (i) **Library rebuild** (S6; condition by SCIENTIST): rebuilt at `--max-size 10`, each library reproduces the committed library's **md5**; if not, the extract has drifted and the node stops. The uncut rebuild reproduces each group's first 10 offsets and `size_raw`.
+- (j) **Snapshot path** (the expert): the snapshot run with the cap removed reproduces the capped run bit-equal on a trace with no group > 10 (a window where that holds, or a filtered trace).
+- (k) **Same batch formation** (SCIENTIST, B): one hand arm and one learned arm produce identical batch membership on a fixed arrival trace.
 
 **9. Origin.** Single origin per group, spread over the 160 clients: the accel seat's existing model (big_groups and prune_g8 designs) [V].
 - A fan-out originates at one caller, so this is the realistic model.
 - Scattered origins are what manufactured the earlier learned wins: with one origin no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`; grounded_workload_v1 line 7) [V]. A result under scattered origins would be uninterpretable.
 - Scattered origins are disclosed as NOT RUN.
 
+## Serving and corpus rulings (SCIENTIST A–H and the expert, 2026-10-13)
+
+**A. No bridge** on the plain mint (both). The batch is the trace group as the mint draws it, so identity (a) holds.
+- A random 2-out graph is connected with high probability at large n [M].
+- The inputs report gives the number of exchange-graph components per group (1, 2, 3+) by size bucket × shard.
+- A bridged arm would be a separate registered condition, not the default.
+
+**B. Late members:** today's rule stays exactly as written (`gnn/scheduler.py:578–601`). A batch waits up to `batch_timeout` (1.0 s), serves what has arrived, and late members go to later batches with their placed partners fixed. Changing it would be a breaking change to the seat. The sibling span is p50 2 ms, p99 430 ms [V].
+- **Registered readouts per cell:** `peer_group_incomplete_batches`, and the share of tasks split off past the timeout by size bucket, per arm and rung, beside every table.
+- Above 1 %, the read says so and SCIENTIST rules whether it is a confound.
+- **Same batch formation for every arm (checked by S6):** the hand batch arms inherit `GNNScheduler._collect_task_batch` without overriding it. `PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler)` is at `peer_greedy_network/scheduler.py:896`, and `PeerGreedyNetworkCDScheduler` subclasses it at `:1577`. `:909` refuses to run without `GNN_DECODE_MODE=masked_topo` and `GNN_BATCH_BY_PEER_GROUP=1`. The tabular `XGBoostBatchScheduler(GNNScheduler)` doesn't override it either.
+- A test that two arms form identical batch membership on a fixed arrival trace is still to be written (identity (k)).
+
+**C. Batch ceiling:** an explicit whole-group mode (a cfg `batch_size: "group"` or a flag), not 10 → 3,000.
+- Item 7's ignore-and-print becomes a **raise** (AGENTS rule 4).
+- The 16 ceiling stays for the old modes and is lifted only under the whole-group flag.
+- **Pre-flip scan (S6, 2026-10-13):** tracked repo JSON has one `batch_size` (10). The 3,661 cell cfgs under datalab `simulation_data` and `/share/nikola.lukic` (depth ≤ 6) hold 3,609 at 10 and 48 at 16, none above 16. So no prefix-mode gate relied on the ignore. Not checked: whether any argmax-mode arm (range [2, 4]) was served on a cfg of 10. If one was, it got the ignore and is a gate-tools correction.
+
+**D. Declared slate:** the learned arms serve no-split (`serving_no_split`). A counter asserts `SUB_BATCH` never fires in any cell of this node, or the cell fails. The hand arms' 100,000 cap (item 10) is unchanged.
+
+**E. Corpus:** the snapshot runs serve uncut, with whole-group batching, from the rebuilt libraries. Identity (j) applies.
+- The rollout arm is `cd_exactS`, not ib0: ib0's runaway trajectories visit states the gate's healthy arms never do.
+- Snapshots run at k = 1, so states carry the decision-time backlog.
+- Stratification (≥ 30 % of states from batches > 10) is applied when sampling snapshots, never by duplicating states.
+- Corpus topologies are disjoint from the gate's.
+
+**F. Labels and `placements.jsonl`:** labels are ILS on S (ruling 3), never `executecosimulation`'s sweep, so the 250,000-combo skip is not in the label path. A state whose label fails fails loud and is never dropped.
+- This conflicts with AGENTS' mandatory full-sweep `placements/placements.jsonl`.
+- SCIENTIST's proposal: write every ILS-evaluated plan with its S and the label, under a header with `exhaustive=false` and the eval budget, and state in the node that it is a sample, not a sweep.
+- **Open ruling, the expert's.**
+
+**G. Pre-gate checks** (from S6's unchecked items):
+- **Feature ranges at large n.** Every per-batch or count feature (prefix block, partner counts, batch-size terms) has its max on batches > 10 compared with the checkpoint's training max (the queue_range_v1 / legacy_v0 lesson). Any feature beyond it is either trained on or reported as out of range.
+- **Memory and forward time at n = 2,876.** Peak RSS and forward wall are measured in identity (d). An OOM fails loud. Forward time is charged through w(n), not capped. The gate's per-cell `--mem 8G` (`CELL_MEM`) is the binding limit to check.
+- **Merge order:** decision_cost reads first (kill check 2, done), then the w(n) key lands in `decision_cost_w.json`, then this node's code.
+
+**H. Capacity structures** (SCIENTIST's question; S6 read at 18161421):
+- **Not caps:**
+  - KPA scale-up is bounded by `ceil(max_scale_up_rate × max(1, ready))` with rate 1,000 (`src/placement/scaleout.py:35`, `:172–174`), effectively unbounded.
+  - Platform queues are unbounded `Store(env)` (`src/placement/infrastructure.py:778`).
+  - The per-node `compute_slots` `Resource` (`infrastructure.py:2019`) is contention physics, not a size cap.
+  - The orchestrator mutex (`orchestrator.py:118`) is capacity 1 by design.
+- **Unverified ceiling:** `replica_count_series.peak` is exactly 120 in every accel summary read for slate_fix_v2. It is the max of a 121-point sampled total (`fresh_topo_burst_v1_gate.py:396–422`). It is likely full scale-out onto every eligible (node, platform) pair, a physical limit and not a code cap, but that is not confirmed from the cfg. A 2,876-task burst cannot get more replicas than that, so identity (d)'s smoke reports it.
+- **Keep-warm:** `GNN_REPLICA_KEEPWARM_MAX_REPLICAS` (default 4, `gnn/scheduler.py:212`) applies only when keep-warm is on, which it is not in this seat (counters 0).
+
 **Live gate** (rule 6): F1–F3 above are the live gate and its closing step.
 
 **Open points before registration:**
-- decision_cost's kill check 2 (the status line);
-- the [M] items verified;
-- warm_surge's collapse rule, adopted or the one in 1(d) registered;
-- the alpha×prune relaxation designed;
-- `rp/decision-cost` merged or pinned;
-- SCIENTIST's check of the code-path list against 8(d).
+- SCIENTIST verifies the [M] items: the warm_surge 0b counts, α-expansion's 67 %, the ib0 S-regret and replay-cost figures as relayed, and random 2-out connectivity.
+- The expert rules on the `placements.jsonl` exemption (F).
+- `rp/decision-cost` is merged or pinned, and the w(n) key lands before any cell (G).
+- The alpha×prune relaxation and the whole-group batch mode (C) are implemented with their identities before any cell that uses them.
+
+Closed 2026-10-13:
+- kill check 2 (passed);
+- the collapse rule (fallback until warm_surge's lands);
+- breaking change #4 (both lines reported);
+- bridging (none);
+- late members (today's rule);
+- the code-path list (SCIENTIST spot-checked items 3, 6, 7 and 8).
 
 ## Code paths that assume groups of at most 10 tasks (to change; not edited)
 
@@ -150,6 +210,7 @@ Read at reference-physics 18161421. "Cut" is where tasks are dropped; "cap" is w
 | 12 | `scripts_cosim/make_warm_corpus.py:866–867` | Each corpus dataset's batch is the live snapshot's batch, so the corpus inherits the serving cap of item 5. | Snapshots from an uncut serving run, or a group-level snapshot. |
 | 13 | `scripts_cosim/generate_gnn_datasets_fast.py:87`; `src/executecosimulation.py:2218` | Exhaustive co-sim labels are skipped above `MAX_PLACEMENT_COMBINATIONS_SKIP` (default 250,000). | Exhaustive labels are infeasible for big groups, which is why the labels are ILS or time-bounded exact. |
 | 14 | `rp/decision-cost` (ca927a5a, not on reference-physics) | The clock that charges decision time (`decision_cost_s0_v1`, Physics). | Merge it, or pin on it, before any uncut cell; registration waits on its kill check 2 anyway. |
+| 15 | `scripts_cosim/datalab/r1a_gate.sbatch` (`--mem "${CELL_MEM:-8G}"`) | Each cell is a systemd scope with MemoryMax 8G. | A 2,876-task decode must fit, or CELL_MEM is raised for this node (G). |
 
 Not checked: the feature contract for very large batches (the `partial_state_v3` block is size-free by design), the memory of a 2,876-task decode, and the per-batch time of the GNN forward at that size. These are smoke-test items.
 
