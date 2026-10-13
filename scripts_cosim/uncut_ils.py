@@ -431,6 +431,8 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     d = decision_pass(job, arm, seed, max_evals, per, max_seconds)
     row = {k: d[k] for k in ("n", "n_batch", "n_pinned", "cands_mean", "start_S", "best_S", "n_evals", "budget", "stopped", "iters", "s_calls", "search_wall",
                              "hand", "best", "t0", "exhaustive", "slate_log10", "exact_cap_hit")}
+    row["n_extra_captures"] = int(job.get("n_extra_captures") or 0)
+    row["role"], row["parent"] = job.get("role", "first"), job.get("parent")
     row["time_bound"] = d["stopped"] == "seconds"          # the per-state --max-seconds bound, logged where it binds
     row["chosen_match"] = check_chosen(d["snap"], d["hand"], job.get("state_id")) if d["snap"].get("chosen") is not None else None
     row.update(state_id=job.get("state_id"), bucket=job.get("bucket") or bucket_of(d["n_batch"]), arm=arm, seed=seed,
@@ -448,11 +450,18 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     return row
 
 
-def read_rows(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
-    """K1(b): mean over states of (RTT(hand) - RTT(ILS)) / RTT(ILS) and the shares, pooled and per bucket; S-regret beside the replay. The replay rules."""
+def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] = ()) -> Dict[str, Any]:
+    """K1(b): mean over states of (RTT(hand) - RTT(ILS)) / RTT(ILS) and the shares, pooled and per bucket; S-regret beside the replay. The replay rules.
+    The main set is the FIRST capture of every state that has no retry capture. States with a retry (n_extra_captures > 0: the first hand plan left tasks unplaced) are
+    excluded from it, listed, and given a descriptive composite (first + retry batches replayed, summed). The mean is printed twice: captured states only, and with every
+    missing id imputed at its bucket's maximum observed regret; NOT-SATISFIED if the first is < 1 % and the second >= 1 %."""
     ok = [r for r in rows if r.get("regret") is not None]
     if len(ok) != len(rows):
         raise ValueError(f"FAIL LOUD: {len(rows) - len(ok)} rows carry no replayed regret")
+    firsts = [r for r in ok if r.get("role", "first") != "retry"]
+    retries = [r for r in ok if r.get("role") == "retry"]
+    main = [r for r in firsts if not r.get("n_extra_captures")]
+    excluded = [r for r in firsts if r.get("n_extra_captures")]
 
     def block(rs):
         if not rs:
@@ -465,25 +474,89 @@ def read_rows(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
                 "share_s_and_replay_disagree": sum((r["s_regret"] or 0) > 1e-9 and r["regret"] < -1e-9 for r in rs) / len(rs),
                 "kill_K1b_mean_ge_1pct": bool(st.fmean(g) >= 0.01)}
 
-    out = {"pooled": block(ok)}
+    out = {"pooled": block(main)}
     for name, _lo, _hi in BUCKETS:
-        out[name] = block([r for r in ok if r["bucket"] == name])
+        out[name] = block([r for r in main if r["bucket"] == name])
+    out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
+    if main:
+        pooled_max = max(r["regret"] for r in main)
+        imp = []
+        for m in missing:
+            same = [r["regret"] for r in main if r["bucket"] == m["bucket"]]
+            imp.append(max(same) if same else pooled_max)
+        mean_cap = st.fmean(r["regret"] for r in main)
+        mean_imp = st.fmean([r["regret"] for r in main] + imp)
+        out["mean_captured_pct"], out["mean_imputed_pct"] = 100 * mean_cap, 100 * mean_imp
+        out["imputed_rule"] = "each missing id at its bucket's maximum observed regret among the main states (pooled maximum if the bucket has none)"
+        out["NOT_SATISFIED"] = bool(mean_cap < 0.01 and mean_imp >= 0.01)
+    by_parent: Dict[Any, List[Dict[str, Any]]] = {}
+    for r in retries:
+        by_parent.setdefault(r["parent"], []).append(r)
+    comp = []
+    for r in excluded:
+        rs = by_parent.get(r["state_id"], [])
+        if len(rs) == r["n_extra_captures"]:         # composite only when every capture of the state is present
+            h, i = r["rtt_hand"] + sum(x["rtt_hand"] for x in rs), r["rtt_ils"] + sum(x["rtt_ils"] for x in rs)
+            comp.append({"state_id": r["state_id"], "bucket": r["bucket"], "captures": 1 + len(rs), "composite_regret_pct": 100 * (h - i) / i})
+    out["excluded_retry_states"] = {"count": len(excluded), "share_of_captured_states": len(excluded) / len(firsts) if firsts else None,
+                                    "flag_gt_10pct": bool(firsts and len(excluded) / len(firsts) > 0.10),
+                                    "by_bucket": {name: [r["state_id"] for r in excluded if r["bucket"] == name] for name, _lo, _hi in BUCKETS},
+                                    "composite_note": "descriptive: the sum of RTT over the first batch and each retry batch, each replayed as its own snapshot; not in any mean",
+                                    "composite": comp}
     return out
 
 
-def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs: Path, sim_input: str, seed: int = 0) -> List[Dict[str, Any]]:
-    """One job per sealed state from a hand-cell directory: cells/cc40s<topo>__<window><rung>__<token>_s<seed>.{snapshots.jsonl,summary.json}; the config is
-    inputs/wf1_<rung>/cfg/cc40s<topo>.json. A missing file fails loud (a state is never dropped)."""
-    jobs = []
+def _is_missing(st_: Dict[str, Any], missing: Sequence[Any]) -> bool:
+    for m in missing:
+        if isinstance(m, str):
+            if m == st_["state_id"]:
+                return True
+        elif all(str(m[k]) == str(st_[k]) for k in m if k in st_) and "trigger_task_id" in m:
+            return True
+    return False
+
+
+def captures_of(snapfile: str, trigger: int) -> List[Dict[str, Any]]:
+    """Every capture in the file led by `trigger`, in file order (capture order); the K1(b) state is the first."""
+    out = []
+    for line in open(snapfile):
+        if line.strip():
+            rec = json.loads(line)
+            if int(rec["trigger_task_id"]) == int(trigger):
+                out.append({"time": float(rec["time"]), "n_batch": len(rec["fidelity"]["batch"])})
+    return out
+
+
+def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs: Path, sim_input: str, seed: int = 0,
+              missing: Sequence[Any] = ()) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """(jobs, missing states). One job per sealed state from a hand-cell directory: cells/cc40s<topo>__<window><rung>__<token>_s<seed>.{snapshots.jsonl,summary.json}; the
+    config is inputs/wf1_<rung>/cfg/cc40s<topo>.json. The state is the FIRST capture led by its trigger id (pinned by its time); later same-trigger captures (a sub-batch
+    0.01 s after the whole batch) are dropped and counted in `n_extra_captures`. A state listed in `missing` (state ids, or {topology, window, rung, trigger_task_id}
+    dicts: ids that were never a trigger at k = 1) is skipped and returned as missing with its bucket. A state the cell's own summary lists in `sealed_snapshots.missing` is skipped the same way. Any other missing file or trigger fails loud."""
+    jobs, gone = [], []
     for st_ in sealed:
+        if _is_missing(st_, missing):
+            gone.append({k: st_[k] for k in ("state_id", "bucket", "group_size", "topology", "window", "rung", "trigger_task_id")})
+            continue
         stem = cells / f"cc40s{st_['topology']}__{st_['window']}{st_['rung']}__{token}_s{seed}"
         cfg = inputs / f"wf1_{st_['rung']}" / "cfg" / f"cc40s{st_['topology']}.json"
         for f in (Path(str(stem) + ".snapshots.jsonl"), Path(str(stem) + ".summary.json"), cfg):
             if not f.exists():
                 raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: {f} does not exist")
+        caps = captures_of(str(stem) + ".snapshots.jsonl", st_["trigger_task_id"])
+        cell_missing = [int(x) for x in ((json.load(open(str(stem) + ".summary.json")).get("sealed_snapshots") or {}).get("missing") or [])]
+        if not caps and int(st_["trigger_task_id"]) in cell_missing:       # the cell's own record: this id was never a trigger there
+            gone.append({k: st_[k] for k in ("state_id", "bucket", "group_size", "topology", "window", "rung", "trigger_task_id")})
+            continue
+        if not caps:
+            raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: trigger {st_['trigger_task_id']} was never captured in {stem}.snapshots.jsonl and is not listed as missing")
         jobs.append({"state_id": st_["state_id"], "bucket": st_["bucket"], "group_size": st_["group_size"], "snapfile": str(stem) + ".snapshots.jsonl",
-                     "trigger_task_id": st_["trigger_task_id"], "cell_summary": str(stem) + ".summary.json", "cell_config": str(cfg), "sim_input": sim_input})
-    return jobs
+                     "trigger_task_id": st_["trigger_task_id"], "time": caps[0]["time"], "n_extra_captures": len(caps) - 1, "first_capture_n": caps[0]["n_batch"],
+                     "cell_summary": str(stem) + ".summary.json", "cell_config": str(cfg), "sim_input": sim_input, "role": "first"})
+        for k, cap in enumerate(caps[1:], 1):       # descriptive only: a retry capture is its own batch, replayed for the composite and never in the main mean
+            jobs.append({**jobs[-k], "state_id": f"{st_['state_id']}#r{k}", "role": "retry", "parent": st_["state_id"], "time": cap["time"],
+                         "n_extra_captures": 0, "first_capture_n": cap["n_batch"]})
+    return jobs, gone
 
 
 def main() -> int:
@@ -498,17 +571,19 @@ def main() -> int:
     m.add_argument("sealed"); m.add_argument("cells"); m.add_argument("out"); m.add_argument("--token", required=True, help="the hand cell's arm token, e.g. cd_ib0_k100")
     m.add_argument("--inputs", required=True, help="gate inputs_group dir"); m.add_argument("--sim-input", default=str(REPO / "data" / "nofs-ids"))
     m.add_argument("--only", default=None, help="comma list of state ids (a shard)")
+    m.add_argument("--missing", default=None, help="JSON list of sealed states that were never a trigger at k = 1 (state ids or {topology, window, rung, trigger_task_id})")
     d = sub.add_parser("read")
-    d.add_argument("rows"); d.add_argument("--json", default=None)
+    d.add_argument("rows"); d.add_argument("--json", default=None); d.add_argument("--missing", default=None, help="the <jobs>.missing.json make-jobs wrote")
     a = ap.parse_args()
     if a.cmd == "make-jobs":
         sealed = json.load(open(a.sealed))
         if a.only:
             keep = set(a.only.split(","))
             sealed = [x for x in sealed if x["state_id"] in keep]
-        jobs = make_jobs(sealed, Path(a.cells), a.token, Path(a.inputs), a.sim_input)
+        jobs, gone = make_jobs(sealed, Path(a.cells), a.token, Path(a.inputs), a.sim_input, missing=json.load(open(a.missing)) if a.missing else ())
         Path(a.out).write_text("".join(json.dumps(j) + "\n" for j in jobs))
-        print(f"{len(jobs)} jobs -> {a.out}")
+        Path(a.out + ".missing.json").write_text(json.dumps(gone, indent=1))
+        print(f"{len(jobs)} jobs -> {a.out}; {len(gone)} missing -> {a.out}.missing.json; extra captures dropped: {sum(j['n_extra_captures'] for j in jobs)}")
         return 0
     if a.cmd == "run":
         with open(a.out, "a") as fh:
@@ -521,7 +596,7 @@ def main() -> int:
                           "regret", row.get("regret"), "wall", round(row["wall"], 1), flush=True)
         return 0
     rows = [json.loads(l) for l in open(a.rows) if l.strip()]
-    res = read_rows(rows)
+    res = read_rows(rows, json.load(open(a.missing)) if a.missing else ())
     print(json.dumps(res, indent=1))
     if a.json:
         Path(a.json).write_text(json.dumps(res, indent=1))
