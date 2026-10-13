@@ -155,20 +155,27 @@ def alpha(a):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for n in ("collapse", "alpha"):
+    for n in ("collapse", "alpha", "uncapped"):
         p = sub.add_parser(n)
         for x in ("--gate0b", "--gate0a", "--k1cd"):
             p.add_argument(x, required=True)
         p.add_argument("--topos", default=",".join(str(t) for t in range(19420, 19432)))
         p.add_argument("--out")
-        if n == "collapse":
+        if n == "uncapped":
+            p.add_argument("--uncapped", required=True)
+        elif n == "collapse":
             p.add_argument("--uncapped")
             p.add_argument("--table")
-        else:
+        elif n == "alpha":
             p.add_argument("--extra", required=True)
     a = ap.parse_args()
-    o = collapse(a) if a.cmd == "collapse" else alpha(a)
-    if a.cmd == "collapse":
+    o = {"collapse": collapse, "alpha": alpha, "uncapped": uncapped}[a.cmd](a)
+    if a.cmd == "uncapped":
+        for k, r in o.items():
+            f = lambda s: "-" if s["median"] is None else f"{s['median']:+6.2f} {s['wins']}/{s['n']}"
+            line = f"{k:62s} k1 {f(r['k1'])} | k2 {f(r['k2'])} Δ {f(r['delta_k2'])} moved={r['delta_k2']['moved']} | k3 {f(r['k3'])} Δ {f(r['delta_k3'])} moved={r['delta_k3']['moved']} | collapse {r['collapse']}"
+            print(line)
+    elif a.cmd == "collapse":
         print_collapse(o)
         if a.table:
             write_table(o, a.table)
@@ -183,3 +190,50 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+def uncapped(a):
+    """moderate ×1/×2/×3: the uncapped-slate learned arms (and the g4 arms beside them) against ib0, exactS and cd; Δ(k) = pct(k) - pct(1);
+    registered secondary rule: moved = |median Δ| > 1 pp and >= 9 of the topologies sign-consistent. Collapse count per arm beside each line."""
+    topos = [int(x) for x in a.topos.split(",")]
+    c = B.Cells(a.gate0b, a.gate0a, a.k1cd, T_S)
+    out = {}
+    for gname, gdir in (("g4", a.gate0b), ("uncapped", a.uncapped)):
+        for ar in B.LEARNED:
+            for ref in (B.IB0, B.EX, "cd"):
+                per = {}
+                for k in B.KS:
+                    ps = {}
+                    for t in topos:
+                        vals = []
+                        for s in B.SEEDS:
+                            p = cell_path(c, t, "moderate", k, ar, s, gdir)
+                            if os.path.exists(p + ".tasks.npy"):
+                                vals.append(post_mean(np.load(p + ".tasks.npy")))
+                        pr = cell_path(c, t, "moderate", k, ref, 0)
+                        ps[t] = B.pct(sum(vals) / len(vals), post_mean(np.load(pr + ".tasks.npy"))) if len(vals) == len(B.SEEDS) else None
+                    per[k] = ps
+                row = {}
+                for k in B.KS:
+                    s = B.summarize(list(per[k].values()))
+                    row[f"k{k}"] = s
+                    if k != 1:
+                        d = [None if per[k][t] is None or per[1][t] is None else per[k][t] - per[1][t] for t in topos]
+                        sd = B.summarize(d)
+                        sd["moved"] = B.moved(sd, len(topos))
+                        row[f"delta_k{k}"] = sd
+                n_col = {}
+                for k in B.KS:
+                    n = m = 0
+                    for t in topos:
+                        cdm, _ = load_cell(cell_path(c, t, "moderate", k, "cd", 0))
+                        for s in B.SEEDS:
+                            p = cell_path(c, t, "moderate", k, ar, s, gdir)
+                            if os.path.exists(p + ".summary.json"):
+                                mm, tl = load_cell(p)
+                                m += 1
+                                n += is_collapse(mm, cdm)
+                    n_col[f"k{k}"] = f"{n}/{m}"
+                row["collapse"] = n_col
+                out[f"{gname}|{ar}_vs_{ref}"] = row
+    return out
