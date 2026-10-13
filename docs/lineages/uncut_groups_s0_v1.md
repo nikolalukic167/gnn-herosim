@@ -264,6 +264,11 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
+- 2026-10-13 — **Gate inputs built** (job 864541 at pin e2738e37, 35 s; `big_groups_inputs.sbatch`, X1 = `x1_uncut`, M 11.6139 / 27.622665025860204, REPLICA_RULE `fastest_compatible`, BASECFG `/share/nikola.lukic/accel_nosplit/inputs/cfg_src/cc40s16345.json` as ib0_confirm_v1 used). Output in `/share/nikola.lukic/uncut_groups/gate_inputs_e2738e37/inputs`.
+  - The first submission, 864539, failed the job's own check: the default BASECFG carries no replica rule. Its partial ROOT was removed.
+  - Check: 12 topologies × moderate/heavy at 160 / 24 / p 0.6, topology seed = id, rule `fastest_compatible`. Single origin spread over the 160 clients.
+  - **Rate (identity (g)) PASSED:** moderate 5.3470 / 5.3469 / 5.3470 / 5.3417 tasks/s and heavy 12.7173 / 12.7172 / 12.7173 / 12.7048 (g0–g3), all within 0.10 % of 5.3470 / 12.7173. Groups 9,443 / 10,058 / 9,385 / 10,428; max 199 / 163 / 226 / 135.
+  - The cell cfgs still carry `scheduler.batch_size` 10. The whole-group mode (C) is code still to be written, and no cell runs before it and identities (a)–(l).
 - 2026-10-13 — **Library rebuild and ×1 mint.**
   - Identity (i) PASSED: job 864527 at e2738e37. `--max-size 10` rebuilds reproduce each committed library's JSON md5. All 160,000 uncut groups match the committed first 10 offsets, `size_raw` and t0. Uncut md5s: 0 69185e63, 50 47e70a26, 100 13d5069e, 130 1f2452f0, in `/share/nikola.lukic/uncut_groups/libs/`.
   - Identity (a), mint half, PASSED: job 864535. The K = 1 mint from the committed libraries reproduces `/share/nikola.lukic/big_groups/x1_G0` byte for byte in all 4 windows.
