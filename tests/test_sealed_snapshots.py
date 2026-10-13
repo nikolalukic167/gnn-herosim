@@ -121,3 +121,21 @@ def test_the_scheduler_records_the_served_plan_before_the_charge():
     from src.policy.gnn import scheduler
     src = inspect.getsource(scheduler.GNNScheduler._process_task_batch_prefix)
     assert src.index("record_chosen(self, batch_tasks, decodable, placements") < src.index("decision_cost.rate_ms(len(decodable))")
+
+
+def test_a_retry_batch_led_by_a_captured_trigger_takes_no_slot(tmp_path, monkeypatch):
+    """gate_k1 (2026-10-13): 3 cells wrote wanted == written with one sealed id missing; a postponed task's retry led a
+    second batch with an already-captured trigger and used the last slot. Only the first batch per trigger is captured."""
+    trig = tmp_path / "t.json"; trig.write_text("[9, 20]")
+    snap = tmp_path / "s.jsonl"
+    monkeypatch.setenv("LIVE_AUDIT_SNAPSHOT_PATH", str(snap))
+    monkeypatch.setenv("LIVE_AUDIT_TRIGGER_IDS", str(trig))
+    monkeypatch.setenv("LIVE_AUDIT_MAX_SNAPSHOTS", "2")
+    monkeypatch.setattr(live_audit, "_task_payload", lambda *a: {})
+    monkeypatch.setattr(live_audit, "_replicas_by_type_payload", lambda *a: {})
+    monkeypatch.setattr(live_audit.snapshot_fidelity, "enabled", lambda: False)
+    s = SimpleNamespace(env=SimpleNamespace(now=1.0), _capture_full_queue_snapshot=lambda: {}, nodes=SimpleNamespace(items=[]))
+    for tid in (9, 9, 20):
+        live_audit.maybe_capture_batch_live_audit_snapshot(s, None, [SimpleNamespace(id=tid)], "p")
+    assert [json.loads(l)["trigger_task_id"] for l in snap.read_text().splitlines()] == [9, 20]
+    assert s._audit_pending_chosen == (20, 1)

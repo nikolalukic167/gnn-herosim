@@ -323,9 +323,14 @@ def maybe_capture_batch_live_audit_snapshot(
 
     triggers = _sealed_triggers(scheduler)
     if triggers is not None:
-        # uncut_groups_s0_v1 K1: a sealed sample of batches, named by trigger task id before the run; no size/stride filter
-        if int(batch_tasks[0].id) not in triggers:
+        # uncut_groups_s0_v1 K1: a sealed sample of batches, named by trigger task id before the run; no size/stride filter.
+        # Only the first batch a trigger leads is captured: a postponed task's retry can lead a second one, and that capture
+        # took a slot of LIVE_AUDIT_MAX_SNAPSHOTS (= the sample size) from a later sealed trigger.
+        tid = int(batch_tasks[0].id)
+        seen = scheduler.__dict__.setdefault("_audit_sealed_seen", set())
+        if tid not in triggers or tid in seen:
             return
+        seen.add(tid)
     else:
         stride = max(1, int(os.environ.get("LIVE_AUDIT_STRIDE", "1")))
         if batch_tasks[0].id % stride != 0:
