@@ -829,3 +829,17 @@ The wandb curve audit (343 run dirs) found two defects in the reader. Neither ch
 - **Peak direction.** The SELECTION block took `max` only for names ending in `acc`. So `val/mt_plan_exact`, `val/mt_task_acc_choice` and `val/task_acc_choice` had their *minimum* reported as their peak, e.g. "peaks at epoch 0" when they peak at epochs 57–99. Now a name containing acc, exact, choice or agreement is higher-is-better unless it is a regret, ce or loss (`higher_is_better`). Read the prefix-free ones with [lessons.md "Prefix-free accuracy drifts down as the selector improves"](../lessons.md): their max is not the run's decision.
 - **train/ce floor.** train/ce was compared with `baseline/val_chance_ce`, the val split's one-term plan NLL. Under `NEAR_RTT_FULL_CONTEXT_CE_WEIGHT=1.0`, train/ce adds a second plan NLL, so 25 grounded runs read "train/ce NEVER BEATS CHANCE" while val/ce beat it. Only val/ce is now read against the floor, and the output says why. The weight is in the checkpoint contract, not the W&B config, so the floor can't be scaled from the run dir.
 - Tests: `tests/test_read_training_curves_direction.py`, on two trimmed saved runs in `tests/fixtures/wandb_curves/` (history and summary records only).
+
+## 2026-10-13 — The cell log is empty until the cell ends: progress lives only in node-local `/tmp`
+
+While a gate cell runs, its `.log` in the OUT dir is empty; progress is written only to `/tmp/herosim_raw_<jobid>/<cell>.progress` on the compute node, which is not shared and needs `srun --jobid=<j> --overlap` to read. A reader of the OUT dir cannot tell a slow cell from a hung one.
+
+- **Fix to make (not applied now; the gate does not change while cells run):** the gate should write a progress line into the cell log while the cell runs.
+- **Rule:** until then, read progress through `srun --jobid --overlap` on the node-local file, never from the OUT log.
+
+## 2026-10-13 — The production pause guard counts hangs pooled across ALL arms in an OUT dir
+
+`scripts_cosim/progress_watchdog.py` (`PAUSE_SHARE` 0.05, `rung_state`) pauses launching when hung heavy cells exceed the share of decided heavy cells. The count is pooled over every arm in the OUT dir. In `decision_cost_s0_v1` (grid `grid_03615acd`) 42 of 830 decided heavy cells had hung, so the guard paused and 29 `cd_exactS_ib0_prune` cells were never launched, although the hangs belonged to arms that were already known to be slow.
+
+- **Effect:** never-launched cells, not failed cells; completing them is not a rerun, and they were run in the single relaunch at LIMIT 21,600 s.
+- **Fix to make (not applied now):** count hangs per arm so one slow arm cannot pause the rest. A per-arm count is the safer default.
