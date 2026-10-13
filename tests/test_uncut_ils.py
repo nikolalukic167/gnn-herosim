@@ -124,6 +124,15 @@ def test_first_capture_is_the_state_and_extras_are_counted(tmp_path):
     assert U._load_snapshot({"snapfile": str(snap), "trigger_task_id": 7, "time": a["time"]})["time"] == 1.0
 
 
+def test_ids_the_cell_lists_as_missing_are_skipped(tmp_path):
+    cells, inputs = _cells(tmp_path, [(7, 1.0, 12)])
+    (cells / "cc40s1__g0heavy__cd_expand_k100_s0.summary.json").write_text(json.dumps({"sealed_snapshots": {"wanted": 2, "written": 1, "missing": [99]}}))
+    jobs, gone = U.make_jobs([_st("a", 7), _st("gone", 99, "101_226")], cells, "cd_expand_k100", inputs, "x")
+    assert [j["state_id"] for j in jobs] == ["a"] and [(g["state_id"], g["bucket"]) for g in gone] == [("gone", "101_226")]
+    with pytest.raises(FileNotFoundError, match="never captured"):
+        U.make_jobs([_st("other", 98)], cells, "cd_expand_k100", inputs, "x")
+
+
 def test_missing_ids_are_skipped_and_reported_but_unlisted_ones_fail_loud(tmp_path):
     cells, inputs = _cells(tmp_path, [(7, 1.0, 12)])
     sealed = [_st("a", 7), _st("gone", 99, "51_100"), _st("gone2", 98, "101_226")]
