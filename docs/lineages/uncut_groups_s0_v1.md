@@ -299,6 +299,29 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 learned gate: submission built and plumbing-smoked (DESCRIPTIVE, stand-in checkpoints, deleted)** (S6 owns the gate end to end, per the expert's ruling).
+  - **Code (041eb823, rp/uncut-wn).**
+    - `fresh_topo_burst_v1_gate.py` serves `ra_{gnn_eng,twin_eng,mlp_same}_arm1_nosplit`, out of the default grid, from `<IN>/models/<R1A_ARM1_STEM or uncut-arm1>-<arm>-seed<N>.pt`. Each gets the same sidecheck, slate and MP-OFF switches as the RA arm of its recipe.
+    - `uncut_arm1_gate_stage.py` builds a fresh inputs root. It copies a checkpoint only when its md5 equals `experiments/uncut_arm1_ckpt_md5.json` and its `.contract.json` exists, re-checks the md5 after the copy, and writes `STAGE.json`.
+    - `uncut_arm_gate_read.py` maps the gate arm names to the training log's keys (`ra_gnn_eng_arm1_nosplit` → `gnn_eng`) and merges several md5 files, which must agree. That second file is for the slate_fix_v1 reference.
+    - A k = 1 Arm 1 cell fails loud until the arm's w is frozen.
+  - **Smoke** (jobs 869552 and 869554; 19461 g0, both rungs, k = 0, seed 1; output `/share/nikola.lukic/uncut_groups/s6_arm1_smoke/out`).
+    - Stand-ins: the slate-fix-v1 gnn_eng and twin_eng checkpoints, and r1a `mlp-same-g1-seed1` with its contract's slate, split and `physics_env` patched.
+    - The first MLP pair failed at load (6 s): the stand-in was trained under `first_compatible`. That loud refusal is correct. The pair's outputs were removed, the stand-in's `physics_env` was patched, and the pair was rerun.
+    - All 6 cells pass:
+      - the served checkpoint md5 equals the md5 file;
+      - `GNN_SLATE_NO_SPLIT=1`, the slate is `declared_pruning_v1_uncapped`, and MP-OFF is set on the twin only;
+      - `GNN_ARM_KIND=mlp_same` on the MLP;
+      - pin 041eb823, clean;
+      - both sidecars have 50,000 rows with 0 NaN.
+    - The stand-in checkpoints and staged roots are deleted. Their per-bucket timings are not a calibration.
+  - **Pin.** Under the one-pin rule, the learned cells need 041eb823 or later, so the bar is rerun at the final gate pin before any read.
+  - **Next, when S7's md5 file lands:**
+    1. Stage the checkpoints.
+    2. Calibrate w(n) with S4's confirmed recipe: k = 0, 19461 g0, both rungs, seed 1, `uncut_groups_wn_table.py`; scalar = the arm's own le10, buckets = scalar × ratio. Freeze it in `decision_cost_w.json` and send the sha.
+    3. Submit the k = 1 cells, keeping the queue under 44.
+    4. Rerun the bar at the pin and read.
+
 - 2026-10-13 — **Arm 1 gate pin 10a1aa03; the `cd_ib0` k = 1 bar is rerun there, and 869284 is superseded as the bar** (the expert's ruling).
   - **One pin for both sides.** The bar and the learned Arm 1 cells run at 10a1aa03. If the learned cells need a later commit, the bar is rerun at that pin.
   - **Why 869284 is superseded.** It ran at f8814905, which predates the per-task batch-size logging (1ec2eb5e). So its cells have no `.tasks_bsz.npy` and no per-task lock wait, and the gate reader fails loud on them. Its directory, `arm1_k1_bar/`, is kept untouched and is not read.
