@@ -300,7 +300,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **PRE-DATA: Arm 1 live gate (`uncut_arm1`), SCIENTIST's text, filed before any Arm 1 checkpoint is gated.**
-  - **Conflict with the expert's ruling (2), for the expert to resolve before any id is written.** The text below picks the gate ids as "the first 12 ids above 19472 … (expected 19473–19484)". The expert ruled that S5 picks both blocks by `gnn_overcap`'s token-scan protocol.
+  - **The expert's rulings on this text:**
+    - **(A) Gate ids.** SCIENTIST's rule governs: the first 12 ids above 19472 that appear in no training, validation or capture list, expected 19473–19484.
+      - S5 verifies them by the token scan, and the prep fails loud on an existing ROOT.
+      - The corpus block is the next free ids above the gate block, also verified by the scan. This refines ruling (2) in the entry below.
+      - Both lists go into this node before minting.
+    - **(C) Per-task batch-size logging** belongs to S5, after the minting. It is a summarizer change plus an identity: every sim key unchanged on a `gate_k1` cell. It comes before any gate cell.
   - SCIENTIST's text, verbatim:
 
     > Arm 1 live gate (uncut_arm1; SCIENTIST; filed before any Arm 1 checkpoint is gated; date = filing date).
@@ -367,7 +372,10 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Cost:** the node's line is labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule (the expert). SCIENTIST estimates about 60 CPU-h of labels for the spec below. S7 builds them.
   - **Arm 1 corpus spec: SCIENTIST's block, verbatim** (received 2026-10-13, before any label is built; it replaces the expert's relayed summary). Two notes on it:
     - MIN_TIME = 0 (item 1) is covered by the expert's signed amendment (1) in the entry above.
-    - Item 5 carries SCIENTIST's pre-label fix: the labels search the GNN's served top-5 slate, while the oracle keeps the full set. It is **pending the expert's acceptance**, because it reverses for the labels the expert's earlier full-set correction, which was made for the oracle.
+    - Item 5 carries SCIENTIST's pre-label fix. **The expert accepted it (ruling B):**
+      - The labels search the GNN's served slate (`declared_pruning_v1_uncapped`, per-task top-5), so every label is learnable. The share of full-set ILS placements outside the slate is reported (about 2.1 % in K1(b)).
+      - The oracle keeps the full `_pg_candidates` set. It is a ceiling, and the difference between the two is the slate's cost.
+      - The r ≥ 0.10 rule applies to the slate-restricted ILS plan, and the fresh-100 split is printed for that plan.
     - Item 2 is SCIENTIST's correction, made before any label. The first version (11–50: 4,200; 101–256: 1,000) gave 101–256 about 39 % of the > 10 task share, against the gate's 17 %. That is 2.3×, which breaks § 4's 2× rule. Item 9's label cost drops to about 50 CPU-h.
       - Rechecked at filing: 4,600 × 22, 2,000 × 70 and 600 × 150 give 30.6 / 42.3 / 27.2 %.
       - The mean sizes must be measured on the capture pool, and the final shares printed.
