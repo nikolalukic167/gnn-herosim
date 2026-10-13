@@ -28,3 +28,11 @@ def test_truncate_workload_keeps_arrival_prefix_and_valid_pairs():
     wl = _wl([2, 2, 2])
     out = A.truncate_workload(wl, 10.5)
     assert len(out["events"]) == 4 and out["peer_exchange"] == [[0, 1, 5.0]] and out["rps"] == 4
+
+
+def test_open_sets_contribute_only_their_opening_groups():
+    wl = _wl([20] * 100)           # 10 s spacing: groups 0..35 start before 360 s
+    r = A.plan_pool({("A", "g0", "heavy"): wl, ("C1", "g0", "heavy"): wl}, [1], seed=1, mult=100, open_sets=["C1"])
+    late = [c for c in r["census"] if c["bucket"] == "11_50" and not c["early"]][0]
+    early = [c for c in r["census"] if c["bucket"] == "11_50" and c["early"]][0]
+    assert late["available"] == 64 and early["available"] == 36 * 2
