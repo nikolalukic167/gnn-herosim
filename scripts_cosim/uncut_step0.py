@@ -76,6 +76,11 @@ def learned_decision(job: Dict[str, Any], kind: str, ils_plan: Sequence[Sequence
         seen["calls"].append((round(float(self.env.now), 3), len(batch_tasks), len(set(local_of) & ids)))
         if whole:
             seen["instances"].clear()
+        # the features the live decision saw: the snapshot's own queue capture and per-platform temporal capture (the replay reads the replayed ghosts as idle and the queued
+        # tasks as not yet queued; fidelity_replay.cut_to_batch applies the same two corrections to the corpus records)
+        queue_snapshot = {**dict(queue_snapshot or {}), **fr.full_queue}
+        if temporal_state:
+            temporal_state = {k: ({**v, **fr.live_temporal[k]} if k in fr.live_temporal else v) for k, v in temporal_state.items()}
         res = orig_inf(self, batch_tasks, system_state, queue_snapshot, temporal_state)
         node_by_id = {nd.id: nd for nd in self.nodes.items}
         for i, t in enumerate(batch_tasks):
@@ -195,7 +200,8 @@ def summarize(rows: Sequence[Dict[str, Any]], kind: str) -> Dict[str, Any]:
                      f"{kind}_mean_regret_pct": 100 * st.fmean(reg), f"{kind}_median_pct": 100 * st.median(reg), f"{kind}_p90_pct": 100 * sorted(reg)[min(len(reg) - 1, int(0.9 * len(reg)))],
                      f"{kind}_task_weighted_pct": 100 * tw("rtt"), "hand_mean_regret_pct": 100 * st.fmean(hreg), "hand_median_pct": 100 * st.median(hreg),
                      "hand_task_weighted_pct": 100 * tw("rtt_hand"),
-                     "recall_free_top1": rec(0, 1), "recall_free_top5": rec(0, 5), "recall_teacher_top1": rec(1, 1), "recall_teacher_top5": rec(1, 5),
+                     **{f"recall_{m}_top{k}": rec(c, k) for m, c in (("free", 0), ("teacher", 1)) for k in (1, 5, 10)},
+                     "zero_cross_node_share": {k: sum(r["pairs"][k]["cross_node"] == 0 for r in rs) / len(rs) for k in (kind, "hand", "ils")},
                      "ils_not_a_candidate_tasks": sum(1 for x in ent if x[0] == 0), "mean_candidates": st.fmean(x[2] for x in ent) if ent else None,
                      "whole_plan_match_ils": sum(r["equals_ils"] for r in rs) / len(rs), "whole_plan_match_hand": sum(r["equals_hand"] for r in rs) / len(rs),
                      "cross_node_pairs_mean": {k: st.fmean(r["pairs"][k]["cross_node"] for r in rs) for k in (kind, "hand", "ils")},
