@@ -198,11 +198,14 @@ def read(gates, w_path=DEFAULT_W):
             decision[arm] = {"result": "NO-GO", "why": "no grid k shows a WIN (crossover above the largest k = 2)"}
             continue
         beaten = {r: by_k[ck]["bar"][r] for r in RUNGS}
-        limit = max([anc[h]["largest_anchor_k"] for h in set(beaten.values()) if h and anc[h]["largest_anchor_k"] is not None] or [None]) if any(beaten.values()) else None
         ref_k = cross[arm]["interpolated_k"] if cross[arm]["interpolated_k"] is not None else ck
-        ok = limit is not None and ref_k <= limit
-        decision[arm] = {"result": "GO" if ok else "NO-GO", "crossover_k": ref_k, "grid_k": ck, "hand_arms_beaten": beaten, "largest_anchor_k": limit,
-                         "why": "crossover within the largest anchor of the hand arm it beats" if ok else "crossover above the largest anchor (or anchor unavailable)"}
+        lim = {r: (anc[beaten[r]]["largest_anchor_k"] if beaten[r] else None) for r in RUNGS}
+        known = [v for v in lim.values() if v is not None]
+        strict = bool(known) and len(known) == len(RUNGS) and all(ref_k <= v for v in known)  # each rung's beaten hand arm must be in budget at the crossover
+        permissive = bool(known) and ref_k <= max(known)  # the largest anchor over the arms beaten
+        decision[arm] = {"result": "GO" if strict else "NO-GO (strict); GO under the permissive reading" if permissive else "NO-GO", "crossover_k": ref_k, "grid_k": ck,
+                         "hand_arms_beaten": beaten, "largest_anchor_k_per_rung": lim, "strict": strict, "permissive": permissive,
+                         "why": "the node says 'the hand arm it beats' (singular); with a different bar per rung both readings are reported and the ruling is the coordinator's"}
     return {"gate": list(gates), "counts": counts, "failed_why": sorted({str(f.get("why", "?"))[:90] for f in failed.values()}),
             "by_k": {f"{k:g}": v for k, v in by_k.items()}, "crossover": cross, "anchors": anc, "decision": decision, "utilisation": utilisation(cells), "self_cost": self_cost(cells)}
 
