@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Mapping, Sequence, Tuple
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 
 from src.policy.tabular.reduced_features import (
@@ -145,6 +146,7 @@ def make_partial_state_score_fn(
     ctx: Any,
     *,
     cache_encode: bool = True,
+    task_rows_only: bool = False,
 ) -> Callable[[int, Mapping[int, Any]], Tensor]:
     """The ONE prefix-conditioned scorer: ``(task_idx, committed) -> logits[task_idx]``.
 
@@ -185,6 +187,7 @@ def make_partial_state_score_fn(
         )
 
     cached: Dict[str, Tuple[Tensor, Tensor]] = {}
+    rows_state: Dict[str, Any] = {}
 
     def score(task_idx: int, committed: Mapping[int, Any]) -> Tensor:
         refresh_partial_state_edge_attr(data, ctx, task_idx, committed)
@@ -194,6 +197,49 @@ def make_partial_state_score_fn(
             task_emb, platform_emb = cached["emb"]
         else:
             task_emb, platform_emb = model._encode(data)
+        if task_rows_only:
+            return _score_task_rows(model, task_emb, platform_emb, data, int(task_idx), rows_state)
         return model._score(task_emb, platform_emb, data)[int(task_idx)]
 
     return score
+
+
+def _score_task_rows(model: Any, task_emb: Tensor, platform_emb: Tensor, data: Any, t: int, state: Dict[str, Any]) -> Tensor:
+    """``model._score(...)[t]`` computed on task t's edge rows only (training closure, NEAR_RTT_SCORE_TASK_ROWS_ONLY).
+
+    ``_score`` runs the edge scorer over every task->platform edge of the graph at every step and keeps one task's rows; this
+    runs it on those rows. The dropout mask is still drawn over the full edge tensor, so the RNG stream is the one ``_score``
+    consumed; the matmul on fewer rows rounds differently, so scores agree to float precision, not bit for bit.
+    """
+    sc = getattr(model, "edge_scorer", None)
+    if sc is None or not all(hasattr(sc, a) for a in ("fc1", "fc2", "dropout")):
+        raise ValueError("task_rows_only needs the fc1 / dropout / fc2 EdgeScorer of TaskPlacementGNN")
+    if not getattr(model, "partial_state_edge_dim", 0):
+        raise ValueError("task_rows_only is defined for the prefix-conditioned scorer (partial_state_edge_dim > 0)")
+    st = state.get("rows")
+    if st is None:
+        n_tasks, n_platforms = int(data.n_tasks), int(data.n_platforms)
+        ei = data.edge_index
+        if ei.numel() == 0:
+            raise ValueError("task_rows_only: the graph has no task->platform edges")
+        ti, pj = ei[0], ei[1] - n_tasks
+        valid = (pj >= 0) & (pj < n_platforms) & (ti < n_tasks)
+        vpos = valid.nonzero().squeeze(-1)
+        ti, pj = ti[valid], pj[valid]
+        order = torch.argsort(ti, stable=True)
+        counts = torch.bincount(ti, minlength=n_tasks)
+        starts = torch.cumsum(counts, 0) - counts
+        base = data.edge_attr[valid] if (hasattr(data, "edge_attr") and data.edge_attr.numel() > 0) else None
+        st = state["rows"] = (ti, pj, vpos, order, counts, starts, base)
+    ti, pj, vpos, order, counts, starts, base = st
+    a, c = int(starts[t]), int(counts[t])
+    idx = order[a:a + c]
+    ps_rows = data.partial_state_edge_attr[vpos[idx]]
+    e_attr = ps_rows if base is None else torch.cat([base[idx], ps_rows.to(base.dtype)], dim=-1)
+    e_attr = e_attr.to(task_emb.device, dtype=task_emb.dtype)
+    x = torch.cat([task_emb[ti[idx]], platform_emb[pj[idx]], e_attr], dim=-1)
+    h = F.relu(sc.fc1(x))
+    if sc.training and sc.dropout.p > 0.0:
+        noise = F.dropout(torch.ones(int(ti.numel()), h.size(-1), dtype=h.dtype, device=h.device), sc.dropout.p, True)
+        h = h * noise[idx]
+    return sc.fc2(h).squeeze(-1)
