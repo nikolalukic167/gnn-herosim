@@ -299,6 +299,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 cache attempt 869568 FAILED (disclosure)** (S7). After the header fix every dataset failed graph build (`KeyError: 'node_name'`): `uncut_arm1_build.py` wrote `optimal_result.json` with `config.infrastructure` = the stripped warm-corpus dict (0 nodes), where production datasets store the full simulated infrastructure (`executecosimulation.py:2689`). Fixed in 6dc295e7 (full `fr.base_infra` merged with the snapshot infra); 3-state smoke through `prepare_graphs_cache` clean; all datasets rebuilt (869597), cache rerun after.
 - 2026-10-13 — **Arm 1 cache attempt 869493 FAILED (disclosure)** (S7). After 38 min the cache loader rejected all 11,073 datasets ("incomplete sweep: 2 rows for 1 plans"): `sweep_status` counted the header line of the headed `placements.jsonl` (sampled-file convention, `docs/notes/placements_jsonl_required.md`) as a plan, and `load_sweep_minimum` would raise on it; the convention was never implemented in the cache path. Fixed in 8c9f8296 (header line skipped in both; headerless files unchanged; `tests/test_sampled_header_readers.py`), merged as f5c5fd2d. Cache rerun as 869568. Training pin: f5c5fd2d plus the split file only.
 - 2026-10-13 — **Arm 1 learned gate: submission built and plumbing-smoked (DESCRIPTIVE, stand-in checkpoints, deleted)** (S6 owns the gate end to end, per the expert's ruling).
   - **Code (041eb823, rp/uncut-wn).**
