@@ -2,7 +2,7 @@
 
 **Status:** `REGISTERED` (2026-10-13). Designed by SCIENTIST (pick D; SCIENTIST keeps the name) and drafted by S6 on the expert's request. SCIENTIST closed the design on 2026-10-13; the expert authorised registration once it was closed. Every bar below was fixed before data.
 - decision_cost kill check 2 PASSED (S4 interim read, job 864514): `cd_exactS` loses +9.53 % (moderate) and +197.4 % (heavy) to its own decision time at k = 1, 0/12 at both rungs.
-- **Authorised now:** the mint of the 12 fresh topologies and the uncut libraries from the raw shards, identities (a)–(l), and the hand-arm cells (150–350 CPU-h).
+- **Authorised now:** the mint of the 12 fresh topologies and the uncut libraries from the raw shards, identities (a)–(m), and the hand-arm cells (150–350 CPU-h).
 - **Labels and training are gated by this node's own kills** (the expert, 2026-10-13, after S4's attribution read): labels start only after K0 and K1 are read and neither fires. If K1 fires, there are no labels, and the lineage closes on the hand read.
 - **Scope (measured on the gate windows):** the gate serves groups up to about 230 tasks (window max 135–226). 31.8–43.2 % of tasks sit in groups > 10 per window, and 1.2–3.5 % in groups > 100. The 2,876-task and other giant groups lie past the windows' first 50k tasks and are **not tested**: no outcome of this node may be quoted as covering groups in the thousands.
 - **Labels are ILS incumbents, not optima.** For groups above the 100,000-plan cap, label quality is bounded by the registered convergence check (ruling 3). `placements.jsonl` for those groups is a headed sample, not a sweep (F; the expert's exemption of 2026-10-13).
@@ -20,7 +20,7 @@ So the joint problem studied so far is the easy part of the workload. On the big
 
 **Not a revival.** The hard-stops entry "Two-level Alibaba fan-out" (2026-10-12) closes a hidden second level revealed when the parent completes. This node serves the **first-level** fan-out uncut, fully known at arrival. **It never reveals later levels.**
 
-**Prior and hypothesis (SCIENTIST): P(WIN) ≈ 0.10.**
+**Prior and hypothesis (SCIENTIST).** Registered at P(WIN) ≈ 0.10. Revision, verbatim: "2026-10-13, SCIENTIST, before any D data: P(WIN) ≈ 0.05 (was 0.10); P(MP-attributed win) ≈ 0.02. Revised after decision_cost's attribution read: in the capped seat at k = 1, cdxapply ties cd_expand within 1 pp (SEARCH-WIN-NOT-GNN), so the learned seed's edge there is zero, and cd_expand is within budget at k_anchor ≈ 12–14. D adds only bigger batches (to ~230 tasks). A learned edge needs the hand expansion's cost or quality to degrade faster with n than the GNN's; nothing measured yet says it does. K1 measures it."
 - Coupling stays sparse. Each member draws `min(2, size − 1)` partners (`grounded_workload_v1_mint.py:13–14`, `:140`), so a 2,876-task group is a graph of mean degree about 4, not a clique.
 - On states of ≤ 6 tasks, S plus CD is within about 2–4 % of the true optimum on average (frontier_v1: ib0_s mean regret 4.06 % heavy / 1.39 % moderate, cd_s 2.67 / 1.99 %). Whether S stays that good on groups > 10 is unmeasured; the K1b replay diagnostic measures it.
 - α-expansion's exact-optimum hit rate of 67.2 % (ICM 55.3 %; 1,017 whole-batch datasets of 2–8 tasks, true replayed RTT; `/share/nikola.lukic/workload_fix_v1/accel_state_stats/expansion_summary.txt`) is **not** evidence that hand local search is near-optimal: its misses are large (median +44 %, p90 +748 %).
@@ -130,10 +130,15 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
     - `batch_timeout` is never raised to rescue g2: that would change the seat and break identity (a).
     - If the pooled share fails: stop, the seat isn't serving uncut.
     - If only g2 fails its own 90 %: F1 still uses all four windows, with a descriptive g0/g1/g3-only F1 beside it.
-- **K1, before any label or training** (live hand arms at k = 1, plus an ILS read on a fixed sample). Exact thresholds, written before the hand cells are read (proposed by S6 2026-10-13 from SCIENTIST's ruling; SCIENTIST to confirm):
-  - **The hand arm** is the best hand frontier arm at k = 1 by F1's statistic (median over topologies of the per-topology median whole-run latency), chosen per rung. `cd_expand` is expected.
-  - (a) **Decision-time headroom:** per rung, the median over that arm's 48 cells of (mean scheduler-queue wait + mean charged decision time per task) ÷ `averageElapsedTime`, whole-run, is **< 3 %** at **both** rungs (kill check 2, restated on uncut groups).
-  - (b) **Plan headroom:** on a fixed sample of 200 batch states with > 10 tasks drawn from that arm's k = 1 cells (25 per window × rung, seeded, drawn before any label exists), the median over states of (S(hand plan) − S(ILS plan)) ÷ S(ILS plan) is **< 1 %**. ILS runs at the registered budget and convergence. The same 200 states feed the K1b S-fidelity replay.
+- **K1, before any label or training** (live hand arms at k = 1, plus a replayed read on a fixed sample). Exact thresholds, written before the hand cells are read: S6's proposal as amended and confirmed by SCIENTIST, 2026-10-13.
+  - **The hand arm** is the best hand frontier arm at k = 1 per rung, by F1's statistic (median over topologies of the per-topology median whole-run latency). `cd_expand` is expected.
+  - (a) **Decision-time headroom:** the ratio (mean scheduler-queue wait + mean charged decision time per task) ÷ `averageElapsedTime`, median over that arm's 48 cells, is **< 3 % on both whole-run and after-360 s, at both rungs**. The wait and the charged time are read from the decision_cost counters in the summaries (sched busy / queue-wait), never reconstructed.
+  - (b) **Plan headroom, on the replayed true RTT:** a fixed sample of 200 batch states with > 10 tasks from that arm's k = 1 trajectories.
+    - Sampling: 25 per window × rung, seeded, drawn before any label exists. The state ids are written to a file in `docs/lineages/uncut_groups_s0_v1/` **before any k = 1 hand cell is read**, with the seed and the file's hash recorded here, so the draw cannot see the cells (the expert). Within > 10, stratified over 11–50 / 51–100 / 101–226 in proportion to the gate's task-weighted bucket shares, and reported per bucket.
+    - Each state's hand plan and ILS incumbent are both replayed (2 extra evaluations per state, about 0.5 CPU-h, on the same states as the K1b replay).
+    - The rule is the **MEAN** over the 200 states of (RTT(hand) − RTT(ILS)) ÷ RTT(ILS) **< 1 %**. It is not a median: local-search regret is zero-inflated, with frontier medians at 0.00 % against means of 1.4–4 %.
+    - The share within 1 % and the p90 are reported, with S-regret beside them. Where S and the replay disagree, **the replay rules**.
+  - **Snapshots:** if the hand cells don't capture the 200 states, those cells are rerun with the snapshot hook at the seeded times. Identity (m) requires the rerun's summary to be byte-equal to the original cell's.
   - If **both** (a) and (b) hold, **STOP (HAND-SUFFICES)**: no time to save and no quality to gain. This is a live measurement of the hand arms, so rule 6 is met.
 - **K2, before the live gate (offline):** the GNN plan's S-regret on held-out batches > 10 vs the hand fallback's, at equal charged time. A NO-GO is recorded and orders the work. It does not cancel the registered live gate (rule 6).
 
@@ -158,6 +163,7 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 - (j) **Snapshot path** (the expert): the snapshot run with the cap removed reproduces the capped run bit-equal on a trace with no group > 10 (a window where that holds, or a filtered trace).
 - (k) **Same batch formation** (SCIENTIST, B): one hand arm and one learned arm produce identical batch membership on a fixed arrival trace.
 - (l) **Sampled `placements.jsonl` readers:** a sampled file without the header is rejected, one with it is reported as a sample, and no reader treats an S value as an RTT (tests in `tests/`).
+- (m) **Snapshot hook** (SCIENTIST): a hand cell rerun with the snapshot hook at K1's seeded times gives a summary byte-equal to the original cell's.
 
 **9. Origin.** Single origin per group, spread over the 160 clients: the accel seat's existing model (big_groups and prune_g8 designs) [V].
 - A fan-out originates at one caller, so this is the realistic model.
@@ -264,6 +270,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
+- 2026-10-13 — **SCIENTIST's prior revision (P(WIN) 0.10 → 0.05; MP-attributed 0.02) and K1 amendments:** (a) on both whole-run and after-360 s; (b) is a mean, not a median, on the replayed RTT, with bucket-stratified sampling; identity (m) added for the snapshot hook. All written before any hand cell.
 - 2026-10-13 — **Gate inputs built** (job 864541 at pin e2738e37, 35 s; `big_groups_inputs.sbatch`, X1 = `x1_uncut`, M 11.6139 / 27.622665025860204, REPLICA_RULE `fastest_compatible`, BASECFG `/share/nikola.lukic/accel_nosplit/inputs/cfg_src/cc40s16345.json` as ib0_confirm_v1 used). Output in `/share/nikola.lukic/uncut_groups/gate_inputs_e2738e37/inputs`.
   - The first submission, 864539, failed the job's own check: the default BASECFG carries no replica rule. Its partial ROOT was removed.
   - Check: 12 topologies × moderate/heavy at 160 / 24 / p 0.6, topology seed = id, rule `fastest_compatible`. Single origin spread over the 160 clients.
