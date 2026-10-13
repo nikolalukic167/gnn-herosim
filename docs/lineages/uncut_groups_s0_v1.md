@@ -301,10 +301,9 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 - 2026-10-13 — **PRE-DATA: Arm 1 live gate (`uncut_arm1`), SCIENTIST's text, filed before any Arm 1 checkpoint is gated.**
   - **The expert's rulings on this text:**
-    - **(A) Gate ids.** SCIENTIST's rule governs: the first 12 ids above 19472 that appear in no training, validation or capture list, expected 19473–19484.
-      - S5 verifies them by the token scan, and the prep fails loud on an existing ROOT.
-      - The corpus block is the next free ids above the gate block, also verified by the scan. This refines ruling (2) in the entry below.
-      - Both lists go into this node before minting.
+    - **(A) Gate ids**, the agreed rule of SCIENTIST and the expert, which replaces the topology sentence of the text below: "Gate ids are picked by S5's token scan as the next free block above 19472 (expected 19473–19484). Required property: no gate id appears in any training, validation or capture list. The list and its hash are filed before any cell."
+      - The corpus block is the next free ids above the gate block, also verified by the scan, and the prep fails loud on an existing ROOT. This refines ruling (2) in the entry below. Both lists go into this node before minting.
+    - **(B) Label slate:** the served top-5 slate for labels, the full set for the oracle (see the corpus-spec entry).
     - **(C) Per-task batch-size logging** belongs to S5, after the minting. It is a summarizer change plus an identity: every sim key unchanged on a `gate_k1` cell. It comes before any gate cell.
   - SCIENTIST's text, verbatim:
 
@@ -314,7 +313,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     >
     > Seat: as uncut_groups_s0_v1 (accel 160 × 24, single origin, whole-group serving, gate inputs re-built for the new ids with the same mint and x1_uncut rule), k = 1. Each arm's w is calibrated on k = 0 cells, outside the gate topologies, and frozen in decision_cost_w.json before any gate cell.
     >
-    > Topologies: 12 fresh ids, the first 12 ids above 19472 that appear in no training, validation or capture list (expected 19473–19484). Windows g0–g3, both rungs, simulation seed 0. The id list and its hash are filed before any cell.
+    > Topologies: ~~12 fresh ids, the first 12 ids above 19472 that appear in no training, validation or capture list (expected 19473–19484).~~ **[replaced by ruling (A) above]** Windows g0–g3, both rungs, simulation seed 0. The id list and its hash are filed before any cell.
     >
     > Arms:
     > - `uncut_arm1_gnn_eng` nosplit, seeds 1 and 2 (primary)
@@ -343,6 +342,10 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     > - Arm 1 vs the slate_fix_v1 reference: the training effect.
     >
     > Cost: about 7 arms × 96 cells; learned cells about 200 s, hand about 50 s; about 30 CPU-h, plus k = 0 calibration.
+
+  - **Addendum: arm count and multiplicity** (SCIENTIST, at the expert's request, filed before any gate), verbatim:
+
+    > Arm count and multiplicity (filed before any gate). Two learned arms enter this gate: Arm 1 (`uncut_arm1_gnn_eng`, with its twin) and Arm 2 (`uncut_arm2_gnn_eng`, B1 + B2, with its twin), each at seeds 1 and 2. F1 and F2 are Holm-ed within each arm (4 tests per family, 8 for F2 if the MLP ran); the arms are not pooled. Because there are two arms, the program-level claim 'a GNN beats `cd_ib0`' additionally requires the winning arm's F1 Holm p < .025 on all four tests (Bonferroni over 2 arms). An arm that clears .05 but not .025 is labelled WIN-ARM-ONLY and is never quoted as the program result. The same applies to MP-ATTRIBUTED. If Arm 2 is not ready when Arm 1 gates, Arm 1 is read alone at the .025 line regardless, so a later Arm 2 cannot change Arm 1's label.
 
 - 2026-10-13 — **PRE-DATA: the user authorises everything at once; the expert's rulings on the Arm 1 corpus.** Filed while the launches go out. This supersedes the "training not approved" line in the entry below.
   - **The user's words, verbatim** (relayed by the expert): "just do it all and run before smoke (maybe more than 6h timeout idk). wait for nothing and run all so we get some results".
