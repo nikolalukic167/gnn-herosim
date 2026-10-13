@@ -307,7 +307,9 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Cost:** the node's line is labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule (the expert). SCIENTIST estimates about 60 CPU-h of labels for the spec below. S7 builds them.
   - **Arm 1 corpus spec: SCIENTIST's block, verbatim** (received 2026-10-13, before any label is built; it replaces the expert's relayed summary). Two notes on it:
     - MIN_TIME = 0 (item 1) departs from § 4's registered "MIN_TIME stays 360 s" for the label corpus. SCIENTIST now states it explicitly, and the expert's acceptance is pending.
-    - Item 2 refers to "S6's corpus-size census". No such census exists yet; the mean sizes must be measured on the capture pool and the final shares printed.
+    - Item 2 is SCIENTIST's correction, made before any label. The first version (11–50: 4,200; 101–256: 1,000) gave 101–256 about 39 % of the > 10 task share, against the gate's 17 %. That is 2.3×, which breaks § 4's 2× rule. Item 9's label cost drops to about 50 CPU-h.
+      - Rechecked at filing: 4,600 × 22, 2,000 × 70 and 600 × 150 give 30.6 / 42.3 / 27.2 %.
+      - The mean sizes must be measured on the capture pool, and the final shares printed.
 
     > Arm 1 corpus (SCIENTIST, filed before any label is built; date = filing date).
     >
@@ -316,12 +318,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     > - Never topologies 19461–19472, and never the fresh gate topologies.
     > - MIN_TIME = 0. Batches > 256 tasks are not labelled; they are counted.
     >
-    > 2. Count and buckets: 12,000 labelled states, by served batch size:
-    > - ≤ 10: 4,800 (40 %)
-    > - 11–50: 4,200 (35 %)
-    > - 51–100: 2,000 (17 %)
-    > - 101–256: 1,000 (8 %)
-    > - Within > 10 (7,200 states, 60 %): task-weighted shares are about 26 / 40 / 42 % at mean sizes 22 / 70 / 150, normalised to about 24 / 37 / 39 %. Against the gate's about 39 / 44 / 17 %, every ratio is within 2×, as node § 4 requires. If S6's corpus-size census gives different mean sizes, shift 101–256 down until all ratios are within 2×, and print the final shares.
+    > 2. Count and buckets: 12,000 labelled states. ≤ 10: 4,800 (40 %); 11–50: 4,600; 51–100: 2,000; 101–256: 600 (> 10 total 7,200, 60 %). At mean sizes 22 / 70 / 150, the task-weighted shares within > 10 are about 31 / 42 / 27 %, against the gate's about 39 / 44 / 17 % (ratios 0.78 / 0.96 / 1.6, all within 2×). If S7's census gives different mean sizes, shift states between 101–256 and 11–50 until every ratio is within 2×, and print the final shares.
     >
     > 3. Opening: in every bucket, ≥ 30 % of states have batch arrival t < 360 s; the rest have t ≥ 360 s. That exceeds the plan's ≥ 25 % floor.
     >
