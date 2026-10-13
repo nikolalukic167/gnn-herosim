@@ -144,16 +144,29 @@ def test_missing_ids_are_skipped_and_reported_but_unlisted_ones_fail_loud(tmp_pa
     assert r["missing"]["total"] == 2 and r["missing"]["51_100"] == ["gone"] and r["missing"]["101_226"] == ["gone2"]
 
 
-def _snap(chosen):
-    return {"fidelity": {"batch": [{"gid": 5}, {"gid": 3}]}, "chosen": chosen}
+def _snap():
+    return {"fidelity": {"batch": [{"gid": 5}, {"gid": 3}, {"gid": 9}]}}
+
+
+def _rec(chosen, deferred=()):
+    return {"trigger_task_id": 3, "chosen": chosen, "deferred": list(deferred), "arm": "cd_expand", "plan_evals": 10, "cap_hit": False}
 
 
 def test_chosen_check_is_bit_equal_and_fails_loud():
-    assert U.check_chosen(_snap({"3": [1, 2], "5": [4, 5]}), [[1, 2], [4, 5]], "s")
+    hand = [[1, 2], [4, 5], [7, 8]]                                  # gids ascending: 3, 5, 9
+    ok = U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 5], [9, 7, 8]]), "s")
+    assert ok["match"] and ok["compared"] == 3 and ok["live_cap_hit"] is False
     with pytest.raises(RuntimeError, match="differs from the served plan"):
-        U.check_chosen(_snap({"3": [1, 2], "5": [4, 5]}), [[1, 2], [4, 6]], "s")
-    with pytest.raises(ValueError, match="not a map over the batch"):
-        U.check_chosen(_snap({"3": [1, 2]}), [[1, 2], [4, 5]], "s")
+        U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 6], [9, 7, 8]]), "s")
+    with pytest.raises(ValueError, match="do not partition"):
+        U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 5]]), "s")
+
+
+def test_chosen_check_in_a_state_with_deferrals_flags_but_does_not_stop():
+    hand = [[1, 2], [4, 5], [7, 8]]
+    r = U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 6]], deferred=[9]), "s")
+    assert r["match"] is False and r["deferred"] == 1 and r["mismatched_tasks"] == 1 and r["compared"] == 2
+    assert U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 5]], deferred=[9]), "s")["match"] is True
 
 
 def _r(sid, bucket, hand, ils, **kw):
@@ -181,7 +194,9 @@ def test_retry_states_are_out_of_the_mean_listed_and_flagged_with_a_composite():
     rows = [_r(f"s{i}", "11_50", 100, 100) for i in range(8)]
     rows += [_r("x", "51_100", 200, 100, n_extra_captures=1), _r("x#r1", "51_100", 120, 100, role="retry", parent="x", n_extra_captures=0),
              _r("y", "11_50", 100, 100, n_extra_captures=1)]                    # y: retry capture absent -> no composite
+    rows[0]["chosen_match"] = True
     r = U.read_rows(rows)
+    assert r["chosen_check"] == {"match": 1, "mismatch_in_deferral_states": 0, "not_checked_no_sidecar": 9}
     assert r["pooled"]["n"] == 8 and r["pooled"]["mean_regret_pct"] == 0.0              # x and y are not in the mean, the retry row neither
     e = r["excluded_retry_states"]
     assert e["count"] == 2 and e["by_bucket"]["51_100"] == ["x"] and e["by_bucket"]["11_50"] == ["y"]
@@ -194,3 +209,57 @@ def test_make_jobs_emits_retry_captures_as_descriptive_jobs(tmp_path):
     cells, inputs = _cells(tmp_path, [(7, 1.0, 12), (7, 1.01, 5)])
     jobs, _ = U.make_jobs([_st("a", 7)], cells, "cd_expand_k100", inputs, "x")
     assert [(j["state_id"], j["role"], j["time"]) for j in jobs] == [("a", "first", 1.0), ("a#r1", "retry", 1.01)] and jobs[1]["parent"] == "a"
+
+
+def _gate(jobs, commit=None, dry=False, sealed=()):
+    U.label_gate(jobs, sealed, commit, dry)
+
+
+_IDM = {"state_id": "idm_0", "topology": 16490, "window": "g0", "rung": "heavy", "trigger_task_id": 9743}
+_CORPUS = {"state_id": "c_0", "topology": 20001, "window": "g0", "rung": "heavy", "trigger_task_id": 5}
+
+
+def test_labels_refuse_without_a_k1_read_commit():
+    with pytest.raises(RuntimeError, match="until K1 is read"):
+        _gate([_IDM])                                              # not even identity (m) without --dry-run
+    _gate([_IDM], dry=True)                                       # the dry run on identity (m) states is allowed
+    with pytest.raises(RuntimeError, match="identity \\(m\\) state"):
+        _gate([_IDM, _CORPUS], dry=True)                          # a corpus state is never allowed without the commit
+    with pytest.raises(RuntimeError, match="until K1 is read"):
+        _gate([_CORPUS])
+
+
+def test_labels_need_a_real_commit_and_never_touch_a_sealed_state():
+    head = __import__("subprocess").run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=Path(__file__).resolve().parents[1]).stdout.strip()
+    _gate([_CORPUS], commit=head)
+    with pytest.raises(ValueError, match="not a commit"):
+        _gate([_CORPUS], commit="deadbeef" * 5)
+    with pytest.raises(ValueError, match="not a commit hash"):
+        _gate([_CORPUS], commit="zzz")
+    sealed = [{"topology": 20001, "window": "g0", "rung": "heavy", "trigger_task_id": 5}]
+    with pytest.raises(RuntimeError, match="sealed K1\\(b\\) state"):
+        _gate([_CORPUS], commit=head, sealed=sealed)
+    with pytest.raises(ValueError, match="lacks"):
+        _gate([{"state_id": "idm_9"}], dry=True)
+
+
+def test_label_file_has_the_header_and_replays_only_the_hand_and_new_incumbents(tmp_path):
+    row = {"state_id": "idm_0", "bucket": "11_50", "n_batch": 3, "n_pinned": 0, "plan_space": 8, "budget": 100, "n_evals": 4, "stopped": "converged", "revisits": 2, "arm": "cd_expand",
+           "n_incumbents": 2, "cands_mean": 2.0, "rtt_hand": 10.0, "rtt_incumbents": [7.0], "chosen_match": None,
+           "trajectory": [{"eval": 1, "S": 5.0, "iter": 0}, {"eval": 3, "S": 4.0, "iter": 1}],
+           "evals_full": [(1, 5.0, 0, [[0, 0], [0, 0], [0, 0]]), (2, 5.5, 1, [[1, 0], [0, 0], [0, 0]]), (3, 4.0, 1, [[1, 0], [1, 0], [0, 0]]), (4, 4.5, 2, [[1, 0], [0, 0], [1, 0]])]}
+    h = U.label_header(row, {}, 7, None, True, "k1_sealed_states.json", "ab" * 32, "abc123")
+    assert h["header"] and h["exhaustive"] is False and h["plan_space_size"] == 8 and h["eval_budget"] == 100 and h["evals_done"] == 4 and h["seed"] == 7 and h["cap"] == 256
+    assert h["s_pin"]["batch_alpha"] == 0.0 and h["replayed_rows"] == 2 and h["top8_replayed"] is False and h["sealed_exclusion"]["sha256"] == "ab" * 32 and h["dry_run"] is True
+    rows = U.label_rows(row)
+    assert [(r["eval"], r["replayed"], r["rtt"]) for r in rows] == [(1, True, 10.0), (2, False, None), (3, True, 7.0), (4, False, None)]
+    assert all(r["S"] is not None for r in rows) and rows[1]["placement_plan"] == {"0": [1, 0], "1": [0, 0], "2": [0, 0]}
+    f = U.write_labels(tmp_path, h, rows)
+    lines = [json.loads(x) for x in f.read_text().splitlines()]
+    assert lines[0]["header"] is True and len(lines) == 5 and all("header" not in x for x in lines[1:])
+
+
+def test_ils_counts_revisits_and_keeps_distinct_plans():
+    cands, S = _problem(6, 3, 0)
+    r = U.ils(cands, tuple(c[0] for c in cands), S, seed=0, max_evals=3000)
+    assert r["revisits"] > 0 and len({e["plan"] for e in r["evals"]}) == len(r["evals"])
