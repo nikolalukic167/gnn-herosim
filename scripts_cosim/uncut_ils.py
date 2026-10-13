@@ -39,6 +39,15 @@ if str(REPO) not in sys.path:
 CAP = 256
 EPS = 1e-9
 BUCKETS = (("11_50", 11, 50), ("51_100", 51, 100), ("101_226", 101, 226))
+BUCKET_ALIAS = {"gt100": "101_226"}           # the sealed file names the top bucket gt100
+
+
+def _canon_bucket(rs: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out = [dict(r, bucket=BUCKET_ALIAS.get(r.get("bucket"), r.get("bucket"))) for r in rs]
+    bad = [r["state_id"] for r in out if r.get("bucket") not in {b for b, _l, _h in BUCKETS}]
+    if bad:
+        raise ValueError(f"FAIL LOUD: states {bad[:5]} carry a bucket outside {[b for b, _l, _h in BUCKETS]}")
+    return out
 Key = Tuple[int, int]
 ARM_KEYS = ("HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_CD_EXACT_PRUNE")
 
@@ -214,7 +223,7 @@ class _Done(Exception):
         self.out = out
 
 
-def _setup_env(arm: str, job: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
+def _setup_env(arm: str, job: Dict[str, Any], check_arm: bool = True) -> Tuple[str, Dict[str, str]]:
     cell_summary = job.get("cell_summary")
     strategy, extra = ARMS[arm]
     os.environ["HEROSIM_SNAPSHOT_FIDELITY"] = "1"
@@ -230,7 +239,7 @@ def _setup_env(arm: str, job: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
                 os.environ[k] = str(v)
         norm = lambda d: {k: str(v) for k, v in d.items() if k in ARM_KEYS and (str(v) not in ("0", "") or k == "HEROSIM_PG_BATCH_ALPHA")}
         have, want = norm(cell_env), norm(ARMS[arm][1])
-        if have != want:
+        if check_arm and have != want:
             raise RuntimeError(f"FAIL LOUD: --arm {arm} decides with {want}, the cell's own env says {have}")
     for k in ("HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_SEARCH",
               "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_MAX_EVENTS", "GNN_CD_REFINE", "GNN_SLATE_NO_SPLIT", "GNN_SERVE_CANDIDATE_SLATE"):
@@ -250,10 +259,10 @@ def _load_snapshot(job: Dict[str, Any]) -> Dict[str, Any]:
     raise RuntimeError(f"FAIL LOUD: no snapshot with trigger {job['trigger_task_id']} in {job['snapfile']}")
 
 
-def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float]) -> Dict[str, Any]:
+def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float], check_arm: bool = True) -> Dict[str, Any]:
     """Replay the snapshot under `arm`; at the batch decision score the hand plan with the scheduler's S and run the ILS from it. Returns the search result
     plus the hand plan, in snapshot batch order (gid ascending) as (node id, platform id)."""
-    strategy, _ = _setup_env(arm, job)
+    strategy, _ = _setup_env(arm, job, check_arm)      # check_arm=False: re-decide a cell's snapshot under another arm (analysis passes)
     from src.executesimulation import execute_simulation
     from src.placement import fidelity_replay, snapshot_fidelity
     from src.placement.live_snapshot_seed import build_live_snapshot_seed
@@ -286,6 +295,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
 
     def patched(self, batch_tasks, system_state, queue_snapshot, temporal_state):
         seen["decisions"] += 1
+        seen.setdefault("calls", []).append((round(float(self.env.now), 3), len(batch_tasks), len(set(local_of) & {int(t.id) for t in batch_tasks})))
         node_by_id = {nd.id: nd for nd in self.nodes.items}
         out, free = {}, []
         for i, t in enumerate(batch_tasks):
@@ -306,7 +316,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
             res.update(out)
         if set(local_of) <= {int(t.id) for t in batch_tasks} and "out" not in seen:
             seen["out"] = _search_at_decision(self, batch_tasks, system_state, res, local_of, set(fr.queued_forced), seed, max_evals, per, max_seconds,
-                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")))
+                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")), job.get("rank_plans"))
             raise _Done(seen["out"])
         return res
 
@@ -331,7 +341,8 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
         except _Done as d:
             out = d.out
         else:
-            raise RuntimeError("FAIL LOUD: the simulation ended without the batch being decided whole (no decision with the whole group)")
+            raise RuntimeError(f"FAIL LOUD: the simulation ended without the batch being decided whole (no decision with the whole group): batch {len(local_of)} tasks, "
+                               f"decisions (sim time, batch size, overlap with the snapshot batch) {seen.get('calls', [])[:12]}, t0 {t0}")
     finally:
         PG.PeerGreedyNetworkBatchScheduler._prefix_inference = orig_inf
         GO.GNNOrchestrator.monitor_process = orig_monitor
@@ -339,7 +350,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     return out
 
 
-def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False) -> Dict[str, Any]:
+def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False, rank_plans=None) -> Dict[str, Any]:
     """Runs inside the decision: res[i] = (node id, platform id) of batch_tasks[i] under the hand arm."""
     placements = {i: (int(res[i][0]), int(res[i][1])) for i in range(len(batch_tasks))}
     cands_o, couple, keys, plan_o, pinned = sched._pg_plan_objects(batch_tasks, system_state, placements)
@@ -382,6 +393,16 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
                     if best_e is None or v < best_e - EPS:
                         best_e, argm = v, plan
                 exh = {"plans": total, "s_opt": best_e, "ils_gap": r["best_S"] - best_e}
+        order_ = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
+        ranks = None
+        if rank_plans:          # the standalone-cost rank (the declared slate's order, top-5 = the slate) of each task's placement in the given plans (snapshot batch order)
+            ranks = {}
+            ranked_keys = []
+            for i, t in enumerate(batch_tasks):
+                rk = sorted(cands_o[i], key=lambda c: (sched._pg_standalone(t, c[0], c[1], orch, {}, nodes), int(c[0].id), int(c[1].id)))
+                ranked_keys.append([(int(c[0].id), int(c[1].id)) for c in rk])
+            for name, plan_b in rank_plans.items():
+                ranks[name] = [[ranked_keys[i].index(tuple(plan_b[k])) + 1 if tuple(plan_b[k]) in ranked_keys[i] else 0, len(ranked_keys[i])] for k, (_b, i) in enumerate(order_)]
     finally:
         sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha = saved
     order = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
@@ -389,7 +410,7 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
     return {"plan_space": math.prod(len(c) for c in ckeys), "n": len(batch_tasks), "n_batch": len(order), "n_pinned": len(pinned), "cands_mean": sum(len(c) for c in ckeys) / len(ckeys),
             "hand": to_batch(start), "start_S": r["start_S"], "best": to_batch(r["best"]), "best_S": r["best_S"], "n_evals": r["n_evals"], "budget": budget,
             "stopped": r["stopped"], "iters": r["iters"], "s_calls": ils_calls, "search_wall": wall_s, "exhaustive": exh,
-            "slate_log10": slate_log10, "exact_cap_hit": exact_cap_hit,
+            "slate_log10": slate_log10, "exact_cap_hit": exact_cap_hit, "ranks": ranks,
             "trajectory": [{"eval": t["eval"], "S": t["S"], "iter": t["iter"], "plan": to_batch(t["plan"])} for t in r["trajectory"]],
             "evals_log": [(e["eval"], e["S"], e["iter"]) for e in r["evals"]], "revisits": r["revisits"],
             "evals_full": [(e["eval"], e["S"], e["iter"], to_batch(e["plan"])) for e in r["evals"]] if keep_plans else None}
@@ -464,11 +485,13 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     return row
 
 
-def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] = ()) -> Dict[str, Any]:
+def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] = (), unreplayable: Sequence[Dict[str, Any]] = ()) -> Dict[str, Any]:
     """K1(b): mean over states of (RTT(hand) - RTT(ILS)) / RTT(ILS) and the shares, pooled and per bucket; S-regret beside the replay. The replay rules.
     The main set is the FIRST capture of every state that has no retry capture. States with a retry (n_extra_captures > 0: the first hand plan left tasks unplaced) are
     excluded from it, listed, and given a descriptive composite (first + retry batches replayed, summed). The mean is printed twice: captured states only, and with every
-    missing id imputed at its bucket's maximum observed regret; NOT-SATISFIED if the first is < 1 % and the second >= 1 %."""
+    missing id imputed at its bucket's maximum observed regret; NOT-SATISFIED if the first is < 1 % and the second >= 1 %. `unreplayable` states (the replay cannot deliver
+    the snapshot batch whole to the hand decision; census-listed, never silently dropped) are reported on their own line and imputed exactly like missing ids."""
+    rows, missing, unreplayable = _canon_bucket(rows), _canon_bucket(missing), _canon_bucket(unreplayable)
     ok = [r for r in rows if r.get("regret") is not None]
     if len(ok) != len(rows):
         raise ValueError(f"FAIL LOUD: {len(rows) - len(ok)} rows carry no replayed regret")
@@ -494,10 +517,22 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
     out["chosen_check"] = {"match": sum(r.get("chosen_match") is True for r in firsts), "mismatch_in_deferral_states": sum(r.get("chosen_match") is False for r in firsts),
                            "not_checked_no_sidecar": sum(r.get("chosen_match") is None for r in firsts)}
     out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
+    out["unreplayable"] = {"total": len(unreplayable), "share_of_sealed": len(unreplayable) / (len(firsts) + len(missing) + len(unreplayable)) if (firsts or missing or unreplayable) else None,
+                           **{name: [m["state_id"] for m in unreplayable if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
+    out["accounting"] = {"label": "whole-batch-replayable states", "sealed": len(firsts) + len(missing) + len(unreplayable), "replayable_first_captures": len(firsts),
+                         "in_main_mean": len(main), "excluded_retry": len(excluded), "unreplayable": len(unreplayable), "missing": len(missing),
+                         "by_bucket": {name: {"replayable_main": sum(r["bucket"] == name for r in main), "unreplayable": sum(m["bucket"] == name for m in unreplayable),
+                                              "missing": sum(m["bucket"] == name for m in missing), "excluded_retry": sum(r["bucket"] == name for r in excluded)}
+                                       for name, _lo, _hi in BUCKETS}}
     if main:
         pooled_max = max(r["regret"] for r in main)
+        for name, _lo, _hi in BUCKETS:
+            rs = [r["regret"] for r in main if r["bucket"] == name]
+            if rs:
+                extra = [max(rs)] * (sum(m["bucket"] == name for m in unreplayable) + sum(m["bucket"] == name for m in missing))
+                out[name].update({"max_pct": 100 * max(rs), "mean_imputed_pct": 100 * st.fmean(rs + extra)})
         imp = []
-        for m in missing:
+        for m in list(missing) + list(unreplayable):
             same = [r["regret"] for r in main if r["bucket"] == m["bucket"]]
             imp.append(max(same) if same else pooled_max)
         mean_cap = st.fmean(r["regret"] for r in main)
@@ -667,6 +702,7 @@ def main() -> int:
     m.add_argument("--missing", default=None, help="JSON list of sealed states that were never a trigger at k = 1 (state ids or {topology, window, rung, trigger_task_id})")
     d = sub.add_parser("read")
     d.add_argument("rows"); d.add_argument("--json", default=None); d.add_argument("--missing", default=None, help="the <jobs>.missing.json make-jobs wrote")
+    d.add_argument("--unreplayable", default=None, help="JSON list of {state_id, bucket, ...}: states whose snapshot batch the replay cannot deliver whole (reported separately, imputed like missing)")
     a = ap.parse_args()
     if a.cmd == "make-labels":
         import hashlib
@@ -704,7 +740,7 @@ def main() -> int:
                           "regret", row.get("regret"), "wall", round(row["wall"], 1), flush=True)
         return 0
     rows = [json.loads(l) for l in open(a.rows) if l.strip()]
-    res = read_rows(rows, json.load(open(a.missing)) if a.missing else ())
+    res = read_rows(rows, json.load(open(a.missing)) if a.missing else (), json.load(open(a.unreplayable)) if a.unreplayable else ())
     print(json.dumps(res, indent=1))
     if a.json:
         Path(a.json).write_text(json.dumps(res, indent=1))
