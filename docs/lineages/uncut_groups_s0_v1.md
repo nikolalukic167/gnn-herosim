@@ -290,7 +290,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Diagnostics 864566 (fidelity, no capture) and 864567 (capture, no fidelity) were each identical.
     - Cause: the capture's input estimate booked priced exchanges. Fixed at 6d1764bd, as a launch fault ruled by the expert; the gate-tools entry is dated 2026-10-13.
     - Rerun 864574 at 6d1764bd, hook on, is SIM-IDENTICAL to the hook-off cell 864558 (445 keys), with 3/3 written.
-  - (4) prune at alpha = 1 (864550, `ra_gnn_eng_cdxprb` 18700 g0 moderate vs prune_g8's recorded cell) is still running. The prune arrays wait for it; the other hand arrays do not (the expert).
+  - (4) prune at alpha = 1 **PASSED**: job 864550 at 4e028f44 (`ra_gnn_eng_cdxprb` 18700 g0 moderate, 3 h 10 min) is SIM-IDENTICAL to prune_g8's recorded cell (8301f267) on 397 keys. The only new keys are provenance and `env.HEROSIM_WARMTH_PHYSICS`. So S4's alpha×prune relaxation leaves the alpha = 1 prune path unchanged, and the `cd_exactS_ib0_prune` arrays are unblocked.
   - S5 owns the hand cells, the K0/K1 reads and the readers (`rp/uncut-hand`, `scripts_cosim/uncut_groups_hand_read.py`). Read outputs come into this node's attachments through S6.
 - 2026-10-13 — **K1(b) sample SEALED before any k = 1 hand cell** (none has run).
   - `scripts_cosim/uncut_groups_k1_draw.py` at 983361cc, seed **20261013**, on `gate_inputs_e2738e37/inputs_group`, topologies 19461–19472. 200 states: 150 in 11–50, 40 in 51–100, 10 in 101+.
