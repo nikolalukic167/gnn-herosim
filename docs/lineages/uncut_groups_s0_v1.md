@@ -405,6 +405,8 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     >
     > - **[SCIENTIST's pre-draw ruling on item 3, decided from pool counts only:]** The stop rule fired for the 101–256 opening cell (S7's pool census: 350 groups against a draw of 180, 1.9×). "(a) Extra opening-only capture windows (360 s) are minted from each library's unused tail until the 101–256 opening pool is ≥ 540. Group ranges overlapping windows A/B are not used. (b) If the tail falls short, the 101–256 opening draw becomes floor(pool / 3) and the remainder moves to 101–256 late (bucket total stays 600); the final opening share is printed. Reason: opening groups are about 6 % of 101–256 groups, so even 15 % opening is a 2.5× oversample. Decided before any draw, from pool counts only."
     >
+    > - **[The expert's acceptance, an amendment to item 3 made before the draw:]** In the 101–256 bucket only, fallback (b) may put the opening share below 30 %. The corpus-wide ≥ 25 % opening floor stays binding: if the full corpus falls below 25 %, the build fails loud. The reason: opening groups are about 6 % of that bucket's pool, so forcing 30 % would oversample a handful of states. The label build prints each bucket's actual opening share and the overall share.
+    >
     > 4. Co-location stratification (observable before labelling):
     > - In each > 10 bucket and each time stratum, 2/3 of states are drawn from those whose `cd_ib0` plan's cross-node in-batch partner-pair count is above that bucket's median, and 1/3 from those at or below it.
     > - The medians are computed on the capture pool before sampling and printed.
