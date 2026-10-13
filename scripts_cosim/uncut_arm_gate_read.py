@@ -4,13 +4,14 @@ multiplicity and ids, 1c7c8682 MLP trained) and SCIENTIST's gate-reader checklis
 
   uncut_arm_gate_read.py --gate <OUT>[,<OUT>] --topos 19537,...,19548 --topos-sha256 H --pin P
                          --primary uncut_arm1_gnn_eng --twin uncut_arm1_twin_eng [--mlp ra_mlp_same] [--reference ra_gnn_eng_nosplit]
-                         --checkpoint-md5 ckpt_md5.json [--suffix _k100] [--out read.json]
+                         --checkpoint-md5 ckpt_md5.json[,ref_md5.json] [--suffix _k100] [--out read.json]
 
 Cells: <gate>/cc40s<topo>__g<w><rung>__<arm><suffix>_s<seed>.summary.json, windows g0-g3, rungs moderate/heavy. Learned arms at seeds 1 and 2;
 the slate_fix_v1 reference at seed 1; hand arms (cd_ib0, cd) at seed 0. Beside each summary: .log, .tasks.npy, .tasks_bsz.npy and .tasks_lock.npy.
 
 Asserts (fail loud): every cell's code.commit starts with --pin and code.dirty is false, and so does its log's [CODE] banner; sha256 of the comma-joined --topos equals --topos-sha256;
-every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5});
+every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
+the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
 rows with no unstamped (NaN) task (never counted as 0 lock wait).
 
@@ -104,6 +105,14 @@ def log_banner(path):
     return None
 
 
+def ckpt_arm(arm):
+    """The training log's arm name for a gate arm: ra_gnn_eng_arm1_nosplit -> gnn_eng (S7's keys); an exact key wins."""
+    arm = arm[3:] if arm.startswith("ra_") else arm
+    for sfx in ("_nosplit", "_arm1"):
+        arm = arm[: -len(sfx)] if arm.endswith(sfx) else arm
+    return arm
+
+
 def asserts(cells, pin, learned, ckpt):
     for key, s in cells.items():
         code = s.get("code") or {}
@@ -128,7 +137,7 @@ def asserts(cells, pin, learned, ckpt):
         if n_unstamped:
             raise SystemExit(f"FAIL LOUD: {key} lock-wait sidecar has {n_unstamped} unstamped task(s); never counted as 0")
         if key[0] in learned:
-            want = ckpt.get(f"{key[0]}|s{key[1]}")
+            want = ckpt.get(f"{key[0]}|s{key[1]}", ckpt.get(f"{ckpt_arm(key[0])}|s{key[1]}"))
             path = (s.get("env") or {}).get("GNN_MODEL_PATH")
             if want is None or path is None or md5(path) != want:
                 raise SystemExit(f"FAIL LOUD: {key} checkpoint {path} md5 does not match the training log ({want})")
@@ -318,8 +327,14 @@ def main(argv=None):
     topos = [int(x) for x in a.topos.split(",")]
     cells, failed = load(a.gate, a.suffix)
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
-    with open(a.checkpoint_md5) as fh:
-        asserts(cells, a.pin, learned, json.load(fh))
+    ckpt = {}
+    for path in a.checkpoint_md5.split(","):
+        with open(path) as fh:
+            for k, v in json.load(fh).items():
+                if k in ckpt and ckpt[k] != v:
+                    raise SystemExit(f"FAIL LOUD: checkpoint md5 files disagree on {k}")
+                ckpt[k] = v
+    asserts(cells, a.pin, learned, ckpt)
     ref_seeds = (1,)
     res = {"filed": FILED, "pin": a.pin, "topos": topos}
     res["health"] = {arm: health(cells, failed, arm, sd, topos) for arm, sd in
