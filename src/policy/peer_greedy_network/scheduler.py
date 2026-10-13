@@ -66,6 +66,9 @@ PEER_GREEDY_COUNTERS = (
     "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
     "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
     "pg_expand_gain_seconds", "pg_expand_labels_skipped",
+    "pg_ils_batches", "pg_ils_evals", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget_stops",
+    "pg_ils_batches_11_50", "pg_ils_batches_51_100", "pg_ils_batches_101_226",
+    "pg_ils_cap_hits_11_50", "pg_ils_cap_hits_51_100", "pg_ils_cap_hits_101_226",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
     "pg_exact_gain_seconds",
     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
@@ -217,6 +220,15 @@ def _pg_int(env: str, default: int) -> int:
     if value < 1:
         raise ValueError(f"FAIL LOUD: {env} must be >= 1, got {value}")
     return value
+# ils_oracle_live (uncut_groups_s0_v1 ceiling arm, not a bar): a batch of more than HEROSIM_PG_ILS_MIN_BATCH tasks is, after CD's passes (cd_ib0), improved by
+# the iterated local search of scripts_cosim/uncut_ils.py on S (the surrogate this scheduler scores with), from CD's plan, over the same candidate set
+# (_pg_candidates). Budget: the tool's own K1(b) rule, HEROSIM_PG_ILS_PER (200) x n x mean candidates distinct plans, and a hard wall cap of
+# HEROSIM_PG_ILS_MAX_SECONDS per batch, at which the incumbent is served. Unset, nothing changes.
+PG_ILS_MIN_BATCH_ENV = "HEROSIM_PG_ILS_MIN_BATCH"
+PG_ILS_PER_ENV = "HEROSIM_PG_ILS_PER"
+PG_ILS_MAX_SECONDS_ENV = "HEROSIM_PG_ILS_MAX_SECONDS"
+PG_ILS_SEED_ENV = "HEROSIM_PG_ILS_SEED"
+PG_ILS_BUCKETS = (("11_50", 50), ("51_100", 100), ("101_226", 10**9))
 PG_CD_EXPANSION_SWEEPS_ENV = "HEROSIM_PG_CD_EXPANSION_SWEEPS"  # label sweeps per expansion phase (default 3)
 PG_CD_EXPANSION_MAX_MOVERS_ENV = "HEROSIM_PG_CD_EXPANSION_MAX_MOVERS"  # a label shared by more tasks than this is skipped and counted (default 12)
 
@@ -353,6 +365,20 @@ class _PeerGreedyCore:
         self.pg_expand_evals = 0
         self.pg_expand_gain_seconds = 0.0
         self.pg_expand_labels_skipped = 0
+        self.pg_ils_min_batch = None
+        for _n in PEER_GREEDY_COUNTERS:
+            if _n.startswith("pg_ils_"):
+                setattr(self, _n, 0.0 if _n == "pg_ils_gain_seconds" else 0)
+        raw_min = os.environ.get(PG_ILS_MIN_BATCH_ENV, "").strip()
+        if raw_min:
+            if self._policy_label != "peer_greedy_network_cd":
+                raise RuntimeError(f"FAIL LOUD: {PG_ILS_MIN_BATCH_ENV} is defined for peer_greedy_network_cd only, not {self._policy_label}")
+            self.pg_ils_min_batch = int(raw_min)
+            self.pg_ils_per = int(os.environ[PG_ILS_PER_ENV])
+            self.pg_ils_max_seconds = float(os.environ[PG_ILS_MAX_SECONDS_ENV])
+            self.pg_ils_seed = int(os.environ.get(PG_ILS_SEED_ENV, "0"))
+            if self.pg_cd_exact or self.pg_cd_expansion:
+                raise RuntimeError(f"FAIL LOUD: {PG_ILS_MIN_BATCH_ENV} is the plain CD arm plus ILS; exact search / expansion are off")
         if self.pg_cd_expansion and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
             raise RuntimeError(
                 f"FAIL LOUD: {PG_CD_EXPANSION_ENV}=1 is defined for peer_greedy_network_cd and the CD refine of a seeded plan "
@@ -1350,6 +1376,41 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self._pg_write_books(batch_tasks, plan, orch, memo, committed_service, planned, placements, service_of)
         return moved_tasks
 
+    def _pg_ils(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
+                committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                service_of: Dict[int, Tuple[str, float]]) -> int:
+        """ils_oracle_live: ILS on S from CD's plan, over `_pg_candidates` (a forced placement is pinned). The incumbent replaces CD's plan only
+        when strictly cheaper; books rewritten then. Returns the number of tasks moved."""
+        from scripts_cosim.uncut_ils import default_budget, ils
+
+        n = len(batch_tasks)
+        nodes = self.nodes.items
+        _cands, couple, keys, plan, pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        start = tuple((int(placements[i][0]), int(placements[i][1])) for i in range(n))
+        ckeys = [[start[i]] if i in pinned else sorted(keys[i]) for i in range(n)]
+        budget = default_budget(ckeys, self.pg_ils_per)
+
+        def S(p):
+            return float(self._pg_plan_cost(batch_tasks, [couple[k] for k in p], orch, memo, nodes)[0])
+
+        seed = self.pg_ils_seed * 1_000_003 + min(int(t.id) for t in batch_tasks)
+        r = ils(ckeys, start, S, seed=seed, max_evals=budget, max_seconds=self.pg_ils_max_seconds)
+        bucket = next(tag for tag, hi in PG_ILS_BUCKETS if n <= hi)
+        self.pg_ils_batches += 1
+        setattr(self, f"pg_ils_batches_{bucket}", getattr(self, f"pg_ils_batches_{bucket}") + 1)
+        self.pg_ils_evals += int(r["n_evals"])
+        self.pg_ils_budget_stops += int(r["stopped"] == "evals")
+        if r["stopped"] == "seconds":
+            setattr(self, f"pg_ils_cap_hits_{bucket}", getattr(self, f"pg_ils_cap_hits_{bucket}") + 1)
+        if not r["best_S"] < r["start_S"] - 1e-9:
+            return 0
+        best = tuple(r["best"])
+        moved = sum(1 for i in range(n) if best[i] != start[i])
+        self.pg_ils_tasks_moved += moved
+        self.pg_ils_gain_seconds += r["start_S"] - r["best_S"]
+        self._pg_write_books(batch_tasks, [couple[k] for k in best], orch, memo, committed_service, planned, placements, service_of)
+        return moved
+
     def _pg_write_books(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch, memo: Dict[str, float],
                         committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
                         service_of: Dict[int, Tuple[str, float]]) -> None:
@@ -1814,6 +1875,8 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
         if passes < 1:
             raise ValueError(f"FAIL LOUD: HEROSIM_PG_CD_PASSES must be >= 1, got {raw!r}")
         self._pg_cd_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if self.pg_ils_min_batch is not None and len(batch_tasks) > self.pg_ils_min_batch:
+            self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         if not (self.pg_cd_expansion or self.pg_cd_exact):
             return
         # cd_expand: one expansion phase after the single-task passes converge, then the passes again on the new plan;
