@@ -103,4 +103,5 @@ A convention change, reversible. **The rule for within-cap datasets is untouched
   - `scripts_cosim/extract_dataset_metadata.py` and `scripts_cosim/validate_dataset_collection.py` read the header and report `exhaustive=false` per dataset: a count and a share in `METADATA.json` and the validation report.
   - Wherever either would otherwise treat a sampled file as a sweep, it fails loud.
   - A test in `tests/` asserts that a sampled file without the header is rejected, and that one with it is reported as a sample.
+- **Which rows carry a replayed RTT** (signed 2026-10-13). S is on every row. The replayed RTT is only on each new incumbent along the ILS trajectory, and on the top-m = 8 by S if the lineage's fidelity check (K1b) fires; it is null elsewhere. The header states which rows carry it and their count, and no reader may treat an S value as an RTT. Never replay every evaluated plan.
 - **What a sampled dataset's label is.** An ILS incumbent, not an optimum. Its quality is bounded by the lineage's registered convergence check (`uncut_groups_s0_v1`, ruling 3).
