@@ -82,8 +82,10 @@ def _context(job: Dict[str, Any]):
     return snap, spec, types, offered
 
 
-def phase1(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, Any]) -> Dict[int, List[int]]:
-    """cd_ib0 places the later tasks while the queued and batch tasks are forced; returns {replay task id: [node id, platform id]} for the later tasks."""
+def phase1(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, Any]) -> Dict[str, Any]:
+    """cd_ib0 places the later tasks while the queued and batch tasks are forced. Returns the placements of the later tasks ({replay task id: [node id, platform id]}) and the
+    summed (doneTime - scheduledTime) of the batch and of each later group, read from this same run: a later task may sit on a replica the autoscaler created during the run, which a
+    forced replay of the same placements would not have (phase 2 fails on it), so the horizon metric is this run's."""
     U._setup_env("cd_ib0", job)
     from src.executesimulation import execute_simulation
     from src.placement import fidelity_replay
@@ -139,15 +141,23 @@ def phase1(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, An
         infra["fast_forward_warmup"] = True
         infra["fast_forward_threshold"] = 1
         with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
-            execute_simulation({"infrastructure": infra, "workload": deepcopy(ext["wl"])}, fr.sim_inputs, scheduling_strategy=U.ARMS["cd_ib0"][0], cache_policy="fifo",
-                               task_priority="fifo", models=None, **fr.kw)
+            result = execute_simulation({"infrastructure": infra, "workload": deepcopy(ext["wl"])}, fr.sim_inputs, scheduling_strategy=U.ARMS["cd_ib0"][0], cache_policy="fifo",
+                                        task_priority="fifo", models=None, **fr.kw)
     finally:
         PG.PeerGreedyNetworkBatchScheduler._prefix_inference = orig_inf
         GO.GNNOrchestrator.monitor_process = orig_monitor
     missing = [i for i in ext["group_of"] if i not in placed]
     if missing:
         raise RuntimeError(f"FAIL LOUD: phase 1 never placed later tasks {missing[:5]} (of {len(missing)})")
-    return placed
+    trs = {tr["taskId"]: tr for tr in result["stats"]["taskResults"] if tr.get("taskId", -1) >= 0}
+    missing = [b for b in list(fr.batch_local) + list(ext["group_of"]) if b not in trs]
+    if missing:
+        raise RuntimeError(f"FAIL LOUD: the horizon run finished without results for tasks {missing[:5]} (of {len(missing)})")
+    label = lambda b: float(trs[b]["doneTime"]) - float(trs[b]["scheduledTime"])
+    groups: Dict[int, float] = {}
+    for b, k in ext["group_of"].items():
+        groups[k] = groups.get(k, 0.0) + label(b)
+    return {"placed": placed, "batch": sum(label(b) for b in fr.batch_local), "groups": [groups.get(k, 0.0) for k in range(1, max(ext["group_of"].values(), default=0) + 1)]}
 
 
 def phase2(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, Any], placed: Dict[int, List[int]]) -> Dict[str, Any]:
@@ -191,8 +201,7 @@ def run_state(job: Dict[str, Any], plans: Dict[str, Sequence[Sequence[int]]]) ->
             continue
         per_n = {}
         for N in (0,) + HORIZONS:
-            placed = phase1(job, plan, exts[N]) if N else {}
-            r = phase2(job, plan, exts[N], placed)
+            r = phase1(job, plan, exts[N])
             per_n[str(N)] = {"batch": r["batch"], "later": sum(r["groups"]), "total": r["batch"] + sum(r["groups"]), "n_later_tasks": exts[N]["n_later"]}
         out["plans"][name] = {"by_n": per_n, "plan": [list(p) for p in plan]}
     return out
