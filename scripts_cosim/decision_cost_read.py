@@ -167,10 +167,33 @@ def crossover(by_k, arm):
     return {"grid_k": None, "interpolated_k": None}
 
 
+def in_budget(cells, anc):
+    """GNN primary arms vs the best IN-BUDGET hand arm at each k and rung (k_anchor at the largest B, per rung, >= k; complete arms only), plus each GNN arm's own k_anchor."""
+    out = {}
+    top = f"B={max(ANCHOR_B_MS):g}ms"
+    for k in KS[1:]:
+        row = {}
+        for r in RUNGS:
+            best = None
+            for arm in HAND:
+                ka = anc[arm]["per_rung"][r]["k_anchor"][top]
+                lat = per_topology_latency(cells, name(arm, k), r)
+                if ka is None or ka < k or len(lat) < len(TOPOS):
+                    continue
+                m = st.median(lat.values())
+                if best is None or m < best[1]:
+                    best = (arm, m)
+            for g in GNN_PRIMARY:
+                c = R.contrast(cells, name(g, k), name(best[0], k), r, list(TOPOS)) if best else None
+                row[f"{g}|{r}"] = {"bar": best[0] if best else None, "own_k_anchor": anc[g]["per_rung"][r]["k_anchor"][top], "contrast": c}
+        out[f"{k:g}"] = row
+    return out
+
+
 def anchors(cells, w):
     """k_anchor per hand arm and rung: B / (w x plans per task), B in ANCHOR_B_MS. Largest B and the larger rung value are what the decision line uses."""
     out = {}
-    for arm in HAND:
+    for arm in ARMS:
         per = {}
         for r in RUNGS:
             ppt = plans_per_task(cells, arm, r)
@@ -207,7 +230,7 @@ def read(gates, w_path=DEFAULT_W):
                          "hand_arms_beaten": beaten, "largest_anchor_k_per_rung": lim, "strict": strict, "permissive": permissive,
                          "why": "the node says 'the hand arm it beats' (singular); with a different bar per rung both readings are reported and the ruling is the coordinator's"}
     return {"gate": list(gates), "counts": counts, "failed_why": sorted({str(f.get("why", "?"))[:90] for f in failed.values()}),
-            "by_k": {f"{k:g}": v for k, v in by_k.items()}, "crossover": cross, "anchors": anc, "decision": decision, "utilisation": utilisation(cells), "self_cost": self_cost(cells)}
+            "by_k": {f"{k:g}": v for k, v in by_k.items()}, "crossover": cross, "anchors": anc, "decision": decision, "in_budget": in_budget(cells, anc), "utilisation": utilisation(cells), "self_cost": self_cost(cells)}
 
 
 def print_report(r):
@@ -233,6 +256,12 @@ def print_report(r):
     for key, u in r["utilisation"].items():
         flag = "  UNSTABLE" if u["unstable_cells"] else ""
         print(f"  {key:46s} cells {u['cells']:3d} median {u['median_util']:.3f} max {u['max_util']:.3f} qwait/task {u['median_queue_wait_s_per_task']:.4f}s{flag}")
+    print("-- vs the best IN-BUDGET hand arm (k_anchor at B = 10 ms >= k, per rung) and the GNN arm's own k_anchor")
+    for k, row in r["in_budget"].items():
+        for key, v in row.items():
+            c = v["contrast"]
+            m = "-" if not c or c["median_pct"] is None else format(c["median_pct"], "+.2f") + " %"
+            print(f"  k={k:5s} {key:34s} bar {str(v['bar']):14s} median {m:>9s} wins={c['wins'] if c else None} p={f(c['p']) if c else '-'}  own k_anchor {f(v['own_k_anchor'])}")
     print("-- self cost (arm at k vs the same arm at k = 0; positive = slower because of its own decision time)")
     for key, c in r["self_cost"].items():
         m = "-" if c["median_pct"] is None else format(c["median_pct"], "+.2f") + " %"
