@@ -272,3 +272,43 @@ def test_random_orders_are_seeded_topological_and_distinct_from_each_other():
     free = arm2.random_topological_orders(6, {}, 8, 1, "x")
     assert len({tuple(o) for o in free}) > 1
     assert arm2.random_topological_orders(4, parents, 0, 7, "ds1") == []
+
+
+def _train_two_epochs():
+    """The trainer's loss on the synthetic batch: label-order loss + 2 random orders + anchor CE, Adam, two epochs."""
+    torch.manual_seed(3)
+    model = _model(every="auto", anchor=True)
+    model.train()
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+    ctx = _ctx()
+    plan = {0: 1, 1: 4, 2: 5, 3: 2}  # logit index per task
+    for _ in range(2):
+        data = _graph()
+        layout = arm2.layout_for(model, data, ctx)
+        label_nodes = {t: REPLICAS[plan[t]][0] for t in range(N_TASKS)}
+        teacher = arm2.anchor_label(layout, label_nodes)
+        score = arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher)
+        orders = [list(range(N_TASKS))] + arm2.random_topological_orders(N_TASKS, {}, 2, 42, "ds")
+        total = torch.zeros(())
+        for order in orders:
+            committed, logp = {}, torch.zeros(())
+            for t in order:
+                logp = logp + torch.log_softmax(score(t, committed), dim=-1)[plan[t]]
+                committed[t] = REPLICAS[plan[t]]
+            total = total - logp
+        loss = total / len(orders)
+        for lg, node in zip(score.anchor_logits(), teacher):
+            loss = loss + 0.5 * torch.nn.functional.cross_entropy(
+                lg.unsqueeze(0), torch.tensor([layout.group_nodes[0].index(node)]))
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    return {k: v.detach().clone() for k, v in model.state_dict().items()}
+
+
+def test_training_loop_with_both_flags_and_random_prefix_is_bit_identical():
+    a, b = _train_two_epochs(), _train_two_epochs()
+    assert a.keys() == b.keys()
+    assert all(torch.equal(a[k], b[k]) for k in a)
+    start = _model(every="auto", anchor=True).state_dict()
+    assert any(not torch.equal(a[k], start[k]) for k in ("committed_task_enc.weight", "anchor_head.0.weight"))
