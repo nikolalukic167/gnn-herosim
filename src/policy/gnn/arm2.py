@@ -299,13 +299,16 @@ def make_arm2_score_fn(
     ctx: Any,
     *,
     teacher_anchor: Optional[Sequence[int]] = None,
+    single_encode: bool = False,
 ) -> Callable[[int, Mapping[int, Any]], Tensor]:
     """``(task_idx, committed) -> logits[task_idx]`` for a model with B1 and/or B2.
 
     The encode used at ``len(committed) = n`` sees the first ``(n // m) * m`` commits of the dict, in
     insertion order, so train (label order) and decode (commit order) agree. ``teacher_anchor`` is the
     label node per group, used in place of the head's argmax. The returned callable carries
-    ``.anchor_logits()`` and ``.encode_count`` for the loss and the decision-charge meter.
+    ``.anchor_logits()`` and ``.encode_count`` for the loss and the decision-charge meter, ``.snapshot_key(committed)``
+    (the committed prefix the encode saw, which a caller memoising logits must key on) and ``.close()`` (drops the Arm 2
+    state from the graph). ``single_encode`` forces the empty snapshot (one encode), as the full-context term uses.
     """
     expected = partial_state_feature_dim(getattr(ctx, "contract", None))
     if int(model.partial_state_edge_dim) != expected + (1 if model.group_anchor else 0):
@@ -314,7 +317,7 @@ def make_arm2_score_fn(
             f"contract emits {expected} columns (+1 with the group anchor)"
         )
     layout = _layout(data, ctx, model)
-    period = reencode_period(model.reencode_every, layout.n_tasks) if model.committed_inputs else None
+    period = reencode_period(model.reencode_every, layout.n_tasks) if model.committed_inputs and not single_encode else None
     encodes: Dict[Tuple[Any, ...], Tuple[Tensor, Tensor]] = {}
     anchors: Dict[str, Any] = {}
 
@@ -345,9 +348,12 @@ def make_arm2_score_fn(
 
     base_attr: Dict[str, Tensor] = {}
 
-    def score(task_idx: int, committed: Mapping[int, Any]) -> Tensor:
+    def snapshot_of(committed: Mapping[int, Any]) -> Dict[int, Any]:
         c0 = 0 if period is None else (len(committed) // period) * period
-        snapshot = dict(list(committed.items())[:c0])
+        return dict(list(committed.items())[:c0])
+
+    def score(task_idx: int, committed: Mapping[int, Any]) -> Tensor:
+        snapshot = snapshot_of(committed)
         task_emb, platform_emb = encode(snapshot)
         task_idx = int(task_idx)
         candidates = layout.placements[task_idx]
@@ -374,6 +380,14 @@ def make_arm2_score_fn(
         anchor_nodes()
         return anchors["logits"]
 
+    def snapshot_key(committed: Mapping[int, Any]) -> Tuple[Any, ...]:
+        return tuple(sorted((int(j), tuple(int(v) for v in p)) for j, p in snapshot_of(committed).items()))
+
+    def close() -> None:
+        clear_committed_state(data)
+
+    score.snapshot_key = snapshot_key
+    score.close = close
     score.anchor_logits = anchor_logits_fn
     score.anchor_layout = layout
     score.encode_count = lambda: len(encodes)

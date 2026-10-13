@@ -312,3 +312,44 @@ def test_training_loop_with_both_flags_and_random_prefix_is_bit_identical():
     assert all(torch.equal(a[k], b[k]) for k in a)
     start = _model(every="auto", anchor=True).state_dict()
     assert any(not torch.equal(a[k], start[k]) for k in ("committed_task_enc.weight", "anchor_head.0.weight"))
+
+
+def test_snapshot_key_separates_same_set_with_a_different_prefix_order():
+    model, data = _model(every="2", anchor=True), _graph()
+    score = arm2.make_arm2_score_fn(model, data, _ctx(), teacher_anchor=[0])
+    a = {0: (0, 0), 1: (1, 0), 2: (2, 0)}
+    b = {2: (2, 0), 1: (1, 0), 0: (0, 0)}
+    assert sorted(a.items()) == sorted(b.items())
+    assert score.snapshot_key(a) != score.snapshot_key(b)
+    assert score.snapshot_key(a) == tuple(sorted(list(a.items())[:2]))
+    assert score.snapshot_key({0: (0, 0)}) == ()
+
+
+def test_single_encode_uses_one_encode_for_any_committed_set():
+    model, data = _model(every="1", anchor=True), _graph()
+    score = arm2.make_arm2_score_fn(model, data, _ctx(), teacher_anchor=[0], single_encode=True)
+    with torch.no_grad():
+        for committed in ({}, {0: (0, 0)}, {0: (0, 0), 1: (1, 0)}, {3: (2, 1), 1: (1, 0)}):
+            score(2, committed)
+    assert score.encode_count() == 1
+
+
+def test_model_after_a_loss_equals_the_result_on_a_fresh_graph():
+    model = _model(every="1", anchor=True)
+    ctx = _ctx()
+    data = _graph()
+    score = arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=[1])
+    with torch.no_grad():
+        score(3, {0: (0, 0), 1: (1, 1), 2: (2, 0)})
+        score.close()
+        assert all(getattr(data, n, None) is None for n in arm2.ARM2_ATTRS)
+        for g in (data, _graph()):
+            g.partial_state_edge_attr = torch.zeros((g.edge_index.size(1), WIDTH + 1))
+        used, fresh = model(data), model(_graph_with_zero_attr())
+    assert all(torch.equal(x, y) for x, y in zip(used, fresh))
+
+
+def _graph_with_zero_attr():
+    g = _graph()
+    g.partial_state_edge_attr = torch.zeros((g.edge_index.size(1), WIDTH + 1))
+    return g

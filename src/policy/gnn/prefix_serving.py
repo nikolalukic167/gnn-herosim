@@ -763,6 +763,7 @@ def decode_prefix_conditioned(
     }
     score_fn = make_partial_state_score_fn(model, graph, ctx)
     encode_count = getattr(score_fn, "encode_count", None)
+    arm2_close = getattr(score_fn, "close", None)
     if options.concurrency_penalty > 0.0:
         score_fn = _with_concurrency_penalty(score_fn, graph, options.concurrency_penalty)
     # serving_stability_v1 S3: per-candidate queue depth, read from the same snapshot the
@@ -806,6 +807,8 @@ def decode_prefix_conditioned(
         )
     if encode_count is not None:
         graph._arm2_encodes = int(encode_count())  # the scheduler meters the re-encodes (decision_cost)
+    if arm2_close is not None:
+        arm2_close()
     passes = _self_refine_passes()
     if passes:
         if options.platform_cap > 0 or options.queue_guard_k > 0.0 or not options.allow_replica_reuse \
