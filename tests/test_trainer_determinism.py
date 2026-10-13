@@ -549,3 +549,64 @@ def test_graph_free_arms_train_bit_identically_at_a_fixed_seed(kind):
 
     first, second = train_arm_once(kind, SEED), train_arm_once(kind, SEED)
     _assert_state_dicts_identical(first, second, f"r1_attribution_v1 {kind}")
+
+
+def test_arm2_flags_on_teacher_forced_loss_is_bit_identical_on_a_peer_cache():
+    """Arm 2 (GNN_REENCODE_EVERY=auto, GNN_GROUP_ANCHOR=1, random-prefix K=2) on a cache that has peer edges and
+    partial_state_v4/v5 load seconds (the Arm 1 / slate_fix corpus). Skipped unless ARM2_DETERMINISM_CACHE names one."""
+    import os
+    import pickle
+
+    import numpy as np
+
+    from src.policy.gnn import arm2
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+    from src.policy.gnn.seq_decode import topological_task_order
+    from src.policy.tabular.reduced_features import build_partial_state_context_from_graph, partial_state_feature_dim
+
+    cache = os.environ.get("ARM2_DETERMINISM_CACHE", "")
+    if not cache or not (Path(cache) / "graphs.pkl").exists():
+        pytest.skip("ARM2_DETERMINISM_CACHE not set to a peer cache")
+    with open(Path(cache) / "graphs.pkl", "rb") as handle:
+        graphs = [g for g in pickle.load(handle) if int(g.n_tasks) >= 2][:4]
+    contract = graphs[0].partial_state_ctx.get("contract") or os.environ.get("PARTIAL_STATE_CONTRACT")
+    torch.set_num_threads(1)
+
+    def one_run():
+        np.random.seed(SEED)
+        torch.manual_seed(SEED)
+        sample = graphs[0]
+        model = TaskPlacementGNN(
+            task_feature_dim=int(sample.task_features.shape[1]),
+            platform_feature_dim=int(sample.platform_features.shape[1]),
+            edge_dim=int(sample.edge_attr.shape[1]),
+            task_type_onehot_dim=4, mp_peer_edges=True, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True,
+            partial_state_edge_dim=partial_state_feature_dim(contract), reencode_every="auto", group_anchor=True,
+        )
+        opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+        for _ in range(2):
+            for graph in graphs:
+                ctx = build_partial_state_context_from_graph(graph)
+                ctx.node_caps = graph.partial_state_ctx["node_caps_by_alpha"]["inf"]
+                n = int(graph.n_tasks)
+                plan = graph.tied_optimal_logit_plans["inf"][0]
+                layout = arm2.layout_for(model, graph, ctx)
+                teacher = arm2.anchor_label(layout, {t: int(graph.task_logit_to_placement[t][plan[t]][0]) for t in range(n)})
+                score = arm2.make_arm2_score_fn(model, graph, ctx, teacher_anchor=teacher)
+                orders = [topological_task_order(n, graph.dag_parents)] + arm2.random_topological_orders(
+                    n, graph.dag_parents, 2, SEED, str(getattr(graph, "dataset_id", "")))
+                loss = torch.zeros(())
+                for order in orders:
+                    committed = {}
+                    for t in order:
+                        loss = loss - torch.log_softmax(score(t, committed), dim=-1)[int(plan[t])] / len(orders)
+                        committed[t] = tuple(int(v) for v in graph.task_logit_to_placement[t][plan[t]])
+                for g, (lg, node) in enumerate(zip(score.anchor_logits(), teacher)):
+                    loss = loss + 0.5 * torch.nn.functional.cross_entropy(
+                        lg.unsqueeze(0), torch.tensor([layout.group_nodes[g].index(node)]))
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+        return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+    _assert_state_dicts_identical(one_run(), one_run(), "Arm 2 teacher-forced CE")
