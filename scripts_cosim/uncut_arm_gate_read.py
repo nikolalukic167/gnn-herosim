@@ -29,7 +29,7 @@ F2 (Holm over 8 with the MLP, 4 without): primary vs twin (and vs MLP) x 2 x 2. 
   labelled separately and naming the corpus.
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
   sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
-  OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (> 3 x cd's mean, either statistic), tail flag
+  OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (per seed cell, > 3 x cd's mean, either statistic; the arm's count is the worse seed's), tail flag
   (end - last arrival > 120 s), WALL-INFEASIBLE, decision share ((sched_queue_wait + sched_busy) / tasks / mean), and the training effect
   (primary vs the slate_fix_v1 reference).
 """
@@ -156,12 +156,15 @@ def win_four(es, med, alpha):
 
 
 def health(cells, failed, arm, seeds, topos):
+    """Collapse is tested per seed cell against cd (the expert's ruling: a seed mean can hide one collapsing seed). Counts are kept per seed;
+    the arm's collapse count for the health clause is the worse seed's."""
     out = {}
     for r in RUNGS:
-        row = {"cells": 0, "missing": [], "collapse": {k: 0 for k in STATS}, "collapse_any": 0, "tail_flag": 0, "wall_infeasible": 0, "other_failed": 0}
+        row = {"cells": 0, "missing": [], "per_seed": {sd: {"collapse": {k: 0 for k in STATS}, "collapse_any": 0} for sd in seeds},
+               "tail_flag": 0, "wall_infeasible": 0, "other_failed": 0}
         for t in topos:
             for w in WINDOWS:
-                m, ref = cell_mean(cells, arm, seeds, t, w, r), cell_mean(cells, CD, (0,), t, w, r)
+                ref = cell_mean(cells, CD, (0,), t, w, r)
                 for sd in seeds:
                     f = failed.get((arm, sd, t, w, r))
                     if f is not None:
@@ -169,16 +172,20 @@ def health(cells, failed, arm, seeds, topos):
                             row["wall_infeasible"] += 1
                         else:
                             row["other_failed"] += 1
-                if m is None:
+                    s = cells.get((arm, sd, t, w, r))
+                    if s is None:
+                        continue
+                    m = means(s)
+                    c = {k: bool(ref and m[k] > COLLAPSE_X * ref[k]) for k in STATS}
+                    for k in STATS:
+                        row["per_seed"][sd]["collapse"][k] += c[k]
+                    row["per_seed"][sd]["collapse_any"] += any(c.values())
+                    row["tail_flag"] += float(s["endTime"]) - float(s["arrival_end"]["last_arrival_s"]) > TAIL_S
+                if cell_mean(cells, arm, seeds, t, w, r) is None:
                     row["missing"].append(f"{t}{w}")
-                    continue
-                row["cells"] += 1
-                c = {k: bool(ref and m[k] > COLLAPSE_X * ref[k]) for k in STATS}
-                for k in STATS:
-                    row["collapse"][k] += c[k]
-                row["collapse_any"] += any(c.values())
-                row["tail_flag"] += any(float(s["endTime"]) - float(s["arrival_end"]["last_arrival_s"]) > TAIL_S
-                                        for s in (cells.get((arm, sd, t, w, r)) for sd in seeds) if s)
+                else:
+                    row["cells"] += 1
+        row["collapse_any"] = max(v["collapse_any"] for v in row["per_seed"].values())
         out[r] = row
     return out
 
