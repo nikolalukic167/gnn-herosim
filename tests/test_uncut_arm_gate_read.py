@@ -120,3 +120,11 @@ def test_one_seed_missing_drops_the_cell(gate):
     os.remove(os.path.join(d, f"cc40s1__g0heavy__{P}_k100_s2.tasks_bsz.npy"))
     res = run(d, cm)
     assert "1g0" in res["health"][P]["heavy"]["missing"]
+
+
+def test_one_collapsing_seed_counts(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    cell(d, P, 2, 1, "g0", "heavy", 9.0, ck)
+    h = run(d, cm)["health"][P]["heavy"]
+    assert h["per_seed"][2]["collapse_any"] == 1 and h["per_seed"][1]["collapse_any"] == 0 and h["collapse_any"] == 1
