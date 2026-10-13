@@ -88,6 +88,28 @@ def counts(cells, failed, arms, topos, suffix=""):
             for a in arms for r in RUNGS}
 
 
+def wall_infeasible(failed, arms, topos, suffix=""):
+    """Third health count: watchdog-projected kills (projected wall > 1.5 x limit). Never pooled into collapse, never counted healthy;
+    every other failure is listed apart as `other_failed`."""
+    out = {}
+    for arm in arms:
+        for rung in RUNGS:
+            row = {"wall_infeasible": 0, "wall_infeasible_g0": 0, "other_failed": 0, "cells": [], "other": []}
+            for (a, t, w, r), path in sorted(failed.items()):
+                if a != arm + suffix or r != rung or t not in topos:
+                    continue
+                d = json.load(open(path))
+                if str(d.get("why", "")).startswith("watchdog: projected"):
+                    row["wall_infeasible"] += 1
+                    row["wall_infeasible_g0"] += w == "g0"
+                    row["cells"].append({"topo": t, "window": w, "detail": (d.get("watchdog") or {}).get("detail")})
+                else:
+                    row["other_failed"] += 1
+                    row["other"].append({"topo": t, "window": w, "why": str(d.get("why"))[:120]})
+            out[f"{arm}|{rung}"] = row
+    return out
+
+
 def k0_health(cells, topos):
     """g0 health of cd and cd_exactS per rung: no collapse on either statistic and effective_queue_share <= 0.80."""
     out = {}
@@ -242,6 +264,7 @@ def read_k0(a):
     arms = a.arms.split(",")
     cells, failed = load_gate(a.gate)
     out = {"counts": counts(cells, failed, arms, topos), "health": health_table(cells, arms, topos)}
+    out["wall_infeasible"] = wall_infeasible(failed, arms, topos)
     out["k0_health"], out["verdict"] = k0_health(cells, topos)
     out["uncut_share"] = whole_group_share(cells, a.bar_arm, topos)
     out["split_counts"] = split_counts(cells, arms, topos)
@@ -252,7 +275,7 @@ def read_k1(a):
     topos = [int(x) for x in a.topos.split(",")]
     arms = a.arms.split(",")
     cells, failed = load_gate(a.gate)
-    out = {"counts": counts(cells, failed, arms, topos, a.suffix)}
+    out = {"counts": counts(cells, failed, arms, topos, a.suffix), "wall_infeasible": wall_infeasible(failed, arms, topos, a.suffix)}
     pick, ht = pick_hand_arm(cells, arms, topos, a.suffix)
     out["hand_arm"], out["health"] = pick, ht
     out["headroom"] = {r: headroom(cells, pick[r]["decides"], a.suffix, topos, r) for r in RUNGS if pick[r]["decides"]}
