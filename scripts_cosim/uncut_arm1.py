@@ -15,7 +15,7 @@ import random
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 U_REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(U_REPO))
@@ -208,7 +208,7 @@ def job_of(state: Dict[str, Any], root: str) -> Dict[str, Any]:
             "cell_config": f"{root}/inputs{s}/inputs_group/wf1_{rung}/cfg/cc40s{topo}.json", "sim_input": str(U_REPO / "data" / "nofs-ids"), "role": "first"}
 
 
-def label_state(job: Dict[str, Any], seed: int = 0) -> Dict[str, Any]:
+def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = None) -> Dict[str, Any]:
     """The Arm 1 label of one state. <= 10 tasks: the exact S-optimum when the candidate product has <= EXACT_CAP plans. Otherwise ILS from the hand (cd_ib0) plan at the K1(b)
     budget, one replay each of the hand and ILS plans, label = ILS iff r >= R_MIN else hand. A state whose hand plan cannot be re-decided whole (SPLIT / UNPLACED) takes the served
     plan from the capture's chosen sidecar (hand label); one with deferrals in the served plan is dropped and reported."""
@@ -222,7 +222,7 @@ def label_state(job: Dict[str, Any], seed: int = 0) -> Dict[str, Any]:
             if d["exhaustive"]:
                 return {**base, "source": "exact", "label": d["exhaustive"]["argmin_batch"], "label_S": d["exhaustive"]["s_opt"], "exact_plans": d["exhaustive"]["plans"],
                         "hand_equals_label": d["hand"] == d["exhaustive"]["argmin_batch"]}
-        row = U.run_state(dict(job), "cd_ib0", seed, None, 200, ILS_SECONDS, "final")
+        row = U.run_state(dict(job, keep_plans=evals_dir is not None), "cd_ib0", seed, None, 200, ILS_SECONDS, "final")
     except RuntimeError as exc:
         from src.placement import live_audit
 
@@ -236,9 +236,19 @@ def label_state(job: Dict[str, Any], seed: int = 0) -> Dict[str, Any]:
         return {**base, "source": "hand_served", "reason": reason, "label": [served[g] for g in gids]}
     r = (row["rtt_hand"] - row["rtt_ils"]) / row["rtt_hand"] if row["rtt_hand"] > 0 else 0.0
     use_ils = r >= R_MIN
+    evals_file = None
+    if evals_dir is not None and row.get("evals_full"):       # every ILS-evaluated plan with its S and iteration, snapshot gid order (the header of the dataset's placements.jsonl points here)
+        import gzip
+
+        Path(evals_dir).mkdir(parents=True, exist_ok=True)
+        evals_file = str(Path(evals_dir) / (hashlib.sha1(str(job["state_id"]).encode()).hexdigest()[:16] + ".jsonl.gz"))
+        with gzip.open(evals_file + ".partial", "wt") as fh:
+            for ev, sv, it, plan in row["evals_full"]:
+                fh.write(json.dumps({"eval": ev, "iter": it, "S": sv, "plan": plan}, separators=(",", ":")) + "\n")
+        os.replace(evals_file + ".partial", evals_file)
     return {**base, "source": "ils" if use_ils else "hand", "label": row["best"] if use_ils else row["hand"], "r": r, "rtt_hand": row["rtt_hand"], "rtt_ils": row["rtt_ils"],
             "hand": row["hand"], "ils": row["best"], "start_S": row["start_S"], "best_S": row["best_S"], "n_evals": row["n_evals"], "budget": row["budget"], "stopped": row["stopped"],
-            "time_bound": row["time_bound"], "plan_space": row["plan_space"], "slate_log10": row["slate_log10"], "cands_mean": row["cands_mean"], "search_wall": row["search_wall"],
+            "time_bound": row["time_bound"], "evals_file": evals_file, "iters": row["iters"], "plan_space": row["plan_space"], "slate_log10": row["slate_log10"], "cands_mean": row["cands_mean"], "search_wall": row["search_wall"],
             "chosen_match": row.get("chosen_match")}
 
 
@@ -290,7 +300,7 @@ def main() -> int:
             for st_ in states[k::m]:
                 if st_["key"] in done:
                     continue
-                row = label_state(job_of(st_, a.root), a.seed)
+                row = label_state(job_of(st_, a.root), a.seed, f"{a.root}/evals")
                 row["set"], row["topology"], row["window"], row["rung"], row["early"], row["side"] = st_["set"], st_["topology"], st_["window"], st_["rung"], st_["early"], st_["side"]
                 fh.write(json.dumps(row, separators=(",", ":")) + "\n"); fh.flush()
                 print(row["state_id"], row["source"], flush=True)

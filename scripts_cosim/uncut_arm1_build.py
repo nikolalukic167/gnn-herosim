@@ -109,6 +109,7 @@ def build_state(label: Dict[str, Any], state: Dict[str, Any], root: str, out_dir
     apps = list(c["cell"]["wsc"].keys())
     fr = fidelity_replay.FidelityReplay(spec, [next(iter(e["application"]["dag"])) for e in workload["events"]],
                                         {t: [(sp["node_name"], sp["platform_id"]) for sp in specs if sp.get("candidate", True)] for t, specs in infra["live_snapshot_seed"]["replicas_by_type"].items()})
+    s_of = {"label": label.get("label_S") if label["source"] == "exact" else (label.get("best_S") if label["source"] == "ils" else label.get("start_S")), "hand": label.get("start_S")}
     rows, results = [], {}
     for name, p in plans:
         dp = dataset_plan(p, gids_sorted, workload["trace_task_ids"])
@@ -116,7 +117,7 @@ def build_state(label: Dict[str, Any], state: Dict[str, Any], root: str, out_dir
         stats = res["stats"]
         rtt = _rtt(stats)
         tt = [[int(tr["taskId"]), float(tr["dispatchedTime"]), float(tr["doneTime"])] for tr in stats["taskResults"] if tr.get("taskId") is not None and tr["taskId"] >= 0]
-        rows.append({"name": name, "row": {"placement_plan": dp, "rtt": rtt, "task_times": tt, "makespan": max(d for _, _, d in tt) - min(s for _, s, _ in tt),
+        rows.append({"name": name, "row": {"placement_plan": dp, "S": s_of[name], "iter": (label.get("iters") if (name == "label" and label["source"] == "ils") else 0), "rtt": rtt, "task_times": tt, "makespan": max(d for _, _, d in tt) - min(s for _, s, _ in tt),
                                            "peer_exchange_total": float(stats["totalPeerExchangeTime"])}})
         res["config"] = {"infrastructure": infra, "workload": workload}
         res["sample"] = {"apps": apps, "placement_plan": dp}
@@ -129,9 +130,18 @@ def build_state(label: Dict[str, Any], state: Dict[str, Any], root: str, out_dir
     if ds.exists():
         shutil.rmtree(ds)
     (ds / "placements").mkdir(parents=True)
-    header = {"header": True, "exhaustive": False, "plan_space_size": label.get("plan_space"), "n_tasks": len(ids), "label_source": label["source"], "label_rule": "ILS iff (RTT_hand - RTT_ILS) / RTT_hand >= 0.10",
+    ev_file = label.get("evals_file")
+    if ev_file and os.path.exists(ev_file):
+        shutil.copyfile(ev_file, ds / "placements" / "ils_evaluated.jsonl.gz")
+    header = {"header": True, "exhaustive": False, "plan_space_size": label.get("plan_space"), "n_tasks": len(ids), "label_source": label["source"],
+              "search": "ils" if label["source"] in ("ils", "hand") else "exact_enumeration" if label["source"] == "exact" else "served_plan", "seed": 0, "cap": U.CAP,
+              "s_pin": {"surrogate": "peer_greedy_network _pg_plan_cost", "batch_alpha": 0.0, "drain_alpha": 1.0},
+              "evaluated_plans_file": "placements/ils_evaluated.jsonl.gz" if ev_file else None,
+              "evaluated_plans_note": "every ILS-evaluated plan with its S and iteration, plan lists in snapshot gid order (trace_task_ids maps dataset task i to its gid); kept beside placements.jsonl, "
+              "not in it, so the training cache parses 2 rows instead of tens of thousands (deviation from 'every evaluated plan goes in the file', disclosed)",
+              "trace_task_ids": workload["trace_task_ids"], "snapshot_gids_sorted": gids_sorted, "label_rule": "ILS iff (RTT_hand - RTT_ILS) / RTT_hand >= 0.10",
               "r": label.get("r"), "eval_budget": label.get("budget"), "evals_done": label.get("n_evals"), "ils_version": U.ILS_VERSION, "state_id": label["state_id"],
-              "replayed_rows_are": "the label plan and, for an ILS label, the hand plan", "candidate_slate": declared_slate.RULE_UNCAPPED}
+              "replayed_rows_are": "the label plan and, for an ILS label, the hand plan; S on every row", "candidate_slate": declared_slate.RULE_UNCAPPED}
     with open(ds / "placements" / "placements.jsonl", "w") as fh:
         fh.write(json.dumps(header, separators=(",", ":")) + "\n")
         for r in rows:
