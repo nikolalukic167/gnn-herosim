@@ -299,6 +299,23 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 gate pin 10a1aa03; the `cd_ib0` k = 1 bar is rerun there, and 869284 is superseded as the bar** (the expert's ruling).
+  - **One pin for both sides.** The bar and the learned Arm 1 cells run at 10a1aa03. If the learned cells need a later commit, the bar is rerun at that pin.
+  - **Why 869284 is superseded.** It ran at f8814905, which predates the per-task batch-size logging (1ec2eb5e). So its cells have no `.tasks_bsz.npy` and no per-task lock wait, and the gate reader fails loud on them. Its directory, `arm1_k1_bar/`, is kept untouched and is not read.
+  - **Per-task lock wait instrument** (10a1aa03; instrument only, no decision path reads it).
+    - The live gate writes `.tasks_lock.npy` beside `.tasks_bsz.npy`, on the same rows: taskId, ioEndTime, computeStartTime, lock_wait.
+    - `HEROSIM_RETAIN_TASK_TIMES` is the co-sim per-plan flag (`executecosimulation.py:2716`) and never reached these sidecars.
+    - Smoke 869495 (19537 g0 heavy): 50,000 rows, 0 NaN, and the mean equals the summary's `lock_wait.mean` (0.74270). SCIENTIST passed it.
+  - **Determinism proof (869494).** `cd_ib0_k100` 19537 g0 heavy was rerun at f8814905 and compared with 869284.
+    - Every simulation key in the summary is identical, and `.tasks.npy` is byte-identical.
+    - Only the wall-time `decisionTiming` fields, `wallclock_s`, `total_rtt_plus_inference` and the hostname differ.
+    - The 10a1aa03 smoke is also simulation-identical to 869284. It adds only zero-default counters and the sidecar row counts.
+    - `cd_ib0`'s w in `decision_cost_w.json` is unchanged between the two pins (the diff only adds nosplit arms).
+  - **Rerun:** job 869497, 96 cells (19537–19548 × g0–g3 × moderate/heavy, seed 0), `inputs_group`, output `/share/nikola.lukic/uncut_groups/arm1_k1_bar_10a1aa03`. The reader reads only this directory for the bar.
+  - **Reader requirements (SCIENTIST).**
+    - The reader fails loud on any unstamped lock row. A NaN row is never counted as 0.
+    - The reader takes each cell's pin from both the summary's `code` block and the log's `[CODE]` banner. Every bar and learned cell must show the gate pin with dirty=False (`run_provenance` is None in these summaries).
+
 - 2026-10-13 — **Arm 1 build disclosure** (S7, build 869479, `uncut_arm1_build.py`). 12,000 labels → 11,073 datasets built; train 9,965 (le10 3,982 / 11_50 3,859 / 51_100 1,652 / 101_256 472), held-out 1,108 (418 / 433 / 195 / 62). **101_256 is thin** (600 drawn: 34 dropped at label as SPLIT, 66 rejected by the builder, 534 built); not topped up (the gate reads whole groups at k=1). Not built: 413 dropped at label (SPLIT 405, UNPLACED 2, OTHER 6) and 514 rejected by the builder (no_choice, no_peer_pairs, single_candidate_node, peer pairs outside the batch, unplaced partner). **65 rejected as "batch ids are not consecutive"** (11_50 31, 51_100 15, 101_256 11, le10 8; ILS 31, hand 26, exact 8): the check is inherited from `make_warm_corpus.check_consecutive_batch`; in all 65 the missing ids are in the batch's id range but are not peer partners of any batch task (none appears in `fidelity.pairs` with a batch task), i.e. unrelated tasks dispatched elsewhere. Builder strictness, not a label defect; it removes 0.5 % of states (1.8 % of 101_256).
 - 2026-10-13 — **`ils_oracle_live` contrast B added: the label stays PARTIAL + CEILING-TRUNCATED** (job 869009, `ils_oracle_exact10` at f8814905, identity passed; 12/12 cells, 0 failed; same reader; output `/share/nikola.lukic/uncut_groups/s6_reader/read_final_AB.json`, md5 1078e60c). A's label is untouched.
   - **Contrast B (`ils_oracle_exact10` vs `cd_exactS_ib0`, after 360 s):**

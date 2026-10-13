@@ -7,11 +7,12 @@ multiplicity and ids, 1c7c8682 MLP trained) and SCIENTIST's gate-reader checklis
                          --checkpoint-md5 ckpt_md5.json [--suffix _k100] [--out read.json]
 
 Cells: <gate>/cc40s<topo>__g<w><rung>__<arm><suffix>_s<seed>.summary.json, windows g0-g3, rungs moderate/heavy. Learned arms at seeds 1 and 2;
-the slate_fix_v1 reference at seed 1; hand arms (cd_ib0, cd) at seed 0. Beside each summary: .tasks.npy and .tasks_bsz.npy.
+the slate_fix_v1 reference at seed 1; hand arms (cd_ib0, cd) at seed 0. Beside each summary: .log, .tasks.npy, .tasks_bsz.npy and .tasks_lock.npy.
 
-Asserts (fail loud): every cell's code.commit starts with --pin and code.dirty is false; sha256 of the comma-joined --topos equals --topos-sha256;
+Asserts (fail loud): every cell's code.commit starts with --pin and code.dirty is false, and so does its log's [CODE] banner; sha256 of the comma-joined --topos equals --topos-sha256;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5});
-every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in).
+every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
+rows with no unstamped (NaN) task (never counted as 0 lock wait).
 
 Cell value: a learned arm's cell mean = the mean of its two seeds' cell means (whole-run averageElapsedTime, after-360 s steady_state.after_360s.mean);
 a cell with either seed missing is missing for the arm. Each seed is also read alone.
@@ -90,6 +91,19 @@ def md5(path):
     return h.hexdigest()
 
 
+def log_banner(path):
+    """(commit prefix, dirty) from the cell log's `[CODE] commit=<sha> ... dirty=<bool>` line; None without one. A second
+    pin source beside the summary's `code` block (run_provenance.code is None in these summaries)."""
+    if not os.path.exists(path):
+        return None
+    with open(path, errors="replace") as fh:
+        for line in fh:
+            if line.startswith("[CODE]"):
+                f = dict(p.split("=", 1) for p in line.split()[1:] if "=" in p)
+                return f.get("commit", ""), f.get("dirty")
+    return None
+
+
 def asserts(cells, pin, learned, ckpt):
     for key, s in cells.items():
         code = s.get("code") or {}
@@ -101,6 +115,18 @@ def asserts(cells, pin, learned, ckpt):
         a = np.load(bsz)
         if a.ndim != 2 or a.shape[1] != 5 or (a[:, 3] < 0).any() or (a[:, 4] < 0).any():
             raise SystemExit(f"FAIL LOUD: {key} per-task sidecar lacks groupSize/servedBatchSize on some task")
+        banner = log_banner(s["_path"].replace(".summary.json", ".log"))
+        if banner is None or len(banner[0]) < 7 or not (banner[0].startswith(pin) or pin.startswith(banner[0])) or banner[1] != "False":
+            raise SystemExit(f"FAIL LOUD: {key} log banner {banner} is not the gate pin {pin} with dirty=False")
+        lk_path = s["_path"].replace(".summary.json", ".tasks_lock.npy")
+        if not os.path.exists(lk_path):
+            raise SystemExit(f"FAIL LOUD: {key} has no per-task lock-wait sidecar {lk_path}")
+        lk = np.load(lk_path)
+        if lk.ndim != 2 or lk.shape[1] != 4 or lk.shape[0] != a.shape[0] or not np.array_equal(lk[:, 0], a[:, 0]):
+            raise SystemExit(f"FAIL LOUD: {key} lock-wait sidecar rows do not follow the batch-size sidecar")
+        n_unstamped = int(np.isnan(lk[:, 1:]).any(axis=1).sum())
+        if n_unstamped:
+            raise SystemExit(f"FAIL LOUD: {key} lock-wait sidecar has {n_unstamped} unstamped task(s); never counted as 0")
         if key[0] in learned:
             want = ckpt.get(f"{key[0]}|s{key[1]}")
             path = (s.get("env") or {}).get("GNN_MODEL_PATH")
