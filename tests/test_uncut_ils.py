@@ -197,6 +197,8 @@ def test_unreplayable_states_are_listed_apart_from_missing_and_imputed_like_miss
     assert r["unreplayable"]["total"] == 4 and r["unreplayable"]["11_50"] == ["u0", "u1", "u2", "u3"] and r["missing"]["total"] == 0
     assert abs(r["unreplayable"]["share_of_sealed"] - 4 / 7) < 1e-9
     assert r["mean_captured_pct"] < 1.0 <= r["mean_imputed_pct"] and r["NOT_SATISFIED"] is True        # (1.5 + 4 x 1.5)/7 = 1.07 %
+    assert r["accounting"]["sealed"] == 7 and r["accounting"]["by_bucket"]["11_50"] == {"replayable_main": 3, "unreplayable": 4, "missing": 0, "excluded_retry": 0}
+    assert abs(r["11_50"]["max_pct"] - 1.5) < 1e-9 and abs(r["11_50"]["mean_imputed_pct"] - 100 * 0.075 / 7) < 1e-9
 
 
 def test_retry_states_are_out_of_the_mean_listed_and_flagged_with_a_composite():
