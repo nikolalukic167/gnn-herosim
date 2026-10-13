@@ -14,6 +14,7 @@ import gc
 import hashlib
 import itertools
 import json
+import math
 import os
 import random
 import sys
@@ -547,6 +548,10 @@ def _plan_agreement_with_label(
     return best_agree, len(choice), exact
 
 
+# Arm 2 anchor head, per train epoch: summed CE, summed chance floor log(#candidate nodes), top-1 hits, groups.
+_ANCHOR_STATS: Dict[str, float] = {"ce": 0.0, "floor": 0.0, "top1": 0.0, "groups": 0.0}
+
+
 def loss_tied_teacher_forced_ce(
     model: nn.Module, data: Data, device: torch.device, *, full_context_weight: float = 0.0,
     random_prefix_k: int = 0,
@@ -671,6 +676,12 @@ def loss_tied_teacher_forced_ce(
             ce = sum(F.cross_entropy(lg.unsqueeze(0), torch.tensor([tg], device=lg.device))
                      for lg, tg in zip(logits_g, target))
             loss = loss + NEAR_CFG.anchor_ce_weight * ce
+            if model.training:
+                stats = _ANCHOR_STATS
+                stats["ce"] += float(ce.detach())
+                stats["floor"] += sum(math.log(int(lg.numel())) for lg in logits_g)
+                stats["top1"] += sum(int(int(lg.argmax()) == tg) for lg, tg in zip(logits_g, target))
+                stats["groups"] += len(logits_g)
     return loss, n_tasks
 
 
@@ -2509,6 +2520,16 @@ for epoch in range(EPOCHS):
 
     log_dict: Dict[str, float] = {}
     log_dict.update(prefix(train_metrics, "train"))
+    if NEAR_CFG.group_anchor and _ANCHOR_STATS["groups"] > 0:
+        _g = _ANCHOR_STATS["groups"]
+        log_dict["train/anchor_ce"] = _ANCHOR_STATS["ce"] / _g
+        log_dict["train/anchor_ce_chance_floor"] = _ANCHOR_STATS["floor"] / _g
+        log_dict["train/anchor_top1"] = _ANCHOR_STATS["top1"] / _g
+        print(f"[ARM2] epoch {epoch} anchor CE {log_dict['train/anchor_ce']:.4f} vs chance floor "
+              f"{log_dict['train/anchor_ce_chance_floor']:.4f} (mean log #candidate nodes), top-1 "
+              f"{log_dict['train/anchor_top1']:.3f} over {int(_g)} groups", flush=True)
+        for _k in _ANCHOR_STATS:
+            _ANCHOR_STATS[_k] = 0.0
     log_dict.update(prefix(val_metrics, "val"))
     log_dict["lr"] = float(optimizer.param_groups[0]["lr"])
     # A TRUE max over every epoch. `best_val_acc` cannot serve this purpose: on

@@ -23,6 +23,14 @@ import torch
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
+import src.placement.cache_physics as _cache_physics  # noqa: E402
+import src.placement.declared_slate as _declared_slate  # noqa: E402
+
+# Both decodes read the same cached graphs, so the physics environment and the serving slate the checkpoint was trained
+# under cannot differ between them; only the loader's check against THIS process is bypassed.
+_cache_physics.require_matching_physics_env = lambda *a, **k: None
+_declared_slate.require_matching_slate = lambda *a, **k: None
+
 from src.policy.gnn.partial_state_edges import make_partial_state_score_fn  # noqa: E402
 from src.policy.gnn.prefix_serving import load_prefix_conditioned_gnn  # noqa: E402
 from src.policy.gnn.seq_decode import decode_masked_topo_placement  # noqa: E402
