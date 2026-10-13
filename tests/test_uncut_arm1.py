@@ -14,11 +14,11 @@ def test_groups_of_gives_trigger_size_and_arrival():
 
 
 def test_plan_pool_strata_pool_and_over256():
-    wls = {("A", "g0", "heavy"): _wl([5] * 400 + [20] * 400 + [300])}
+    wls = {("A", "g0", "heavy"): _wl([20] * 100 + [300])}                    # 10 s spacing: groups 0..35 start before 360 s
     r = A.plan_pool(wls, [1, 2], seed=1, mult=5)
     c = {(x["bucket"], x["early"]): x for x in r["census"]}
     assert r["groups_over_256"] == {"heavy": 1}
-    assert c[("11_50", True)]["available"] == 35 * 2 and c[("11_50", False)]["available"] == 365 * 2     # 400 groups of 20 at 10 s spacing: t < 360 is 36 of them
+    assert c[("11_50", True)]["available"] == 36 * 2 and c[("11_50", False)]["available"] == 64 * 2
     assert c[("11_50", True)]["pool"] == c[("11_50", True)]["available"] and not c[("11_50", True)]["ok"]
     assert len({(p["window"], p["rung"], p["topology"], p["trigger"]) for p in r["pool"]}) == len(r["pool"])
     assert all(isinstance(v, list) for d in r["plans"].values() for v in d.values())
