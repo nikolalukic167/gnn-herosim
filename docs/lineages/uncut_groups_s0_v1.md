@@ -299,6 +299,26 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **PRE-DATA: the user authorises everything at once; the expert's rulings on the Arm 1 corpus.** Filed while the launches go out. This supersedes the "training not approved" line in the entry below.
+  - **The user's words, verbatim** (relayed by the expert): "just do it all and run before smoke (maybe more than 6h timeout idk). wait for nothing and run all so we get some results".
+  - **(b) `ils12` budget change, made pre-data.** 868852 was cancelled before any cell finished. The relaunch is job **868854** (S4) at LIMIT 43,200 s, replacing 21,600 s, with the same OUT `ils12_5109d07d` and the same 12 cells. A cell killed at the new limit is still WALL-INFEASIBLE and is never rerun.
+  - **(c) The Arm 1 label build launched without a separate smoke.** Its registered checks run alongside: the fresh-100 split, the per-bucket ILS share, and the SPLIT / UNPLACED / > 256 counts.
+  - **(d) Arm 1 training is authorised** to start on the first complete label set. The MP arm, MP-OFF twin and MLP train on the identical corpus and split (spec item 8). SCIENTIST's Arm 1 gate text is requested and will be filed before any checkpoint is gated.
+  - **(e) Arm 2 code is being built.**
+  - **The expert's rulings:**
+    1. **MIN_TIME: a signed amendment, not a tension.**
+       - The Arm 1 label corpus departs from § 4's "MIN_TIME stays 360 s" and includes opening states (t < 360 s) at ≥ 25 % of states. SCIENTIST's spec item 3 sets ≥ 30 %.
+       - The reason: the learned k = 1 read put the whole-run deficit in the opening (heavy +4.10 % whole-run against −3.96 % after 360 s).
+       - The gate statistic is unchanged: whole-run and after-360 s are both still required.
+    2. **Corpus topology ids.** S5 picks them by `gnn_overcap`'s token-scan protocol, as the gate ids were chosen. There are two disjoint fresh blocks:
+       - the corpus block, sized from SCIENTIST's corpus spec;
+       - a separate 12-topology block reserved now for Arm 1's live gate.
+       - Both are disjoint from 19461–19472, 19405–19431, 19440–19452 and every earlier pool. The prep fails loud on an existing ROOT.
+       - Both id lists are written into this node before minting.
+    3. **Ownership.**
+       - S5 mints the libraries with the gate recipe (`--start-group` G0 per § 4) and owns the inputs.
+       - S7 runs the snapshot cells and `make-labels`, and owns the label OUT.
+
 - 2026-10-13 — **PRE-DATA: the user approves the Arm 1 label build, in parallel with the oracle; `ils12` launches without waiting for the smoke.** Filed before any label is built.
   - **The user's words, verbatim** (typed in S6's session): "let's just run the data generation in parallel. it's not worth waiting this much".
     - The expert's reading, confirmed: the Arm 1 **label build** is approved now and is not gated on `ils_oracle_live`.
@@ -306,7 +326,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - The oracle's registered label still decides how the labels are used (§ 5 of the `ils_oracle_live` design below).
   - **Cost:** the node's line is labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule (the expert). SCIENTIST estimates about 60 CPU-h of labels for the spec below. S7 builds them.
   - **Arm 1 corpus spec: SCIENTIST's block, verbatim** (received 2026-10-13, before any label is built; it replaces the expert's relayed summary). Two notes on it:
-    - MIN_TIME = 0 (item 1) departs from § 4's registered "MIN_TIME stays 360 s" for the label corpus. SCIENTIST now states it explicitly, and the expert's acceptance is pending.
+    - MIN_TIME = 0 (item 1) is covered by the expert's signed amendment (1) in the entry above.
     - Item 2 is SCIENTIST's correction, made before any label. The first version (11–50: 4,200; 101–256: 1,000) gave 101–256 about 39 % of the > 10 task share, against the gate's 17 %. That is 2.3×, which breaks § 4's 2× rule. Item 9's label cost drops to about 50 CPU-h.
       - Rechecked at filing: 4,600 × 22, 2,000 × 70 and 600 × 150 give 30.6 / 42.3 / 27.2 %.
       - The mean sizes must be measured on the capture pool, and the final shares printed.
