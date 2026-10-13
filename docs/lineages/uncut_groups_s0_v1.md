@@ -299,6 +299,13 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **`cdxapply` is wall-feasible where `cd_expand` is not** (S4, smoke 864642; 19461 g0, k = 0; slate_fix_v1 checkpoints trained on cut groups; descriptive, not a gate number; OUT `/share/nikola.lukic/uncut_groups/smoke_learned`).
+  - `cdxapply` (GNN seed + α-expansion) finished at both rungs: 3,425 s (moderate) and 4,654 s (heavy) of wall time, `pgb_max_batch` 199, SUB_BATCH violation 0.
+  - Hand `cd_expand` runs the same expansion from the hand seed and is wall-infeasible at heavy.
+  - Decision wall 67.8 / 92.4 ms per task mean (median 4.2 / 4.6 ms). The largest single call took 186 / 215 s, on a 199-task group.
+  - This is a **cost-side difference of the learned seed**, and the paper quotes it as that.
+  - Mechanism unmeasured: S4's hypothesis is that a GNN seed nearer a local optimum leaves the expansion fewer moves. This is a hypothesis, not a claim.
+  - Not run at k = 1 under the paper pivot (the user's decision, 2026-10-13) unless the user asks.
 - 2026-10-13 — **Exact-search cap hits at k = 0** (S7, `scripts_cosim/uncut_caphit.py`, `/share/nikola.lukic/uncut_groups/caphit_k0.json`, read from the finished cells of `gate_k0`).
   - Counters per cell summary: `pg_exact_fallbacks` (batches over the 100,000-plan cap; the scheduler's own cap counter), `pg_exact_batches`, `pg_exact_plans`. Served batches by size are `pgb_whole_*` + `pgb_split_*`. Share = hits ÷ (exact + hits).
 
