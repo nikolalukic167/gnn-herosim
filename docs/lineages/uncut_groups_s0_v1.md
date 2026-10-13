@@ -352,6 +352,9 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **SCIENTIST's point:** per-batch replay ranks the GNN behind the hand, while live after 360 s it is ahead (−2.6 % moderate, −4.0 % heavy; see the learned k = 1 read below). The per-batch offline ranking and the live ranking disagree.
   - Checked against both summary files at filing.
 - 2026-10-13 — **PRE-DATA: `ils_oracle_live` design (SCIENTIST), filed before any cell.**
+  - **Addendum (2026-10-13, the expert's ruling at the user's request, filed before any cell lands):** "Descriptive per-cell interim, no label, no early stop, no budget change; the registered label applies on all 12 only."
+    - Each interim line says "interim, n cells of 12".
+    - No interim line quotes, as the result, a median over fewer than all 6 topologies of a rung.
   - **The user's approval, verbatim:** "yes do it" (relayed by the expert).
   - The expert assigned the build to S4, with S7's ILS tool; S4 launches after this entry merges.
   - **Expert correction to item 1:** the candidate set is `cd_ib0`'s full `_pg_candidates` set, the same as the K1(b) ILS tool, not "per-task top-5". It is marked inline below.
