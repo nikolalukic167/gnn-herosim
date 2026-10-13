@@ -386,6 +386,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Item 5's "served top-5 slate" fix was **withdrawn by SCIENTIST before any label**, and with it the expert's ruling (B), which had accepted it.
       - `declared_pruning_v1_uncapped`, the GNN's served slate, is the full candidate set, not the top-5 (`src/placement/declared_slate.py:28`, `:112`; verified at filing). So the served slate equals `_pg_candidates`, and the original item 5 stands: ILS over the full set, the same as the oracle.
       - Only the ≤ 10 clause is kept, reworded (marked inline).
+      - The expert, checking at source, withdrew (B) and added: "the served uncapped slate is the full candidate set (declared_slate.py:28); the 2.1 % outside-top-5 figure refers to the capped slate and does not bear on learnability".
       - The r ≥ 0.10 rule and the fresh-100 split apply to that full-set ILS plan.
     - Item 2 is SCIENTIST's correction, made before any label. The first version (11–50: 4,200; 101–256: 1,000) gave 101–256 about 39 % of the > 10 task share, against the gate's 17 %. That is 2.3×, which breaks § 4's 2× rule. Item 9's label cost drops to about 50 CPU-h.
       - Rechecked at filing: 4,600 × 22, 2,000 × 70 and 600 × 150 give 30.6 / 42.3 / 27.2 %.
