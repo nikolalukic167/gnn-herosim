@@ -299,6 +299,27 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Learned arms at k = 1 on whole groups: F1-CUT-TRAINED, no WIN** (S5; `/share/nikola.lukic/uncut_groups/read_learned.json`, reader rp/uncut-hand 6db6b38d).
+  - **Setup.** Pin a2c48809, with the by-bucket w for both learned arms in `decision_cost_w.json`. The table is `wn_learned.json` (sha 22494440…), and identity holds on 355/355 keys. 12 topologies × g0–g3, 48 cells per arm and rung.
+  - **F1, `ra_gnn_eng_nosplit` vs `cd_ib0`.** Paired per topology: median, topologies won of 12, Holm p.
+
+    | stat | moderate | heavy |
+    |---|---|---|
+    | whole | −0.10 % (6/12, Holm 1.0) | +4.10 % (2/12, Holm .137) |
+    | after 360 s | −2.60 % (9/12, Holm .157) | −3.96 % (8/12, Holm .137) |
+
+    No WIN line at either rung. The `cdxapply` arm was NOT RUN and is entered at p = 1.
+  - **F2, nosplit vs its MP-OFF twin.**
+    - Whole run: −3.67 % moderate and −2.71 % heavy.
+    - After 360 s: −3.74 % moderate and −5.16 % heavy.
+    - It wins on 11–12 of 12 topologies, Holm ≤ .003.
+    - The same-input MLP was NOT RUN.
+  - **Health.** Collapse 0/0/0 for nosplit, twin and `cd_ib0`, and all 48 cells of each finished.
+  - **Decision share, whole run** (percent, moderate / heavy): nosplit 0.099 / 0.107 %, against `cd_ib0` 0.0063 / 0.0095 %.
+  - UNCUT-ATTRIBUTED is not measurable: the cells carry no per-task batch size.
+  - The interim `cd_exactS_ib0` heavy row is 45 finished, 2 projection-killed (19468 g1, g3) and 0 stalled. One cell is still running in 865209_1, so it is NOT FINAL; S5 will send the last.
+  - Checked against `read_learned.json` at filing: the F1 and F2 medians, wins and Holm p, the NOT-RUN rows, the counts, health and decision shares, and the `F1-CUT-TRAINED` label.
+
 - 2026-10-13 — **PRE-DATA: SCIENTIST's myopia test of the K1(b) gap, filed before S7 runs anything.** This is an offline screen: under rule 6 it orders the work and does not close it.
   - **States:** the top 50 by `cd_ib0` regret, plus 50 random states at ≤ 100 % regret. The seed is fixed before running.
   - **Plans:** `cd_ib0`, `cd_exactS_ib0` and ILS.
