@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO))
 from scripts_cosim import uncut_ils as U  # noqa: E402
 
 HORIZONS = (1, 3, 10)
+HORIZON_SPECS = ("N50", "W")          # N<k>: the next k trace groups; W: every group within max(120 s, the hand plan's batch makespan) of the batch
 _TRACES: Dict[str, Any] = {}
 
 
@@ -38,7 +39,7 @@ def choose_ids(rows: Sequence[Dict[str, Any]], seed: int, n_top: int = 50, n_ran
             "top": [r["state_id"] for r in top], "random": sorted(rand), "n_pool": len(pool)}
 
 
-def trace_extension(job: Dict[str, Any], fr: Any, snap: Dict[str, Any], n_groups: int) -> Dict[str, Any]:
+def trace_extension(job: Dict[str, Any], fr: Any, snap: Dict[str, Any], n_groups: Optional[int] = None, window_s: Optional[float] = None) -> Dict[str, Any]:
     """The workload of the replay with the next `n_groups` trace groups appended (timestamps relative to the batch's last arrival; peer pairs among them)."""
     name = json.load(open(job["cell_summary"]))["workload"]
     wl_path = Path(job["cell_config"]).parents[1] / "wl" / f"{name}.json"
@@ -53,7 +54,8 @@ def trace_extension(job: Dict[str, Any], fr: Any, snap: Dict[str, Any], n_groups
         g = e["peer_group"]
         first_ts.setdefault(g, float(e["timestamp"]))
         members.setdefault(g, []).append(i)
-    later = sorted((g for g in members if g not in batch_groups and first_ts[g] > base), key=lambda g: (first_ts[g], str(g)))[:n_groups]
+    later = sorted((g for g in members if g not in batch_groups and first_ts[g] > base and (window_s is None or first_ts[g] - base <= window_s)), key=lambda g: (first_ts[g], str(g)))
+    later = later[:n_groups] if n_groups is not None else later
     chosen = [i for g in later for i in members[g]]
     pos = {gid: k for k, gid in enumerate(chosen)}
     wl = deepcopy(fr.wl)
@@ -157,7 +159,7 @@ def phase1(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, An
     groups: Dict[int, float] = {}
     for b, k in ext["group_of"].items():
         groups[k] = groups.get(k, 0.0) + label(b)
-    return {"placed": placed, "batch": sum(label(b) for b in fr.batch_local), "groups": [groups.get(k, 0.0) for k in range(1, max(ext["group_of"].values(), default=0) + 1)]}
+    return {"placed": placed, "batch": sum(label(b) for b in fr.batch_local), "batch_makespan": max(label(b) for b in fr.batch_local), "groups": [groups.get(k, 0.0) for k in range(1, max(ext["group_of"].values(), default=0) + 1)]}
 
 
 def phase2(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, Any], placed: Dict[int, List[int]]) -> Dict[str, Any]:
@@ -192,44 +194,58 @@ def run_state(job: Dict[str, Any], plans: Dict[str, Sequence[Sequence[int]]]) ->
     snap, spec, types, offered = _context(job)
     with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
-    exts = {N: trace_extension(job, fr, snap, N) for N in HORIZONS}
-    exts[0] = {"wl": fr.wl, "n_base": len(fr.wl["events"]), "group_of": {}, "n_later": 0, "groups": []}
-    out: Dict[str, Any] = {"state_id": job["state_id"], "n_later": {str(N): exts[N]["n_later"] for N in exts}, "groups": exts[max(HORIZONS)]["groups"], "plans": {}}
+    exts = {"0": {"wl": fr.wl, "n_base": len(fr.wl["events"]), "group_of": {}, "n_later": 0, "groups": []}}
+    hand0 = phase1(job, plans["hand"], exts["0"])
+    window = max(120.0, hand0["batch_makespan"])          # every group arriving within max(120 s, the hand plan's batch makespan) after the batch
+    for spec_ in HORIZON_SPECS:
+        exts[spec_] = trace_extension(job, fr, snap, n_groups=int(spec_[1:]) if spec_.startswith("N") else None, window_s=window if spec_ == "W" else None)
+    out: Dict[str, Any] = {"state_id": job["state_id"], "window_s": window, "n_later": {k: v["n_later"] for k, v in exts.items()},
+                           "groups": {k: v["groups"] for k, v in exts.items() if k != "0"}, "plans": {}}
     for name, plan in plans.items():
         if plan is None:
             out["plans"][name] = None
             continue
         per_n = {}
-        for N in (0,) + HORIZONS:
-            r = phase1(job, plan, exts[N])
-            per_n[str(N)] = {"batch": r["batch"], "later": sum(r["groups"]), "total": r["batch"] + sum(r["groups"]), "n_later_tasks": exts[N]["n_later"]}
+        for key, ext in exts.items():
+            r = hand0 if (key == "0" and name == "hand") else phase1(job, plan, ext)
+            per_n[key] = {"batch": r["batch"], "later": sum(r["groups"]), "total": r["batch"] + sum(r["groups"]), "n_later_tasks": ext["n_later"], "batch_makespan": r["batch_makespan"]}
         out["plans"][name] = {"by_n": per_n, "plan": [list(p) for p in plan]}
     return out
 
 
 def summarize(rows: Sequence[Dict[str, Any]], ids: Dict[str, Any]) -> Dict[str, Any]:
-    """Per stratum and pooled, for ILS and cd_exactS_ib0 against the hand: the advantage in summed RTT seconds (hand - arm) at each N, the share of the batch-only advantage kept,
-    the share of states whose advantage has the batch-only sign, the median per-state advantage, and the chaos floor (median |total(hand) - total(hand one zero-dS move away)|)."""
+    """Per stratum and pooled, for ILS and cd_exactS_ib0 against the hand, at every horizon key the rows carry: the advantage in summed RTT seconds (hand - arm), the share of the
+    batch-only advantage kept, the share of states with the batch-only sign, the median per-state advantage, the chaos floor (median |total(hand) - total(hand one zero-dS move away)|),
+    and the later-task-only difference (hand - arm; the pile-up signal), split into states where the arm's plan uses one node and the rest."""
     strata = {"pooled": [r["state_id"] for r in rows], "top50": ids["top"], "random50": ids["random"]}
     by = {r["state_id"]: r for r in rows}
+    keys = [k for k in rows[0]["plans"]["hand"]["by_n"] if k != "0"]
+    one_node = lambda r, arm: len({p[0] for p in r["plans"][arm]["plan"]}) == 1
     out: Dict[str, Any] = {}
     for sname, sids in strata.items():
         rs = [by[s] for s in sids if s in by]
         if not rs:
             continue
-        blk: Dict[str, Any] = {"n_states": len(rs)}
+        blk: Dict[str, Any] = {"n_states": len(rs), "window_s_median": st.median(r["window_s"] for r in rs)}
         for arm in ("ils", "exactS"):
             res: Dict[str, Any] = {}
             adv0 = [r["plans"]["hand"]["by_n"]["0"]["total"] - r["plans"][arm]["by_n"]["0"]["total"] for r in rs]
-            for N in (0,) + HORIZONS:
-                key = str(N)
-                adv = [r["plans"]["hand"]["by_n"][key]["total"] - r["plans"][arm]["by_n"][key]["total"] for r in rs]
-                with_chaos = [r for r in rs if r["plans"].get("chaos")]
-                chaos = [abs(r["plans"]["hand"]["by_n"][key]["total"] - r["plans"]["chaos"]["by_n"][key]["total"]) for r in with_chaos]
-                res[f"N{N}"] = {"sum_advantage_s": sum(adv), "kept_vs_batch_only": sum(adv) / sum(adv0) if sum(adv0) else None,
-                                "sign_agrees_with_batch_only": sum((x > 0) == (y > 0) for x, y in zip(adv, adv0)) / len(rs), "median_advantage_s": st.median(adv),
-                                "mean_hand_total_s": st.fmean(r["plans"]["hand"]["by_n"][key]["total"] for r in rs), "median_chaos_floor_s": st.median(chaos) if chaos else None,
-                                "n_chaos_states": len(chaos)}
+            for key in ["0"] + keys:
+                tot = lambda r, plan: r["plans"][plan]["by_n"][key]["total"]
+                adv = [tot(r, "hand") - tot(r, arm) for r in rs]
+                chaos = [abs(tot(r, "hand") - tot(r, "chaos")) for r in rs if r["plans"].get("chaos")]
+                cell = {"sum_advantage_s": sum(adv), "kept_vs_batch_only": sum(adv) / sum(adv0) if sum(adv0) else None,
+                        "sign_agrees_with_batch_only": sum((x > 0) == (y > 0) for x, y in zip(adv, adv0)) / len(rs), "median_advantage_s": st.median(adv),
+                        "mean_hand_total_s": st.fmean(tot(r, "hand") for r in rs), "median_chaos_floor_s": st.median(chaos) if chaos else None, "n_chaos_states": len(chaos),
+                        "median_later_tasks": st.median(r["plans"]["hand"]["by_n"][key]["n_later_tasks"] for r in rs)}
+                if key != "0":
+                    later = [r["plans"]["hand"]["by_n"][key]["later"] - r["plans"][arm]["by_n"][key]["later"] for r in rs]
+                    cell["later_only_hand_minus_arm_s"] = {"sum": sum(later), "median": st.median(later), "hand_later_worse_states": sum(x > 1e-9 for x in later),
+                                                          "arm_later_worse_states": sum(x < -1e-9 for x in later)}
+                    for tag, sel in (("one_node", [i for i, r in enumerate(rs) if one_node(r, arm)]), ("rest", [i for i, r in enumerate(rs) if not one_node(r, arm)])):
+                        cell["later_only_hand_minus_arm_s"][tag] = {"n_states": len(sel), "sum": sum(later[i] for i in sel), "hand_later_worse": sum(later[i] > 1e-9 for i in sel),
+                                                                    "arm_later_worse": sum(later[i] < -1e-9 for i in sel), "median": st.median([later[i] for i in sel]) if sel else None}
+                res[key] = cell
             blk[arm] = res
         out[sname] = blk
     return out
