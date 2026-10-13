@@ -299,6 +299,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 build disclosure** (S7, build 869479, `uncut_arm1_build.py`). 12,000 labels → 11,073 datasets built; train 9,965 (le10 3,982 / 11_50 3,859 / 51_100 1,652 / 101_256 472), held-out 1,108 (418 / 433 / 195 / 62). **101_256 is thin** (600 drawn: 34 dropped at label as SPLIT, 66 rejected by the builder, 534 built); not topped up (the gate reads whole groups at k=1). Not built: 413 dropped at label (SPLIT 405, UNPLACED 2, OTHER 6) and 514 rejected by the builder (no_choice, no_peer_pairs, single_candidate_node, peer pairs outside the batch, unplaced partner). **65 rejected as "batch ids are not consecutive"** (11_50 31, 51_100 15, 101_256 11, le10 8; ILS 31, hand 26, exact 8): the check is inherited from `make_warm_corpus.check_consecutive_batch`; in all 65 the missing ids are in the batch's id range but are not peer partners of any batch task (none appears in `fidelity.pairs` with a batch task), i.e. unrelated tasks dispatched elsewhere. Builder strictness, not a label defect; it removes 0.5 % of states (1.8 % of 101_256).
 - 2026-10-13 — **`ils_oracle_live` contrast B added: the label stays PARTIAL + CEILING-TRUNCATED** (job 869009, `ils_oracle_exact10` at f8814905, identity passed; 12/12 cells, 0 failed; same reader; output `/share/nikola.lukic/uncut_groups/s6_reader/read_final_AB.json`, md5 1078e60c). A's label is untouched.
   - **Contrast B (`ils_oracle_exact10` vs `cd_exactS_ib0`, after 360 s):**
 
