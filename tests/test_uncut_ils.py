@@ -190,6 +190,14 @@ def test_mean_is_printed_twice_and_imputation_can_unsatisfy_k1b():
     assert r["mean_captured_pct"] < 1.0 <= r["mean_imputed_pct"] and r["NOT_SATISFIED"] is True
 
 
+def test_sealed_bucket_name_gt100_lands_in_the_top_bucket_and_unknown_buckets_fail():
+    rows = [_r("a", "gt100", 100, 100), _r("b", "11_50", 110, 100)]
+    r = U.read_rows(rows, [{"state_id": "m", "bucket": "gt100"}])
+    assert r["101_226"]["n"] == 1 and r["missing"]["101_226"] == ["m"] and r["accounting"]["by_bucket"]["101_226"]["missing"] == 1
+    with pytest.raises(ValueError):
+        U.read_rows([_r("z", "weird", 100, 100)])
+
+
 def test_unreplayable_states_are_listed_apart_from_missing_and_imputed_like_missing():
     rows = [_r("a", "11_50", 100, 100), _r("b", "11_50", 101.5, 100), _r("c", "11_50", 100, 100)]            # captured mean 0.5 %
     bad = [{"state_id": f"u{i}", "bucket": "11_50"} for i in range(4)]

@@ -39,6 +39,15 @@ if str(REPO) not in sys.path:
 CAP = 256
 EPS = 1e-9
 BUCKETS = (("11_50", 11, 50), ("51_100", 51, 100), ("101_226", 101, 226))
+BUCKET_ALIAS = {"gt100": "101_226"}           # the sealed file names the top bucket gt100
+
+
+def _canon_bucket(rs: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    out = [dict(r, bucket=BUCKET_ALIAS.get(r.get("bucket"), r.get("bucket"))) for r in rs]
+    bad = [r["state_id"] for r in out if r.get("bucket") not in {b for b, _l, _h in BUCKETS}]
+    if bad:
+        raise ValueError(f"FAIL LOUD: states {bad[:5]} carry a bucket outside {[b for b, _l, _h in BUCKETS]}")
+    return out
 Key = Tuple[int, int]
 ARM_KEYS = ("HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_CD_EXACT_PRUNE")
 
@@ -472,6 +481,7 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
     excluded from it, listed, and given a descriptive composite (first + retry batches replayed, summed). The mean is printed twice: captured states only, and with every
     missing id imputed at its bucket's maximum observed regret; NOT-SATISFIED if the first is < 1 % and the second >= 1 %. `unreplayable` states (the replay cannot deliver
     the snapshot batch whole to the hand decision; census-listed, never silently dropped) are reported on their own line and imputed exactly like missing ids."""
+    rows, missing, unreplayable = _canon_bucket(rows), _canon_bucket(missing), _canon_bucket(unreplayable)
     ok = [r for r in rows if r.get("regret") is not None]
     if len(ok) != len(rows):
         raise ValueError(f"FAIL LOUD: {len(rows) - len(ok)} rows carry no replayed regret")
