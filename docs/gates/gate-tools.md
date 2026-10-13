@@ -66,6 +66,13 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
 | L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
 
+## 2026-10-13 — A cell `batch_size` outside the GNN range was ignored with a print
+
+`gnn/orchestrator.py:72–84` silently ignored a cell batch_size outside [1, 16] and served GNN_BATCH_SIZE (4). This hit only offline snapshot replays of > 16-task batches: fidelity_cd_plans 855859/855861 (40/104 each), plan_rerank S_alpha 859727 (1/3,103) and cost_to_go train_h5 (1/2,173). No live gate. Fixed by uncut_groups_s0_v1 ruling C (raise).
+- **Scan:** a grep of every surviving `.log`/`.out`/`.txt` under datalab `simulation_data`, `/share/nikola.lukic` and `~/gnn-herosim/logs` (job 864525, 2026-10-13); deleted or rotated logs are not covered. No argmax-mode ([2, 4]) hit.
+- The 67.2 % / 55.3 % hit rates (2–8-task datasets) are inside the range and unaffected.
+- fidelity_cd_plans' > 16-task tables were never recorded and are not to be quoted; if that diagnostic is ever written up, those 40/104 replays are rerun first.
+
 ## 2026-10-12 — `run_one` rebound the cell name: per-cell `.tasks.npy` unusable since 6ad51eaf
 
 `fresh_topo_burst_v1_gate.py` `run_one` checks the served alpha env with `for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA")` (plan_rerank, 6ad51eaf). `name` is also the cell name under which `write_task_times` writes `<name>.tasks.npy`, so every cell reaching that loop wrote its per-task times to `HEROSIM_PG_BATCH_ALPHA.tasks.npy`, one file overwritten by every cell (concurrent cells also raced on its `.partial`, which killed the first warm_surge check cells). The sparse_obs check loop (`for name in OBS_ENV`) did the same. Summaries, `steady_state` keys and failed-cell records use their own path variables and are unaffected; only the per-task npy is lost. Every gate run between 6ad51eaf and the fix has no usable `.tasks.npy` (slate_fix_v2 at 6a5c922c, sparse_obs `gate_s2`, ib0_confirm). Fixed at e3d5e069 (loop variable renamed); `tests/test_gate_name_not_shadowed.py` fails if `run_one` rebinds `name` in a `for`. A reader that needs per-task times from a gate older than the fix must rerun it.
