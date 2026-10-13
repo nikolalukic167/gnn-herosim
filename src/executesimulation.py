@@ -1245,6 +1245,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_CD_REFINE",
             "GNN_CD_SEED",
             "HEROSIM_DECISION_COST_MS",
+            "HEROSIM_DECISION_COST_MS_BY_BUCKET",
             "HEROSIM_CD_RANDOM_SEED",
             # accel pull-hold control: the pull ledger and the hand rule's pull-hold term
             "HEROSIM_PULL_LEDGER",

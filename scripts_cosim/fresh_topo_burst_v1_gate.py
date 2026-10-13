@@ -226,14 +226,25 @@ def split_dc(kind: str) -> Tuple[str, Optional[float]]:
     return kind, None
 
 
-def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[str]:
-    """The per-plan cost (ms, as the env string) cell `kind` at rung serves under k: k x the arm's calibrated w. None when k is not set."""
+DC_ENV, DC_BUCKET_ENV = "HEROSIM_DECISION_COST_MS", "HEROSIM_DECISION_COST_MS_BY_BUCKET"
+
+
+def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, str]]:
+    """(env var, value) cell `kind` at rung serves under k; None when k is not set. uncut_groups_s0_v1: an arm with a
+    w_ms_per_plan_by_bucket entry at that rung is charged k x w(n) by served batch-size bucket (a JSON object); every other arm
+    keeps the one rate k x its calibrated w. A null bucket entry has no frozen w(n) and fails."""
     if k is None:
         return None
-    w = json.load(open(DC_W_FILE))["w_ms_per_plan"]
+    f = json.load(open(DC_W_FILE))
+    byb = f.get("w_ms_per_plan_by_bucket", {}).get(kind, {})
+    if rung in byb:
+        if byb[rung] is None:
+            raise SystemExit(f"FAIL LOUD: w_ms_per_plan_by_bucket[{kind!r}][{rung!r}] is null in {DC_W_FILE}")
+        return DC_BUCKET_ENV, json.dumps({b: k * float(v) for b, v in byb[rung].items()}, sort_keys=True)
+    w = f["w_ms_per_plan"]
     if kind not in w or rung not in w[kind]:
         raise SystemExit(f"FAIL LOUD: no calibrated w (ms per plan) for {kind!r} at rung {rung!r} in {DC_W_FILE}")
-    return repr(k * float(w[kind][rung]))
+    return DC_ENV, repr(k * float(w[kind][rung]))
 
 
 R1A_DIAG = (*OBS_ARMS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
@@ -861,9 +872,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         env.pop(k, None)
     for k in OBS_ENV:
         env.pop(k, None)
-    env.pop("HEROSIM_DECISION_COST_MS", None)
+    env.pop(DC_ENV, None)
+    env.pop(DC_BUCKET_ENV, None)
     if dc_ms is not None:
-        env["HEROSIM_DECISION_COST_MS"] = dc_ms
+        env[dc_ms[0]] = dc_ms[1]
     for k in SNAP_ENV:
         env.pop(k, None)
     sealed = sealed_triggers(int(t["topo"]), window)
@@ -1210,9 +1222,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if out["env"].get(var) != want:
             problems.append(f"{var} served {out['env'].get(var)!r}, want {want!r} for {kind}")
     # decision_cost_s0_v1: the cost served is the cost named, the plan counter always runs, the scheduler server's books exist exactly when c > 0
-    served_dc = out["env"].get("HEROSIM_DECISION_COST_MS")
-    if (float(served_dc) if served_dc else None) != (float(dc_ms) if dc_ms else None):  # dc_ms is k x w for this arm and rung
-        problems.append(f"HEROSIM_DECISION_COST_MS served {served_dc!r}, want {dc_ms!r}")
+    for var, parse in ((DC_ENV, float), (DC_BUCKET_ENV, json.loads)):  # dc_ms is (var, k x w) for this arm and rung
+        served_dc = out["env"].get(var)
+        want_dc = dc_ms[1] if dc_ms and dc_ms[0] == var else None
+        if (parse(served_dc) if served_dc else None) != (parse(want_dc) if want_dc else None):
+            problems.append(f"{var} served {served_dc!r}, want {want_dc!r}")
     if int(c.get("sched_plan_evals") or 0) == 0 and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
         problems.append("plan-evaluation meter off: sched_plan_evals == 0")
     charged = int(c.get("sched_batches_charged") or 0)
