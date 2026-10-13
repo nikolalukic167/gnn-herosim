@@ -1,6 +1,6 @@
 # slate_fix_v2 — does the deploy transient hide or inflate the GNN's heavy deficit, and does the no-split MP direction hold on 4 seeds?
 
-**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert as drafted at 24672635, plus one descriptive line; drafted by S6); gate launched 2026-10-12 (H 864289, L12 864293) after the cross-commit identity passed 8/8. Training of seeds 3–4 runs as job 864264.
+**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert as drafted at 24672635, plus one descriptive line; drafted by S6); gate launched 2026-10-12 after the cross-commit identity passed 8/8; cells at two pins, 6a5c922c and f4f0453f (see the record). Training of seeds 3–4 runs as job 864264.
 
 **Parent.** `slate_fix_v1` (CLOSED E-FASTER / UNCAPPED-DATA-NOT-THE-LEVER). Its statistic, averageElapsedTime over all 50k tasks, includes the cluster's own scale-from-zero cold start. SCIENTIST estimates that is about 40 % of heavy mean latency. Its per-task results were deleted, so no steady-state number exists for it. Its no-split MP contrast (new gnn vs new twin) was −2.57 % heavy (12/12, Holm .002) and −1.55 % moderate on two seeds.
 
@@ -85,6 +85,14 @@
 
 ## Record (newest first)
 
+- 2026-10-13 — **Second-pin identity PASSED; H and L12 complete; L34 launched.**
+  - Identity at f4f0453f: 864369 and 864370 are SIM-IDENTICAL to the 6a5c922c cells on every shared key (369 and 418). No reference key is missing. `cd_exactS` adds 9 scheduler counters (`obs_*`, `pg_cold_tail_calls`), all 0.
+  - Relaunch of the missing registered cells into the same OUT dirs, `R1A_WINDOWS=g0,g1`: H 864446 ran 48 tasks, the 36 missing ones plus 12 skipped; L12 864447 ran 3 × 96. Every job COMPLETED. H holds 48/48 summaries and L12 288/288, with 0 failed cells in each. `.tasks.npy` is now written per cell for the f4f0453f cells.
+  - Training 864264 COMPLETED with 0 failures (cache check PASS; the per-seed sidecheck passed for all four). W&B `gnn-slate-fix-v1`: gnn s3 sbl869no, s4 an3uwur1; twin s3 ftghmr6s, s4 wss6hqbw. md5 of the checkpoint / contract:
+    - gnn s3 eed9b179 / 4880973a; gnn s4 cd67edba / 1a7c9f88;
+    - twin s3 4fa561f8 / 43907c72; twin s4 797cdfda / 0d987922.
+    - The copies in `inputs_12/inputs/models` match.
+  - L34: 864486 (`--array=0-1`, 192 cells) at f4f0453f, `v2_L34_f4f0453f`.
 - 2026-10-12 — **Harness fault and a launch fault; missing registered cells to be relaunched at a second pin** (accepted by the expert).
   - *Harness fault (not a rerun).* All 3 shards of L12 864293 FAILED at 11–40 min with 126 summaries landed. With the cell `name` shadowed, the 24 concurrent cells of a shard wrote one `HEROSIM_PG_BATCH_ALPHA.tasks.npy.partial`. One cell's `os.replace` removed another's (`FileNotFoundError` in `write_task_times`), and the `pool.map` exception ended the shard. H 864289 was exposed to the same race and was cancelled at 50 min with 23 summaries.
   - *Launch fault (S6).* Both launch lines left `R1A_WINDOWS` unset, so the harness ran its default windows g0–g3: 96 H cells and 576 L12 cells instead of 48 and 288. The g2/g3 cells are not registered. Their 34 (H) and 135 (L12) files were moved, unread, to `/share/nikola.lukic/slate_fix/v2_unregistered_g2g3_6a5c922c/{H,L12}`. They are kept, never read and never deleted. The reader would have refused them in any case (`check_grid` raises on any window outside g0–g1).
