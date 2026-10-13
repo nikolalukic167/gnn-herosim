@@ -26,6 +26,9 @@ def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0):
     big = mean if lat_big is None else lat_big
     rows = [(0, 10.0, 10.0 + mean, 2, 2), (1, 400.0, 400.0 + mean, 2, 2), (2, 20.0, 20.0 + big, 20, 20), (3, 500.0, 500.0 + big, 20, 20)]
     np.save(os.path.join(d, name + ".tasks_bsz.npy"), np.asarray(rows, dtype=np.float64))
+    np.save(os.path.join(d, name + ".tasks_lock.npy"), np.asarray([(r[0], r[1], r[1] + 0.1, 0.1) for r in rows], dtype=np.float64))
+    with open(os.path.join(d, name + ".log"), "w") as fh:
+        fh.write("INFO start\n[CODE] commit=pin1234abcd branch=HEAD dirty=False diff=e3b0\n")
 
 
 @pytest.fixture
@@ -128,3 +131,32 @@ def test_one_collapsing_seed_counts(gate):
     cell(d, P, 2, 1, "g0", "heavy", 9.0, ck)
     h = run(d, cm)["health"][P]["heavy"]
     assert h["per_seed"][2]["collapse_any"] == 1 and h["per_seed"][1]["collapse_any"] == 0 and h["collapse_any"] == 1
+
+
+def test_unstamped_lock_row_fails(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    p = os.path.join(d, f"cc40s1__g0heavy__{P}_k100_s1.tasks_lock.npy")
+    a = np.load(p)
+    a[2, 2] = np.nan
+    np.save(p, a)
+    with pytest.raises(SystemExit, match="unstamped"):
+        run(d, cm)
+
+
+def test_missing_lock_sidecar_fails(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    os.remove(os.path.join(d, "cc40s1__g0heavy__cd_ib0_k100_s0.tasks_lock.npy"))
+    with pytest.raises(SystemExit, match="lock-wait sidecar"):
+        run(d, cm)
+
+
+@pytest.mark.parametrize("line", ["[CODE] commit=deadbeef0000 branch=HEAD dirty=False", "[CODE] commit=pin1234abcd branch=HEAD dirty=True", "no banner"])
+def test_log_banner_must_show_pin_clean(gate, line):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    with open(os.path.join(d, "cc40s1__g0heavy__cd_ib0_k100_s0.log"), "w") as fh:
+        fh.write(line + "\n")
+    with pytest.raises(SystemExit, match="log banner"):
+        run(d, cm)
