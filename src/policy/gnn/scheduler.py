@@ -116,6 +116,9 @@ MAX_BATCH_SIZE_FOR_GNN = 4
 # width with headroom for the denser-graph rungs; it is a guard against a misconfigured
 # env, not a model limit.
 MIN_BATCH_SIZE_FOR_PREFIX_GNN = 1
+# uncut_groups_s0_v1: peer-group batches by the group's original size (closure size), for the whole-group admissibility read
+PG_SIZE_BUCKETS = ((10, "le10"), (50, "11_50"), (100, "51_100"), (None, "gt100"))
+PG_BATCH_COUNTERS = tuple(f"pgb_{kind}_{tag}" for kind in ("whole", "split") for _hi, tag in PG_SIZE_BUCKETS) + ("pgb_max_batch",)
 MAX_BATCH_SIZE_FOR_PREFIX_GNN = 16
 PREFIX_DECODE_MODE = "masked_topo"
 
@@ -278,6 +281,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.cdr_platform_only = 0
         self.cdr_unstack = 0
         self.peer_group_incomplete_batches = 0
+        for name in PG_BATCH_COUNTERS:
+            setattr(self, name, 0)
         # serving knobs (default off): how often a batch actually had standing load to
         # charge, so a gate arm cannot claim the seed was active when it never fired
         self.prefix_batches_load_seeded = 0
@@ -583,8 +588,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             # that have not arrived yet are, up to the batch timeout, which is a real
             # queueing cost this arm pays and the reactive arms do not.
             orch = self._orchestrator()
+            group = self._peer_group(task)
             remaining = {
-                j for j in self._peer_group(task)
+                j for j in group
                 if j != task.id and not self._peer_already_scheduled(orch, j)
             }
             while remaining and len(batch) < self.batch_size and timeout_remaining > 0:
@@ -601,6 +607,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                     timeout_remaining -= wait_time
             if remaining:
                 self.peer_group_incomplete_batches += 1
+            self._count_group_batch(len(group), len(batch))
             return batch
 
         while len(batch) < self.batch_size and timeout_remaining > 0:
@@ -768,6 +775,14 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
     # ------------------------------------------------------------------
     # peer_affinity_v1 stage 3: prefix-conditioned serving (GNN_DECODE_MODE=masked_topo)
     # ------------------------------------------------------------------
+
+    def _count_group_batch(self, group_size: int, served: int) -> None:
+        """uncut_groups_s0_v1 K0: tasks served in a batch holding their whole peer group vs split off, bucketed by the group's
+        ORIGINAL size (its peer closure), so a split big group still counts in its own bucket. Always on."""
+        bucket = next(tag for hi, tag in PG_SIZE_BUCKETS if hi is None or group_size <= hi)
+        name = f"pgb_{'whole' if served == group_size else 'split'}_{bucket}"
+        setattr(self, name, getattr(self, name) + served)
+        self.pgb_max_batch = max(self.pgb_max_batch, served)
 
     def enable_whole_group(self) -> None:
         """uncut_groups_s0_v1: serve each peer group as one batch (cell scheduler.batch_size = "group").
