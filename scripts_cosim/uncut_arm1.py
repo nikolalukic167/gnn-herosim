@@ -324,7 +324,7 @@ def main() -> int:
     lb.add_argument("--sealed", default=str(U_REPO / "docs/lineages/uncut_groups_s0_v1/k1_sealed_states.json"), help="the sealed K1(b) states: never labelled")
     ck = sub.add_parser("check")
     ck.add_argument("which", choices=("convergence", "determinism", "fresh100", "lockwait")); ck.add_argument("ids"); ck.add_argument("--root", default="/share/nikola.lukic/uncut_arm1")
-    ck.add_argument("--pool", required=True); ck.add_argument("--shard", default="0/1"); ck.add_argument("--out", required=True); ck.add_argument("--labels", nargs="*", default=[])
+    ck.add_argument("--pool"); ck.add_argument("--shard", default="0/1"); ck.add_argument("--out"); ck.add_argument("--labels", nargs="*", default=[])
     o = sub.add_parser("openings")
     o.add_argument("--src", required=True); o.add_argument("--dst", required=True); o.add_argument("--open-s", type=float, default=420.0)
     a = ap.parse_args()
@@ -362,6 +362,8 @@ def main() -> int:
     if a.cmd == "check" and a.which == "lockwait":
         print(json.dumps(lock_wait_summary([json.loads(l) for l in open(a.ids)]), indent=1))
         return 0
+    if a.cmd == "check" and not (a.pool and a.out):
+        raise SystemExit("FAIL LOUD: check %s needs --pool and --out" % a.which)
     if a.cmd == "check":
         ids = json.load(open(a.ids))
         drawn = {st_["key"] for st_ in ids["states"]}
