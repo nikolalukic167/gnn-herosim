@@ -43,8 +43,10 @@ def cell_draw(bucket: str, early: bool) -> int:
     return n_early if early else DRAWS[bucket] - n_early
 
 
-def plan_pool(wls: Dict[Tuple[str, str, str], Dict[str, Any]], topos: Sequence[int], seed: int, mult: int = POOL_MULT, thin_le10: float = 0.05) -> Dict[str, Any]:
-    """wls[(window set, window, rung)] -> workload. Returns the pool, per-cell census and the plans per window set."""
+def plan_pool(wls: Dict[Tuple[str, str, str], Dict[str, Any]], topos: Sequence[int], seed: int, mult: int = POOL_MULT, thin_le10: float = 0.05,
+              open_sets: Sequence[str] = ()) -> Dict[str, Any]:
+    """wls[(window set, window, rung)] -> workload. Returns the pool, per-cell census and the plans per window set. A set in `open_sets` is run opening-only
+    (its cells stop at the end of the opening), so only its groups with t < EARLY_T enter the pool."""
     cells: Dict[Tuple[str, bool], List[Tuple[Tuple[str, str, str], int, int, float]]] = collections.defaultdict(list)
     over256 = collections.Counter()
     for key, wl in sorted(wls.items()):
@@ -53,6 +55,8 @@ def plan_pool(wls: Dict[Tuple[str, str, str], Dict[str, Any]], topos: Sequence[i
             if b is None:
                 if size > 256:
                     over256[key[2]] += 1
+                continue
+            if key[0] in open_sets and t >= EARLY_T:
                 continue
             cells[(b, t < EARLY_T)].append((key, trig, size, t))
     rng = random.Random(f"arm1_pool:{seed}")
@@ -90,6 +94,7 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("plan")
     p.add_argument("--sets", nargs="+", required=True, help="NAME=inputs_group_dir ... (the inputs tree whose wf1_<rung>/wl windows are the corpus windows)")
+    p.add_argument("--open-sets", nargs="*", default=[], help="names of the sets whose cells are opening-only")
     p.add_argument("--topos", nargs="+", type=int, required=True); p.add_argument("--seed", type=int, required=True); p.add_argument("--out", required=True)
     o = sub.add_parser("openings")
     o.add_argument("--src", required=True); o.add_argument("--dst", required=True); o.add_argument("--open-s", type=float, default=420.0)
@@ -112,7 +117,7 @@ def main() -> int:
         for rung in RUNGS:
             for w in WINDOWS:
                 wls[(name, w, rung)] = json.load(open(f"{d}/wf1_{rung}/wl/grounded_{w}_n50000.json"))
-    res = plan_pool(wls, a.topos, a.seed)
+    res = plan_pool(wls, a.topos, a.seed, open_sets=a.open_sets)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     for s, d in res["plans"].items():
