@@ -299,6 +299,51 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **S7's Step 0: GNN-PROPOSES-NOT-COMPOSES** (offline, the 193 K1(b) states; `/share/nikola.lukic/uncut_ils/step0/{gnn,twin}_summary.json`). The label is the expert's ruling.
+  - Task-weighted regret against ILS: GNN 51.7 %, MP-OFF twin 58.3 %, hand (`cd_ib0`) 38.6 %.
+  - At 51+ tasks the GNN is worse than the hand. In the 51–100 bucket it is 55.8 % against the hand's 43.2 %, with 57.7 cross-node pairs against 40.9.
+  - The GNN proposes the right placements but does not compose them into the joint plan.
+    - Its top-5 recall of the ILS placement is 0.94: pooled free-decode top-5 0.937, teacher-forced 0.951.
+    - Its whole plan matches ILS on only 14.5 % of states.
+  - Disclosure: whether the learned decode is identical to the live decision is untested.
+  - **SCIENTIST's point:** per-batch replay ranks the GNN behind the hand, while live after 360 s it is ahead (−2.6 % moderate, −4.0 % heavy; see the learned k = 1 read below). The per-batch offline ranking and the live ranking disagree.
+  - Checked against both summary files at filing.
+- 2026-10-13 — **PRE-DATA: `ils_oracle_live` design (SCIENTIST), filed before any cell.**
+  - **The user's approval, verbatim:** "yes do it" (relayed by the expert).
+  - The expert assigned the build to S4, with S7's ILS tool; S4 launches after this entry merges.
+  - **Expert correction to item 1:** the candidate set is `cd_ib0`'s full `_pg_candidates` set, the same as the K1(b) ILS tool, not "per-task top-5". It is marked inline below.
+  - Verified at filing: 19461–19466 are the six lowest ids with all four g0 k = 0 cells in `k0_cells.json` (19461–19469 qualify).
+  - SCIENTIST's text, verbatim:
+
+    > `ils_oracle_live`, a CEILING arm, never a bar. 2026-10-13, SCIENTIST, before any cell.
+    >
+    > 1. Arm, at k = 0 (ILS time not charged):
+    > - Batches > 10: ILS on S, using S7's K1(b) label tool at a named commit. Same S, same ~~per-task top-5 slate~~ **[expert correction: `cd_ib0`'s full `_pg_candidates` set, as the K1(b) ILS tool]**, deterministic seed, started from `cd_ib0`'s plan for the batch.
+    > - Batches ≤ 10: `cd_ib0`.
+    > - Budget: the K1(b) eval-budget rule plus a hard 60 s wall cap per batch; at the cap it serves its incumbent.
+    > - Identity: with the threshold at ∞, bit-equal to `cd_ib0`'s 19461 g0 heavy k = 0 cell on every non-timing key.
+    >
+    > 2. Cells: topologies 19461–19466 (the lowest ids with g0 `cd_ib0` and `cd_exactS_ib0` k = 0 cells at both rungs, k0_cells.json) × g0 × both rungs = 12 cells, seed 0, paired with gate_k0.
+    >
+    > 3. Metric:
+    > - Mean latency, whole-run and after 360 s, paired per topology, median over 6, sign count.
+    > - Vs `cd_ib0` (primary) and `cd_exactS_ib0` (calibration).
+    > - Beside every line: collapse and tail-flag counts, cap-hit share per bucket, and exchange and queue seconds per task.
+    >
+    > 4. Read rules (after 360 s decides; whole-run reported):
+    > - TRANSFERS: ≤ −6 % vs `cd_ib0` at both rungs, ≥ 5/6, AND ≥ 2 % ahead of `cd_exactS_ib0` at both rungs.
+    > - MYOPIC-LIVE: at either rung within ±2 % of `cd_exactS_ib0` or no better than `cd_ib0`; OR ≥ 2/6 collapses at a rung; OR queue seconds per task rise by more than exchange seconds fall.
+    > - PARTIAL: otherwise.
+    > - CEILING-TRUNCATED: added if > 20 % of > 50-task batches hit the cap.
+    > - A killed cell is WALL-INFEASIBLE, never rerun with another budget.
+    >
+    > 5. With the offline horizon test (live outranks offline):
+    > - TRANSFERS + MYOPIA-SMALL: per-batch ILS labels; P(WIN) ≈ 0.4.
+    > - TRANSFERS + MYOPIC: keep per-batch labels; ≈ 0.35.
+    > - MYOPIC-LIVE: no per-batch ILS labels; opening coverage plus a horizon label, or `cd_exactS_ib0` labels; ≈ 0.2.
+    > - PARTIAL: as planned, stratified on the buckets that gained; ≈ 0.3.
+    >
+    > 6. Cost: about 750 batches > 10 per cell; ILS wall medians 2.3 / 33 / 94 s by bucket; about 3–5 h per cell; 12 cells ≈ 35–60 CPU-h; LIMIT 21,600 s.
 - 2026-10-13 — **Learned arms at k = 1 on whole groups: F1-CUT-TRAINED, no WIN** (S5; `/share/nikola.lukic/uncut_groups/read_learned.json`, reader rp/uncut-hand 6db6b38d).
   - **Setup.** Pin a2c48809, with the by-bucket w for both learned arms in `decision_cost_w.json`. The table is `wn_learned.json` (sha 22494440…), and identity holds on 355/355 keys. 12 topologies × g0–g3, 48 cells per arm and rung.
   - **F1, `ra_gnn_eng_nosplit` vs `cd_ib0`.** Paired per topology: median, topologies won of 12, Holm p.
