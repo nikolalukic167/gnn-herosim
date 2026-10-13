@@ -506,17 +506,22 @@ def _masked_topo_regret_for_graph(
             for c in data.task_logit_to_placement[t]]
         for t in range(n_tasks)
     }
-    return decode_masked_topo_placement(
-        [torch.empty(0)] * n_tasks,
-        data.task_logit_to_placement,
-        n_tasks,
-        dag_parents=data.dag_parents,
-        node_caps=ctx.node_caps,
-        demands=demands,
-        score_fn=make_partial_state_score_fn(model, data, ctx),
-        allow_replica_reuse=NEAR_CFG.decode_replica_reuse,
-        relax_on_stuck=NEAR_CFG.decode_relax_on_stuck,
-    )
+    score_fn = make_partial_state_score_fn(model, data, ctx)
+    try:
+        return decode_masked_topo_placement(
+            [torch.empty(0)] * n_tasks,
+            data.task_logit_to_placement,
+            n_tasks,
+            dag_parents=data.dag_parents,
+            node_caps=ctx.node_caps,
+            demands=demands,
+            score_fn=score_fn,
+            allow_replica_reuse=NEAR_CFG.decode_replica_reuse,
+            relax_on_stuck=NEAR_CFG.decode_relax_on_stuck,
+        )
+    finally:
+        if hasattr(score_fn, "close"):
+            score_fn.close()
 
 
 def _plan_agreement_with_label(
@@ -549,7 +554,8 @@ def _plan_agreement_with_label(
 
 
 # Arm 2 anchor head, per train epoch: summed CE, summed chance floor log(#candidate nodes), top-1 hits, groups.
-_ANCHOR_STATS: Dict[str, float] = {"ce": 0.0, "floor": 0.0, "top1": 0.0, "groups": 0.0}
+_ANCHOR_STATS: Dict[str, Dict[str, float]] = {
+    s: {"ce": 0.0, "floor": 0.0, "top1": 0.0, "groups": 0.0} for s in ("train", "val")}
 
 
 def loss_tied_teacher_forced_ce(
@@ -625,8 +631,11 @@ def loss_tied_teacher_forced_ce(
 
     memo: Dict[Tuple[Any, ...], Tensor] = {}
 
+    snapshot_key = getattr(score, "snapshot_key", None)
+
     def log_probs(task_idx: int, committed: Dict[int, Tuple[int, int]]) -> Tensor:
-        key = (task_idx, tuple(sorted(committed.items())))
+        # With the Arm 2 re-encode the logits also depend on the committed prefix the encode saw (insertion order).
+        key = (task_idx, tuple(sorted(committed.items())), snapshot_key(committed) if snapshot_key else None)
         cached = memo.get(key)
         if cached is None:
             cached = F.log_softmax(score(task_idx, committed), dim=-1)
@@ -659,13 +668,23 @@ def loss_tied_teacher_forced_ce(
         extra = _arm2.random_topological_orders(
             n_tasks, data.dag_parents, random_prefix_k, _TRAIN_SEED, str(getattr(data, "dataset_id", "")))
         loss = (loss + sum(order_loss(o) for o in extra)) / float(1 + len(extra))
+    full_score = score
     if full_context_weight > 0.0:
+        if getattr(model, "committed_inputs", False):
+            # One shared encode (empty snapshot) for the whole full-context term, as in Arm 1: re-encoding per held-out task
+            # would build about n distinct encodes per plan in one autograd graph.
+            full_score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor, single_encode=True)
+        full_memo: Dict[Tuple[Any, ...], Tensor] = {}
         full_logps: List[Tensor] = []
         for plan in plans:
             full = {t: tuple(int(v) for v in placements[t][int(plan[t])]) for t in order}
             logp = torch.zeros((), device=device)
             for t in order:
-                lp = log_probs(t, {j: p for j, p in full.items() if j != t})
+                others = {j: p for j, p in full.items() if j != t}
+                fkey = (t, tuple(sorted(others.items())))
+                lp = full_memo.get(fkey)
+                if lp is None:
+                    lp = full_memo[fkey] = F.log_softmax(full_score(t, others), dim=-1)
                 logp = logp + lp[int(plan[t])]
             full_logps.append(logp)
         loss = loss + full_context_weight * -torch.logsumexp(torch.stack(full_logps), dim=0)
@@ -676,12 +695,15 @@ def loss_tied_teacher_forced_ce(
             ce = sum(F.cross_entropy(lg.unsqueeze(0), torch.tensor([tg], device=lg.device))
                      for lg, tg in zip(logits_g, target))
             loss = loss + NEAR_CFG.anchor_ce_weight * ce
-            if model.training:
-                stats = _ANCHOR_STATS
-                stats["ce"] += float(ce.detach())
-                stats["floor"] += sum(math.log(int(lg.numel())) for lg in logits_g)
-                stats["top1"] += sum(int(int(lg.argmax()) == tg) for lg, tg in zip(logits_g, target))
-                stats["groups"] += len(logits_g)
+            stats = _ANCHOR_STATS["train" if model.training else "val"]
+            stats["ce"] += float(ce.detach())
+            stats["floor"] += sum(math.log(int(lg.numel())) for lg in logits_g)
+            stats["top1"] += sum(int(int(lg.argmax()) == tg) for lg, tg in zip(logits_g, target))
+            stats["groups"] += len(logits_g)
+    if hasattr(score, "close"):
+        score.close()
+    if hasattr(full_score, "close"):
+        full_score.close()
     return loss, n_tasks
 
 
@@ -2520,16 +2542,16 @@ for epoch in range(EPOCHS):
 
     log_dict: Dict[str, float] = {}
     log_dict.update(prefix(train_metrics, "train"))
-    if NEAR_CFG.group_anchor and _ANCHOR_STATS["groups"] > 0:
-        _g = _ANCHOR_STATS["groups"]
-        log_dict["train/anchor_ce"] = _ANCHOR_STATS["ce"] / _g
-        log_dict["train/anchor_ce_chance_floor"] = _ANCHOR_STATS["floor"] / _g
-        log_dict["train/anchor_top1"] = _ANCHOR_STATS["top1"] / _g
-        print(f"[ARM2] epoch {epoch} anchor CE {log_dict['train/anchor_ce']:.4f} vs chance floor "
-              f"{log_dict['train/anchor_ce_chance_floor']:.4f} (mean log #candidate nodes), top-1 "
-              f"{log_dict['train/anchor_top1']:.3f} over {int(_g)} groups", flush=True)
-        for _k in _ANCHOR_STATS:
-            _ANCHOR_STATS[_k] = 0.0
+    for _split, _st in _ANCHOR_STATS.items():
+        if NEAR_CFG.group_anchor and _st["groups"] > 0:
+            _g = _st["groups"]
+            log_dict[f"{_split}/anchor_ce"] = _st["ce"] / _g
+            log_dict[f"{_split}/anchor_ce_chance_floor"] = _st["floor"] / _g
+            log_dict[f"{_split}/anchor_top1"] = _st["top1"] / _g
+            print(f"[ARM2] epoch {epoch} {_split} anchor CE {_st['ce'] / _g:.4f} vs chance floor {_st['floor'] / _g:.4f} "
+                  f"(mean log #candidate nodes), top-1 {_st['top1'] / _g:.3f} over {int(_g)} groups", flush=True)
+            for _k in _st:
+                _st[_k] = 0.0
     log_dict.update(prefix(val_metrics, "val"))
     log_dict["lr"] = float(optimizer.param_groups[0]["lr"])
     # A TRUE max over every epoch. `best_val_acc` cannot serve this purpose: on

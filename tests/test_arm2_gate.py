@@ -50,3 +50,9 @@ def test_sidecheck_wants_the_arm2_flags_and_refuses_them_elsewhere(tmp_path, mon
     assert SC.check_ra(json.load(open(c2)), "ra_gnn_eng", s2, "inf") == 0
     c3, s3 = _sidecar(tmp_path, disable_message_passing=True, mp_bipartite_edge_conv=False, mp_bipartite_edge_attr_zero=False)
     assert SC.check_ra(json.load(open(c3)), TWIN, s3, "inf") == 0
+
+
+def test_arm2_arm_without_its_own_w_fails_loud_and_never_borrows_nosplit():
+    for kind in (f"{GNN}_nosplit", f"{TWIN}_nosplit"):
+        with pytest.raises(SystemExit, match="no calibrated w|null"):
+            G.dc_cost_ms(kind, 1.0, "heavy")
