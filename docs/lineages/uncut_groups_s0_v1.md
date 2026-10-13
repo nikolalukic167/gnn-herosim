@@ -299,6 +299,24 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Long-horizon myopia test: MYOPIA-SMALL** (S7; code rp/uncut-ils-k1b 35b9fb1b; `/share/nikola.lukic/uncut_ils/myopia/long/{summary.json,lrows_all.jsonl}`; the label is the expert's ruling). This is an offline screen under rule 6, and the live oracle decides. It uses the same 100 ids (sha256 0bb8b089…) as the 10-group test below.
+  - **Horizons.**
+    - N50: the next 50 groups. They arrive within a median 23.5 s of the batch (max 70.7 s).
+    - W: a 120 s window, which covers every sampled batch's makespan.
+  - **ILS advantage over the hand.**
+
+    | | kept, N50 | kept, W | sign agreement N50 / W |
+    |---|---|---|---|
+    | pooled (100) | 97.1 % | 98.2 % | 98 % / 99 % |
+    | top 50 | 98.6 % | 99.8 % | 100 % / 100 % |
+
+  - **Random 50: does not survive, and it was small.** Its batch-only advantage is 63.6 s, already with median 0. It falls to −6.6 s (N50) and −10.8 s (W). This is the stratum's own result, not a pooled signal.
+  - **Pile-up.** Later-task RTT, hand − ILS, is −149 s (N50) and −100 s (W), which is 3.4 % / 2.3 % of the advantage.
+    - At W it is concentrated in one-node plans (−144 s over 51 states). But the hand is worse later on 11 of those states and ILS on 12, so it is a few large pile-ups, not a systematic sign.
+  - **exactS calibration:** it keeps 98.6 % (N50) and 100.2 % (W).
+  - **Disclosures as before:** the chaos floor is measured on 23 of 100 states, and the N = 0 single-run path differs from the batch-only path (see the 10-group entry below).
+  - Checked against `summary.json` and `lrows_all.jsonl` at filing: the kept shares, the sign agreement, both strata, the later-only sums and the one-node split. The N50 arrival span (median 23.5 s, max 70.7 s) was recomputed from the rows.
+
 - 2026-10-13 — **Myopia test: MYOPIA-SMALL (≤ 16 s horizon)** (S7; the label is the expert's ruling). This is an offline screen under rule 6, and the live `ils_oracle_live` decides.
   - **Provenance.** Code 7248b056; ids sha256 0bb8b089…, seed 20261014. Files: `/share/nikola.lukic/uncut_ils/myopia/{summary.json,hrows_all.jsonl,idrows_s*.jsonl,ids.json}`.
   - **Identity at N = 0.** Through the batch-only path, every plan replays to its K1(b) RTT: 300/300 (100 states × hand, ILS, exactS).
