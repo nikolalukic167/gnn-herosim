@@ -655,6 +655,9 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             "plan_raw_sum",
             # local_features_v1: static per-candidate columns on the raw plan.
             "plan_raw_local",
+            # uncut_groups_s0_v1 Arm 2: the group-anchor head and its scorer column (weight-visible, but the
+            # sidecar is what tells serving to widen the prefix block).
+            "group_anchor",
             # hetero_conv_v1: per-relation / per-node-type weights in the bipartite stack.
             "mp_bipartite_hetero",
         )
@@ -690,6 +693,11 @@ def checkpoint_mp_config(model_path: Path) -> dict:
         if arm not in ("gnn", "mlp_same", "set_transformer"):
             raise ValueError(f"{model_path.name}: sidecar arm_kind={arm!r} is not a known arm")
         config["arm_kind"] = arm
+    # uncut_groups_s0_v1 Arm 2: B1's re-encode period is a STRING ("inf"|"auto"|m), like mp_bipartite_aggr; bool()
+    # would serve every period as the same one. Absent means "inf", every earlier checkpoint.
+    if payload.get("reencode_every"):
+        from src.policy.gnn.arm2 import parse_reencode_every
+        config["reencode_every"] = parse_reencode_every(str(payload["reencode_every"]))
     if payload.get("dag_task_type_vocab"):
         config["dag_task_type_vocab"] = list(payload["dag_task_type_vocab"])
     # Not a bool: which network entities the training graph contained. Recoverable from
@@ -973,6 +981,11 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             raise ValueError(
                 f"{model_path.name} is a {mp_cfg['arm_kind']!r} arm; this loader builds a TaskPlacementGNN and "
                 "would run the wrong architecture. Graph-free arms are served through prefix serving only."
+            )
+        if mp_cfg.get("group_anchor") or mp_cfg.get("reencode_every", "inf") != "inf":
+            raise ValueError(
+                f"{model_path.name} is an Arm 2 checkpoint (group_anchor/reencode_every); this loader builds no "
+                "prefix scorer and would run the wrong architecture. Arm 2 is served through prefix serving only."
             )
         model = TaskPlacementGNN(
             task_feature_dim=task_feature_dim,

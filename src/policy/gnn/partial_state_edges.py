@@ -161,6 +161,15 @@ def make_partial_state_score_fn(
         # peak_controls_v1: the raw plan replaces the engineered columns; same call sites.
         from src.policy.gnn.plan_raw import make_plan_raw_score_fn
         return make_plan_raw_score_fn(model, data)
+    if getattr(model, "committed_inputs", False) or getattr(model, "group_anchor", False):
+        # uncut_groups_s0_v1 Arm 2: committed-state re-encode and/or group anchor (src/policy/gnn/arm2.py).
+        from src.policy.gnn.arm2 import make_arm2_score_fn
+        return make_arm2_score_fn(model, data, ctx)
+    if getattr(data, "arm2_task_committed", None) is not None:
+        raise ValueError(
+            "make_partial_state_score_fn: the graph carries Arm 2 committed state but the model was built "
+            "without GNN_REENCODE_EVERY; the shared-encode shortcut would be silently wrong"
+        )
     expected_dim = partial_state_feature_dim(getattr(ctx, "contract", None))
     if not getattr(model, "partial_state_edge_dim", 0):
         raise ValueError(
