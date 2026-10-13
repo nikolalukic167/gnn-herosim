@@ -8,10 +8,12 @@ import scripts_cosim.uncut_groups_hand_read as U
 TOPOS = [1, 2]
 
 
-def cell(mean, a360=None, tail=10.0, qs=0.3, busy=0.0, wait=0.0, n=100, big=0, whole=0):
+def cell(mean, a360=None, tail=10.0, qs=0.3, busy=0.0, wait=0.0, n=100, whole=95, split=5):
     return {"averageElapsedTime": mean, "steady_state": {"after_360s": {"mean": a360 if a360 is not None else mean}}, "endTime": 100.0 + tail,
             "arrival_end": {"last_arrival_s": 100.0}, "effective_queue_share": qs, "num_tasks": n,
-            "schedulerCounters": {"sched_busy_seconds": busy, "sched_queue_wait_seconds": wait, "peer_group_incomplete_batches": 0, "big": big, "whole": whole}}
+            "schedulerCounters": {"sched_busy_seconds": busy, "sched_queue_wait_seconds": wait, "peer_group_incomplete_batches": 0,
+                                **{f"pgb_whole_{b}": whole for b in ("le10", "11_50", "51_100", "gt100")},
+                                **{f"pgb_split_{b}": split for b in ("le10", "11_50", "51_100", "gt100")}}}
 
 
 def write(d, arm, topo, win, rung, s, kind="summary"):
@@ -24,7 +26,7 @@ def fill(d, arms, collapse=()):
             for w in U.WINDOWS:
                 for arm, base in arms.items():
                     m = base * (5.0 if (arm, t, w, rung) in collapse else 1.0)
-                    write(d, arm, t, w, rung, cell(m, busy=0.5, wait=0.5, big=100, whole=95))
+                    write(d, arm, t, w, rung, cell(m, busy=0.5, wait=0.5))
 
 
 def test_collapse_and_tail_counts(tmp_path):
@@ -55,10 +57,14 @@ def test_k0_health_needs_ten_of_twelve(tmp_path):
 def test_uncut_share_pooled_and_loud(tmp_path):
     fill(tmp_path, {"cd": 1.0, "cd_expand": 1.0})
     cells, _ = U.load_gate(str(tmp_path))
-    r = U.whole_group_share(cells, "cd_expand", TOPOS, "big", "whole")
+    r = U.whole_group_share(cells, "cd_expand", TOPOS)
     assert r["heavy"]["pooled"] == pytest.approx(0.95) and r["heavy"]["pass"]
+    s = cell(1.0)
+    del s["schedulerCounters"]["pgb_split_gt100"]
+    write(tmp_path, "cd_expand", 1, "g0", "heavy", s)
+    cells, _ = U.load_gate(str(tmp_path))
     with pytest.raises(SystemExit):
-        U.whole_group_share(cells, "cd_expand", TOPOS, "nope", "whole")
+        U.whole_group_share(cells, "cd_expand", TOPOS)
 
 
 def test_hand_arm_skips_a_collapsing_best_and_headroom_from_counters(tmp_path):
@@ -85,3 +91,20 @@ def test_replay_regret_seal_and_mean(tmp_path):
         U.replay_regret(rows[:3], ids, sha, str(p), {"heavy": "cd_expand"})
     with pytest.raises(SystemExit):
         U.replay_regret(rows, ids, sha, str(p), {"heavy": "cd"})
+
+
+def rr(m, p):
+    return {r: {"median": m, "p_holm": p} for r in U.RUNGS}
+
+
+def test_f1_labels():
+    win, no = rr(-3.0, 0.01), rr(-3.0, 0.2)
+    clean, brittle = {"heavy": 0, "moderate": 0}, {"heavy": 3, "moderate": 0}
+    assert U.f1_label(win, win, clean, clean, True) == "WIN"
+    assert U.f1_label(win, win, clean, brittle, True) == "WIN-ROBUST"
+    assert U.f1_label(win, no, clean, brittle, True) == "WIN-OVER-BRITTLE-BAR"
+    assert U.f1_label(win, win, brittle, clean, True) == "TIES"
+    assert U.f1_label(win, win, clean, clean, False) == "NO-GO"
+    assert U.f1_label(no, no, clean, clean, True) == "TIES"
+    assert U.f1_label(rr(4.0, 0.01), no, clean, clean, True) == "E-FASTER"
+    assert U.f1_label({"heavy": {"median": -3.0, "p_holm": 0.01}, "moderate": {"median": -1.0, "p_holm": 0.01}}, win, clean, clean, True) == "TIES"
