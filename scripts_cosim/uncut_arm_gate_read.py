@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""uncut_groups_s0_v1 Arm 1 / Arm 2 live-gate read (uncut_arm1 / uncut_arm2), against the filed gate text (ad1f728a), its addenda (dcaa41d9
+multiplicity and ids, 1c7c8682 MLP trained) and SCIENTIST's gate-reader checklist (items 1-17).
+
+  uncut_arm_gate_read.py --gate <OUT>[,<OUT>] --topos 19537,...,19548 --topos-sha256 H --pin P
+                         --primary uncut_arm1_gnn_eng --twin uncut_arm1_twin_eng [--mlp ra_mlp_same] [--reference ra_gnn_eng_nosplit]
+                         --checkpoint-md5 ckpt_md5.json [--suffix _k100] [--out read.json]
+
+Cells: <gate>/cc40s<topo>__g<w><rung>__<arm><suffix>_s<seed>.summary.json, windows g0-g3, rungs moderate/heavy. Learned arms at seeds 1 and 2;
+the slate_fix_v1 reference at seed 1; hand arms (cd_ib0, cd) at seed 0. Beside each summary: .tasks.npy and .tasks_bsz.npy.
+
+Asserts (fail loud): every cell's code.commit starts with --pin and code.dirty is false; sha256 of the comma-joined --topos equals --topos-sha256;
+every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5});
+every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in).
+
+Cell value: a learned arm's cell mean = the mean of its two seeds' cell means (whole-run averageElapsedTime, after-360 s steady_state.after_360s.mean);
+a cell with either seed missing is missing for the arm. Each seed is also read alone.
+Statistic: per topology the median over the windows present of 100 (arm - bar) / bar; then the median over topologies, the sign count, an exact
+two-sided Wilcoxon (r1_attribution_v1_read.exact_wilcoxon) and Holm (r1_attribution_v1_read.holm).
+
+F1 (Holm over 4: primary vs cd_ib0 x 2 rungs x {whole, after360}):
+  WIN-ARM: median <= -2 % and Holm p < .05 on all four, each seed alone median <= -1 % on all four, the primary's collapse count <= cd_ib0's at each rung.
+  Program-level WIN additionally needs Holm p < .025 on all four; otherwise WIN-ARM-ONLY (never quoted as the program result).
+  Anchor: the primary's decision share must be >= cd_ib0's at each rung, else "F3 at k = 0.25 required" and no WIN label.
+  Robust bar: if cd_ib0 collapses at a rung, the WIN rule is re-read against cd: WIN-ROBUST or WIN-OVER-BRITTLE-BAR.
+  Otherwise TIES (no Holm-significant test), E-FASTER (cd_ib0 Holm-faster on all four), MIXED (anything else; the passing tests listed).
+F2 (Holm over 8 with the MLP, 4 without): primary vs twin (and vs MLP) x 2 x 2. MP-ATTRIBUTED only if F1 is a program-level WIN and primary vs
+  twin is <= -2 % with Holm p < .025 on all four; else MP-DIRECTION (median negative on all four) or NOT-SEPARATED. MODEL-CLASS (vs MLP) the same,
+  labelled separately and naming the corpus.
+Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
+  sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
+  OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (> 3 x cd's mean, either statistic), tail flag
+  (end - last arrival > 120 s), WALL-INFEASIBLE, decision share ((sched_queue_wait + sched_busy) / tasks / mean), and the training effect
+  (primary vs the slate_fix_v1 reference).
+"""
+import argparse
+import hashlib
+import json
+import os
+import re
+import statistics as st
+import sys
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from r1_attribution_v1_read import exact_wilcoxon, holm  # noqa: E402
+
+FILED = {"gate_text": "ad1f728a", "addenda": ["dcaa41d9", "1c7c8682"]}
+RUNGS = ("moderate", "heavy")
+WINDOWS = ("g0", "g1", "g2", "g3")
+STATS = ("whole", "after360")
+BAR, CD = "cd_ib0", "cd"
+SEEDS = (1, 2)
+WIN_MED, SEED_MED, ALPHA, PROG_ALPHA = -2.0, -1.0, 0.05, 0.025
+COLLAPSE_X, TAIL_S, OPEN_T = 3.0, 120.0, 360.0
+BUCKETS = (("le10", 0, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("gt100", 101, 10 ** 9))
+NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.(summary|failed)\.json$")
+
+
+def load(gates, suffix):
+    cells, failed = {}, {}
+    for g in [x for x in gates.split(",") if x]:
+        for f in sorted(os.listdir(g)):
+            m = NAME.match(f)
+            if not m:
+                continue
+            arm = m.group(4)
+            if suffix and arm.endswith(suffix):
+                arm = arm[: -len(suffix)]
+            key = (arm, int(m.group(5)), int(m.group(1)), m.group(2), m.group(3))
+            if key in cells or key in failed:
+                raise SystemExit(f"FAIL LOUD: duplicate cell {key}")
+            p = os.path.join(g, f)
+            with open(p) as fh:
+                d = json.load(fh)
+            if m.group(6) == "summary":
+                d["_path"] = p
+                cells[key] = d
+            else:
+                failed[key] = d
+    return cells, failed
+
+
+def md5(path):
+    h = hashlib.md5()
+    with open(path, "rb") as fh:
+        for b in iter(lambda: fh.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def asserts(cells, pin, learned, ckpt):
+    for key, s in cells.items():
+        code = s.get("code") or {}
+        if not str(code.get("commit", "")).startswith(pin) or code.get("dirty") is not False:
+            raise SystemExit(f"FAIL LOUD: {key} code {code.get('commit')} dirty={code.get('dirty')} is not the gate pin {pin}")
+        bsz = s["_path"].replace(".summary.json", ".tasks_bsz.npy")
+        if not os.path.exists(bsz):
+            raise SystemExit(f"FAIL LOUD: {key} has no per-task batch-size sidecar {bsz}")
+        a = np.load(bsz)
+        if a.ndim != 2 or a.shape[1] != 5 or (a[:, 3] < 0).any() or (a[:, 4] < 0).any():
+            raise SystemExit(f"FAIL LOUD: {key} per-task sidecar lacks groupSize/servedBatchSize on some task")
+        if key[0] in learned:
+            want = ckpt.get(f"{key[0]}|s{key[1]}")
+            path = (s.get("env") or {}).get("GNN_MODEL_PATH")
+            if want is None or path is None or md5(path) != want:
+                raise SystemExit(f"FAIL LOUD: {key} checkpoint {path} md5 does not match the training log ({want})")
+
+
+def means(s):
+    a = ((s.get("steady_state") or {}).get("after_360s") or {}).get("mean")
+    if a is None:
+        raise SystemExit(f"FAIL LOUD: {s['_path']} has no steady_state.after_360s.mean")
+    return {"whole": float(s["averageElapsedTime"]), "after360": float(a)}
+
+
+def cell_mean(cells, arm, seeds, t, w, r):
+    ss = [cells.get((arm, sd, t, w, r)) for sd in seeds]
+    if any(x is None for x in ss):
+        return None
+    ms = [means(x) for x in ss]
+    return {k: sum(m[k] for m in ms) / len(ms) for k in STATS}
+
+
+def contrast(cells, a, a_seeds, b, b_seeds, rung, topos, stat):
+    per = {}
+    for t in topos:
+        v = []
+        for w in WINDOWS:
+            ma, mb = cell_mean(cells, a, a_seeds, t, w, rung), cell_mean(cells, b, b_seeds, t, w, rung)
+            if ma is None or mb is None:
+                continue
+            v.append(100.0 * (ma[stat] - mb[stat]) / mb[stat])
+        if v:
+            per[t] = (st.median(v), len(v))
+    vals = [x[0] for x in per.values()]
+    return {"a": a, "a_seeds": list(a_seeds), "b": b, "rung": rung, "stat": stat, "n_topologies": len(vals), "n_cells": sum(x[1] for x in per.values()),
+            "median_pct": st.median(vals) if vals else None, "faster": sum(1 for x in vals if x < 0), "p": exact_wilcoxon(vals) if vals else None,
+            "per_topology": {str(t): round(x[0], 3) for t, x in sorted(per.items())}}
+
+
+def family(entries):
+    adj = holm({str(i): e["p"] for i, e in enumerate(entries)})
+    for i, e in enumerate(entries):
+        e["p_holm"] = 1.0 if adj[str(i)] is None else adj[str(i)]
+    return entries
+
+
+def four(cells, a, a_seeds, b, b_seeds, topos):
+    return [contrast(cells, a, a_seeds, b, b_seeds, r, topos, s) for r in RUNGS for s in STATS]
+
+
+def win_four(es, med, alpha):
+    return all(e["median_pct"] is not None and e["median_pct"] <= med and e["p_holm"] < alpha for e in es)
+
+
+def health(cells, failed, arm, seeds, topos):
+    out = {}
+    for r in RUNGS:
+        row = {"cells": 0, "missing": [], "collapse": {k: 0 for k in STATS}, "collapse_any": 0, "tail_flag": 0, "wall_infeasible": 0, "other_failed": 0}
+        for t in topos:
+            for w in WINDOWS:
+                m, ref = cell_mean(cells, arm, seeds, t, w, r), cell_mean(cells, CD, (0,), t, w, r)
+                for sd in seeds:
+                    f = failed.get((arm, sd, t, w, r))
+                    if f is not None:
+                        if str(f.get("why", "")).startswith("watchdog: projected"):
+                            row["wall_infeasible"] += 1
+                        else:
+                            row["other_failed"] += 1
+                if m is None:
+                    row["missing"].append(f"{t}{w}")
+                    continue
+                row["cells"] += 1
+                c = {k: bool(ref and m[k] > COLLAPSE_X * ref[k]) for k in STATS}
+                for k in STATS:
+                    row["collapse"][k] += c[k]
+                row["collapse_any"] += any(c.values())
+                row["tail_flag"] += any(float(s["endTime"]) - float(s["arrival_end"]["last_arrival_s"]) > TAIL_S
+                                        for s in (cells.get((arm, sd, t, w, r)) for sd in seeds) if s)
+        out[r] = row
+    return out
+
+
+def decision_share(cells, arm, seeds, topos):
+    out = {}
+    for r in RUNGS:
+        v = []
+        for t in topos:
+            for w in WINDOWS:
+                for sd in seeds:
+                    s = cells.get((arm, sd, t, w, r))
+                    if s is None:
+                        continue
+                    c = s["schedulerCounters"]
+                    v.append(100.0 * (float(c["sched_queue_wait_seconds"]) + float(c["sched_busy_seconds"])) / int(s["num_tasks"]) / means(s)["whole"])
+        out[r] = st.median(v) if v else None
+    return out
+
+
+def per_task(s):
+    a = np.load(s["_path"].replace(".summary.json", ".tasks_bsz.npy"))
+    return {int(r[0]): (float(r[2] - r[1]), float(r[1]), int(r[3])) for r in a}
+
+
+def gap_attribution(cells, primary, topos):
+    out = {}
+    for r in RUNGS:
+        tot = 0.0
+        by = {b[0]: 0.0 for b in BUCKETS}
+        opening = 0.0
+        for t in topos:
+            for w in WINDOWS:
+                ps = [cells.get((primary, sd, t, w, r)) for sd in SEEDS]
+                bs = cells.get((BAR, 0, t, w, r))
+                if any(x is None for x in ps) or bs is None:
+                    continue
+                p1, p2, bb = per_task(ps[0]), per_task(ps[1]), per_task(bs)
+                if not (p1.keys() == p2.keys() == bb.keys()):
+                    raise SystemExit(f"FAIL LOUD: task ids differ between {primary} seeds and {BAR} at {t} {w} {r}")
+                for tid, (lb, arr, g) in bb.items():
+                    d = (p1[tid][0] + p2[tid][0]) / 2.0 - lb
+                    tot += d
+                    for name, lo, hi in BUCKETS:
+                        if lo <= g <= hi:
+                            by[name] += d
+                    if arr < OPEN_T:
+                        opening += d
+        gt10 = sum(v for k, v in by.items() if k != "le10")
+        share = gt10 / tot if tot else None
+        out[r] = {"gap_seconds": tot, "by_bucket_seconds": by, "share_gt10": share,
+                  "label": None if share is None else ("UNCUT-ATTRIBUTED" if share >= 0.5 else "WIN-NOT-UNCUT"),
+                  "opening_share": opening / tot if tot else None}
+    return out
+
+
+def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust):
+    if win_four(f1, WIN_MED, ALPHA):
+        seed_ok = all(all(e["median_pct"] is not None and e["median_pct"] <= SEED_MED for e in es) for es in seeds_alone.values())
+        col_ok = all(h_primary[r]["collapse_any"] <= h_bar[r]["collapse_any"] for r in RUNGS)
+        if not (seed_ok and col_ok):
+            return "MIXED", f"WIN line met but seeds_alone_ok={seed_ok} collapse_ok={col_ok}"
+        if not all(anchor_ok.values()):
+            return "F3 at k = 0.25 required", "anchor clause: the primary's decision share is below cd_ib0's at a rung"
+        prog = win_four(f1, WIN_MED, PROG_ALPHA)
+        base = "WIN" if prog else "WIN-ARM-ONLY"
+        if any(h_bar[r]["collapse_any"] > 0 for r in RUNGS):
+            base = ("WIN-ROBUST" if win_four(robust, WIN_MED, PROG_ALPHA if prog else ALPHA) else "WIN-OVER-BRITTLE-BAR") + ("" if prog else " (ARM-ONLY)")
+        return base, "program-level (Holm < .025 on all four)" if prog else "clears .05 but not .025: never quoted as the program result"
+    sig = [e for e in f1 if e["p_holm"] < ALPHA]
+    if not sig:
+        return "TIES", "no Holm-significant test"
+    if all(e["median_pct"] is not None and e["median_pct"] > 0 and e["p_holm"] < ALPHA for e in f1):
+        return "E-FASTER", "cd_ib0 Holm-faster on all four"
+    return "MIXED", "passing: " + ", ".join(f"{e['rung']}/{e['stat']} {e['median_pct']:+.2f}% p_holm={e['p_holm']:.3g}" for e in sig)
+
+
+def f2_label(es, f1_program_win):
+    if f1_program_win and win_four(es, WIN_MED, PROG_ALPHA):
+        return "ATTRIBUTED"
+    if all(e["median_pct"] is not None and e["median_pct"] < 0 for e in es):
+        return "DIRECTION"
+    return "NOT-SEPARATED"
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gate", required=True)
+    ap.add_argument("--topos", required=True)
+    ap.add_argument("--topos-sha256", required=True)
+    ap.add_argument("--pin", required=True)
+    ap.add_argument("--primary", required=True)
+    ap.add_argument("--twin", required=True)
+    ap.add_argument("--mlp", default="")
+    ap.add_argument("--reference", default="")
+    ap.add_argument("--checkpoint-md5", required=True)
+    ap.add_argument("--suffix", default="_k100")
+    ap.add_argument("--corpus", default="uncut_arm1, 12,000 states")
+    ap.add_argument("--out")
+    a = ap.parse_args(argv)
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
+    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
+        raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
+    topos = [int(x) for x in a.topos.split(",")]
+    cells, failed = load(a.gate, a.suffix)
+    learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
+    with open(a.checkpoint_md5) as fh:
+        asserts(cells, a.pin, learned, json.load(fh))
+    ref_seeds = (1,)
+    res = {"filed": FILED, "pin": a.pin, "topos": topos}
+    res["health"] = {arm: health(cells, failed, arm, sd, topos) for arm, sd in
+                     [(a.primary, SEEDS), (a.twin, SEEDS)] + ([(a.mlp, SEEDS)] if a.mlp else []) + ([(a.reference, ref_seeds)] if a.reference else [])
+                     + [(BAR, (0,)), (CD, (0,))]}
+    res["decision_share_pct"] = {arm: decision_share(cells, arm, sd, topos) for arm, sd in
+                                 [(a.primary, SEEDS), (a.twin, SEEDS), (BAR, (0,)), (CD, (0,))] + ([(a.mlp, SEEDS)] if a.mlp else [])}
+    f1 = family(four(cells, a.primary, SEEDS, BAR, (0,), topos))
+    seeds_alone = {sd: four(cells, a.primary, (sd,), BAR, (0,), topos) for sd in SEEDS}
+    robust = family(four(cells, a.primary, SEEDS, CD, (0,), topos))
+    anchor = {r: (res["decision_share_pct"][a.primary][r] or 0) >= (res["decision_share_pct"][BAR][r] or 0) for r in RUNGS}
+    lab, why = f1_label(f1, seeds_alone, res["health"][a.primary], res["health"][BAR], anchor, robust)
+    res["F1"] = {"tests": f1, "seeds_alone": seeds_alone, "vs_cd_robust": robust, "anchor_ok": anchor, "label": lab, "why": why}
+    prog = lab.startswith("WIN") and "ARM-ONLY" not in lab and lab != "WIN-OVER-BRITTLE-BAR"
+    f2 = four(cells, a.primary, SEEDS, a.twin, SEEDS, topos) + (four(cells, a.primary, SEEDS, a.mlp, SEEDS, topos) if a.mlp else [])
+    family(f2)
+    res["F2"] = {"holm_family": len(f2), "tests": f2, "MP": "MP-" + f2_label(f2[:4], prog)}
+    if a.mlp:
+        res["F2"]["MODEL-CLASS"] = f"MODEL-CLASS-{f2_label(f2[4:], prog)} (corpus: {a.corpus})"
+    res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
+    if a.reference:
+        res["descriptive"]["training_effect_vs_reference"] = four(cells, a.primary, SEEDS, a.reference, ref_seeds, topos)
+    txt = json.dumps(res, indent=1, default=str)
+    if a.out:
+        with open(a.out, "w") as fh:
+            fh.write(txt)
+    print(f"F1 {lab} ({why}); F2 {res['F2']['MP']}" + (f"; {res['F2']['MODEL-CLASS']}" if a.mlp else ""))
+    for e in f1:
+        print(f"  F1 {e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
+    for r in RUNGS:
+        g = res["descriptive"]["gap_attribution"][r]
+        print(f"  {r}: gap {g['gap_seconds']:.1f} s, share in groups > 10 {g['share_gt10']}, opening {g['opening_share']} -> {g['label']}")
+    return res
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
