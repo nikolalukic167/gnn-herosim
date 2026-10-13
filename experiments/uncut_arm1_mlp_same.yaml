@@ -4,6 +4,10 @@
 # by r >= 0.10, else the hand plan; 30 % opening states (t < 360 s) per bucket; served slate declared_pruning_v1_uncapped. Seeds 1 and 2 via run_experiment.py --seed.
 # NEAR_RTT_VAL_EXACT_REGRET is '0': the val regret needs the RTT of every plan the decoder may pick, and a sampled dataset (placements.jsonl header exhaustive=false) lists only the label
 # plan (and the hand plan for an ILS label), so an exact regret would be undefined for any other plan. Selection then follows the recipe's existing rule on the other val metrics.
+# Deviation from slate_fix_v1 (signed off by the expert, 2026-10-13): NEAR_RTT_TOP_K '1'. The default 5 makes the eval metric decode_topk_joint enumerate 5^n joint plans,
+# which never ends for groups of > ~10 tasks. It feeds only regret_topk (train_near_rtt.py:1398), not the loss; this arm selects checkpoints on regret_masked_topo.
+# NEAR_RTT_SCORE_TASK_ROWS_ONLY is deliberately NOT set here: mlp_same has no edge_scorer and the flag raises ValueError for it (expert, 2026-10-13). gnn_eng and twin_eng run with it on,
+# so the GNN/twin and MLP scoring paths differ at float precision only (within 1e-5 of the logit scale). Training pin: reference-physics db011e74 plus the split file.
 trainer: gnn
 lineage: uncut_arm1
 cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
@@ -12,6 +16,7 @@ unset_env:
 - NEAR_RTT_LABEL_OVERRIDE_JSON
 env:
   NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
   NEAR_RTT_TASK_TYPE_ONEHOT: '1'
   NEAR_RTT_PARTIAL_STATE_EDGES: '1'
   NEAR_RTT_DAG_ALPHA_KEY: inf
