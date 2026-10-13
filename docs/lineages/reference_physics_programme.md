@@ -1,6 +1,6 @@
 # Reference-physics programme (plan, 2026-10-07; revised 2026-10-08)
 
-**Status:** `REGISTERED` (programme plan). No result in any node below exists yet.
+**Status:** `SYNTHESIS` (programme plan, executed). Nodes 1–5 have run and closed (as of 2026-10-12); each result lives in its own node and `LINEAGES.md` row, not here.
 Purpose: rebuild every comparison on a physics that has been scrutinised and frozen, on a workload that has been
 fixed, then write results. Nothing from the old physics enters a results section except as a labelled
 sensitivity finding.

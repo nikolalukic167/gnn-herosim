@@ -12,6 +12,8 @@
 > §Judgment calls and flagged for review. Committed before data so the
 > pre-registration property is objective (git timestamp), not a claim.
 
+**Closed 2026-09-04: FAIL at the registered α.** Primary (+50 % threshold) p = 0.113; corpus matching removed 87 % of the MLP's collapse burden, so the reliability edge does not survive as a model-class claim.
+
 ## The question
 
 `objective_pivot_v1` Phase 1 established the GNN's reliability edge: across seeded

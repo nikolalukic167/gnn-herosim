@@ -394,7 +394,7 @@ def expected_completion_from_snapshot_candidate(
     )
     cold = (
         0.0
-        if candidate.get("initialized", True)
+        if candidate["initialized"]  # every snapshot payload writes it (_candidate_payload); absent is a KeyError, never "warm"
         else float(candidate.get("cold_start_time", 0.0) or 0.0)
     )
     # Contention terms are absent from older snapshot payloads, so they default to 0.0

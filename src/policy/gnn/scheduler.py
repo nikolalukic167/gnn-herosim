@@ -16,6 +16,7 @@ import copy
 import logging
 import json
 import os
+import sys
 from timeit import default_timer
 from typing import Callable, Generator, List, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
 
@@ -115,6 +116,9 @@ MAX_BATCH_SIZE_FOR_GNN = 4
 # width with headroom for the denser-graph rungs; it is a guard against a misconfigured
 # env, not a model limit.
 MIN_BATCH_SIZE_FOR_PREFIX_GNN = 1
+# uncut_groups_s0_v1: peer-group batches by the group's original size (closure size), for the whole-group admissibility read
+PG_SIZE_BUCKETS = ((10, "le10"), (50, "11_50"), (100, "51_100"), (None, "gt100"))
+PG_BATCH_COUNTERS = tuple(f"pgb_{kind}_{tag}" for kind in ("whole", "split") for _hi, tag in PG_SIZE_BUCKETS) + ("pgb_max_batch",)
 MAX_BATCH_SIZE_FOR_PREFIX_GNN = 16
 PREFIX_DECODE_MODE = "masked_topo"
 
@@ -247,6 +251,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         # say how many batches were peer-complete and how many peers the decoder could
         # not see, instead of leaving that to be inferred.
         self.batch_by_peer_group = _read_batch_by_peer_group()
+        self.whole_group = False
         self._prefix_options = None
         self.prefix_batches = 0
         self.prefix_tasks_decoded = 0
@@ -276,6 +281,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.cdr_platform_only = 0
         self.cdr_unstack = 0
         self.peer_group_incomplete_batches = 0
+        for name in PG_BATCH_COUNTERS:
+            setattr(self, name, 0)
         # serving knobs (default off): how often a batch actually had standing load to
         # charge, so a gate arm cannot claim the seed was active when it never fired
         self.prefix_batches_load_seeded = 0
@@ -581,8 +588,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             # that have not arrived yet are, up to the batch timeout, which is a real
             # queueing cost this arm pays and the reactive arms do not.
             orch = self._orchestrator()
+            group = self._peer_group(task)
             remaining = {
-                j for j in self._peer_group(task)
+                j for j in group
                 if j != task.id and not self._peer_already_scheduled(orch, j)
             }
             while remaining and len(batch) < self.batch_size and timeout_remaining > 0:
@@ -599,6 +607,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                     timeout_remaining -= wait_time
             if remaining:
                 self.peer_group_incomplete_batches += 1
+            self._count_group_batch(len(group), len(batch))
             return batch
 
         while len(batch) < self.batch_size and timeout_remaining > 0:
@@ -767,6 +776,27 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
     # peer_affinity_v1 stage 3: prefix-conditioned serving (GNN_DECODE_MODE=masked_topo)
     # ------------------------------------------------------------------
 
+    def _count_group_batch(self, group_size: int, served: int) -> None:
+        """uncut_groups_s0_v1 K0: tasks served in a batch holding their whole peer group vs split off, bucketed by the group's
+        ORIGINAL size (its peer closure), so a split big group still counts in its own bucket. Always on."""
+        bucket = next(tag for hi, tag in PG_SIZE_BUCKETS if hi is None or group_size <= hi)
+        name = f"pgb_{'whole' if served == group_size else 'split'}_{bucket}"
+        setattr(self, name, getattr(self, name) + served)
+        self.pgb_max_batch = max(self.pgb_max_batch, served)
+
+    def enable_whole_group(self) -> None:
+        """uncut_groups_s0_v1: serve each peer group as one batch (cell scheduler.batch_size = "group").
+        Late members still go to later batches after batch_timeout (the collector is unchanged); only
+        the size cap goes. The prefix decoder's 16-task guard applies to the old modes, not this one."""
+        if self._decode_mode != PREFIX_DECODE_MODE or not self.batch_by_peer_group:
+            raise ValueError(
+                "FAIL LOUD: whole-group batches need GNN_DECODE_MODE=masked_topo and GNN_BATCH_BY_PEER_GROUP=1; "
+                f"got decode mode {self._decode_mode!r}, peer-group batching {self.batch_by_peer_group}"
+            )
+        self.whole_group = True
+        self.batch_size = sys.maxsize
+        self.batch_max = sys.maxsize
+
     def _orchestrator(self):
         for node in self.nodes.items:
             orch = getattr(node, "orchestrator_ref", None)
@@ -837,6 +867,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         standalone cost and a batch whose pruned plan space exceeds 100,000 is decoded in sub-batches of at most 4 tasks, exactly as
         the corpus was built (src/placement/declared_slate.py); otherwise the whole batch over every reachable replica."""
         from src.placement import declared_slate
+        from src.placement.decision_cost import meter
+
+        meter(self, len(batch_tasks))
 
         if declared_slate.serving_slate() is None:
             return self._prefix_inference_core(batch_tasks, system_state, queue_snapshot, temporal_state)
@@ -852,7 +885,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         ids = {int(t.id) for t in batch_tasks}
         peers = getattr(self._orchestrator(), "peer_exchange", None) or {}
         pairs = [(int(t.id), int(j)) for t in batch_tasks for j in (peers.get(int(t.id)) or {}) if int(j) in ids]
-        sl = declared_slate.slate(payloads, pairs)
+        sl = declared_slate.slate(payloads, pairs, declared_slate.serving_slate())
         self.slate_declared_batches = getattr(self, "slate_declared_batches", 0) + 1
         self.slate_declared_pruned = getattr(self, "slate_declared_pruned", 0) + int(sl.pruned)
         self.slate_declared_sub_batched = getattr(self, "slate_declared_sub_batched", 0) + int(sl.sub_batched)
@@ -1092,6 +1125,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.ss_batches = getattr(self, "ss_batches", 0) + 1
         self.ss_tasks = getattr(self, "ss_tasks", 0) + n
         self.ss_scored = getattr(self, "ss_scored", 0) + scored
+        from src.placement.decision_cost import meter
+
+        meter(self, scored)
         changed = sum(1 for i in range(n) if best[i] != start[i])
         self.ss_changed_batches = getattr(self, "ss_changed_batches", 0) + int(changed > 0)
         self.ss_changed_tasks = getattr(self, "ss_changed_tasks", 0) + changed
@@ -1294,6 +1330,18 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         3. Decodable tasks are enqueued at their decoded placement. A placement that is
            no longer a replica when its turn comes is an error, not a fallback.
         """
+        from src.placement import decision_cost
+
+        cost_c = decision_cost.cost_ms()
+        if cost_c > 0.0:
+            # decision_cost_s0_v1: the scheduler is one FIFO server; a batch queues behind it before it takes the state mutex
+            server = decision_cost.server_of(self)
+            server_req = server.request()
+            queued_at = self.env.now
+            yield server_req
+            decision_cost.book(self, "sched_queue_wait_seconds", self.env.now - queued_at)
+            decision_cost.book(self, "sched_queue_wait_max", self.env.now - queued_at, mx=True)
+        evals_before = getattr(self, "sched_plan_evals", 0)
         system_state: SystemState = yield self.mutex.get()
         maybe_capture_batch_live_audit_snapshot(
             self, system_state, batch_tasks, self._live_audit_policy_name
@@ -1333,7 +1381,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 placements = self._keep_replicas_warm(decodable, placements, system_state, *keepwarm)
             inference_time = default_timer() - inference_start
             log_of(self).add(len(decodable), inference_time,
-                             int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0)) - moves_before)
+                             int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0)) - moves_before,
+                             int(getattr(self, "sched_plan_evals", 0)) - int(evals_before))
             if _AUDIT is not None:
                 _AUDIT.decision(self.env, audit_t0, self.env.now, inference_time, len(decodable),
                                 self._live_audit_policy_name)
@@ -1346,6 +1395,16 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 f"[ {self.env.now} ] GNN masked_topo: batch of {len(batch_tasks)} "
                 f"({len(decodable)} decoded, {len(deferred)} deferred) in {inference_time*1000:.2f}ms"
             )
+        if cost_c > 0.0:
+            charge = cost_c * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
+            if charge > 0.0:
+                waiting = len(self.mutex.get_queue)
+                yield self.env.timeout(charge)
+                decision_cost.book(self, "sched_busy_seconds", charge)
+                decision_cost.book(self, "sched_batches_charged", 1)
+                decision_cost.book(self, "sched_mutex_blocked_lb_s", waiting * charge)
+                decision_cost.book(self, "sched_mutex_waiters_max", max(waiting, len(self.mutex.get_queue)), mx=True)
+            server.release(server_req)
         self.prefix_tasks_deferred += len(deferred)
         # Deferred tasks below may evict or drain a replica (autoscaler.evict_idle_for) before the decoded tasks are
         # enqueued; the decoded targets are off limits until their task is on the platform's queue.

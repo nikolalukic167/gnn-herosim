@@ -90,11 +90,16 @@ def plan_groups(groups: List[dict], n_tasks: int) -> List[Tuple[int, List[int]]]
 
 
 def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
-         payload_sampler: str = "legacy", group_size: int = 0) -> Tuple[dict, dict]:
+         payload_sampler: str = "legacy", group_size: int = 0, start_group: int = 0) -> Tuple[dict, dict]:
     require_sampler(payload_sampler)
     if group_size and merge_k != 1:
         raise SystemExit("FAIL LOUD: --group-size and --merge-k are two ways to set the group size; give one")
-    plan = plan_groups(regroup_to_size(lib["groups"], group_size) if group_size else merge_groups(lib["groups"], merge_k), n_tasks)
+    if start_group and (merge_k != 1 or group_size):
+        raise SystemExit("FAIL LOUD: --start-group counts library groups; it is defined for the K=1 mint only")
+    if not 0 <= start_group < len(lib["groups"]):
+        raise SystemExit(f"FAIL LOUD: --start-group {start_group} outside the library's {len(lib['groups'])} groups")
+    groups = lib["groups"][start_group:]
+    plan = plan_groups(regroup_to_size(groups, group_size) if group_size else merge_groups(groups, merge_k), n_tasks)
     bev = base["events"][:n_tasks]
     if len(bev) < n_tasks:
         raise SystemExit("FAIL LOUD: base window shorter than --n-tasks")
@@ -183,11 +188,35 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
         meta["merge_k"] = merge_k
     if group_size:
         meta["group_size"] = group_size
+    if start_group:
+        meta["start_group"] = start_group
     if payload_sampler != "legacy":
         meta["payload_sampler"] = payload_sampler_meta()
     doc = {"rps": base["rps"], "duration": base["duration"], "events": events,
            "peer_exchange": [[i, j, b] for (i, j), b in sorted(pairs.items())]}
     return doc, meta
+
+
+def consumed_groups(meta: dict) -> Tuple[int, int]:
+    """[first, end) library group indices a K=1 mint consumed, from its metadata (the printed grounded_workload_v1 block)."""
+    if meta.get("merge_k", 1) != 1 or meta.get("group_size"):
+        raise SystemExit("FAIL LOUD: overlap is defined by library group index for K=1 mints only")
+    first = int(meta.get("start_group", 0))
+    return first, first + int(meta["n_groups"])
+
+
+def check_disjoint(start_group: int, n_groups: int, source_md5: str, exclude: List[str]) -> None:
+    """uncut_groups_s0_v1: a corpus mint shares no request (library group) with the gate windows it names. Groups are
+    one per request in arrival order, so the group index is the request; the libraries must come from one source CSV."""
+    mine = (start_group, start_group + n_groups)
+    for path in exclude:
+        other = json.load(open(path))
+        other = other.get("grounded_workload_v1", other)
+        if other["library_source"]["md5"] != source_md5:
+            raise SystemExit(f"FAIL LOUD: {path} was minted from another source CSV; overlap by group index is undefined")
+        lo, hi = consumed_groups(other)
+        if mine[0] < hi and lo < mine[1]:
+            raise SystemExit(f"FAIL LOUD: library groups {mine[0]}..{mine[1] - 1} overlap {path}'s {lo}..{hi - 1}")
 
 
 def main() -> int:
@@ -200,6 +229,10 @@ def main() -> int:
     ap.add_argument("--merge-k", type=int, default=1)
     ap.add_argument("--group-size", type=int, default=0,
                     help="big_groups_s0_v1: peer groups of exactly this many tasks (0 = the library's own groups, the K=1 mint)")
+    ap.add_argument("--start-group", type=int, default=0,
+                    help="uncut_groups_s0_v1 corpus: first library group to mint from (0 = today's mint, byte-identical)")
+    ap.add_argument("--exclude-mint", nargs="*", default=[],
+                    help="mint metadata JSONs of windows this mint must not overlap (by library group index, same source CSV)")
     ap.add_argument("--rate-tol", type=float, default=0.02,
                     help="fail loud when the minted task rate differs from the base window's by more than this fraction")
     ap.add_argument("--payload-sampler", choices=PAYLOAD_SAMPLERS, default="legacy",
@@ -211,7 +244,8 @@ def main() -> int:
     base = json.load(open(a.base))
     if a.merge_k < 1:
         raise SystemExit("FAIL LOUD: --merge-k must be >= 1")
-    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k, a.payload_sampler, a.group_size)
+    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k, a.payload_sampler, a.group_size, a.start_group)
+    check_disjoint(a.start_group, meta["n_groups"], lib["source"]["md5"], a.exclude_mint)
     if abs(meta["rate_per_s"] / meta["base_rate_per_s"] - 1) > a.rate_tol:
         raise SystemExit(f"FAIL LOUD: minted rate {meta['rate_per_s']:.5f}/s differs from the base {meta['base_rate_per_s']:.5f}/s by more than {a.rate_tol:.0%}")
     doc["grounded_workload_v1"] = {**meta, "library": os.path.basename(a.lib), "library_sha256": _sha(a.lib),

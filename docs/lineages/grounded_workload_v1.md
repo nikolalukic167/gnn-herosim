@@ -1,8 +1,10 @@
 # grounded_workload_v1 — does the learned burst-seat arm beat every strategy on a workload whose group structure is measured, not assumed?
 
-**Status:** `CLOSED` (2026-09-27) — **G1 `NOT-SEPARATED`: on the grounded workload the learned arm ties CD.**
+**Status:** `CLOSED` (2026-09-27) — **G1 `NOT-SEPARATED`: on the grounded workload the learned arm ties CD.** (Cut-audit figure corrected 2026-10-13: 7.76 % of groups exceed 10, not 7.5 %; no other number changes.)
 Registered 2026-09-27; every bar below was signed before any gate datum existed (the only runs seen before
 signing were a 3,000-event smoke of three rules on one cell, disclosed below).
+
+> ⚠ **Origin model (caveat added 2026-10-12).** Grounded-workload numbers in this node were measured with scattered request origins (97 % of multi-task groups span clients). With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
 
 **Outcome** (job 810898, 1,046/1,058 runs, 43/48 cells admissible, witness passed, no reliability flag):
 - **G1** `xs1load_selfref` vs CD **+0.43 %**, p = 0.57, 6/12 — a tight tie (per topology −5.6 to +3.0 %).
@@ -104,6 +106,24 @@ rpcid parent.
   - The 9434 replica-expiry collapse (`replica_guard_v1`) may recur.
   - Rule 6 is met: every read is live.
 
+## 2026-10-12 — The 10-task cut truncates groups holding 37.5 % of member tasks
+
+The mint caps each drawn group at `--max-size 10` (`rule.max_size` in every library). `scripts_cosim/fanout_uncut.py` reads `size_raw`, the uncut size, of the 4 × 40,000 groups the mint drew (one fan-out per request, uniform among sibling sets of size ≥ 2, singleton if none) from the four libraries. Shares are groups % / member tasks %:
+
+| size | pooled (160,000 groups) | shard 0 | shard 50 | shard 130 | shard 100 |
+|---|---|---|---|---|---|
+| 1 | 1.74 / 0.34 | 1.77 / 0.34 | 1.95 / 0.39 | 1.27 / 0.25 | 1.96 / 0.36 |
+| 2–10 | 90.50 / 62.20 | 91.15 / 64.10 | 91.29 / 64.01 | 91.84 / 64.96 | 87.72 / 56.14 |
+| 11–20 | 4.88 / 13.50 | 4.14 / 11.30 | 4.03 / 11.46 | 4.24 / 11.94 | 7.09 / 18.92 |
+| 21–50 | 2.23 / 13.52 | 2.15 / 12.60 | 2.04 / 12.51 | 2.07 / 12.84 | 2.65 / 15.95 |
+| 51+ | 0.66 / 10.45 | 0.78 / 11.66 | 0.70 / 11.63 | 0.57 / 10.00 | 0.58 / 8.63 |
+| tasks in groups > 10 | 37.47 % | 35.56 % | 35.61 % | 34.79 % | 43.50 % |
+| tasks in groups > 20 | 23.97 % | 24.26 % | 24.14 % | 22.84 % | 24.58 % |
+| max size / mean size | 2,876 / 5.18 | 836 / 5.22 | 1,406 / 5.02 | 2,876 / 5.05 | 469 / 5.44 |
+
+About 1 group in 13 (7.76 % pooled; the table rows sum to 7.77 %, the earlier "7.5 %" was a rounding slip, corrected 2026-10-13 from the uncut rebuild, job 864527) exceeds 10, but those groups hold 37.5 % of the member tasks; the grounded gate above served groups of at most 10.
+**Caveat:** this is over the mint's draw, not over all first-level fan-outs of the trace (that needs the raw CSVs); it is a statement about the workload the gate used. Each library records the source CSV md5; the script asserts `max_size == 10` and reads the libraries only.
+
 ## Entry points
 
 - Builder: `scripts_cosim/grounded_workload_v1_extract.py`, `scripts_cosim/grounded_workload_v1_mint.py`.
@@ -114,6 +134,7 @@ rpcid parent.
 
 ## Record (newest first)
 
+- 2026-10-12 — **Cut audit:** the `--max-size 10` cut truncates groups holding 37.5 % of member tasks (35–44 % per shard, over the mint's draw); table in the section above, `scripts_cosim/fanout_uncut.py`.
 - 2026-09-27 — **Gate read** (job 810898 on os-cpu-slurm-5, `gnn` env torch 2.5.1, at f31deaf; datalab's own
   mint of g0–g3 matched every local sha256). Attachment: [`grounded_read.json`](grounded_workload_v1/grounded_read.json).
   - **Runs:** 1,046/1,058. 12 timeouts at 1,800 s, all rules: 9466 reactive g0/g1/g3, random g0–g3,

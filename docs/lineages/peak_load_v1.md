@@ -6,6 +6,10 @@ windows. Parts (a) and (b) were fixed before any of their runs (commit 35593af).
 (Amendment 1, "peak_load_v2") was added after (b) was read** — its rungs were chosen from the literature
 below, not from its data, but the decision to climb was post hoc. Disclose it as such.
 
+> ⚠ **Surge model (caveat added 2026-10-12).** Each ×k rung multiplies every timestamp of the whole window by 1/k (`scripts_cosim/cd_gap_v1_build_b.py:47–49`), so the surge runs from t = 0 onto an empty cluster (live runs autoscale from zero) and includes the deploy transient.
+
+> ⚠ **Origin model (caveat added 2026-10-12).** Grounded-workload numbers in this node were measured with scattered request origins (97 % of multi-task groups span clients). With one origin per group no learned arm beats CD (`client_local_v1`, `small_batch_so_v1`).
+
 **Outcome** (`xs1load_selfref` vs each strategy; median over topologies of the per-topology median paired %;
 exact Wilcoxon over 12 topologies; ✓ = `CONFIRMED`, ≤ −5 % and p < 0.05):
 

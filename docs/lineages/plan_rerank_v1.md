@@ -1,9 +1,18 @@
 # plan_rerank_v1 — can a learned plan-level scorer beat `cd_exactS` in the accel seat, and is there anything left to learn?
 
-**Status:** `CLOSED` `SUPERVISED-CEILING-AT-BAR` (2026-10-12; Phase 0 read, bar missed at moderate). Owner S4. Drafted from the coordinator's brief and its
-amendment after SCIENTIST's review. Nothing trains before the Phase 0 read.
+**Status:** `CLOSED` (2026-10-12) — **SUPERVISED-CEILING-AT-BAR**. Registered 2026-10-11 by S4 and signed by the coordinator, from the coordinator's brief and its amendment after SCIENTIST's review. Every bar was signed before its data. (record audited 2026-10-13: one offline replay served a 4-task batch instead of 18, see gate-tools; no number changes)
 
-**Now.** Phase 0 read once on 12 oracle cells (2026-10-12): NO-GO. Phase 1 and the gate are not run. See the Record.
+> **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win.
+
+**Outcome.** This was a live Phase 0 test (rule 6) on 6 topologies, window g0. It served a label-optimal oracle plan per batch in place of cd_exactS's plan, and gained little:
+- moderate −0.92 % (5/6 topologies, p .22);
+- heavy −4.17 % (6/6, p .031).
+
+The GO bar needed ≤ −4 % and ≥ 5/6 at both rungs, so it fails at moderate. Phase 1, a learned selector, did not run. Its code is staged and parked unread on rp/plan-rerank-p1.
+
+A batch-label learner therefore cannot clear cd_exactS by a useful margin. One caveat applies: the oracle served only 56–61 % of tasks, with the rest on the over-cap fallback, so the ceiling is a partial-coverage ceiling.
+
+**Side finding, descriptive:** a one-scalar hand change to CD's surrogate beats cd_exactS. Zeroing its in-batch stacking term (`cd_exactS_ib0`) gives −4.60 % / −3.18 % (6/6 each). It needs its own registered live gate before it can be quoted as a bar.
 
 ## Why
 
@@ -96,6 +105,7 @@ The model is SCIENTIST's version, not the top-10 reranker.
 
 ## Record
 
+- 2026-10-13 — 1 of 3,103 offline replays (S_alpha job 859727) served a 4-task batch instead of 18 ([gate-tools](../gates/gate-tools.md), batch_size ignore); immaterial to the recorded result, no number changes.
 - 2026-10-12 — **Phase 0 read (once, all 12 oracle g0 cells in, 0 failed; reader plan_oracle_read.py at b05e99f5, output `gate_c7ceec53/read.json`). NO-GO: `SUPERVISED-CEILING-AT-BAR`.**
   - **O vs cd_exactS (g0, paired, negative = O faster):** moderate **−0.92 %**, 5/6 faster, p = 0.219; heavy **−4.17 %**, 6/6, p = 0.031.
     The bar needs ≤ −4 % at both rungs, so moderate misses and GO is False. Per topology, moderate: −0.1 / −1.3 / −3.4 / +1.3 / −3.5 / −0.6; heavy: −5.1 / −1.4 / −1.1 / −4.4 / −5.7 / −3.9.

@@ -1,6 +1,6 @@
 # transfer_physics_v1 — do the transfer model and replica holding decide the single-origin ranking?
 
-**Status:** `ACTIVE` (2026-10-07). The 2×2 is read; the third factor (autoscaler scale-out) is registered as its own node,
+**Status:** `SUPERSEDED` (2026-10-08) by the R1 reference physics ([`physics_audit_v1`](physics_audit_v1.md), [`kpa_scaleout_v1`](kpa_scaleout_v1.md)); read 2026-10-07. The 2×2 is read; the third factor (autoscaler scale-out) is registered as its own node,
 [`kpa_scaleout_v1`](kpa_scaleout_v1.md), node 1 of [`reference_physics_programme`](reference_physics_programme.md).
 **Since then (2026-10-08):** under KPA scale-out, self-predict beats CD in both released conditions
 (`kpa_scaleout_v1`); everything below is under the legacy scale-out, where it still holds (a shared-autoscaler control
@@ -16,7 +16,7 @@ directions were written before any condition run was read.
   - releasing the replica cuts queue share from 0.78–0.96 to **0.05–0.08**;
   - pipelining alone leaves it at **0.69–0.78** (absolute queue about 2 s instead of 6.7–55 s).
 - **Absolute latency falls 4–70×** (CD at ×2: 8.62 s → 2.89 s pipelined, 1.99 s released, 0.97 s both).
-- **Knative's gap to CD shrinks** from +90 / +126 / +151 % to +15–72 %.
+- **Knative's (`reactive`, the queue-keyed arm; see gate-tools 2026-10-11) gap to CD shrinks** from +90 / +126 / +151 % to +15–72 %.
 - **`so1load`, zero-shot, falls further behind CD** (+12.7 / +7.4 / −3.3 % → +17 to +27 %); it exchanges more than
   every rule except Knative.
 - **The load ladder no longer orders load:** under the new physics latency *falls* from ×2 to ×5 (pipelined CD 2.89 →

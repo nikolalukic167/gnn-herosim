@@ -57,8 +57,22 @@ CHANCE_FLOOR = {
     "val/mt_plan_exact": ("baseline/val_chance_graph_acc", "above"),
     "val/acc": ("baseline/val_chance_graph_acc", "above"),
     "val/ce": ("baseline/val_chance_ce", "below"),
-    "train/ce": ("baseline/val_chance_ce", "below"),
 }
+# train/ce is not read against that floor: the floor is the val split's one-term plan NLL, while train/ce is the train
+# split's loss and adds NEAR_RTT_FULL_CONTEXT_CE_WEIGHT x a second plan NLL when that weight is non-zero (the weight is
+# recorded in the checkpoint contract, not in the W&B config), so at weight 1.0 a uniform scorer's train/ce is twice its one-term floor.
+TRAIN_CE_NOT_FLOORED = (
+    "train/ce                       not compared to chance: train split, and it adds the full-context term when "
+    "NEAR_RTT_FULL_CONTEXT_CE_WEIGHT > 0; only val/ce (one-term prefix CE) is read against the floor"
+)
+
+
+def higher_is_better(metric: str) -> bool:
+    """Accuracies, exact-plan rates, choice rates and agreements peak at their max; losses and regrets at their min."""
+    name = metric.rsplit("/", 1)[-1]
+    if any(w in name for w in ("regret", "loss")) or name == "ce" or name.endswith("_ce") or name.startswith("ce_"):
+        return False
+    return any(w in name for w in ("acc", "exact", "choice", "agreement", "pair_optimal_fraction"))
 
 # Summary prefixes that are reference lines rather than curves. `untrained/` is the
 # model before any gradient step (train_near_rtt.py logs it since 2026-09-16); the
@@ -273,6 +287,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             u = floors.get(untrained_key(metric))
             u_txt = f"untrained={_fmt(float(u))} " if isinstance(u, (int, float)) else ""
             print(f"    {metric:30s} {u_txt}after-ep1={_fmt(xs[0])} best={_fmt(max(xs) if direction == 'above' else min(xs))} chance={_fmt(floor)} -> {verdict}{tail}")
+        if "train/ce" in live:
+            print(f"    {TRAIN_CE_NOT_FLOORED}")
 
     # --- selection and overfit ----------------------------------------------
     print("\nSELECTION")
@@ -294,7 +310,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             ys = _series(step_rows, key)
             if len(ys) != len(xs):
                 continue
-            better = max if key.endswith(("acc",)) else min
+            better = max if higher_is_better(key) else min
             peak = ys.index(better(ys))
             if abs(peak - sel) >= max(5, n_epochs // 20):
                 print(f"    NOTE {key} peaks at epoch {peak}, not {sel} -- the selector is not optimising it")

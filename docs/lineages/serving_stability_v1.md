@@ -1,6 +1,6 @@
 # serving_stability_v1 — the learned arms place better and control worse
 
-**Status:** `REGISTERED` (2026-09-15). Every bar below is signed **before** its data. Amend by
+**Status:** `CLOSED` (2026-09-15) — **EARLY-ADVANTAGE-REAL · STABILITY-NOT-THE-LEVER**. Registered 2026-09-15. Every bar below is signed **before** its data. Amend by
 dated amendment only.
 
 **Parents:** `drainable_regime_v1` (both learned arms lose to reactive at a defensible load),

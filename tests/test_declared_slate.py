@@ -13,7 +13,15 @@ def cand(node, plat, drain=0.0, exec_=1.0, lat=0.0, init=True, cold=5.0):
 def test_standalone_cost_is_the_peer_greedy_base_without_exchange():
     assert D.standalone_cost(cand(0, 0, drain=2.0, exec_=3.0, lat=0.5)) == pytest.approx(5.5)
     assert D.standalone_cost(cand(0, 0, drain=2.0, exec_=3.0, lat=0.5, init=False, cold=7.0)) == pytest.approx(12.5)
-    assert D.standalone_cost({}) == 0.0
+    with pytest.raises(KeyError):  # audit m3: a candidate without `initialized` is an error, never "warm"
+        D.standalone_cost({})
+
+
+def test_snapshot_ect_requires_initialized():
+    from src.placement.scheduling_cost import expected_completion_from_snapshot_candidate
+
+    with pytest.raises(KeyError):
+        expected_completion_from_snapshot_candidate({"execution_time": 1.0}, 0, 0)
 
 
 def test_top_five_by_cost_with_node_platform_tie_break():

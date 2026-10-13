@@ -1,0 +1,24 @@
+{
+ "verdict": "DESIGN-READY",
+ "lineage": "sparse_obs_s0_v1",
+ "clients": 160,
+ "servers": 24,
+ "connection_probability": 0.6,
+ "topologies": [
+  19440,
+  19441,
+  19442,
+  19443,
+  19444,
+  19445,
+  19446,
+  19447,
+  19448,
+  19449,
+  19450,
+  19451
+ ],
+ "windows": [
+  "g0"
+ ]
+}

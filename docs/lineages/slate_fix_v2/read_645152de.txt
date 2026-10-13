@@ -1,0 +1,52 @@
+528 summaries, 0 failed, 12 topologies
+-- code: v2_H_6a5c922c 6a5c922c,f4f0453f; v2_L12_6a5c922c 6a5c922c,f4f0453f; v2_L34_f4f0453f f4f0453f; reader 645152de
+-- cells per pin: f4f0453f 449, 6a5c922c 79
+-- whole-run identity vs slate_fix_v1: 336 cells checked, 0 mismatched
+-- cells per arm and rung (finished/failed, median wall s)
+  cd_exactS_ib0|moderate                 24/0   wall 1827
+  cd_exactS_ib0|heavy                    24/0   wall 1956
+  ra_gnn_eng_nosplit|moderate            96/0   wall 314
+  ra_gnn_eng_nosplit|heavy               96/0   wall 291
+  ra_gnn_eng_selfsearch|moderate         48/0   wall 1236
+  ra_gnn_eng_selfsearch|heavy            48/0   wall 1430
+  ra_twin_eng_nosplit|moderate           96/0   wall 259
+  ra_twin_eng_nosplit|heavy              96/0   wall 238
+-- PRIMARY: vs cd_exactS_ib0 on latency after 360 s (Holm over 4), whole-run beside, delta = steady - whole
+  self-search|moderate   steady 0.73 % (6/12) Holm 0.6025 NOT-SEPARATED   | whole 2.62 % | delta -1.66 pp p 0.0161 INFLATES
+  self-search|heavy      steady 1.70 % (4/12) Holm 0.6025 NOT-SEPARATED   | whole 5.34 % | delta -5.05 pp p 0.0005 INFLATES
+  no-split|moderate      steady 3.60 % (1/12) Holm 0.0137 E-FASTER        | whole 2.78 % | delta -0.27 pp p 0.9097 NEUTRAL
+  no-split|heavy         steady 7.09 % (2/12) Holm 0.0205 E-FASTER        | whole 7.38 % | delta -1.14 pp p 0.0923 NEUTRAL
+-- SECONDARY: the same on latency after the 5th-percentile dispatch (Holm over 4)
+  self-search|moderate   0.85 % (6/12) Holm 0.5322 | delta -1.97 pp INFLATES
+  self-search|heavy      1.76 % (4/12) Holm 0.5322 | delta -5.28 pp INFLATES
+  no-split|moderate      3.24 % (1/12) Holm 0.0098 | delta -0.18 pp NEUTRAL
+  no-split|heavy         7.46 % (2/12) Holm 0.0278 | delta -0.83 pp NEUTRAL
+-- MP: gnn no-split vs twin no-split, seeds 1-4 (Holm over 4)
+  whole|moderate         -1.49 % (12/12) p 0.0005 Holm 0.0020
+  whole|heavy            -2.41 % (12/12) p 0.0005 Holm 0.0020
+  s360|moderate          -0.65 % (8/12) p 0.0522 Holm 0.0522
+  s360|heavy             -1.19 % (9/12) p 0.0161 Holm 0.0322
+  MP labels: {'whole': 'DIRECTION-ONLY', 's360': 'DIRECTION-ONLY'}  (model-class result, never a hand win)
+-- descriptive
+  mp seeds 1-2 whole|moderate          -1.55 % (11/12) p 0.0015
+  mp seeds 1-2 whole|heavy             -2.57 % (12/12) p 0.0005
+  mp seeds 1-2 s360|moderate           -0.33 % (9/12) p 0.2334
+  mp seeds 1-2 s360|heavy              -0.89 % (7/12) p 0.1514
+  mp seeds 3-4 whole|moderate          -1.01 % (10/12) p 0.0068
+  mp seeds 3-4 whole|heavy             -2.81 % (11/12) p 0.0015
+  mp seeds 3-4 s360|moderate           -0.24 % (8/12) p 0.4238
+  mp seeds 3-4 s360|heavy              -0.13 % (7/12) p 0.4238
+  self-search vs no-split s360|moderate -2.38 % (10/12) p 0.0093
+  self-search vs no-split s360|heavy   -4.05 % (9/12) p 0.0210
+-- the bar's own transient (cd_exactS_ib0; median over cells): whole-run, after 360 s, share of the whole-run mean in the opening
+  moderate  whole 2.520 s  after-360 2.040 s  share 18.1 %  (n 24)
+  heavy     whole 2.182 s  after-360 1.152 s  share 47.1 %  (n 24)
+-- latency deciles in dispatch order (median over cells, s)
+  cd_exactS_ib0|moderate               6.39 2.09 1.97 2.11 1.99 1.97 2.04 2.03 2.02 2.02
+  cd_exactS_ib0|heavy                  11.32 1.20 1.13 1.16 1.13 1.17 1.14 1.13 1.12 1.07
+  ra_gnn_eng_nosplit|moderate          6.31 2.16 2.02 2.10 2.08 2.05 2.13 2.06 2.13 2.03
+  ra_gnn_eng_nosplit|heavy             11.99 1.25 1.16 1.16 1.21 1.18 1.22 1.18 1.18 1.19
+  ra_gnn_eng_selfsearch|moderate       6.39 2.05 1.98 2.05 2.05 2.00 2.13 2.05 2.10 2.06
+  ra_gnn_eng_selfsearch|heavy          12.33 1.16 1.13 1.17 1.13 1.17 1.15 1.14 1.17 1.09
+  ra_twin_eng_nosplit|moderate         6.63 2.10 2.03 2.13 2.08 2.07 2.17 2.09 2.11 2.09
+  ra_twin_eng_nosplit|heavy            12.77 1.26 1.19 1.18 1.21 1.20 1.19 1.17 1.20 1.19
