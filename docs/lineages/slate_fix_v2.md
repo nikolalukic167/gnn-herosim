@@ -1,6 +1,6 @@
 # slate_fix_v2 — does the deploy transient hide or inflate the GNN's heavy deficit, and does the no-split MP direction hold on 4 seeds?
 
-**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert as drafted at 24672635, plus one descriptive line; drafted by S6); gate launched 2026-10-12 after the cross-commit identity passed 8/8; cells at two pins, 6a5c922c and f4f0453f (see the record). Training of seeds 3–4 runs as job 864264.
+**Status:** `ACTIVE` (2026-10-12; registered the same day, signed by the expert as drafted at 24672635, plus one descriptive line; drafted by S6). As of 2026-10-13: H 48/48 and L12 288/288 are complete, with cells at two pins (6a5c922c and f4f0453f, identity-tied; see the record). L34 864486 is running at f4f0453f. No cell has been read.
 
 **Parent.** `slate_fix_v1` (CLOSED E-FASTER / UNCAPPED-DATA-NOT-THE-LEVER). Its statistic, averageElapsedTime over all 50k tasks, includes the cluster's own scale-from-zero cold start. SCIENTIST estimates that is about 40 % of heavy mean latency. Its per-task results were deleted, so no steady-state number exists for it. Its no-split MP contrast (new gnn vs new twin) was −2.57 % heavy (12/12, Holm .002) and −1.55 % moderate on two seeds.
 
