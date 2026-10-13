@@ -303,7 +303,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **The expert's rulings on this text:**
     - **(A) Gate ids**, the agreed rule of SCIENTIST and the expert, which replaces the topology sentence of the text below: "Gate ids are picked by S5's token scan as the next free block above 19472 (expected 19473–19484). Required property: no gate id appears in any training, validation or capture list. The list and its hash are filed before any cell."
       - The corpus block is the next free ids above the gate block, also verified by the scan, and the prep fails loud on an existing ROOT. This refines ruling (2) in the entry below. Both lists go into this node before minting.
-    - **(B) Label slate:** the served top-5 slate for labels, the full set for the oracle (see the corpus-spec entry).
+    - **(B) Label slate:** moot. The served slate is the full set, so the labels and the oracle both search `_pg_candidates` (see the corpus-spec entry).
     - **(C) Per-task batch-size logging** belongs to S5, after the minting. It is a summarizer change plus an identity: every sim key unchanged on a `gate_k1` cell. It comes before any gate cell.
   - SCIENTIST's text, verbatim:
 
@@ -375,10 +375,10 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Cost:** the node's line is labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule (the expert). SCIENTIST estimates about 60 CPU-h of labels for the spec below. S7 builds them.
   - **Arm 1 corpus spec: SCIENTIST's block, verbatim** (received 2026-10-13, before any label is built; it replaces the expert's relayed summary). Two notes on it:
     - MIN_TIME = 0 (item 1) is covered by the expert's signed amendment (1) in the entry above.
-    - Item 5 carries SCIENTIST's pre-label fix. **The expert accepted it (ruling B):**
-      - The labels search the GNN's served slate (`declared_pruning_v1_uncapped`, per-task top-5), so every label is learnable. The share of full-set ILS placements outside the slate is reported (about 2.1 % in K1(b)).
-      - The oracle keeps the full `_pg_candidates` set. It is a ceiling, and the difference between the two is the slate's cost.
-      - The r ≥ 0.10 rule applies to the slate-restricted ILS plan, and the fresh-100 split is printed for that plan.
+    - Item 5's "served top-5 slate" fix was **withdrawn by SCIENTIST before any label**, and with it the expert's ruling (B), which had accepted it.
+      - `declared_pruning_v1_uncapped`, the GNN's served slate, is the full candidate set, not the top-5 (`src/placement/declared_slate.py:28`, `:112`; verified at filing). So the served slate equals `_pg_candidates`, and the original item 5 stands: ILS over the full set, the same as the oracle.
+      - Only the ≤ 10 clause is kept, reworded (marked inline).
+      - The r ≥ 0.10 rule and the fresh-100 split apply to that full-set ILS plan.
     - Item 2 is SCIENTIST's correction, made before any label. The first version (11–50: 4,200; 101–256: 1,000) gave 101–256 about 39 % of the > 10 task share, against the gate's 17 %. That is 2.3×, which breaks § 4's 2× rule. Item 9's label cost drops to about 50 CPU-h.
       - Rechecked at filing: 4,600 × 22, 2,000 × 70 and 600 × 150 give 30.6 / 42.3 / 27.2 %.
       - The mean sizes must be measured on the capture pool, and the final shares printed.
@@ -400,7 +400,8 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     >
     > 5. Labels:
     > - ≤ 10: the exact optimum on S, as in the slate_fix_v1 corpus, unchanged.
-    > - > 10: ILS on S over ~~`cd_ib0`'s full candidate set (`_pg_candidates`)~~ **[SCIENTIST's pre-label fix:]** the GNN's served slate (`declared_pruning_v1_uncapped`, per-task top-5), so every label is learnable; the share of tasks whose full-set ILS placement lies outside the slate (about 2.1 % in K1(b)) is reported. ≤ 10 states: exact over the served slate if the slate product is ≤ 100,000; above that, labelled like > 10 states (ILS, replay, r ≥ 0.10), counted in ≤ 10. **[end of fix]** Seeded with the `cd_ib0` plan, at the K1(b) budget rule. Then one replay each of the hand and ILS plans at N = 0.
+    > - > 10: ILS on S over `cd_ib0`'s full candidate set (`_pg_candidates`), seeded with the `cd_ib0` plan, at the K1(b) budget rule. Then one replay each of the hand and ILS plans at N = 0.
+    > - **[SCIENTIST's amendment, before any label:]** ≤ 10 states: exact over the full candidate product if ≤ 100,000 plans; above that, labelled like > 10 states (ILS, replay, r ≥ 0.10), counted in ≤ 10; both product counts (full set and standalone top-5) reported.
     > - Label = ILS iff r = (RTT_hand − RTT_ILS) / RTT_hand ≥ 0.10; else the hand plan.
     > - SPLIT / UNPLACED states take the hand label.
     > - Report per bucket and stratum: the ILS-label share, the r histogram, and the counts of SPLIT / UNPLACED / > 256.
