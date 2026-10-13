@@ -1,5 +1,6 @@
 """uncut_groups_s0_v1 K1(b) tool: the ILS (pure, synthetic S), the reader and the bucket rule. The simulator-backed parts are the datalab smoke."""
 import itertools
+import json
 import random
 import sys
 from pathlib import Path
@@ -93,18 +94,45 @@ def test_reader_refuses_rows_without_a_replayed_regret():
         U.read_rows([{"bucket": "11_50", "n": 12}])
 
 
-def test_make_jobs_fails_loud_on_a_missing_file_and_keeps_every_state(tmp_path):
+def _cells(tmp_path, recs):
     cells, inputs = tmp_path / "cells", tmp_path / "inputs"
     (inputs / "wf1_heavy" / "cfg").mkdir(parents=True)
     cells.mkdir()
     (inputs / "wf1_heavy" / "cfg" / "cc40s1.json").write_text("{}")
-    st = {"state_id": "heavy_g0_00", "topology": 1, "window": "g0", "rung": "heavy", "bucket": "11_50", "group_size": 12, "trigger_task_id": 7}
+    (cells / "cc40s1__g0heavy__cd_expand_k100_s0.snapshots.jsonl").write_text(
+        "".join(json.dumps({"trigger_task_id": t, "time": tm, "fidelity": {"batch": [0] * n}}) + "\n" for t, tm, n in recs))
+    (cells / "cc40s1__g0heavy__cd_expand_k100_s0.summary.json").write_text("{}")
+    return cells, inputs
+
+
+def _st(sid, trig, bucket="11_50"):
+    return {"state_id": sid, "topology": 1, "window": "g0", "rung": "heavy", "bucket": bucket, "group_size": 12, "trigger_task_id": trig}
+
+
+def test_make_jobs_fails_loud_on_a_missing_file(tmp_path):
+    cells, inputs = _cells(tmp_path, [(7, 1.0, 12)])
     with pytest.raises(FileNotFoundError, match="FAIL LOUD"):
-        U.make_jobs([st], cells, "cd_expand_k100", inputs, "x")
-    for suf in (".snapshots.jsonl", ".summary.json"):
-        (cells / f"cc40s1__g0heavy__cd_expand_k100_s0{suf}").write_text("")
-    (job,) = U.make_jobs([st], cells, "cd_expand_k100", inputs, "x")
-    assert job["trigger_task_id"] == 7 and job["cell_config"].endswith("wf1_heavy/cfg/cc40s1.json") and job["bucket"] == "11_50"
+        U.make_jobs([_st("a", 7)], cells, "no_such_token", inputs, "x")
+
+
+def test_first_capture_is_the_state_and_extras_are_counted(tmp_path):
+    cells, inputs = _cells(tmp_path, [(7, 1.0, 12), (9, 2.0, 11), (7, 1.01, 5), (7, 1.02, 3)])
+    jobs, gone = U.make_jobs([_st("a", 7), _st("b", 9)], cells, "cd_expand_k100", inputs, "x")
+    a, b = jobs
+    assert gone == [] and a["time"] == 1.0 and a["first_capture_n"] == 12 and a["n_extra_captures"] == 2 and b["n_extra_captures"] == 0
+    snap = tmp_path / "cells" / "cc40s1__g0heavy__cd_expand_k100_s0.snapshots.jsonl"
+    assert U._load_snapshot({"snapfile": str(snap), "trigger_task_id": 7, "time": a["time"]})["time"] == 1.0
+
+
+def test_missing_ids_are_skipped_and_reported_but_unlisted_ones_fail_loud(tmp_path):
+    cells, inputs = _cells(tmp_path, [(7, 1.0, 12)])
+    sealed = [_st("a", 7), _st("gone", 99, "51_100"), _st("gone2", 98, "101_226")]
+    with pytest.raises(FileNotFoundError, match="never captured"):
+        U.make_jobs(sealed, cells, "cd_expand_k100", inputs, "x", missing=["gone"])
+    jobs, gone = U.make_jobs(sealed, cells, "cd_expand_k100", inputs, "x", missing=["gone", {"topology": 1, "window": "g0", "rung": "heavy", "trigger_task_id": 98}])
+    assert [j["state_id"] for j in jobs] == ["a"] and [(g["state_id"], g["bucket"]) for g in gone] == [("gone", "51_100"), ("gone2", "101_226")]
+    r = U.read_rows([_row("11_50", 100, 100, 5, 5) | {"n_extra_captures": 2}], gone)
+    assert r["missing"]["total"] == 2 and r["missing"]["51_100"] == ["gone"] and r["11_50"]["n_extra_captures_total"] == 2 and r["11_50"]["states_with_extra_captures"] == 1
 
 
 def _snap(chosen):

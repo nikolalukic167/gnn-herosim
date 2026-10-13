@@ -431,6 +431,7 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     d = decision_pass(job, arm, seed, max_evals, per, max_seconds)
     row = {k: d[k] for k in ("n", "n_batch", "n_pinned", "cands_mean", "start_S", "best_S", "n_evals", "budget", "stopped", "iters", "s_calls", "search_wall",
                              "hand", "best", "t0", "exhaustive", "slate_log10", "exact_cap_hit")}
+    row["n_extra_captures"] = int(job.get("n_extra_captures") or 0)
     row["time_bound"] = d["stopped"] == "seconds"          # the per-state --max-seconds bound, logged where it binds
     row["chosen_match"] = check_chosen(d["snap"], d["hand"], job.get("state_id")) if d["snap"].get("chosen") is not None else None
     row.update(state_id=job.get("state_id"), bucket=job.get("bucket") or bucket_of(d["n_batch"]), arm=arm, seed=seed,
@@ -448,7 +449,7 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     return row
 
 
-def read_rows(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] = ()) -> Dict[str, Any]:
     """K1(b): mean over states of (RTT(hand) - RTT(ILS)) / RTT(ILS) and the shares, pooled and per bucket; S-regret beside the replay. The replay rules."""
     ok = [r for r in rows if r.get("regret") is not None]
     if len(ok) != len(rows):
@@ -463,27 +464,60 @@ def read_rows(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
                 "share_within_1pct": sum(x <= 0.01 for x in g) / len(g), "share_ils_worse_than_hand": sum(x < -1e-9 for x in g) / len(g),
                 "mean_s_regret_pct": 100 * st.fmean(s) if s else None,
                 "share_s_and_replay_disagree": sum((r["s_regret"] or 0) > 1e-9 and r["regret"] < -1e-9 for r in rs) / len(rs),
-                "kill_K1b_mean_ge_1pct": bool(st.fmean(g) >= 0.01)}
+                "kill_K1b_mean_ge_1pct": bool(st.fmean(g) >= 0.01),
+                "n_extra_captures_total": sum(r.get("n_extra_captures", 0) for r in rs), "states_with_extra_captures": sum(r.get("n_extra_captures", 0) > 0 for r in rs)}
 
     out = {"pooled": block(ok)}
     for name, _lo, _hi in BUCKETS:
         out[name] = block([r for r in ok if r["bucket"] == name])
+    out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
     return out
 
 
-def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs: Path, sim_input: str, seed: int = 0) -> List[Dict[str, Any]]:
-    """One job per sealed state from a hand-cell directory: cells/cc40s<topo>__<window><rung>__<token>_s<seed>.{snapshots.jsonl,summary.json}; the config is
-    inputs/wf1_<rung>/cfg/cc40s<topo>.json. A missing file fails loud (a state is never dropped)."""
-    jobs = []
+def _is_missing(st_: Dict[str, Any], missing: Sequence[Any]) -> bool:
+    for m in missing:
+        if isinstance(m, str):
+            if m == st_["state_id"]:
+                return True
+        elif all(str(m[k]) == str(st_[k]) for k in m if k in st_) and "trigger_task_id" in m:
+            return True
+    return False
+
+
+def captures_of(snapfile: str, trigger: int) -> List[Dict[str, Any]]:
+    """Every capture in the file led by `trigger`, in file order (capture order); the K1(b) state is the first."""
+    out = []
+    for line in open(snapfile):
+        if line.strip():
+            rec = json.loads(line)
+            if int(rec["trigger_task_id"]) == int(trigger):
+                out.append({"time": float(rec["time"]), "n_batch": len(rec["fidelity"]["batch"])})
+    return out
+
+
+def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs: Path, sim_input: str, seed: int = 0,
+              missing: Sequence[Any] = ()) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """(jobs, missing states). One job per sealed state from a hand-cell directory: cells/cc40s<topo>__<window><rung>__<token>_s<seed>.{snapshots.jsonl,summary.json}; the
+    config is inputs/wf1_<rung>/cfg/cc40s<topo>.json. The state is the FIRST capture led by its trigger id (pinned by its time); later same-trigger captures (a sub-batch
+    0.01 s after the whole batch) are dropped and counted in `n_extra_captures`. A state listed in `missing` (state ids, or {topology, window, rung, trigger_task_id}
+    dicts: ids that were never a trigger at k = 1) is skipped and returned as missing with its bucket. Any other missing file or trigger fails loud."""
+    jobs, gone = [], []
     for st_ in sealed:
+        if _is_missing(st_, missing):
+            gone.append({k: st_[k] for k in ("state_id", "bucket", "group_size", "topology", "window", "rung", "trigger_task_id")})
+            continue
         stem = cells / f"cc40s{st_['topology']}__{st_['window']}{st_['rung']}__{token}_s{seed}"
         cfg = inputs / f"wf1_{st_['rung']}" / "cfg" / f"cc40s{st_['topology']}.json"
         for f in (Path(str(stem) + ".snapshots.jsonl"), Path(str(stem) + ".summary.json"), cfg):
             if not f.exists():
                 raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: {f} does not exist")
+        caps = captures_of(str(stem) + ".snapshots.jsonl", st_["trigger_task_id"])
+        if not caps:
+            raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: trigger {st_['trigger_task_id']} was never captured in {stem}.snapshots.jsonl and is not listed as missing")
         jobs.append({"state_id": st_["state_id"], "bucket": st_["bucket"], "group_size": st_["group_size"], "snapfile": str(stem) + ".snapshots.jsonl",
-                     "trigger_task_id": st_["trigger_task_id"], "cell_summary": str(stem) + ".summary.json", "cell_config": str(cfg), "sim_input": sim_input})
-    return jobs
+                     "trigger_task_id": st_["trigger_task_id"], "time": caps[0]["time"], "n_extra_captures": len(caps) - 1, "first_capture_n": caps[0]["n_batch"],
+                     "cell_summary": str(stem) + ".summary.json", "cell_config": str(cfg), "sim_input": sim_input})
+    return jobs, gone
 
 
 def main() -> int:
@@ -498,17 +532,19 @@ def main() -> int:
     m.add_argument("sealed"); m.add_argument("cells"); m.add_argument("out"); m.add_argument("--token", required=True, help="the hand cell's arm token, e.g. cd_ib0_k100")
     m.add_argument("--inputs", required=True, help="gate inputs_group dir"); m.add_argument("--sim-input", default=str(REPO / "data" / "nofs-ids"))
     m.add_argument("--only", default=None, help="comma list of state ids (a shard)")
+    m.add_argument("--missing", default=None, help="JSON list of sealed states that were never a trigger at k = 1 (state ids or {topology, window, rung, trigger_task_id})")
     d = sub.add_parser("read")
-    d.add_argument("rows"); d.add_argument("--json", default=None)
+    d.add_argument("rows"); d.add_argument("--json", default=None); d.add_argument("--missing", default=None, help="the <jobs>.missing.json make-jobs wrote")
     a = ap.parse_args()
     if a.cmd == "make-jobs":
         sealed = json.load(open(a.sealed))
         if a.only:
             keep = set(a.only.split(","))
             sealed = [x for x in sealed if x["state_id"] in keep]
-        jobs = make_jobs(sealed, Path(a.cells), a.token, Path(a.inputs), a.sim_input)
+        jobs, gone = make_jobs(sealed, Path(a.cells), a.token, Path(a.inputs), a.sim_input, missing=json.load(open(a.missing)) if a.missing else ())
         Path(a.out).write_text("".join(json.dumps(j) + "\n" for j in jobs))
-        print(f"{len(jobs)} jobs -> {a.out}")
+        Path(a.out + ".missing.json").write_text(json.dumps(gone, indent=1))
+        print(f"{len(jobs)} jobs -> {a.out}; {len(gone)} missing -> {a.out}.missing.json; extra captures dropped: {sum(j['n_extra_captures'] for j in jobs)}")
         return 0
     if a.cmd == "run":
         with open(a.out, "a") as fh:
@@ -521,7 +557,7 @@ def main() -> int:
                           "regret", row.get("regret"), "wall", round(row["wall"], 1), flush=True)
         return 0
     rows = [json.loads(l) for l in open(a.rows) if l.strip()]
-    res = read_rows(rows)
+    res = read_rows(rows, json.load(open(a.missing)) if a.missing else ())
     print(json.dumps(res, indent=1))
     if a.json:
         Path(a.json).write_text(json.dumps(res, indent=1))
