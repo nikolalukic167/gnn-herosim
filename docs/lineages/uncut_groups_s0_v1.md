@@ -366,9 +366,14 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Final `cd_exactS_ib0` heavy row** (S5, after 865209 drained; all 3 tasks COMPLETED). This replaces the 37-cell K1(a) row and the 45-cell interim row.
     - Cells: 46 finished / 2 projection-killed (19468 g1, g3; "watchdog: projected") / 0 stalled / 0 NOT-RUN, of 48.
     - Decision share, median [max] over the 46 cells: whole run 0.0088 % [0.0172], after 360 s 0.0080 % [0.0157].
-    - The K1(a) labels stand. The collapse label stands: every finished cell is still above 3× the `cd` mean.
-    - Not re-derived: no 46-cell read file exists yet. The latest file, `read_learned.json`, holds 45 cells, and all 45 collapse (whole and after 360 s), with shares 0.00885 / 0.00806 %.
-    - The heavy mean latency of 1,233 s is the 37-cell figure. It is not to be quoted until it is re-read on 46 cells.
+    - The K1(a) labels stand.
+    - Collapse (more than 3× the `cd` mean): 46 of 46 cells on the whole run and 46 of 46 after 360 s.
+    - Heavy mean latency: 1,525.7 s, against 2.58 s for `cd_ib0` and 2.59 s for `cd`. This is the median over topologies of each topology's median whole-run mean latency, and it replaces the 37-cell 1,233 s.
+    - nosplit vs `cd_exactS_ib0` (descriptive, collapse artefacts):
+      - heavy, 46 paired cells: −99.81 % whole run, −99.92 % after 360 s;
+      - moderate, unchanged at 41 cells: −92.55 % and −94.53 %.
+    - F1, F2 and the flags are unchanged from the 45-cell read, because the hand-bar cells did not move.
+    - Source: the 46-cell reads (same readers, `gate_k1` final), `/share/nikola.lukic/uncut_groups/read_k1a_final.json` and `read_learned_final.json`. Every figure above was checked against them.
   - Checked against `read_learned.json` at filing: the F1 and F2 medians, wins and Holm p, the NOT-RUN rows, the counts, health and decision shares, and the `F1-CUT-TRAINED` label.
   - **Labels (the expert's ruling).**
     - **F1: NO-WIN / TIES**, because no cell has Holm < .05. After 360 s, nosplit is the faster direction at both rungs (−2.60 % moderate, 9/12; −3.96 % heavy, 8/12; Holm .157 / .137). On the whole run, heavy is +4.10 % against nosplit (2/12): its deficit is in the opening. Every line is labelled F1-CUT-TRAINED.
@@ -460,7 +465,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Not launched at heavy:** `cd_expand`, which is WALL-INFEASIBLE at k = 0 (g0: 1 of 12 finished, 5 killed); and the prune arm, with the verdict "prune heavy: k=0 not admissible (6 finished / 2 killed of 12 g0)".
   - The prune stall is topology 19467 g2 (`watchdog: stall`). It is listed separately and is not counted in WALL-INFEASIBLE.
   - **K1-EXACT-ARMS-COLLAPSE-AT-k=1.** Every finished exact, expand and prune cell has a mean latency more than 3× `cd`'s: 44 to 1,233 s, against 2.6 to 2.9 s for `cd`.
-    - Median mean latency: `cd_exactS_ib0` 1,233 s heavy and 44 s moderate; `cd_expand` 398 s moderate; prune 870 s moderate.
+    - Median mean latency: `cd_exactS_ib0` 1,233 s heavy (37 cells; final 46-cell figure 1,525.7 s, see the learned read) and 44 s moderate; `cd_expand` 398 s moderate; prune 870 s moderate.
     - `cd_ib0` is 2.58 s heavy and 2.94 s moderate; `cd` is 2.59 s and 3.09 s.
     - These arms' small decision shares come from their large latency, not from cheap decisions.
   - Sources: `/share/nikola.lukic/uncut_groups/read_k1a.json` and `k1a_table.py`. The counts, rankings, headroom medians and `a_pass` were checked against the JSON at filing.
