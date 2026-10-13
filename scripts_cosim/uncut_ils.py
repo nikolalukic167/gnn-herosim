@@ -316,7 +316,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
             res.update(out)
         if set(local_of) <= {int(t.id) for t in batch_tasks} and "out" not in seen:
             seen["out"] = _search_at_decision(self, batch_tasks, system_state, res, local_of, set(fr.queued_forced), seed, max_evals, per, max_seconds,
-                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")), job.get("rank_plans"))
+                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")), job.get("rank_plans"), bool(job.get("zero_move")))
             raise _Done(seen["out"])
         return res
 
@@ -350,7 +350,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     return out
 
 
-def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False, rank_plans=None) -> Dict[str, Any]:
+def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False, rank_plans=None, zero_move=False) -> Dict[str, Any]:
     """Runs inside the decision: res[i] = (node id, platform id) of batch_tasks[i] under the hand arm."""
     placements = {i: (int(res[i][0]), int(res[i][1])) for i in range(len(batch_tasks))}
     cands_o, couple, keys, plan_o, pinned = sched._pg_plan_objects(batch_tasks, system_state, placements)
@@ -372,7 +372,19 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
         n_calls[0] += 1
         return float(sched._pg_plan_cost(batch_tasks, [couple[k] for k in plan], orch, memo, nodes)[0])
 
+    zmove = None
     try:
+        if zero_move:           # the first single-task move (candidate order) that leaves S exactly where it is: the chaos-floor probe (a hand-equivalent plan one task away)
+            base_s = S(start)
+            for i in idx:
+                if i in pinned:
+                    continue
+                for c in ckeys[i]:
+                    if c != start[i] and abs(S(start[:i] + (c,) + start[i + 1:]) - base_s) <= 1e-12:
+                        zmove = (i, c)
+                        break
+                if zmove:
+                    break
         budget = max_evals if max_evals else default_budget(ckeys, per)
         t1 = time.time()
         r = ils(ckeys, start, S, seed=seed, max_evals=budget, max_seconds=max_seconds)
@@ -411,6 +423,8 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
             "hand": to_batch(start), "start_S": r["start_S"], "best": to_batch(r["best"]), "best_S": r["best_S"], "n_evals": r["n_evals"], "budget": budget,
             "stopped": r["stopped"], "iters": r["iters"], "s_calls": ils_calls, "search_wall": wall_s, "exhaustive": exh,
             "slate_log10": slate_log10, "exact_cap_hit": exact_cap_hit, "ranks": ranks,
+            "zero_move": None if zmove is None else {"task": [k for k, (_b, i) in enumerate(order) if i == zmove[0]][0], "to": list(zmove[1]),
+                                                     "plan": to_batch(start[:zmove[0]] + (zmove[1],) + start[zmove[0] + 1:])},
             "trajectory": [{"eval": t["eval"], "S": t["S"], "iter": t["iter"], "plan": to_batch(t["plan"])} for t in r["trajectory"]],
             "evals_log": [(e["eval"], e["S"], e["iter"]) for e in r["evals"]], "revisits": r["revisits"],
             "evals_full": [(e["eval"], e["S"], e["iter"], to_batch(e["plan"])) for e in r["evals"]] if keep_plans else None}
