@@ -21,7 +21,7 @@ So the joint problem studied so far is the easy part of the workload. On the big
 
 **Not a revival.** The hard-stops entry "Two-level Alibaba fan-out" (2026-10-12) closes a hidden second level revealed when the parent completes. This node serves the **first-level** fan-out uncut, fully known at arrival. **It never reveals later levels.**
 
-**Prior and hypothesis (SCIENTIST).** Registered at P(WIN) ≈ 0.10. Revision, verbatim: "2026-10-13, SCIENTIST, before any D data: P(WIN) ≈ 0.05 (was 0.10); P(MP-attributed win) ≈ 0.02. Revised after decision_cost's attribution read: in the capped seat at k = 1, cdxapply ties cd_expand within 1 pp (SEARCH-WIN-NOT-GNN), so the learned seed's edge there is zero, and cd_expand is within budget at k_anchor ≈ 12–14. D adds only bigger batches (to ~230 tasks). A learned edge needs the hand expansion's cost or quality to degrade faster with n than the GNN's; nothing measured yet says it does. K1 measures it."
+**Prior and hypothesis (SCIENTIST).** Registered at P(WIN) ≈ 0.10, revised to 0.05 before any D data, then to 0.03 before any k = 1 data (earlier wordings in the record). Current, verbatim: "2026-10-13, SCIENTIST, before any k = 1 data, after the wall smokes: P(WIN) ≈ 0.03 (was 0.05); P(MP-attributed win) ≈ 0.01. GNN self-search is WALL-INFEASIBLE and leaves F1; the claim now rests on a one-pass argmax decode (nosplit), which in the capped seat at k = 0 was E-FASTER behind cd_exactS_ib0 by +3.6 / +7.1 % (slate_fix_v2). The only feasible exact arm, cd_exactS_ib0, is charged ~1.5 % of latency at scalar w (more with the frozen per-bucket w(n)), against nosplit's 0.13 %. Closing a 3.6–7.1 % plan-quality gap needs D's uncut-ILS labels to buy what the capped labels did not, or the bucketed charge on 11–226-task batches to be several times the scalar figure."
 - Coupling stays sparse. Each member draws `min(2, size − 1)` partners (`grounded_workload_v1_mint.py:13–14`, `:140`), so a 2,876-task group is a graph of mean degree about 4, not a clique.
 - On states of ≤ 6 tasks, S plus CD is within about 2–4 % of the true optimum on average (frontier_v1: ib0_s mean regret 4.06 % heavy / 1.39 % moderate, cd_s 2.67 / 1.99 %). Whether S stays that good on groups > 10 is unmeasured; the K1b replay diagnostic measures it.
 - α-expansion's exact-optimum hit rate of 67.2 % (ICM 55.3 %; 1,017 whole-batch datasets of 2–8 tasks, true replayed RTT; `/share/nikola.lukic/workload_fix_v1/accel_state_stats/expansion_summary.txt`) is **not** evidence that hand local search is near-optimal: its misses are large (median +44 %, p90 +748 %).
@@ -73,7 +73,8 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 
 - **`cdxapply` contingency resolved (2026-10-13):** S4's decision_cost attribution read has `cdxapply` tying `cd_expand` within 1 pp on every metric at k = 1 (−0.21 / −0.38 % whole-run, −0.25 / −0.99 % after 360 s, Holm 1.0; SEARCH-WIN-NOT-GNN). By the registered rule `cdxapply` stays an arm, with no re-sign. `cd_expand` is confirmed as the in-budget hand arm the learned side must beat at k = 1 (k_anchor about 14 / 12 at B = 10 ms).
 
-- Plain no-split is dropped: it is E-FASTER in slate_fix_v2 (+3.6 / +7.1 %) [V].
+- **Revised 2026-10-13, before any k = 1 data (SCIENTIST, accepted by the expert):** GNN self-search and its MP-OFF twin's self-search are WALL-INFEASIBLE and leave F1 and F2. The primary learned arm is now the one-pass no-split decode; `cdxapply` stays only if its heavy smoke is feasible. The table above is the registered form.
+- Plain no-split was dropped at registration (E-FASTER in slate_fix_v2, +3.6 / +7.1 % [V]); it returns as the primary by the revision above.
 - Search machinery is unchanged: self-search is exact up to `SELF_SEARCH_EXACT_MAX` = 625 slate plans, coordinate ascent above (`gnn/scheduler.py:174`, `:1066`) [V]. There is no hand expansion inside the pure GNN arms.
 
 **3. Labels.** ILS on ib0's surrogate S, not exact replay: exact search is impossible above n = 7, and a replay build costs 5.59–7.73 s on its first call per state (raw range 4.98–7.96 s) plus **0.04–0.21 s per evaluation, rising with n** (0.05 s up to n = 4 heavy, 0.21 s at heavy n = 6, p90 about 0.22–0.25) (frontier_v1 `read.txt` §wall and `walls.jsonl`, 30 states, replay = label exactly) [V]. Replay-label costs at n > 10 are therefore lower bounds.
@@ -115,13 +116,15 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 
 **5. Statistic.** Paired per topology (median over windows of the paired %), then the median over topologies, the sign count, an exact Wilcoxon and Holm (`R.holm`).
 - **Whole-run and after-360 s are both reported, and a WIN must clear both.** Steady state as the sole primary is breaking change #4, still PROPOSED and the user's decision (confirmed by the expert, 2026-10-13). Requiring both also guards against a win that lives in the opening, the way slate_fix_v2's self-search deficit did.
-- **F1, primary, k = 1** (Holm over 4): self-search vs the bar and `cdxapply` vs the bar, × 2 rungs.
+- **F1, primary, k = 1** (Holm over 4). Revised 2026-10-13 before any k = 1 data (SCIENTIST, accepted by the expert; registered wording "self-search vs the bar and `cdxapply` vs the bar, × 2 rungs"). Verbatim: "A learned one-pass decoder with no search, trained on ILS labels over uncut groups (≤ 256 tasks), beats the best wall-feasible hand arm at k = 1 because (i) the hand arms' in-budget plan quality on > 10-task batches falls short of the ILS label while their charged decision time grows with n, and (ii) the decoder's charge stays ~0.1 % of latency. It predicts the gap to the hand bar concentrates in the 11–50 and 51–226 buckets."
+  - F1 arms: nosplit (and `cdxapply` only if its heavy smoke is feasible) vs {`cd`, `cd_ib0`, `cd_exactS_ib0`, prune if feasible}, with the robust-bar clause.
   - **WIN:** median ≤ −2 % and Holm p < .05 at both rungs for the same arm, **and** that arm's collapse count ≤ the bar arm's, **and** decision_cost's anchor rule: the crossover k is ≤ the anchor k of the hand arm it beats, else NO-GO.
   - **Robust-bar clause (SCIENTIST's rule, 2026-10-13, before data; signed by the expert):** where the median-chosen bar arm has a collapse count > 0 in a condition, WIN also requires clearing the WIN rule against the **best zero-collapse hand arm** in that condition, by median, with `cd` always a candidate. If no hand arm has zero collapses, the read says so and is made against `cd`.
     - A WIN read under this clause is labelled **WIN-ROBUST**.
     - A WIN that clears only the median-chosen bar while that bar collapsed is labelled **WIN-OVER-BRITTLE-BAR** and is never quoted as WIN.
     - Why: the bar is chosen by median, and a median hides a collapse tail (warm_surge 0b/0c, ALPHA-FIXES-COLLAPSE-CELLS-BUT-NOT-A-SAFE-KNOB: exact batch search collapses on a topology-dependent subset at every alpha tried; one-pass `cd` never did).
-- **F2, attribution, k = 1** (Holm over 4): self-search vs its MP-OFF twin and vs MLP same-input, × 2 rungs.
+- **F2, attribution, k = 1** (Holm over 4), × 2 rungs. Revised 2026-10-13 before any k = 1 data (registered wording: self-search vs its MP-OFF twin and vs MLP same-input). Verbatim: "nosplit vs its MP-OFF twin nosplit; nosplit vs MLP same-input one-pass. Self-search leaves F2."
+- **K1 note (SCIENTIST, 2026-10-13, before any k = 1 data):** "K1 is unchanged and is now the decisive gate: it asks exactly (i), whether the best feasible hand arm is within 1 % of ILS on big states and charged < 3 %."
 - **F3, secondary, k = 0.25** (Holm over 4): F1's tests, Holm separately. No WIN is claimed from F3 alone.
 - **Labels:**
   - WIN / TIES / E-FASTER (the bar Holm-faster at both rungs);
@@ -296,13 +299,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Prior, F1, F2 and K1 note revised before any k = 1 data** (SCIENTIST's verbatim text, accepted by the expert; in the head and § Statistic). Replaced prior text, verbatim: "2026-10-13, SCIENTIST, before any D data: P(WIN) ≈ 0.05 (was 0.10); P(MP-attributed win) ≈ 0.02. Revised after decision_cost's attribution read: in the capped seat at k = 1, cdxapply ties cd_expand within 1 pp (SEARCH-WIN-NOT-GNN), so the learned seed's edge there is zero, and cd_expand is within budget at k_anchor ≈ 12–14. D adds only bigger batches (to ~230 tasks). A learned edge needs the hand expansion's cost or quality to degrade faster with n than the GNN's; nothing measured yet says it does. K1 measures it." (registered at P(WIN) ≈ 0.10). The nosplit-split item from the learned-arm smoke is resolved (below).
 - 2026-10-13 — **Learned-arm wall smoke** (S4, job 864633; 19461 g0, k = 0, pin f36f293f; slate_fix_v1 checkpoints seed 1, trained on cut groups; descriptive, not a gate number; OUT `/share/nikola.lukic/uncut_groups/smoke_learned`).
   - `ra_gnn_eng_selfsearch` is **WALL-INFEASIBLE at both rungs**: killed at about 600 s of wall time, projected 32,584 s (moderate) and 72,480 s (heavy). It leaves F1 by the symmetry rule (post-data amendment (c)).
   - `ra_gnn_eng_nosplit` **finished** in 200 s (moderate) and 193 s (heavy) of wall time, with `pgb_max_batch` 199.
     - Decision wall: 3.23 / 3.06 ms per task, which is 0.13 % of mean latency (2.55 / 2.11 s).
     - The forward pass on a 199-task group fits inside the 8 GB cell cap. The job-level sacct MaxRSS is 3.10 GB for 4 cells, not per cell.
   - **SUB_BATCH assertion, defined:** the violation counter is `slate_declared_sub_batched − slate_declared_unsplit` and must be 0. It is 0 here (1,225 and 1,641, each equal to its pair).
-  - **Open:** the nosplit cells split more peer groups than `cd` (heavy > 100 bucket: 45 against 0). S4 is computing the learned arm's whole-group task share and tracing the cause; the hypothesis is the decode wall during collection.
+  - **Resolved (S4's split analysis; ruled by the expert):** the nosplit cells split more peer groups than `cd` in the heavy > 100 bucket (45 against 0), but this is a trajectory effect, not a defect.
+    - nosplit's whole-group task share is inside the hand spread: heavy 99.0 % against `cd` 99.4, `cd_ib0` 99.2 and `cd_exactS_ib0` 99.3 %; moderate 97.7 % against 97.2–98.0 %.
+    - Hand arms also split groups > 100 at moderate (`cd` 115, `cd_exactS` 72, `cd_exactS_ib0` 62 tasks).
+    - `peer_group_incomplete_batches` is identical across all arms (11 heavy, 15–16 moderate).
+    - At k = 0 the decode wall never enters the simulated clock (`scheduler.py:1401`: the charge is the only advance of simulated time). So a split reflects which bucket an incomplete batch lands in, not the decision wall.
+    - Ruled: split groups are counted at their original size, as registered. At k = 1 the serialisation effect becomes live for every arm and is read there, not instrumented now.
   - F1's learned slate is now `nosplit`, plus `cdxapply` only if its feasibility smoke (running next) passes at a rung.
 - 2026-10-13 — **Pause rule and NOT-RUN cells.**
   - The harness's 5 % pause line (`scripts_cosim/datalab/r1a_gate.sbatch:4`): "production pauses for a rung when more than 5 % of its decided non-Knative cells hang". In code (`scripts_cosim/progress_watchdog.py:21–22, :96–97`), it acts once at least 40 cells are decided, and a timeout, watchdog kill or unreadable result counts as hung.
