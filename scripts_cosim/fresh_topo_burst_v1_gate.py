@@ -455,6 +455,26 @@ def write_task_bsz(task_results: Optional[List[dict]], path: str) -> Optional[in
     return len(rows)
 
 
+def write_task_lock(task_results: Optional[List[dict]], path: str) -> Optional[int]:
+    """Sidecar of `.tasks_bsz.npy`, same rows in the same order: (taskId, ioEndTime, computeStartTime, lock_wait) as float64,
+    lock_wait = computeStartTime - ioEndTime (the per-task quantity lock_wait_profile summarises); NaN where a task has no
+    stamps (never served). uncut_groups_s0_v1 Arm 1: stratifies learned-arm losses by per-task lock wait."""
+    import numpy as np
+
+    def f(r, k):
+        return float(r[k]) if r.get(k) is not None else math.nan
+
+    rows = sorted((float(r["dispatchedTime"]), float(r["doneTime"]), int(r["taskId"]), f(r, "ioEndTime"), f(r, "computeStartTime"))
+                  for r in task_results or () if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    if not rows:
+        return None
+    arr = np.asarray([(t, io, cs, cs - io) for _, _, t, io, cs in rows], dtype=np.float64)
+    with open(path + ".partial", "wb") as fh:
+        np.save(fh, arr)
+    os.replace(path + ".partial", path)
+    return len(rows)
+
+
 def write_task_times(task_results: Optional[List[dict]], path: str) -> Optional[int]:
     """Per-task (dispatchedTime, doneTime) as float32, in dispatch order, so any warm-up cut can be read after the raw file is
     deleted (~400 KB per 50k-task cell). Written atomically; returns the row count."""
@@ -1397,6 +1417,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     out["task_times_rows"] = write_task_times(st.get("taskResults"), os.path.join(out_dir, name + ".tasks.npy"))
     out["task_bsz_rows"] = write_task_bsz(st.get("taskResults"), os.path.join(out_dir, name + ".tasks_bsz.npy"))
+    out["task_lock_rows"] = write_task_lock(st.get("taskResults"), os.path.join(out_dir, name + ".tasks_lock.npy"))
     sealed = sealed_triggers(int(t["topo"]), window)
     if sealed is not None:
         snap = os.path.join(out_dir, name + ".snapshots.jsonl")
