@@ -276,6 +276,17 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
+- 2026-10-13 — **Identities (1), (3), (m) PASSED; hand cells handed to S5** (split confirmed by the expert).
+  - All runs are the smoke cells 16490 g0 heavy; summaries are compared on every shared key, with timing and provenance excluded.
+  - (1) whole-group mode + raise, 4523dc56 (jobs 864543 / 864544): `cd_exactS` s0 and `ra_gnn_eng_nosplit` s1 are SIM-IDENTICAL to `v2_identity_f4f0453f` (427 / 369 keys).
+  - (3) dc-steady merge, 4e028f44 (864547 / 864548): SIM-IDENTICAL; the only new keys are provenance.
+  - (m) snapshot hook:
+    - The first run at f20bfaab (864559) wrote 3/3 snapshots, but 8 `peerExchangeByAccessClass` counters moved. Everything else, including the trajectory, was unchanged.
+    - Diagnostics 864566 (fidelity, no capture) and 864567 (capture, no fidelity) were each identical.
+    - Cause: the capture's input estimate booked priced exchanges. Fixed at 6d1764bd, as a launch fault ruled by the expert; the gate-tools entry is dated 2026-10-13.
+    - Rerun 864574 at 6d1764bd, hook on, is SIM-IDENTICAL to the hook-off cell 864558 (445 keys), with 3/3 written.
+  - (4) prune at alpha = 1 (864550, `ra_gnn_eng_cdxprb` 18700 g0 moderate vs prune_g8's recorded cell) is still running. The prune arrays wait for it; the other hand arrays do not (the expert).
+  - S5 owns the hand cells, the K0/K1 reads and the readers (`rp/uncut-hand`, `scripts_cosim/uncut_groups_hand_read.py`). Read outputs come into this node's attachments through S6.
 - 2026-10-13 — **K1(b) sample SEALED before any k = 1 hand cell** (none has run).
   - `scripts_cosim/uncut_groups_k1_draw.py` at 983361cc, seed **20261013**, on `gate_inputs_e2738e37/inputs_group`, topologies 19461–19472. 200 states: 150 in 11–50, 40 in 51–100, 10 in 101+.
   - [k1_sealed_states.json](uncut_groups_s0_v1/k1_sealed_states.json), sha256 `755ace0276b4a41c2e12dcb54b51e334cf1e9c058257c0b3b5427e21039a3e7f`.
