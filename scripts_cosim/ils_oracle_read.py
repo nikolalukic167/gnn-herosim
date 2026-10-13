@@ -47,6 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from r1_attribution_v1_read import exact_wilcoxon  # noqa: E402
 
 AMENDMENT_SHA = "9f119675"
+REPRO_NOTE = "ils_oracle_live is not bit-reproducible; cap-hit batches depend on wall time (ILS max_seconds=60); exact10 has the same property on > 10 batches"
 MECH_NOTE = "mechanism read on whole-run (after-360 s unavailable in summaries; decided before any ils12 cell)"
 RUNGS = ("moderate", "heavy")
 WIN = "g0"
@@ -210,7 +211,7 @@ def table(res):
                          f"p={x['after360']['wilcoxon_p']}) whole {x['whole']['median_pct']} | dExch {x['mechanism_whole_run']['median_d_exchange']} "
                          f"dQueue {x['mechanism_whole_run']['median_d_queue']} holds={x['mechanism_whole_run']['holds']} | collapse {x['collapse']} "
                          f"tail {x['tail_flags']} | cap>50 {cap} | WI {x['wall_infeasible']} missing {x['missing']}")
-    lines.append(f"LABEL: {res['label']}  [{MECH_NOTE}]")
+    lines.append(f"LABEL: {res['label']}  [{MECH_NOTE}] [{REPRO_NOTE}]")
     return "\n".join(lines)
 
 
@@ -250,6 +251,7 @@ def main(argv=None):
         res["exact10_vs_cd_ib0 (confounded on <= 10 batches)"] = contrast(EXACT10, BAR, oc, of, rc, topos)
     res["B_status"] = "RUN" if b_run else "B-NOT-RUN"
     res["mechanism_note"] = MECH_NOTE
+    res["reproducibility_note"] = REPRO_NOTE
     if a.descriptive or not complete(ORACLE, oc, of, topos):
         res["label"] = f"DESCRIPTIVE ({res['oracle_cells_in']}); no label"
     else:

@@ -299,6 +299,20 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **`ils_oracle_live` is not bit-reproducible: a disclosed caveat, ruled by the expert while the ils12 cells land.**
+  - **Observation.** The smoke (bf0a2c0d) and `ils12` (5109d07d) both ran 19461 g0 heavy at seed 0, and they differ.
+    - Smoke: −9.98 % whole-run, −15.06 % after 360 s, cap 16/74.
+    - `ils12`: −7.27 % whole-run, −10.22 % after 360 s, cap 21/75.
+  - **Cause: the wall-clock cap, not the pin.** `git diff bf0a2c0d 5109d07d -- src` touches only the new `pg_ils_differs_*` / `pg_ils_gain_seconds_*` counters (orchestrator.py +1, scheduler.py +6/−1). They are written after `ils()` returns and never feed a decision.
+    - `ils()` runs with `max_seconds=60` (`src/policy/peer_greedy_network/scheduler.py:1402`). A cap-hit batch serves whatever incumbent the node's speed reached in that time.
+    - So every cell is one draw from a wall-time-dependent arm.
+  - **Disposition (the expert):**
+    1. No rerun.
+    2. The registered read uses the `ils12` cells only. The smoke stays descriptive and is cited as a second draw of the same cell under a different node load, a spread of about 5 pp after 360 s.
+    3. The read carries the caveat "ils_oracle_live is not bit-reproducible; cap-hit batches depend on wall time". `scripts_cosim/ils_oracle_read.py` prints it beside the label.
+    4. The cap-hit share already feeds CEILING-TRUNCATED. More hits mean a weaker ceiling, so the ceiling's direction stays conservative.
+    5. `ils_oracle_exact10` has the same property. Exact search on ≤ 10 is deterministic, but ILS on > 10 uses the same 60 s cap, and it is disclosed the same way.
+
 - 2026-10-13 — **The expert's rulings on Arms 2 and 3 (relayed by SCIENTIST), filed before Arm 2 trains.** This node holds the Arm 1/2 gate, so the GNN-program rulings are filed here.
   - Verbatim:
 
