@@ -108,3 +108,19 @@ def test_f1_labels():
     assert U.f1_label(no, no, clean, clean, True) == "TIES"
     assert U.f1_label(rr(4.0, 0.01), no, clean, clean, True) == "E-FASTER"
     assert U.f1_label({"heavy": {"median": -3.0, "p_holm": 0.01}, "moderate": {"median": -1.0, "p_holm": 0.01}}, win, clean, clean, True) == "TIES"
+
+
+def test_wn_table_flags_a_bucket_beyond_1_5x(tmp_path):
+    import scripts_cosim.uncut_groups_wn_table as T
+    (tmp_path / "w.json").write_text(json.dumps({"w_ms_per_plan": {"cd_expand": {"heavy": 0.01}}}))
+    s = cell(1.0)
+    s["schedulerCounters"]["sched_plan_evals"] = 300
+    s["decisionTiming"] = {"by_bucket": {"le10": {"calls": 5, "total_s": 0.001, "plan_evals": 100}, "11_50": {"calls": 3, "total_s": 0.0014, "plan_evals": 100},
+                                         "gt50": {"calls": 1, "total_s": 0.0035, "plan_evals": 100}}}
+    write(tmp_path, "cd_expand", 1, "g0", "heavy", s)
+    o = T.table(str(tmp_path), str(tmp_path / "w.json"))["cd_expand|heavy"]
+    assert o["ms_per_plan"]["le10"] == pytest.approx(0.01) and o["exceeds_1_5x"] == ["gt50"]
+    s["schedulerCounters"]["sched_plan_evals"] = 999
+    write(tmp_path, "cd_expand", 1, "g0", "heavy", s)
+    with pytest.raises(SystemExit):
+        T.table(str(tmp_path), str(tmp_path / "w.json"))
