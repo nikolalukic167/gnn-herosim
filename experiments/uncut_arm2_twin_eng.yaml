@@ -45,6 +45,7 @@ args:
   learning-rate: 0.001
   embedding-dim: 128
   hidden-dim: 128
+  num-dataloader-workers: 0
 wandb:
   project: gnn-uncut-arm2
   run_name: uncut-arm2-twin-eng
