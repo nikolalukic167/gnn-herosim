@@ -3,17 +3,18 @@
 **Status:** `REGISTERED` (2026-10-13). Designed by SCIENTIST (pick D; SCIENTIST keeps the name) and drafted by S6 on the expert's request. SCIENTIST closed the design on 2026-10-13; the expert authorised registration once it was closed. Every bar below was fixed before data.
 - decision_cost kill check 2 PASSED (S4 interim read, job 864514): `cd_exactS` loses +9.53 % (moderate) and +197.4 % (heavy) to its own decision time at k = 1, 0/12 at both rungs.
 - **Authorised now:** the mint of the 12 fresh topologies and the uncut libraries from the raw shards, identities (a)–(l), and the hand-arm cells (150–350 CPU-h).
-- **On hold:** ILS labels and all training wait for S4's decision_cost attribution read (`cd_expand` vs `cdxapply`), (the label term is clarified in F).
+- **Labels and training are gated by this node's own kills** (the expert, 2026-10-13, after S4's attribution read): labels start only after K0 and K1 are read and neither fires. If K1 fires, there are no labels, and the lineage closes on the hand read.
+- **Scope (measured on the gate windows):** the gate serves groups up to about 230 tasks (window max 135–226). 31.8–43.2 % of tasks sit in groups > 10 per window, and 1.2–3.5 % in groups > 100. The 2,876-task and other giant groups lie past the windows' first 50k tasks and are **not tested**: no outcome of this node may be quoted as covering groups in the thousands.
 - **Labels are ILS incumbents, not optima.** For groups above the 100,000-plan cap, label quality is bounded by the registered convergence check (ruling 3). `placements.jsonl` for those groups is a headed sample, not a sweep (F; the expert's exemption of 2026-10-13).
 
 **Why.** Every grounded and accel gate so far served Alibaba peer groups cut to at most 10 tasks. The library builder keeps only the first `--max-size 10` siblings of a fan-out (`scripts_cosim/grounded_workload_v1_extract.py:74–76`), and the served batch is capped at the cell's `batch_size` 10 (code ceiling 16).
 
-[grounded_workload_v1](grounded_workload_v1.md)'s 2026-10-12 cut audit:
-- **37.47 % of member tasks** sit in groups larger than 10, though only **7.5 % of groups** exceed 10;
+Context, trace-wide over the mint's draw ([grounded_workload_v1](grounded_workload_v1.md)'s 2026-10-12 cut audit):
+- **37.47 % of member tasks** sit in groups larger than 10, though only **7.76 % of groups** exceed 10 (the audit text says 7.5 %; its own table sums to 7.77 %, and the rebuilt libraries give 7.76 %);
 - 23.97 % of tasks sit in groups larger than 20;
 - the largest group has **2,876** tasks, and the mean uncut size is 5.18.
 
-The audit is over the mint's draw, not the whole trace.
+The audit is over the mint's draw, not the whole trace. **What the gate windows hold** (uncut ×1 mint, 2026-10-13, see the record): max group 199 / 163 / 226 / 135 (g0–g3); tasks in groups > 10: 36.71 / 34.62 / 43.21 / 31.75 %; > 100: 1.84 / 1.39 / 3.52 / 1.15 %.
 
 So the joint problem studied so far is the easy part of the workload. On the big groups, exact search cannot enumerate. With decision time charged to the clock ([decision_cost_s0_v1](decision_cost_s0_v1.md)), the hand bar pays for its fallback search.
 
@@ -67,6 +68,9 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 | its MP-OFF twin, same search | attribution (required) |
 | `cdxapply` (GNN seed + CD + expansion) | primary; decision_cost's predicted winner |
 | MLP same-input self-search | secondary pointwise control |
+| MP-OFF twin seed + `cdxapply`'s expansion | **built only if F1 shows a learned edge over `cd_expand`**. It is required before any MP attribution of that edge: the harness has no twin-seed + expansion arm (S4, 2026-10-13). Cost: 96 cells at k = 1, about 50 CPU-h by `cdxapply`'s wall, plus the harness wiring; no extra training (the trained MP-OFF twin's checkpoint). |
+
+- **`cdxapply` contingency resolved (2026-10-13):** S4's decision_cost attribution read has `cdxapply` tying `cd_expand` within 1 pp on every metric at k = 1 (−0.21 / −0.38 % whole-run, −0.25 / −0.99 % after 360 s, Holm 1.0; SEARCH-WIN-NOT-GNN). By the registered rule `cdxapply` stays an arm, with no re-sign. `cd_expand` is confirmed as the in-budget hand arm the learned side must beat at k = 1 (k_anchor about 14 / 12 at B = 10 ms).
 
 - Plain no-split is dropped: it is E-FASTER in slate_fix_v2 (+3.6 / +7.1 %) [V].
 - Search machinery is unchanged: self-search is exact up to `SELF_SEARCH_EXACT_MAX` = 625 slate plans, coordinate ascent above (`gnn/scheduler.py:174`, `:1066`) [V]. There is no hand expansion inside the pure GNN arms.
@@ -80,12 +84,31 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 **4. Seat and corpus.**
 - **Seat:** accel 160 × 24, WF1, p 0.6, `fastest_compatible`, KPA, pipelined, `HEROSIM_REPLICA_RELEASE=1`, 1 s window. That is where the bar, ib0 and decision_cost's w live.
 - **Not the 6-server grounded seat:** a 2,876-task burst there is a pure load lever.
-- **Gate topologies:** 12 fresh ids, disjoint from 19420–19431 (warm_surge), 19405–19416 (decision_cost, ib0), 19206–19217, 18700–18711 and earlier pools. Picked by gnn_overcap's token-scan protocol; the prep job fails loud on existing files.
+- **Gate topologies: 19461–19472**, disjoint from 19420–19431 (warm_surge), 19405–19416 (decision_cost, ib0), 19440–19452, 19206–19217, 18700–18711 and earlier pools. Picked by gnn_overcap's token-scan protocol (record, 2026-10-13); the prep job fails loud on an existing ROOT.
 - **Corpus topologies:** fresh, and disjoint from the gate set.
 - **Windows:** the gate runs g0–g3, one per shard. Shard 100 is the heaviest, 43.5 % of tasks in groups > 10 [V].
-- **No overlap:** the corpus draws from the same libraries but from requests **after** the gate's first 40,000. Overlap is reported as 0 by trace id.
+- **Corpus requests: option (a), ruled by the expert 2026-10-13** (reversing the expert's own earlier (b), on SCIENTIST's objection that (b) touches the extract under identity (i)):
+  - The corpus uses the **same libraries**, starting at group G0 = 1 + the maximum group index any gate window consumes at either rung under either mint (cut or uncut), + 500. It runs to the library's end.
+  - G0 per shard: 0 → **12,720**; 50 → **13,295**; 100 → **12,954**; 130 → **13,271**. The gate consumes groups 0–12,219 / 12,794 / 12,453 / 12,770, the larger of the cut and uncut mints.
+  - Implemented as a mint option `--start-group G0`, bit-identical at 0 (added to identity (a)). A zero trace-id overlap between gate and corpus mints is asserted in the mint, fail loud.
+  - Gate groups are never reused. A shortfall against the training plan is said before labels.
+  - **(b) is the registered fallback:** `--skip-traces` in the extract, defaulting to 0. At skip 0, `--max-size 10` must still reproduce each library's md5.
+- **Corpus vs gate group sizes** (uncut libraries from G0 to the end, task-weighted). The gate windows are g0–g3 = shards 0, 50, 100, 130.
+
+  | shard | corpus tasks | max | > 10 | > 20 | > 100 | > 226 | > 256 (groups) | gate window > 10 / > 100 |
+  |---|---|---|---|---|---|---|---|---|
+  | 0 | 141,448 | 836 | 34.93 % | 23.66 % | 3.34 % | 1.17 % | 0.99 % (3) | 36.71 / 1.84 % |
+  | 50 | 134,858 | 1,406 | 36.18 % | 24.41 % | 4.28 % | 2.51 % | 2.16 % (5) | 34.62 / 1.39 % |
+  | 100 | 148,498 | 469 | 43.77 % | 24.36 % | 2.13 % | 0.74 % | 0.58 % (2) | 43.21 / 3.52 % |
+  | 130 | 136,655 | 2,876 | 35.27 % | 22.93 % | 4.15 % | 2.47 % | 2.29 % (2) | 31.75 / 1.15 % |
+  | pooled | 561,459 | 2,876 | 37.65 % | 23.85 % | 3.44 % | 1.70 % | 1.48 % (12) | |
+
+- **Giant groups (SCIENTIST, 2026-10-13):** the corpus **workload** is never capped or cut, since truncation is the cut this node removes and would change the arrival stream. The **label set** is capped instead.
+  - Snapshot states whose batch exceeds **256 tasks** (the gate windows' max of 226, plus margin; fixed now from the gate's size draw, not from any outcome) are not labelled or trained on. They are counted and reported.
+  - The pre-gate forward-time and memory checks run on the largest corpus group either way (the expert).
 - **Cut groups are not excluded;** the uncut groups are the point.
-  - State sampling is stratified so batches > 10 are at least 30 % of training states. Unstratified, the loss would ignore them: they are 7.5 % of groups but 37.5 % of tasks.
+  - State sampling is stratified so batches > 10 are at least 30 % of training states. Unstratified, the loss would ignore them: they are 7.76 % of groups but 37.5 % of tasks.
+  - Stratification is reported by size bucket (≤ 10 / 11–50 / 51–100 / 101–256): the corpus's state share and task share beside the gate windows' task-weighted shares. Within > 10, sampling keeps each bucket's task-weighted share within a factor of 2 of the gate's (SCIENTIST).
   - MIN_TIME stays 360 s, matching the after-360 s line.
 - **Load:** the uncut workload is re-stretched so tasks per second match each rung within 2 % (heavy 12.7173, moderate 5.3470 tasks/s). Groups per second then fall about 23 % (mean group size about 4.0 → 5.18; disclosed). Without the re-stretch, uncut means more load, and the contrast becomes a load lever.
 
@@ -101,11 +124,16 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
   - **UNCUT-ATTRIBUTED** (registered, descriptive): at least 50 % of the pp gap sits in batches > 10, by gnn_overcap's by-batch bucket method on g0 cells, bucketed by the group's **original** size (a split big group still counts as > 10). A win carried by batches ≤ 10 is labelled **WIN-NOT-UNCUT**, not a result for this node.
 
 **6. Kill rules.**
-- **K0, admissibility, before any learned work** (hand arms at k = 0, g0, 12 topologies, both rungs): `cd` and `cd_exactS` must be healthy (no collapse, effective queue share ≤ 0.80) on ≥ 10/12 at heavy. Otherwise the giant groups are a load lever: fall back to the moderate rung only, disclosed. If moderate also fails, **STOP (NO-SEAT)**.
-  - **Uncut admissibility** (SCIENTIST): at k = 0 on the bar arm, at least 90 % of the tasks in groups > 10 are served in a whole-group batch. Otherwise the seat isn't serving uncut: say so and stop.
-- **K1, before training** (live hand arms at k = 1, plus offline labels):
-  - (a) Decision-time headroom: the best hand arm's scheduler wait plus decision share is under 3 % of its mean latency (kill check 2, restated on uncut groups).
-  - (b) Plan headroom: on batches > 10, the hand fallback's plan is within 1 % of the ILS label on S (median over batches).
+- **K0, admissibility, before any learned work** (hand arms at k = 0, 12 topologies, both rungs; health on g0): `cd` and `cd_exactS` must be healthy (no collapse, effective queue share ≤ 0.80) on ≥ 10/12 at heavy. Otherwise the giant groups are a load lever: fall back to the moderate rung only, disclosed. If moderate also fails, **STOP (NO-SEAT)**.
+  - **Uncut admissibility** (SCIENTIST, read fixed before data): at k = 0 on the bar arm, at least 90 % of the tasks in groups > 10 are served in a whole-group batch, **pooled over the four windows**.
+    - Per-window shares are reported; g2 (shard 100, uncut sibling span p99 6.6 s) is expected low.
+    - `batch_timeout` is never raised to rescue g2: that would change the seat and break identity (a).
+    - If the pooled share fails: stop, the seat isn't serving uncut.
+    - If only g2 fails its own 90 %: F1 still uses all four windows, with a descriptive g0/g1/g3-only F1 beside it.
+- **K1, before any label or training** (live hand arms at k = 1, plus an ILS read on a fixed sample). Exact thresholds, written before the hand cells are read (proposed by S6 2026-10-13 from SCIENTIST's ruling; SCIENTIST to confirm):
+  - **The hand arm** is the best hand frontier arm at k = 1 by F1's statistic (median over topologies of the per-topology median whole-run latency), chosen per rung. `cd_expand` is expected.
+  - (a) **Decision-time headroom:** per rung, the median over that arm's 48 cells of (mean scheduler-queue wait + mean charged decision time per task) ÷ `averageElapsedTime`, whole-run, is **< 3 %** at **both** rungs (kill check 2, restated on uncut groups).
+  - (b) **Plan headroom:** on a fixed sample of 200 batch states with > 10 tasks drawn from that arm's k = 1 cells (25 per window × rung, seeded, drawn before any label exists), the median over states of (S(hand plan) − S(ILS plan)) ÷ S(ILS plan) is **< 1 %**. ILS runs at the registered budget and convergence. The same 200 states feed the K1b S-fidelity replay.
   - If **both** (a) and (b) hold, **STOP (HAND-SUFFICES)**: no time to save and no quality to gain. This is a live measurement of the hand arms, so rule 6 is met.
 - **K2, before the live gate (offline):** the GNN plan's S-regret on held-out batches > 10 vs the hand fallback's, at equal charged time. A NO-GO is recorded and orders the work. It does not cancel the registered live gate (rule 6).
 
@@ -143,7 +171,7 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 - The inputs report gives the number of exchange-graph components per group (1, 2, 3+) by size bucket × shard.
 - A bridged arm would be a separate registered condition, not the default.
 
-**B. Late members:** today's rule stays exactly as written (`gnn/scheduler.py:578–601`). A batch waits up to `batch_timeout` (1.0 s), serves what has arrived, and late members go to later batches with their placed partners fixed. Changing it would be a breaking change to the seat. The sibling span is p50 2 ms, p99 430 ms [V].
+**B. Late members:** today's rule stays exactly as written (`gnn/scheduler.py:578–601`). A batch waits up to `batch_timeout` (1.0 s), serves what has arrived, and late members go to later batches with their placed partners fixed. Changing it would be a breaking change to the seat. The sibling span is p50 2 ms, p99 430 ms over the **cut** libraries [V]. Over the **uncut** libraries it is p99 300 / 362 / 6,587 / 366 ms (shards 0 / 50 / 100 / 130), so shard 100 (g2) spreads its groups past the 1 s window.
 - **Registered readouts per cell:** `peer_group_incomplete_batches`, and the share of tasks split off past the timeout by size bucket, per arm and rung, beside every table.
 - **The split share is a mediator, not a confound** (SCIENTIST). Batch collection runs when the scheduler server is free, so at k > 0 a slower arm collects later and splits fewer groups: the split share is part of the arm's decision-time effect. It is reported per arm and condition, and is never removed. Above 1 %, the read says so.
 - **Same batch formation for every arm (checked by S6):** the hand batch arms inherit `GNNScheduler._collect_task_batch` without overriding it. `PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler)` is at `peer_greedy_network/scheduler.py:896`, and `PeerGreedyNetworkCDScheduler` subclasses it at `:1577`. `:909` refuses to run without `GNN_DECODE_MODE=masked_topo` and `GNN_BATCH_BY_PEER_GROUP=1`. The tabular `XGBoostBatchScheduler(GNNScheduler)` doesn't override it either.
@@ -236,5 +264,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
+- 2026-10-13 — **Library rebuild and ×1 mint.**
+  - Identity (i) PASSED: job 864527 at e2738e37. `--max-size 10` rebuilds reproduce each committed library's JSON md5. All 160,000 uncut groups match the committed first 10 offsets, `size_raw` and t0. Uncut md5s: 0 69185e63, 50 47e70a26, 100 13d5069e, 130 1f2452f0, in `/share/nikola.lukic/uncut_groups/libs/`.
+  - Identity (a), mint half, PASSED: job 864535. The K = 1 mint from the committed libraries reproduces `/share/nikola.lukic/big_groups/x1_G0` byte for byte in all 4 windows.
+  - Uncut ×1 windows are in `/share/nikola.lukic/uncut_groups/x1_uncut`. Task rate 0.4604/s (g3 0.4599, −0.11 %), so the registered multipliers stand. Groups fall 21–25 %. Every group is one exchange component.
+  - Corpus ruled (a); giant-group label cap 256; K0 pooled read; K1 thresholds written.
+  - `cdxapply` contingency resolved as a tie (S4). The twin-seed + expansion arm is added, built only on an F1 edge.
+  - Gate topologies 19461–19472 (token scan: 194xx–199xx in use on any branch are 19400–19432, 19440–19452, 19490, 19500, 19516 and up; no `/share` name or selection JSON holds 19461–19472). Gate inputs job 864539.
 - 2026-10-13 — **Label term and `cdxapply` contingency ruled** by the expert: S on every row, a replayed RTT on incumbents (and the top-8 if K1b fires); `cdxapply` leaves F1 only if `cd_expand` beats it by ≥ 2 % (Holm) at a rung.
 - 2026-10-13 — Drafted by S6 on the expert's request. Design items 1–9 are SCIENTIST's rulings of the same day; the code-path list is S6's (read only, nothing edited). Not registered; no index row.
