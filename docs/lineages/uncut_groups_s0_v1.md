@@ -299,6 +299,18 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 label rule (SCIENTIST): proposed and accepted by the expert; Arm 1 itself awaits the user's approval.** The rule, verbatim:
+
+  > Arm 1 label (2026-10-13, SCIENTIST, before any label is built): a state's label is the ILS plan only if ILS's replayed batch-only RTT gain over the hand (cd_ib0) plan is ≥ 10 % of the hand plan's replayed batch RTT, i.e. r = (RTT_hand − RTT_ILS) / RTT_hand ≥ 0.10, at N = 0 with one replay of each plan. Otherwise the label is the hand plan. States whose hand plan cannot be replayed whole (SPLIT / UNPLACED) take the hand label. The share of states labelled ILS is reported per bucket.
+
+  - **Derivation (SCIENTIST, from `myopia/long/lrows_all.jsonl`).**
+    - Below 0.10 (41 states), the net W advantage is −177 s. Above it (59 states), it is +4,589 s, positive on 58 of 59.
+    - Thresholds from 0.02 to 0.20 are stable: the split is 35/65 to 42/58, with net −214 to −174 s below and +4,627 to +4,586 s above.
+    - The rule uses the replay, not S, because 7 states have r < 0 although ILS wins on S.
+    - Cost: +20–40 CPU-h.
+    - At filing I recomputed from the rows the split at each threshold, the net sums, the 58/59 and the 7 states with r < 0. The "wins on S" side and the cost are SCIENTIST's.
+  - **Caveat (disclosed): the threshold is not held out.** It was tuned on the 100 myopia states. The label build must print the same below/above split on a fresh 100 states, without re-tuning.
+
 - 2026-10-13 — **Long-horizon myopia test: MYOPIA-SMALL** (S7; code rp/uncut-ils-k1b 35b9fb1b; `/share/nikola.lukic/uncut_ils/myopia/long/{summary.json,lrows_all.jsonl}`; the label is the expert's ruling). This is an offline screen under rule 6, and the live oracle decides. It uses the same 100 ids (sha256 0bb8b089…) as the 10-group test below.
   - **Horizons.**
     - N50: the next 50 groups. They arrive within a median 23.5 s of the batch (max 70.7 s).
