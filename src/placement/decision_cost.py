@@ -5,13 +5,20 @@ With c > 0 the batch decision path requests a capacity-1 FIFO server before the 
 ``t = c * plans_evaluated`` seconds of simulated time before applying them. ``plans_evaluated`` is the growth of ``sched_plan_evals``, a monotone
 counter every plan or candidate score increments through ``meter`` (one candidate score in the greedy, one whole-plan score in the exact search and
 the expansion, one plan scored by the GNN self-search, one forward per task of a GNN decode).
+
+uncut_groups_s0_v1: ``HEROSIM_DECISION_COST_MS_BY_BUCKET`` = a JSON object {"le10": c, "11_50": c, "gt50": c} charges the rate of the batch's
+size bucket (tasks decided, the buckets of ``decision_timing.SIZE_BUCKETS``) instead of one c. It and ``HEROSIM_DECISION_COST_MS`` never both serve.
 """
 from __future__ import annotations
 
+import json
 import os
-from typing import Any
+from typing import Any, Dict, Optional
+
+from src.placement.decision_timing import SIZE_BUCKETS
 
 ENV = "HEROSIM_DECISION_COST_MS"
+BUCKET_ENV = "HEROSIM_DECISION_COST_MS_BY_BUCKET"
 COUNTERS = ("sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max")
 
@@ -27,6 +34,39 @@ def cost_ms() -> float:
     if c < 0:
         raise ValueError(f"FAIL LOUD: {ENV} must be >= 0, got {c}")
     return c
+
+
+def bucket_of(n_tasks: int) -> str:
+    return next(tag for hi, tag in SIZE_BUCKETS if hi is None or n_tasks <= hi)
+
+
+def bucket_rates() -> Optional[Dict[str, float]]:
+    raw = os.environ.get(BUCKET_ENV, "").strip()
+    if not raw:
+        return None
+    if os.environ.get(ENV, "").strip():
+        raise ValueError(f"FAIL LOUD: {ENV} and {BUCKET_ENV} are both set; a cell serves one rate rule")
+    tags = [tag for _hi, tag in SIZE_BUCKETS]
+    try:
+        rates = json.loads(raw)
+        ok = isinstance(rates, dict) and sorted(rates) == sorted(tags)
+        out = {tag: float(rates[tag]) for tag in tags} if ok else None
+    except (ValueError, TypeError):
+        out = None
+    if out is None or any(type(rates[t]) is bool or v < 0 for t, v in out.items()):
+        raise ValueError(f"FAIL LOUD: {BUCKET_ENV} must be a JSON object of ms per plan >= 0 keyed exactly {tags}, got {raw!r}")
+    return out
+
+
+def enabled() -> bool:
+    rates = bucket_rates()
+    return any(v > 0 for v in rates.values()) if rates is not None else cost_ms() > 0.0
+
+
+def rate_ms(n_tasks: int) -> float:
+    """ms per plan for a batch of n_tasks decided: the bucket's rate when the bucket rule serves, else the one c."""
+    rates = bucket_rates()
+    return rates[bucket_of(n_tasks)] if rates is not None else cost_ms()
 
 
 def meter(obj: Any, k: int) -> None:

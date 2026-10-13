@@ -46,7 +46,11 @@
     "11_50": 0.28012,
     "gt50": 0.57311
    },
-   "heavy": null
+   "heavy": {
+    "le10": 0.05856,
+    "11_50": 0.24683,
+    "gt50": 0.50499
+   }
   },
   "cd_exactS_ib0": {
    "heavy": {
@@ -66,8 +70,12 @@
     "11_50": 0.29037,
     "gt50": 0.53564
    },
-   "heavy": null
+   "heavy": {
+    "le10": 0.02348,
+    "11_50": 0.28611,
+    "gt50": 0.52777
+   }
   }
  },
- "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). null = no measurement: heavy cd_exactS and cd_expand smoke cells were watchdog-killed. Not yet read by the clock (HEROSIM_DECISION_COST_MS is one rate)."
+ "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). IMPUTED: cd_exactS heavy and cd_expand heavy (their heavy smoke cells were watchdog-killed, WALL-INFEASIBLE) = the arm's heavy scalar w x its own moderate ratio to le10 (expert ruling 2026-10-13). Scalar w stands for cd and cd_ib0. The gate charges k x these by served batch-size bucket (HEROSIM_DECISION_COST_MS_BY_BUCKET); arms without an entry keep HEROSIM_DECISION_COST_MS."
 }
