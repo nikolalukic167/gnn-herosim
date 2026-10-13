@@ -151,8 +151,11 @@ LOAD_KINDS = V4_KINDS + BC1_KINDS
 # configuration chosen on validation topologies only, copied to <inputs>/models/r1-attribution-v1-<arm>-seed<N>.pt by the selection step.
 # scale_160_v1 reuses the arms: R1A_STEM / R1A_SPLIT name its checkpoint prefix and split file, R1A_TOPOS its topologies.
 RA_ARMS = ("gnn_eng", "twin_eng", "mlp_same", "gnn_raw", "twin_raw", "gnn_eng_physmp", "set_transformer")
-RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS)
-RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
+# uncut_groups_s0_v1 Arm 2 (B1 re-encode + B2 group anchor, src/policy/gnn/arm2.py): the gnn_eng recipe and its MP-OFF twin on the Arm 1
+# corpus and split, checkpoints <R1A_ARM2_STEM or uncut-arm2>-{gnn,twin}-eng-seed<N>. Served nosplit and named in R1A_ARMS (out of the default grid).
+ARM2_KINDS = ("ra_gnn_eng_arm2", "ra_twin_eng_arm2")
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS
+RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
@@ -250,7 +253,8 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
 R1A_DIAG = (*OBS_ARMS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
-R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
+R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",
+            *ARM2_KINDS, *(f"{k}_nosplit" for k in ARM2_KINDS))  # cdxapply diagnostics; Arm 2 (bare kinds are never run, the _nosplit ones are the gate arms), checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
 # slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
 # submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
@@ -947,6 +951,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = f"hetero-conv-v1-{base_kind}"
         elif base_kind in BC1_KINDS:
             stem = f"backlog-corpus-v1-{base_kind}"
+        elif base_kind in ARM2_KINDS:
+            stem = os.environ.get("R1A_ARM2_STEM", "uncut-arm2") + "-" + base_kind[3:-len("_arm2")].replace("_", "-")
         elif base_kind in RA_KINDS:
             stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")
         else:
@@ -1366,6 +1372,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if base_kind != "v4twin" and int(c.get("v4_backlog_nonzero") or 0) == 0:
             problems.append("v4 instrument off: no candidate ever had a backlog")
     elif base_kind in RA_KINDS:
+        if base_kind in ARM2_KINDS and (int(c.get("arm2_batches") or 0) == 0 or int(c.get("arm2_encodes") or 0) < int(c.get("arm2_batches") or 0)):
+            problems.append("Arm 2 instrument off: arm2_batches == 0 or fewer encodes than batches")
+        if base_kind not in ARM2_KINDS and int(c.get("arm2_batches") or 0):
+            problems.append("a non-Arm-2 arm ran the Arm 2 re-encode")
         for key, want in (("PARTIAL_STATE_CONTRACT", "partial_state_v5"), ("PARTIAL_STATE_LOAD_SECONDS", "1"),
                           ("PARTIAL_STATE_EXCHANGE_SECONDS", "1"), ("GNN_SERVE_CANDIDATE_SLATE", r1a_slate())):
             if out["env"].get(key, "") != want:
