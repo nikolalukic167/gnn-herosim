@@ -457,7 +457,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Not launched at heavy:** `cd_expand`, which is WALL-INFEASIBLE at k = 0 (g0: 1 of 12 finished, 5 killed); and the prune arm, with the verdict "prune heavy: k=0 not admissible (6 finished / 2 killed of 12 g0)".
   - The prune stall is topology 19467 g2 (`watchdog: stall`). It is listed separately and is not counted in WALL-INFEASIBLE.
   - **K1-EXACT-ARMS-COLLAPSE-AT-k=1.** Every finished exact, expand and prune cell has a mean latency more than 3× `cd`'s: 44 to 1,233 s, against 2.6 to 2.9 s for `cd`.
-    - Median mean latency: `cd_exactS_ib0` 1,233 s heavy and 44 s moderate; `cd_expand` 398 s moderate; prune 870 s moderate.
+    - Median mean latency: `cd_exactS_ib0` 1,233 s heavy (37 cells; final 46-cell figure 1,525.7 s, see the learned read) and 44 s moderate; `cd_expand` 398 s moderate; prune 870 s moderate.
     - `cd_ib0` is 2.58 s heavy and 2.94 s moderate; `cd` is 2.59 s and 3.09 s.
     - These arms' small decision shares come from their large latency, not from cheap decisions.
   - Sources: `/share/nikola.lukic/uncut_groups/read_k1a.json` and `k1a_table.py`. The counts, rankings, headroom medians and `a_pass` were checked against the JSON at filing.
