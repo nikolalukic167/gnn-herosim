@@ -311,6 +311,15 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
         - About 750 batches > 10 per heavy cell, g0 at both rungs, gives about 60k candidate states for 12,000 sampled. Add g1 if a cell yields < 150 per rung.
         - About 10 % are held out by whole topology.
       - The prep fails loud on an existing ROOT. This refines ruling (2) in the entry below.
+      - **The id lists (S5, by the literal rule; filed before minting):**
+        - **Arm 1 live gate: 19537–19548** (12 ids). sha256 of the comma-joined decimal list `553ef17de81af2bd61a72b716e8f48163c6b0e8f8050dd71323183750b29a5d7`.
+        - **Corpus: 20119–20158** (40 ids). sha256 `1ab2da9e2fb2808d73b26c9d218f55a9fcfe7d680ad03dd100b71be0caa8ebf2`.
+        - Why these blocks: 19473–19536 is not free (19473, 19477, 19484, 19486, 19490–92, 19500–02, 19507, 19516, 19518, 19525, 19528, 19534, 19536 appear in the scan), and 19553 is the next used token after the gate block. For the corpus, 20118 is used and 20182 is the next used token, so 20119–20158 is the lowest 40-run.
+        - **Held out (accepted by the expert; fixed by rule before any data):** 4 of 40, every 10th corpus id: 20128, 20138, 20148, 20158. Proposed by S5.
+        - Scan: 5-digit tokens 19400–29999 over every local and remote branch (docs, LINEAGES.md, scripts_cosim, experiments, tests, src), plus name tokens under `/share/nikola.lukic` (excluding ds_* and snapshots) and the datalab simulation_data JSONs. Saved under `/share/nikola.lukic/uncut_groups/`: `tok_git.txt` md5 aeb6e100…, `tok_share.txt` md5 6200f11d…, and `ids.txt` (the 52 ids).
+        - S5's anchored re-check on the 52 ids: 0 git hits and 0 `/share` hits. The scan is token-based, not a proof.
+        - Verified at filing: both sha256 values recomputed, both md5s match, and no `cc40s<id>` path exists under `/share/nikola.lukic/*/`. My unrestricted grep (all paths) found these numbers only as unrelated counts in `simulation_data/gate_stats_summary.json` and archived paper summaries (e.g. `"total": 20154`, `"prefix_pairs_in_batch": 19537`), not as topology ids.
+        - The prep fails loud on any existing `cc40s<id>` ROOT.
     - **(B) Label slate:** moot. The served slate is the full set, so the labels and the oracle both search `_pg_candidates` (see the corpus-spec entry).
     - **(C) Per-task batch-size logging** belongs to S5, after the minting. It is a summarizer change plus an identity: every sim key unchanged on a `gate_k1` cell. It comes before any gate cell.
   - SCIENTIST's text, verbatim:
