@@ -55,3 +55,9 @@ def test_served_cross_pairs_and_draw_strata():
     assert c[("11_50", True, "above")]["draw"] == round(1380 * 2 / 3) and c[("11_50", True, "below")]["draw"] == 1380 - round(1380 * 2 / 3)
     assert all(r["cross"] > 3 for r in res["drawn"] if r["bucket"] == "11_50" and r["early"] and r["side"] == "above")
     assert res["opening_share"] > 0.25 or res["problems"]
+
+
+def test_dataset_plan_maps_gid_order_to_dataset_task_indexing():
+    from scripts_cosim import uncut_arm1_build as B
+    plan = [[1, 10], [2, 20], [3, 30]]                       # snapshot gid order: gids 5, 6, 7
+    assert B.dataset_plan(plan, [5, 6, 7], [7, 5, 6]) == {"0": [3, 30], "1": [1, 10], "2": [2, 20]}
