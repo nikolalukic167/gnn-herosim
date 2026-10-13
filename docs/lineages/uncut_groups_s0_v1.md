@@ -299,6 +299,41 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **PRE-DATA: `ils_oracle_live` amendment (SCIENTIST), filed after one descriptive smoke cell, before any ils12 cell.** No `ils12` (868854) cell has landed: its OUT has no summary or failed file at filing.
+  - SCIENTIST's text, verbatim:
+
+    > Amendment (SCIENTIST; after one descriptive smoke cell, before any ils12 cell). Reason: the registered exactS clause compared arms that differ on ≤ 10 batches too (the oracle runs `cd_ib0` there, `cd_exactS_ib0` runs exact search; 8,880 of 9,589 smoke batches are ≤ 10). A MYOPIC-LIVE read on it could fire for the wrong reason.
+    >
+    > 1. New ceiling arm `ils_oracle_exact10`:
+    > - ≤ 10 batches: exactly `cd_exactS_ib0`'s path (the same code: exact up to the plan cap, then its fallback).
+    > - > 10 batches: the same ILS as `ils_oracle` (`_pg_candidates`, 60 s cap, seeded with `cd_ib0`'s plan).
+    > - Identity: with the > 10 threshold at ∞, bit-equal to the 19461 g0 heavy `cd_exactS_ib0` k = 0 cell.
+    > - Same 12 cells (19461–19466 × g0 × both rungs). A ceiling, never a bar.
+    >
+    > 2. Amended read. The after-360 s line decides; whole-run is reported.
+    > - Contrast A: `ils_oracle` vs `cd_ib0` (identical on ≤ 10).
+    > - Contrast B: `ils_oracle_exact10` vs `cd_exactS_ib0` (identical on ≤ 10).
+    > - TRANSFERS: A ≤ −6 % at both rungs with ≥ 5/6 topologies, AND B ≤ −2 % at both rungs, AND in both contrasts exchange seconds per task fall by more than queue seconds per task rise.
+    > - MYOPIC-LIVE: A > −2 % at either rung, OR B > 0 % at either rung, OR ≥ 2/6 collapses in either oracle arm at a rung, OR queue rises by more than exchange falls in either contrast.
+    > - PARTIAL: otherwise.
+    > - CEILING-TRUNCATED as registered (> 20 % of > 50-task batches hit the cap).
+    > - Oracle vs `cd_exactS_ib0` is descriptive only, with this confound stated.
+    >
+    > 3. Fallback: if `ils_oracle_exact10` is not built before the ils12 cells finish, the read is contrast A plus the mechanism alone, labelled B-NOT-RUN. B may be added later without changing A's label.
+    >
+    > Smoke (descriptive, one cell, 19461 g0 heavy, k = 0):
+    > - Contrast A −9.98 % (1.9481 vs 2.1641 s).
+    > - Exchange −0.162 s/task (0.655 vs 0.817), queue +0.035 s/task (0.518 vs 0.483).
+    > - The 60 s cap was hit on 16 of 74 > 50-task batches (22 %), 4 of 6 at 101–226.
+    > - ILS wall 0.116 s/task, uncharged at k = 0.
+
+  - **Smoke cell, checked at filing** (job 868697, pin bf0a2c0d; `ilssmoke_bf0a2c0d/cc40s19461__g0heavy__ils_oracle_live_s0.summary.json` against `gate_k0/cc40s19461__g0heavy__cd_ib0_s0.summary.json`). It is descriptive and one cell, and is never part of the read.
+    - Exchange per task: 32,770.8 / 50,000 = 0.655 against 40,847.2 / 50,000 = 0.817. Queue: 0.518 against 0.483.
+    - Cap hits: `pg_ils_cap_hits` 51–100 12 + 101–226 4 = 16 of 74 batches over 50 tasks (68 + 6). ILS ran on 709 batches, so 9,589 − 709 = 8,880 are ≤ 10.
+    - Wall: 5,829 s, or 0.117 s/task.
+    - The `cd_ib0` mean latency of 2.1641 s matches `k0_cells.json`. The smoke's 1.9481 s is SCIENTIST's figure; the summary has no mean-latency key, so it is computed from `tasks.npy`.
+    - Note: 22 % cap hits is above the registered 20 % CEILING-TRUNCATED line. On one smoke cell that is descriptive only, but it suggests the flag may fire on the full read.
+
 - 2026-10-13 — **Signed amendment: the Arm 1 corpus is 16201–16250 minus 16226 (49 topologies), made before any state draw or label; per-task batch-size logging merged.**
   - **Corpus ids.** S7 minted and started capture on 16201–16250 (the accel train list) before the 20119–20158 filing reached it.
     - The expert ruled 16201–16250 the Arm 1 corpus by signed amendment, made before any state draw or label. It was chosen from an existing list, not from outcomes.
