@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Tuple
 
 
+def _is_header(line: bytes) -> bool:
+    return line.lstrip().startswith(b'{"header":true') or line.lstrip().startswith(b'{"header": true')
+
+
 def sweep_status(dataset_dir: Path) -> Tuple[bool, str]:
     meta_path = dataset_dir / "placement_metadata.json"
     rows_path = dataset_dir / "placements" / "placements.jsonl"
@@ -25,7 +29,8 @@ def sweep_status(dataset_dir: Path) -> Tuple[bool, str]:
     if not rows_path.is_file():
         return False, "no placements.jsonl"
     with rows_path.open("rb") as fh:
-        rows = sum(1 for line in fh if line.strip())
+        # a sampling lineage's header line (docs/notes/placements_jsonl_required.md) is not a plan
+        rows = sum(1 for line in fh if line.strip() and not _is_header(line))
     if rows != int(meta.get("num_placements", -1)):
         return False, f"{rows} rows for {meta.get('num_placements')} plans"
     return True, "complete"

@@ -81,6 +81,8 @@ def load_sweep_minimum(
                 raise RuntimeError(f"{jsonl_path}:{line_number}: invalid JSON") from exc
             if not isinstance(rec, dict):
                 raise RuntimeError(f"{jsonl_path}:{line_number}: expected object")
+            if rec.get("header") is True:
+                continue                    # a sampling lineage's header line is not a plan
             plan = rec.get("placement_plan")
             rtt = rec.get("rtt")
             if plan is None or rtt is None:
