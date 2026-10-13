@@ -296,6 +296,18 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Learned-arm wall smoke** (S4, job 864633; 19461 g0, k = 0, pin f36f293f; slate_fix_v1 checkpoints seed 1, trained on cut groups; descriptive, not a gate number; OUT `/share/nikola.lukic/uncut_groups/smoke_learned`).
+  - `ra_gnn_eng_selfsearch` is **WALL-INFEASIBLE at both rungs**: killed at about 600 s of wall time, projected 32,584 s (moderate) and 72,480 s (heavy). It leaves F1 by the symmetry rule (post-data amendment (c)).
+  - `ra_gnn_eng_nosplit` **finished** in 200 s (moderate) and 193 s (heavy) of wall time, with `pgb_max_batch` 199.
+    - Decision wall: 3.23 / 3.06 ms per task, which is 0.13 % of mean latency (2.55 / 2.11 s).
+    - The forward pass on a 199-task group fits inside the 8 GB cell cap. The job-level sacct MaxRSS is 3.10 GB for 4 cells, not per cell.
+  - **SUB_BATCH assertion, defined:** the violation counter is `slate_declared_sub_batched − slate_declared_unsplit` and must be 0. It is 0 here (1,225 and 1,641, each equal to its pair).
+  - **Open:** the nosplit cells split more peer groups than `cd` (heavy > 100 bucket: 45 against 0). S4 is computing the learned arm's whole-group task share and tracing the cause; the hypothesis is the decode wall during collection.
+  - F1's learned slate is now `nosplit`, plus `cdxapply` only if its feasibility smoke (running next) passes at a rung.
+- 2026-10-13 — **Pause rule and NOT-RUN cells.**
+  - The harness's 5 % pause line (`scripts_cosim/datalab/r1a_gate.sbatch:4`): "production pauses for a rung when more than 5 % of its decided non-Knative cells hang". In code (`scripts_cosim/progress_watchdog.py:21–22, :96–97`), it acts once at least 40 cells are decided, and a timeout, watchdog kill or unreadable result counts as hung.
+  - In the k = 0 array, the pause left 110 cells **NOT-RUN**, a fourth category that is neither failed nor healthy.
+  - S5 launches completion arrays for the never-run cells of feasible arms (`cd_exactS_ib0` heavy 12; prune moderate 48; prune heavy 28 if the prune smoke is wall-feasible). **Completion is not a rerun:** these cells never started, and no failed or killed cell is run again.
 - 2026-10-13 — **w(n) frozen per bucket; the clock charges it** (rp/uncut-wn, from 3a59a70c).
   - Source: S5's whole-group smoke at c671281c, one cell per arm × rung, `/share/nikola.lukic/uncut_groups/wn_smoke.json` (sha256 6b2c22d4…), script `scripts_cosim/uncut_groups_wn_table.py` (rp/uncut-hand 92dc22d3).
   - Ms per plan, ratio to the arm's own ≤ 10 bucket (11–50 / 51+): `cd_exactS` moderate 4.2 / 8.6×; `cd_exactS_ib0` heavy 3.6 / 6.0×, moderate 3.4 / 6.9×; `cd_expand` moderate 12.2 / 22.5×; `cd` ≤ 1.17×; `cd_ib0` ≤ 1.11×.
