@@ -147,6 +147,11 @@ def contrasts_at(cells, k):
     return {"bar": bar, "primary": prim, "win": wins, "descriptive": desc}
 
 
+def self_cost(cells):
+    """Descriptive: each arm at k vs the same arm at k = 0 (what its own decision time costs it), paired % per rung."""
+    return {f"{arm} k={k:g} vs k=0|{r}": R.contrast(cells, name(arm, k), name(arm, 0.0), r, list(TOPOS)) for arm in ARMS for k in KS[1:] for r in RUNGS}
+
+
 def crossover(by_k, arm):
     """Smallest grid k > 0 with a WIN; interpolated k where the worse-rung median crosses -2 % between the previous k and that k."""
     prev = None
@@ -199,7 +204,7 @@ def read(gates, w_path=DEFAULT_W):
         decision[arm] = {"result": "GO" if ok else "NO-GO", "crossover_k": ref_k, "grid_k": ck, "hand_arms_beaten": beaten, "largest_anchor_k": limit,
                          "why": "crossover within the largest anchor of the hand arm it beats" if ok else "crossover above the largest anchor (or anchor unavailable)"}
     return {"gate": list(gates), "counts": counts, "failed_why": sorted({str(f.get("why", "?"))[:90] for f in failed.values()}),
-            "by_k": {f"{k:g}": v for k, v in by_k.items()}, "crossover": cross, "anchors": anc, "decision": decision, "utilisation": utilisation(cells)}
+            "by_k": {f"{k:g}": v for k, v in by_k.items()}, "crossover": cross, "anchors": anc, "decision": decision, "utilisation": utilisation(cells), "self_cost": self_cost(cells)}
 
 
 def print_report(r):
@@ -225,6 +230,10 @@ def print_report(r):
     for key, u in r["utilisation"].items():
         flag = "  UNSTABLE" if u["unstable_cells"] else ""
         print(f"  {key:46s} cells {u['cells']:3d} median {u['median_util']:.3f} max {u['max_util']:.3f} qwait/task {u['median_queue_wait_s_per_task']:.4f}s{flag}")
+    print("-- self cost (arm at k vs the same arm at k = 0; positive = slower because of its own decision time)")
+    for key, c in r["self_cost"].items():
+        m = "-" if c["median_pct"] is None else format(c["median_pct"], "+.2f") + " %"
+        print(f"  {key:46s} median {m:>9s} n={c['n_topologies']} wins={c['wins']} p={f(c['p'])}")
     print("-- decision", json.dumps(r["decision"], indent=1))
 
 
