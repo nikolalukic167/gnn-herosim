@@ -1381,7 +1381,8 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 placements = self._keep_replicas_warm(decodable, placements, system_state, *keepwarm)
             inference_time = default_timer() - inference_start
             log_of(self).add(len(decodable), inference_time,
-                             int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0)) - moves_before)
+                             int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0)) - moves_before,
+                             int(getattr(self, "sched_plan_evals", 0)) - int(evals_before))
             if _AUDIT is not None:
                 _AUDIT.decision(self.env, audit_t0, self.env.now, inference_time, len(decodable),
                                 self._live_audit_policy_name)

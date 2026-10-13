@@ -19,12 +19,27 @@ def set_model_load(seconds: float) -> None:
     _MODEL_LOAD_S += float(seconds)
 
 
+# uncut_groups_s0_v1: decision wall and plan evaluations per served batch size, for the w(n) calibration (ms per plan by size)
+SIZE_BUCKETS = ((10, "le10"), (50, "11_50"), (None, "gt50"))
+
+
 class DecisionLog:
     def __init__(self) -> None:
         self.calls: List[Tuple[int, float, int]] = []  # (tasks decided, seconds, refine moves)
+        self.plan_evals: List[int] = []  # per call, when the caller meters plans (sched_plan_evals growth); else 0
 
-    def add(self, n_tasks: int, seconds: float, refine_moves: int = 0) -> None:
+    def add(self, n_tasks: int, seconds: float, refine_moves: int = 0, plan_evals: int = 0) -> None:
         self.calls.append((int(n_tasks), float(seconds), int(refine_moves)))
+        self.plan_evals.append(int(plan_evals))
+
+    def by_bucket(self) -> Dict[str, Dict[str, float]]:
+        out = {tag: {"calls": 0, "total_s": 0.0, "plan_evals": 0} for _hi, tag in SIZE_BUCKETS}
+        for (n, sec, _m), pe in zip(self.calls, self.plan_evals):
+            tag = next(t for hi, t in SIZE_BUCKETS if hi is None or n <= hi)
+            out[tag]["calls"] += 1
+            out[tag]["total_s"] += sec
+            out[tag]["plan_evals"] += pe
+        return out
 
     @staticmethod
     def _wq(pairs: List[Tuple[float, int]], q: float) -> float:
@@ -51,6 +66,7 @@ class DecisionLog:
             "per_task_mean_s": sum(secs) / max(1, sum(c[0] for c in self.calls)),
             "refine_moves_total": sum(c[2] for c in self.calls), "refine_moves_per_call_mean": sum(c[2] for c in self.calls) / len(self.calls),
             "refine_moves_per_call_median": st.median(c[2] for c in self.calls),
+            "by_bucket": self.by_bucket(),
         })
         return out
 
