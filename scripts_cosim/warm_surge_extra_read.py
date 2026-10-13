@@ -5,7 +5,9 @@
       Collapse count per arm and condition (rule below), the per-cell table (cell, arm, post-switch mean, end - last arrival) for the heavy
       ×2/×3 classical arms and every collapsed learned cell, and the GNN lines against ALL THREE hand references (ib0, exactS, cd): median
       paired % of post-switch mean and wins, per condition. Heavy-rung medians against ib0 are collapse artefacts wherever ib0 collapses.
-      COLLAPSE: post-switch mean > 3x the same cell's cd mean, OR end - last arrival > 120 s.
+      COLLAPSE: post-switch mean > 3x the same cell's cd mean. TAIL FLAG (separate count): end - last arrival > 120 s. On the 0b data the two
+      separate cleanly by ratio (non-collapsed max 2.4x, collapsed min 8.1x) but not by tail (non-collapsed max 100 s, one non-collapsed cell at 142 s
+      with a normal mean), so the tail is reported beside the collapse count, not inside it.
   alpha     --gate0b D --gate0a D --extra D  (0c)
       cd_exactS at batch alpha 0 (cd_exactS_ib0, from gate_0b), 0.25, 0.5 (extra), 1.0 (cd_exactS, from gate_0b) on the heavy ×2 collapse cells
       19422, 19425, 19430 and the control 19420: post-switch mean, tail, collapse flag; verdict per the signed prediction and kill rule.
@@ -34,8 +36,12 @@ def tail_of(summary):
     return float(summary["endTime"]) - float(summary["arrival_end"]["last_arrival_s"])
 
 
-def is_collapse(mean, cd_mean, tail):
-    return bool((cd_mean and mean > COLLAPSE_X * cd_mean) or tail > COLLAPSE_TAIL)
+def is_collapse(mean, cd_mean, tail=None):
+    return bool(cd_mean and mean > COLLAPSE_X * cd_mean)
+
+
+def tail_flag(tail):
+    return tail > COLLAPSE_TAIL
 
 
 def load_cell(path):
@@ -67,7 +73,7 @@ def collapse(a):
                 arms += [(f"{ar}[{name}]", s, gdir) for ar in learned for s in B.SEEDS]
             for arm, seed, gdir in arms:
                 base = arm.split("[")[0]
-                n = ncell = 0
+                n = ncell = nt = 0
                 for t in topos:
                     p = cell_path(c, t, rung, k, base, seed, gdir)
                     if not os.path.exists(p + ".summary.json"):
@@ -76,9 +82,10 @@ def collapse(a):
                     flag = is_collapse(m, cdm[t][0], tl)
                     ncell += 1
                     n += flag
+                    nt += tail_flag(tl)
                     if rung == "heavy" and k >= 2 and (base in (B.IB0, B.EX, "cd") or flag):
                         out["table"].append((key, t, f"{arm}_s{seed}", m, tl, flag))
-                out["counts"][f"{key}|{arm}_s{seed}"] = {"collapsed": n, "cells": ncell}
+                out["counts"][f"{key}|{arm}_s{seed}"] = {"collapsed": n, "tail_flag": nt, "cells": ncell}
             for gname, (gdir, learned) in sets.items():
                 if gname == "uncapped" and (rung == "heavy" or k == 1):
                     continue
@@ -99,9 +106,9 @@ def collapse(a):
 
 
 def print_collapse(o):
-    print("-- collapse counts (cells collapsed / cells), rule: post-switch mean > 3x cd mean OR end - last arrival > 120 s")
+    print("-- collapse counts (cells collapsed / cells), COLLAPSE = post-switch mean > 3x the cell's cd mean; tail flag = end - last arrival > 120 s")
     for k, v in o["counts"].items():
-        print(f"  {k:60s} {v['collapsed']}/{v['cells']}")
+        print(f"  {k:60s} {v['collapsed']}/{v['cells']}  tail>120s: {v['tail_flag']}")
     print("-- GNN vs each hand reference: median paired % of post-switch mean, wins (GNN faster). Heavy vs ib0 are collapse artefacts where ib0 collapses")
     for k, v in o["refs"].items():
         if v["median"] is not None:
