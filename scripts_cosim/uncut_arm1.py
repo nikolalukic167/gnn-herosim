@@ -252,6 +252,30 @@ def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = N
             "chosen_match": row.get("chosen_match")}
 
 
+def draw_extra(rows: Sequence[Dict[str, Any]], exclude_keys: Sequence[str], seed: int, quotas: Dict[str, int]) -> List[Dict[str, Any]]:
+    """A separate seeded draw of > 10 states by bucket (SCIENTIST: convergence 200 = 80 / 60 / 60, seed 20261015; fresh-100 = 50 / 30 / 20, seed 20261014), disjoint from the
+    labelled and held-out states (`exclude_keys`) and from any other check's draw."""
+    rng = random.Random(f"arm1_extra:{seed}")
+    ex = set(exclude_keys)
+    out = []
+    for b, n in quotas.items():
+        pool = sorted((r for r in rows if r["bucket"] == b and r["key"] not in ex and r["n_deferred"] == 0), key=lambda r: r["key"])
+        if len(pool) < n:
+            raise SystemExit(f"FAIL LOUD: extra draw {b}: pool {len(pool)} < {n}")
+        out += rng.sample(pool, n)
+    return out
+
+
+def convergence_state(job: Dict[str, Any]) -> Dict[str, Any]:
+    """ILS at the K1(b) budget and at twice it, same seed: the S the longer run gains (relative to the longer run's S)."""
+    from scripts_cosim import uncut_ils as U
+
+    a = U.run_state(dict(job), "cd_ib0", 0, None, 200, ILS_SECONDS, "none")
+    b = U.run_state(dict(job), "cd_ib0", 0, 2 * a["budget"], 200, ILS_SECONDS, "none")
+    return {"state_id": job["state_id"], "bucket": job["bucket"], "n_batch": a["n_batch"], "budget_1x": a["budget"], "S_1x": a["best_S"], "S_2x": b["best_S"], "evals_1x": a["n_evals"],
+            "evals_2x": b["n_evals"], "stopped_1x": a["stopped"], "stopped_2x": b["stopped"], "gain": (a["best_S"] - b["best_S"]) / b["best_S"] if b["best_S"] else 0.0}
+
+
 def truncate_workload(wl: Dict[str, Any], open_s: float) -> Dict[str, Any]:
     """The workload cut to events arriving by open_s (ids unchanged: events are in arrival order); pairs touching a dropped event go."""
     keep = sum(1 for e in wl["events"] if float(e["timestamp"]) <= open_s)
@@ -275,6 +299,9 @@ def main() -> int:
     lb = sub.add_parser("label")
     lb.add_argument("ids"); lb.add_argument("--root", default="/share/nikola.lukic/uncut_arm1"); lb.add_argument("--shard", default="0/1"); lb.add_argument("--out", required=True)
     lb.add_argument("--seed", type=int, default=0)
+    ck = sub.add_parser("check")
+    ck.add_argument("which", choices=("convergence", "determinism", "fresh100")); ck.add_argument("ids"); ck.add_argument("--root", default="/share/nikola.lukic/uncut_arm1")
+    ck.add_argument("--pool", required=True); ck.add_argument("--shard", default="0/1"); ck.add_argument("--out", required=True); ck.add_argument("--labels", nargs="*", default=[])
     o = sub.add_parser("openings")
     o.add_argument("--src", required=True); o.add_argument("--dst", required=True); o.add_argument("--open-s", type=float, default=420.0)
     a = ap.parse_args()
@@ -304,6 +331,50 @@ def main() -> int:
                 row["set"], row["topology"], row["window"], row["rung"], row["early"], row["side"] = st_["set"], st_["topology"], st_["window"], st_["rung"], st_["early"], st_["side"]
                 fh.write(json.dumps(row, separators=(",", ":")) + "\n"); fh.flush()
                 print(row["state_id"], row["source"], flush=True)
+        return 0
+    if a.cmd == "check":
+        ids = json.load(open(a.ids))
+        drawn = {st_["key"] for st_ in ids["states"]}
+        k, m = (int(x) for x in a.shard.split("/"))
+        if a.which == "determinism":
+            lab = {}
+            for f in a.labels:
+                for l in open(f):
+                    if l.strip():
+                        r = json.loads(l)
+                        lab[r["state_id"]] = r
+            rng = random.Random("arm1_determinism:20261013")
+            pick = rng.sample(sorted(k_ for k_, r in lab.items() if r["source"] in ("ils", "hand", "exact")), 100)
+            by_key = {st_["key"]: st_ for st_ in ids["states"]}
+            with open(a.out, "a") as fh:
+                for key in pick[k::m]:
+                    again = label_state(job_of(by_key[key], a.root), 0, None)
+                    drop = ("search_wall", "evals_file")
+                    same = {x: y for x, y in lab[key].items() if x not in drop and x in again} == {x: y for x, y in again.items() if x not in drop}
+                    fh.write(json.dumps({"state_id": key, "source": again["source"], "byte_identical_label_row": same, "label_equal": lab[key].get("label") == again.get("label")}) + "\n"); fh.flush()
+            return 0
+        pool = json.load(open(a.pool))
+        rows, _missing = capture_rows([r for r in pool if r["topology"] != 16226 and r["bucket"] != "le10"], a.root + "/cap")
+        quotas = {"11_50": 80, "51_100": 60, "101_256": 60} if a.which == "convergence" else {"11_50": 50, "51_100": 30, "101_256": 20}
+        seed = 20261015 if a.which == "convergence" else 20261014
+        pickd = draw_extra(rows, sorted(drawn), seed, quotas)
+        Path(a.out + ".ids.json").write_text(json.dumps({"seed": seed, "quotas": quotas, "states": pickd}, indent=1))
+        with open(a.out, "a") as fh:
+            for st_ in pickd[k::m]:
+                job = job_of(st_, a.root)
+                if a.which == "convergence":
+                    row = convergence_state(job)
+                else:
+                    from scripts_cosim import uncut_horizon as H
+
+                    lab = label_state(job, 0, None)
+                    row = {"state_id": st_["key"], "bucket": st_["bucket"], "source": lab["source"], "r": lab.get("r")}
+                    if lab.get("r") is not None:
+                        H.HORIZON_SPECS = ("W",)
+                        hz = H.run_state(dict(job), {"hand": lab["hand"], "ils": lab["ils"]})
+                        row["horizon"] = {n: {kk: vv["total"] for kk, vv in p["by_n"].items()} for n, p in hz["plans"].items()}
+                fh.write(json.dumps(row, separators=(",", ":")) + "\n"); fh.flush()
+                print(row["state_id"], flush=True)
         return 0
     if a.cmd == "draw":
         pool = [r for r in json.load(open(a.pool)) if r["topology"] not in set(a.exclude_topos)]
