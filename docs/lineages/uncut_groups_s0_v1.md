@@ -299,6 +299,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 cache attempt 869493 FAILED (disclosure)** (S7). After 38 min the cache loader rejected all 11,073 datasets ("incomplete sweep: 2 rows for 1 plans"): `sweep_status` counted the header line of the headed `placements.jsonl` (sampled-file convention, `docs/notes/placements_jsonl_required.md`) as a plan, and `load_sweep_minimum` would raise on it; the convention was never implemented in the cache path. Fixed in 8c9f8296 (header line skipped in both; headerless files unchanged; `tests/test_sampled_header_readers.py`), merged as f5c5fd2d. Cache rerun as 869568. Training pin: f5c5fd2d plus the split file only.
 - 2026-10-13 — **Arm 1 learned gate: submission built and plumbing-smoked (DESCRIPTIVE, stand-in checkpoints, deleted)** (S6 owns the gate end to end, per the expert's ruling).
   - **Code (041eb823, rp/uncut-wn).**
     - `fresh_topo_burst_v1_gate.py` serves `ra_{gnn_eng,twin_eng,mlp_same}_arm1_nosplit`, out of the default grid, from `<IN>/models/<R1A_ARM1_STEM or uncut-arm1>-<arm>-seed<N>.pt`. Each gets the same sidecheck, slate and MP-OFF switches as the RA arm of its recipe.
