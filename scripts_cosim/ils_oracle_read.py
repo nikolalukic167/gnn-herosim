@@ -15,7 +15,8 @@ Keys, per cell summary:
   queue s/task              averageQueueTime                    } nothing finer, so there is no after-360 s mechanism; the whole-run one is used
   cap hits by bucket        pg_ils_batches_<b>, pg_ils_cap_hits_<b>, b in 11_50 / 51_100 / 101_226
   ILS work                  pg_ils_batches, pg_ils_tasks_moved, pg_ils_gain_seconds, pg_ils_budget_stops
-  served plan != bar plan   no such counter in these summaries: printed "not available"
+  served plan != bar plan   pg_ils_differs_<b>, and its S-gain pg_ils_gain_seconds_<b> (added at 5109d07d, the ils12 pin; exact10 at f8814905
+                            inherits them); "not available" for cells without them (the bf0a2c0d smoke)
   provenance                code.commit (must start with the pin), code.dirty (must be false)
   collapse                  mean > 3 x the same topology x rung's `cd` mean, whole-run and after 360 s tested separately
   tail flag                 endTime - arrival_end.last_arrival_s > 120 s
@@ -100,10 +101,12 @@ def ils(s):
     c = s.get("schedulerCounters") or {}
     if "pg_ils_batches" not in c:
         return None
-    by = {b: {"batches": int(c[f"pg_ils_batches_{b}"]), "cap_hits": int(c[f"pg_ils_cap_hits_{b}"])} for b in BUCKETS}
+    by = {b: {"batches": int(c[f"pg_ils_batches_{b}"]), "cap_hits": int(c[f"pg_ils_cap_hits_{b}"]),
+              "differs": int(c[f"pg_ils_differs_{b}"]) if f"pg_ils_differs_{b}" in c else None,
+              "differs_gain_s": float(c[f"pg_ils_gain_seconds_{b}"]) if f"pg_ils_gain_seconds_{b}" in c else None} for b in BUCKETS}
+    has = all(by[b]["differs"] is not None for b in BUCKETS)
     return {"by_bucket": by, "batches": int(c["pg_ils_batches"]), "tasks_moved": int(c["pg_ils_tasks_moved"]),
-            "gain_seconds": float(c["pg_ils_gain_seconds"]), "budget_stops": int(c["pg_ils_budget_stops"]),
-            "served_differs_from_bar": "not available"}
+            "gain_seconds": float(c["pg_ils_gain_seconds"]), "budget_stops": int(c["pg_ils_budget_stops"]), "has_differs": has}
 
 
 def cell_row(s, ref, cd):
@@ -157,7 +160,10 @@ def contrast(arm, bar, oc, of, rc, topos):
             agg["cap"] = {"by_bucket": byb, "gt50_hits": hits, "gt50_batches": tot, "gt50_share": hits / tot if tot else None,
                           "truncated": bool(tot) and hits / tot > CAP_TRUNC}
             agg["ils_work"] = {k: sum(x[k] for x in il) for k in ("batches", "tasks_moved", "gain_seconds", "budget_stops")}
-            agg["ils_work"]["served_differs_from_bar"] = "not available"
+            with_d = [x for x in il if x["has_differs"]]
+            agg["ils_work"]["served_differs_from_bar"] = (
+                {b: {"differs": sum(x["by_bucket"][b]["differs"] for x in with_d), "gain_seconds_S": sum(x["by_bucket"][b]["differs_gain_s"] for x in with_d)}
+                 for b in BUCKETS} | {"cells_with_counter": len(with_d), "cells_without": len(il) - len(with_d)}) if with_d else "not available"
         else:
             agg["cap"], agg["ils_work"] = None, None
         out[rung] = agg
