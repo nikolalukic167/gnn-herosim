@@ -74,6 +74,10 @@ skipped = re.search(r"incomplete sweeps skipped: (\d+); per-dataset load errors:
 same = ["partial_state_contract", "physics_env", "dag_primary_alpha_key", "inference_feature_layout", "queue_feature_contract", "topology_feature_contract", "platform_feature_dim",
         "dag_task_type_vocab", "label_objective", "peer_exchange_block", "dag_partial_state", "queue_norm_mode", "training_contract"]
 diff = {k: [m.get(k), mo.get(k)] for k in same if m.get(k) != mo.get(k)}
+# warmth_physics has been recorded in physics_env since audit M3 (2026-10-12); the production cache predates it. Accept only that added key, and only as node_disk_v2.
+pe, peo = dict(m.get("physics_env") or {}), dict(mo.get("physics_env") or {})
+if "physics_env" in diff and "warmth_physics" not in peo and pe.pop("warmth_physics", None) == "node_disk_v2" and pe == peo:
+    del diff["physics_env"]
 checks = {"linked_datasets": n_linked, "graphs": m["num_graphs"], "incomplete_sweeps_skipped": int(skipped.group(1)) if skipped else None, "load_errors": int(skipped.group(2)) if skipped else None,
           "candidate_slate": m.get("candidate_slate"), "candidate_slate_rules": m.get("candidate_slate_rules"), "keys_differing_from_production_cache": diff,
           "split_sha256": hashlib.sha256((out / "split.json").read_bytes()).hexdigest(), "rtt_rows": m.get("num_rtt_combo_rows")}
