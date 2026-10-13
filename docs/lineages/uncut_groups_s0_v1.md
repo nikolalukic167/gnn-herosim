@@ -302,7 +302,15 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 - 2026-10-13 — **PRE-DATA: Arm 1 live gate (`uncut_arm1`), SCIENTIST's text, filed before any Arm 1 checkpoint is gated.**
   - **The expert's rulings on this text:**
     - **(A) Gate ids**, the agreed rule of SCIENTIST and the expert, which replaces the topology sentence of the text below: "Gate ids are picked by S5's token scan as the next free block above 19472 (expected 19473–19484). Required property: no gate id appears in any training, validation or capture list. The list and its hash are filed before any cell."
-      - The corpus block is the next free ids above the gate block, also verified by the scan, and the prep fails loud on an existing ROOT. This refines ruling (2) in the entry below. Both lists go into this node before minting.
+      - **Applied literally (the expert's ruling (i), after S5's scan found 19473–19532 in use):**
+        - gate = the lowest x > 19472 with x … x+11 all free;
+        - corpus = the lowest y > x+11 with 40 consecutive free ids.
+        - S5 computes both from the scan, and the lists and their hashes are filed here before minting.
+        - S5's first proposal (corpus 20400–20439, gate 20450–20461) is superseded.
+      - **Corpus count: 40 topologies** (sized by the expert, without outcomes).
+        - About 750 batches > 10 per heavy cell, g0 at both rungs, gives about 60k candidate states for 12,000 sampled. Add g1 if a cell yields < 150 per rung.
+        - About 10 % are held out by whole topology.
+      - The prep fails loud on an existing ROOT. This refines ruling (2) in the entry below.
     - **(B) Label slate:** moot. The served slate is the full set, so the labels and the oracle both search `_pg_candidates` (see the corpus-spec entry).
     - **(C) Per-task batch-size logging** belongs to S5, after the minting. It is a summarizer change plus an identity: every sim key unchanged on a `gate_k1` cell. It comes before any gate cell.
   - SCIENTIST's text, verbatim:
