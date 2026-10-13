@@ -208,6 +208,28 @@ def job_of(state: Dict[str, Any], root: str) -> Dict[str, Any]:
             "cell_config": f"{root}/inputs{s}/inputs_group/wf1_{rung}/cfg/cc40s{topo}.json", "sim_input": str(U_REPO / "data" / "nofs-ids"), "role": "first"}
 
 
+
+def lock_wait_summary(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Descriptive: mean lock wait (compute_start - io_end) per task at the W horizon, ILS plan minus hand plan, for batch tasks and later
+    arrivals, split by the state's label source. Pooled over states by task counts (sum of sums / sum of tasks)."""
+    out: Dict[str, Any] = {}
+    for src in sorted({r.get("source") for r in rows if r.get("lock_wait")}):
+        sub = [r for r in rows if r.get("source") == src and r.get("lock_wait") and r["lock_wait"].get("ils") and r["lock_wait"].get("hand")]
+        cell: Dict[str, Any] = {"states": len(sub)}
+        for who in ("batch", "later"):
+            acc = {}
+            for plan in ("hand", "ils"):
+                tot = sum(r["lock_wait"][plan]["W"][who]["sum"] for r in sub)
+                n = sum(r["lock_wait"][plan]["W"][who]["n"] for r in sub)
+                acc[plan] = {"mean_s": tot / n if n else None, "tasks": n}
+            acc["ils_minus_hand_s"] = None if None in (acc["ils"]["mean_s"], acc["hand"]["mean_s"]) else acc["ils"]["mean_s"] - acc["hand"]["mean_s"]
+            diffs = [r["lock_wait"]["ils"]["W"][who]["sum"] - r["lock_wait"]["hand"]["W"][who]["sum"] for r in sub]
+            acc["states_ils_higher"] = sum(d > 1e-9 for d in diffs); acc["states_ils_lower"] = sum(d < -1e-9 for d in diffs)
+            cell[who] = acc
+        out[str(src)] = cell
+    return out
+
+
 def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = None) -> Dict[str, Any]:
     """The Arm 1 label of one state. <= 10 tasks: the exact S-optimum when the candidate product has <= EXACT_CAP plans. Otherwise ILS from the hand (cd_ib0) plan at the K1(b)
     budget, one replay each of the hand and ILS plans, label = ILS iff r >= R_MIN else hand. A state whose hand plan cannot be re-decided whole (SPLIT / UNPLACED) takes the served
@@ -301,7 +323,7 @@ def main() -> int:
     lb.add_argument("--seed", type=int, default=0); lb.add_argument("--k1-read-commit", required=True, help="the commit that records the K1(b) read (label_gate refuses without it)")
     lb.add_argument("--sealed", default=str(U_REPO / "docs/lineages/uncut_groups_s0_v1/k1_sealed_states.json"), help="the sealed K1(b) states: never labelled")
     ck = sub.add_parser("check")
-    ck.add_argument("which", choices=("convergence", "determinism", "fresh100")); ck.add_argument("ids"); ck.add_argument("--root", default="/share/nikola.lukic/uncut_arm1")
+    ck.add_argument("which", choices=("convergence", "determinism", "fresh100", "lockwait")); ck.add_argument("ids"); ck.add_argument("--root", default="/share/nikola.lukic/uncut_arm1")
     ck.add_argument("--pool", required=True); ck.add_argument("--shard", default="0/1"); ck.add_argument("--out", required=True); ck.add_argument("--labels", nargs="*", default=[])
     o = sub.add_parser("openings")
     o.add_argument("--src", required=True); o.add_argument("--dst", required=True); o.add_argument("--open-s", type=float, default=420.0)
@@ -336,6 +358,9 @@ def main() -> int:
                 row["set"], row["topology"], row["window"], row["rung"], row["early"], row["side"] = st_["set"], st_["topology"], st_["window"], st_["rung"], st_["early"], st_["side"]
                 fh.write(json.dumps(row, separators=(",", ":")) + "\n"); fh.flush()
                 print(row["state_id"], row["source"], flush=True)
+        return 0
+    if a.cmd == "check" and a.which == "lockwait":
+        print(json.dumps(lock_wait_summary([json.loads(l) for l in open(a.ids)]), indent=1))
         return 0
     if a.cmd == "check":
         ids = json.load(open(a.ids))
@@ -378,6 +403,7 @@ def main() -> int:
                         H.HORIZON_SPECS = ("W",)
                         hz = H.run_state(dict(job), {"hand": lab["hand"], "ils": lab["ils"]})
                         row["horizon"] = {n: {kk: vv["total"] for kk, vv in p["by_n"].items()} for n, p in hz["plans"].items()}
+                        row["lock_wait"] = {n: {kk: vv["lock_wait"] for kk, vv in p["by_n"].items()} for n, p in hz["plans"].items() if p}
                 fh.write(json.dumps(row, separators=(",", ":")) + "\n"); fh.flush()
                 print(row["state_id"], flush=True)
         return 0
