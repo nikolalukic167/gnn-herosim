@@ -500,7 +500,7 @@ def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs:
     """(jobs, missing states). One job per sealed state from a hand-cell directory: cells/cc40s<topo>__<window><rung>__<token>_s<seed>.{snapshots.jsonl,summary.json}; the
     config is inputs/wf1_<rung>/cfg/cc40s<topo>.json. The state is the FIRST capture led by its trigger id (pinned by its time); later same-trigger captures (a sub-batch
     0.01 s after the whole batch) are dropped and counted in `n_extra_captures`. A state listed in `missing` (state ids, or {topology, window, rung, trigger_task_id}
-    dicts: ids that were never a trigger at k = 1) is skipped and returned as missing with its bucket. Any other missing file or trigger fails loud."""
+    dicts: ids that were never a trigger at k = 1) is skipped and returned as missing with its bucket. A state the cell's own summary lists in `sealed_snapshots.missing` is skipped the same way. Any other missing file or trigger fails loud."""
     jobs, gone = [], []
     for st_ in sealed:
         if _is_missing(st_, missing):
@@ -512,6 +512,10 @@ def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs:
             if not f.exists():
                 raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: {f} does not exist")
         caps = captures_of(str(stem) + ".snapshots.jsonl", st_["trigger_task_id"])
+        cell_missing = [int(x) for x in ((json.load(open(str(stem) + ".summary.json")).get("sealed_snapshots") or {}).get("missing") or [])]
+        if not caps and int(st_["trigger_task_id"]) in cell_missing:       # the cell's own record: this id was never a trigger there
+            gone.append({k: st_[k] for k in ("state_id", "bucket", "group_size", "topology", "window", "rung", "trigger_task_id")})
+            continue
         if not caps:
             raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: trigger {st_['trigger_task_id']} was never captured in {stem}.snapshots.jsonl and is not listed as missing")
         jobs.append({"state_id": st_["state_id"], "bucket": st_["bucket"], "group_size": st_["group_size"], "snapfile": str(stem) + ".snapshots.jsonl",
