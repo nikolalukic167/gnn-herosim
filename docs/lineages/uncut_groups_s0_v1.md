@@ -300,6 +300,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **K1(b): K1B-FIRES / GAP-IS-CO-LOCATION / MYOPIC-REPLAY** (S7; label by the expert's ruling). **K1 fired; labels not run by the user's decision (2026-10-13, paper pivot).** `make-labels` was dry-run only, on identity states, and any label run needs the user's approval.
+  - 2026-10-13, later the same day: the user authorised a narrow reopening of the learned one-pass arms at k = 1 ('let's do this without GNN seed + search (cdxapply) if that is cheap'; pre-data record 506de44b), then redirected the program, verbatim: 'stop fucking improving the heuristic and to improve our GNN'. Ruled (expert): no new hand or search arms; the bar stays cd_ib0 at k = 1 on whole groups. SCIENTIST is drafting GNN-side options (uncut-ILS labels, prefix-aware message passing, a group-anchor head), each with an MP-OFF twin. Offline diagnostics are running (S7: decision-prefix re-runs, Step 0). No labels or training run without the user's approval of a plan.
   - **Read.** 200 sealed states (sha 755ace02…, seed 20261013). Hand `cd_ib0` against ILS on S (`uncut_ils/1`, seed 0, budget 200 evaluations per task-candidate, no time bound hit), with RTT replayed.
     - Tool: rp/uncut-ils-k1b 948f31cd, run at 98febf7d. The difference is a reader fix for the gt100 bucket alias.
     - Rows: `/share/nikola.lukic/uncut_ils/k1b/{rows_all.jsonl,k1b_read.json,unreplayable.json}`.
