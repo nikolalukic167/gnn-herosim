@@ -243,12 +243,21 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     from src.policy.gnn import orchestrator as GO
     from src.policy.peer_greedy_network import scheduler as PG
 
-    snap = _load_snapshot(job)
-    spec = {"snapshot": snap, "cell_config": job["cell_config"], "sim_input": job["sim_input"], "live_run_params": snapshot_fidelity.live_run_params()}
+    if job.get("dataset"):          # a corpus dataset (frontier_v1 states): its own spec, tasks in dataset order, so a placements.jsonl table indexes the plans
+        ds = Path(job["dataset"])
+        seed_ds = json.load(open(ds / "infrastructure.json"))["live_snapshot_seed"]
+        spec = deepcopy(seed_ds["fidelity_replay"])
+        if not Path(spec["sim_input"]).exists():
+            spec["sim_input"] = job.get("sim_input") or str(REPO / "data" / "nofs-ids")
+        snap, replicas_by_type = spec["snapshot"], seed_ds["replicas_by_type"]
+        types = [next(iter(e["application"]["dag"])) for e in json.load(open(ds / "workload.json"))["events"]]
+    else:
+        snap = _load_snapshot(job)
+        spec = {"snapshot": snap, "cell_config": job["cell_config"], "sim_input": job["sim_input"], "live_run_params": snapshot_fidelity.live_run_params()}
+        replicas_by_type = build_live_snapshot_seed(snap)["replicas_by_type"]
+        types = [r["fn"] for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
     fid = snap["fidelity"]
     t0 = float(snap["time"])
-    replicas_by_type = build_live_snapshot_seed(snap)["replicas_by_type"]
-    types = [r["fn"] for r in sorted(fid["batch"], key=lambda r: int(r["gid"]))]
     offered = {t: [(sp["node_name"], sp["platform_id"]) for sp in specs if sp.get("candidate", True)] for t, specs in replicas_by_type.items()}
     fr = fidelity_replay.FidelityReplay(spec, types, offered)
     local_of = {fr.batch_local[i]: i for i in range(len(fr.batch_local))}   # replay id -> index in snapshot batch order
@@ -279,7 +288,8 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
                     res[i] = sub[k]
             res.update(out)
         if set(local_of) <= {int(t.id) for t in batch_tasks} and "out" not in seen:
-            seen["out"] = _search_at_decision(self, batch_tasks, system_state, res, local_of, set(fr.queued_forced), seed, max_evals, per, max_seconds)
+            seen["out"] = _search_at_decision(self, batch_tasks, system_state, res, local_of, set(fr.queued_forced), seed, max_evals, per, max_seconds,
+                                                int(job.get("exhaustive_cap") or 0))
             raise _Done(seen["out"])
         return res
 
@@ -312,7 +322,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     return out
 
 
-def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds) -> Dict[str, Any]:
+def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0) -> Dict[str, Any]:
     """Runs inside the decision: res[i] = (node id, platform id) of batch_tasks[i] under the hand arm."""
     placements = {i: (int(res[i][0]), int(res[i][1])) for i in range(len(batch_tasks))}
     cands_o, couple, keys, plan_o, pinned = sched._pg_plan_objects(batch_tasks, system_state, placements)
@@ -337,16 +347,29 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
         t1 = time.time()
         r = ils(ckeys, start, S, seed=seed, max_evals=budget, max_seconds=max_seconds)
         wall_s = time.time() - t1
+        ils_calls = n_calls[0]
         fresh = [float(sched._pg_plan_cost(batch_tasks, [couple[k] for k in r["best"]], orch, {}, nodes)[0]), float(sched._pg_plan_cost(batch_tasks, [couple[k] for k in start], orch, {}, nodes)[0])]
         if abs(fresh[0] - r["best_S"]) > 1e-6 or abs(fresh[1] - r["start_S"]) > 1e-6:
             raise RuntimeError("FAIL LOUD: S with a shared memo differs from S with a fresh memo")
+        exh = None
+        if exhaustive_cap:          # the S-optimum of the whole product, for states small enough to enumerate (the ILS reaches it or the tool is wrong)
+            from itertools import product
+
+            total = math.prod(len(c) for c in ckeys)
+            if total <= exhaustive_cap:
+                best_e, argm = None, None
+                for plan in product(*ckeys):
+                    v = S(plan)
+                    if best_e is None or v < best_e - EPS:
+                        best_e, argm = v, plan
+                exh = {"plans": total, "s_opt": best_e, "ils_gap": r["best_S"] - best_e}
     finally:
         sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha = saved
     order = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
     to_batch = lambda plan: [list(plan[i]) for _b, i in order]       # snapshot batch order (gid ascending)
     return {"n": len(batch_tasks), "n_batch": len(order), "n_pinned": len(pinned), "cands_mean": sum(len(c) for c in ckeys) / len(ckeys),
             "hand": to_batch(start), "start_S": r["start_S"], "best": to_batch(r["best"]), "best_S": r["best_S"], "n_evals": r["n_evals"], "budget": budget,
-            "stopped": r["stopped"], "iters": r["iters"], "s_calls": n_calls[0], "search_wall": wall_s,
+            "stopped": r["stopped"], "iters": r["iters"], "s_calls": ils_calls, "search_wall": wall_s, "exhaustive": exh,
             "trajectory": [{"eval": t["eval"], "S": t["S"], "iter": t["iter"], "plan": to_batch(t["plan"])} for t in r["trajectory"]],
             "evals_log": [(e["eval"], e["S"], e["iter"]) for e in r["evals"]]}
 
@@ -375,7 +398,7 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     t0 = time.time()
     d = decision_pass(job, arm, seed, max_evals, per, max_seconds)
     row = {k: d[k] for k in ("n", "n_batch", "n_pinned", "cands_mean", "start_S", "best_S", "n_evals", "budget", "stopped", "iters", "s_calls", "search_wall",
-                             "hand", "best", "t0")}
+                             "hand", "best", "t0", "exhaustive")}
     row.update(state_id=job.get("state_id"), bucket=job.get("bucket") or bucket_of(d["n_batch"]), arm=arm, seed=seed,
                s_per_call_ms=1000.0 * d["search_wall"] / max(d["s_calls"], 1), n_incumbents=len(d["trajectory"]),
                trajectory=[{"eval": t["eval"], "S": t["S"], "iter": t["iter"]} for t in d["trajectory"]], evals_log=d["evals_log"])
