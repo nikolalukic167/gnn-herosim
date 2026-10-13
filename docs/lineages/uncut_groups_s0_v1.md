@@ -276,6 +276,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
+- 2026-10-13 — **K1(b) sample SEALED before any k = 1 hand cell** (none has run).
+  - `scripts_cosim/uncut_groups_k1_draw.py` at 983361cc, seed **20261013**, on `gate_inputs_e2738e37/inputs_group`, topologies 19461–19472. 200 states: 150 in 11–50, 40 in 51–100, 10 in 101+.
+  - [k1_sealed_states.json](uncut_groups_s0_v1/k1_sealed_states.json), sha256 `755ace0276b4a41c2e12dcb54b51e334cf1e9c058257c0b3b5427e21039a3e7f`.
+  - [k1_snapshot_plan.json](uncut_groups_s0_v1/k1_snapshot_plan.json) (the gate's `R1A_SNAPSHOT_PLAN`), sha256 `f8b555550071cc5e212c02c86484d72c2b7088e8fc2cd4a76d4c42e58d6b28fc`.
+  - A state is (topology, window, rung, trigger task id = the group's first member). Every hand cell of that topology × window × rung captures it, so the arm picked after the cells run has the same states.
+- 2026-10-13 — **Code for the hand cells** (rp/uncut-groups), each with tests:
+  - whole-group mode with the raise (4523dc56);
+  - `--start-group` (2ed779d8);
+  - decision_cost merge (4e028f44);
+  - peer-group batch counters `pgb_whole_*` / `pgb_split_*` / `pgb_max_batch` (K0's uncut share);
+  - whole-group inputs `inputs_group` with MD5SUMS in both trees (8787907f; job 864557: 24 cfgs rewritten, 10 untouched files byte-identical; MD5SUMS md5 4954f384 / 0ad1ea61);
+  - sealed snapshot hook `R1A_SNAPSHOT_PLAN` / `LIVE_AUDIT_TRIGGER_IDS` (f20bfaab).
+  - Identities (1), (3), (4) and (m) are running.
 - 2026-10-13 — **Robust-bar rules, before data** (SCIENTIST's, signed by the expert as rules): WIN-ROBUST / WIN-OVER-BRITTLE-BAR clause; collapse and tail-flag health at K0 for every hand arm; K1 decided only by a non-collapsing arm. Prompted by warm_surge 0c.
 - 2026-10-13 — **SCIENTIST's prior revision (P(WIN) 0.10 → 0.05; MP-attributed 0.02) and K1 amendments:** (a) on both whole-run and after-360 s; (b) is a mean, not a median, on the replayed RTT, with bucket-stratified sampling; identity (m) added for the snapshot hook. All written before any hand cell.
 - 2026-10-13 — **Gate inputs built** (job 864541 at pin e2738e37, 35 s; `big_groups_inputs.sbatch`, X1 = `x1_uncut`, M 11.6139 / 27.622665025860204, REPLICA_RULE `fastest_compatible`, BASECFG `/share/nikola.lukic/accel_nosplit/inputs/cfg_src/cc40s16345.json` as ib0_confirm_v1 used). Output in `/share/nikola.lukic/uncut_groups/gate_inputs_e2738e37/inputs`.
