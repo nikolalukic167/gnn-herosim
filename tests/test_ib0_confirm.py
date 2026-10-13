@@ -101,6 +101,8 @@ def test_gnn_scheduler_takes_a_hand_seed_only_when_asked():
 def test_harness_names_the_ib0_expansion_arms():
     assert G.RULE_POLICY["cdx_ib0"] == "peer_greedy_network_cd" and "cdx_ib0" in G.R1A_DIAG and "cdx_ib0" in G.R1A_ARMS
     assert G.RULE_POLICY["cd_exactS_a05"] == "peer_greedy_network_cd" and G.EXACT_ALPHA["cd_exactS_a05"] == {"HEROSIM_PG_BATCH_ALPHA": "0.5"}
+    assert G.RULE_POLICY["cd_exactS_ib0_d05"] == "peer_greedy_network_cd" and G.EXACT_ALPHA["cd_exactS_ib0_d05"] == {"HEROSIM_PG_DRAIN_ALPHA": "0.5", "HEROSIM_PG_BATCH_ALPHA": "0"}
+    assert "cd_exactS_ib0_d05" in G.R1A_DIAG
     assert "_cdxib0" in G.SUFFIXES and "_cdxhib0" in G.SUFFIXES
     assert {"ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0"} <= set(G.R1A_CDX)
     assert G.ib0_alpha("cdx_ib0") == G.ib0_alpha("ra_gnn_eng_cdxib0") == G.ib0_alpha("ra_gnn_eng_cdxhib0") == {"HEROSIM_PG_BATCH_ALPHA": "0"}
