@@ -534,3 +534,37 @@ def test_harness_serves_the_twin_prune_arm_with_message_passing_off():
     assert "ra_twin_eng" in G.RA_MP_OFF
     base = next(("ra_twin_eng_cdxpra"[:-len(s)] for s in G.SUFFIXES if "ra_twin_eng_cdxpra".endswith(s)), None)
     assert base == "ra_twin_eng"
+
+
+def test_harness_serves_the_twin_cdxapply_arm_with_the_twin_seed_and_cdxapplys_settings():
+    """The MP-OFF twin as the seed of cdxapply's CD refine + exact-move expansion: the control for 'is the seed's message passing what helps'.
+
+    The arm is a name only; every setting hangs off the "_cdxapply" suffix and the base kind, so the twin arm cannot differ from ra_gnn_eng_cdxapply in the expansion
+    limits, the w(n) key path or the no-split decode, and its seed comes from the twin checkpoint with message passing off."""
+    import re
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
+    import fresh_topo_burst_v1_gate as G
+
+    twin, gnn = "ra_twin_eng_cdxapply", "ra_gnn_eng_cdxapply"
+    assert twin in G.R1A_CDX and twin in G.R1A_ARMS
+    assert G.R1A_ARMS.count(twin) == 1                                                          # named once; R1A_CDX arms are out of the default grid
+    base = lambda k: next((k[:-len(s)] for s in G.SUFFIXES if k.endswith(s)), k)
+    assert base(twin) == "ra_twin_eng" and base(gnn) == "ra_gnn_eng"
+    assert base(twin) in G.RA_KINDS and base(twin) in G.RA_MP_OFF and base(gnn) not in G.RA_MP_OFF   # the seed is the MP-OFF twin
+    assert G.check_alias(twin) == twin                                                          # instrument checks are those of cdxapply (suffix-driven)
+    src = open(G.__file__).read()
+    # the checkpoint is <R1A_STEM>-twin-eng-seed<N>.pt for the twin base, sidechecked as ra_twin_eng
+    assert 'stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")' in src
+    assert "ra_twin_eng".replace("_", "-")[3:] == "twin-eng"
+    assert 'f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS' in src
+    # the settings are chosen by the suffix alone, for both bases: no branch names a base kind
+    branch = re.search(r'        if kind\.endswith\("_cdxapply"\):\n(.*)\n        if kind\.endswith\(\("_cdxib0"', src, re.S).group(1)
+    assert branch.strip() == 'env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")'
+    assert "ra_twin" not in branch and "ra_gnn" not in branch
+    assert 'GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",\n                   GNN_PREFIX_ALPHA_KEY="inf")' in src   # the w(n) key path is set for every learned base
+    # expansion limits and the w(n) key path are read from the scheduler and the environment, never from the kind
+    sched = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src/policy/peer_greedy_network/scheduler.py")).read()
+    assert "ra_twin" not in sched and "ra_gnn" not in sched
+    assert 'if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "so1mpoff", "so1lfmlp", "rawmlp", "rawStwin", "lf1twin", "lf1mlp") + RA_MP_OFF:\n            env["GNN_DISABLE_MESSAGE_PASSING"] = "1"' in src
