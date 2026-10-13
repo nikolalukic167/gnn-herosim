@@ -299,6 +299,26 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **PRE-DATA: SCIENTIST's myopia test of the K1(b) gap, filed before S7 runs anything.** This is an offline screen: under rule 6 it orders the work and does not close it.
+  - **States:** the top 50 by `cd_ib0` regret, plus 50 random states at ≤ 100 % regret. The seed is fixed before running.
+  - **Plans:** `cd_ib0`, `cd_exactS_ib0` and ILS.
+  - **Replay:** the batch plus the next N ∈ {1, 3, 10} groups, placed by `cd_ib0`.
+  - **Metric:** task-weighted RTT, paired per state.
+  - **Chaos floor:** two hand-equivalent plans one zero-ΔS move apart.
+  - **Labels:**
+    - MYOPIA-SMALL: at N = 10 the advantage keeps ≥ 50 % of its batch-only value, the sign agrees on ≥ 80 % of states, and the median is above the floor.
+    - MYOPIC: it keeps < 25 %, or the sign flips on > 30 % of states.
+    - AMBIGUOUS otherwise.
+  - **Consequences (SCIENTIST):** MYOPIC means the label gains a horizon term or the plan stops (P(WIN) ≈ 0.08). MYOPIA-SMALL means the plan stands (P ≈ 0.3).
+- 2026-10-13 — **Cross-arm read on the 193 K1(b) states: REACHABILITY-NOT-SLATE** (S7; `/share/nikola.lukic/uncut_ils/k1b/xarm_summary.json`, rows `xrows_all.jsonl`).
+  - Plan identity is now bit-equal on 193/193 (S7's figure; that check is not in `xarm_summary.json`).
+  - `cd_exactS_ib0`'s own decision is 24.3 % behind ILS task-weighted, against the hand's 38.6 %.
+    - It hits the cap on 96.9 % of states.
+    - Its plan equals the hand's on 63.2 % of states and equals ILS's on 38.9 %.
+  - The ILS placement lies outside the per-task top-5 for 2.1 % of tasks, and no ILS placement falls outside the candidate set. The gap is reaching the joint plan, not a slate that misses it.
+  - Cross-node pairs average 20.2 for the hand, 18.8 for `cd_exactS_ib0` and 13.4 for ILS.
+  - The figures above were checked against `xarm_summary.json` at filing.
+
 - 2026-10-13 — **K1(b): K1B-FIRES / GAP-IS-CO-LOCATION / MYOPIC-REPLAY** (S7; label by the expert's ruling). **K1 fired; labels not run by the user's decision (2026-10-13, paper pivot).** `make-labels` was dry-run only, on identity states, and any label run needs the user's approval.
   - 2026-10-13, later the same day: the user authorised a narrow reopening of the learned one-pass arms at k = 1 ('let's do this without GNN seed + search (cdxapply) if that is cheap'; pre-data record 506de44b), then redirected the program, verbatim: 'stop fucking improving the heuristic and to improve our GNN'. Ruled (expert): no new hand or search arms; the bar stays cd_ib0 at k = 1 on whole groups. SCIENTIST is drafting GNN-side options (uncut-ILS labels, prefix-aware message passing, a group-anchor head), each with an MP-OFF twin. Offline diagnostics are running (S7: decision-prefix re-runs, Step 0). No labels or training run without the user's approval of a plan.
   - **Read.** 200 sealed states (sha 755ace02…, seed 20261013). Hand `cd_ib0` against ILS on S (`uncut_ils/1`, seed 0, budget 200 evaluations per task-candidate, no time bound hit), with RTT replayed.
