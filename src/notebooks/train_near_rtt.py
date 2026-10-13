@@ -627,7 +627,7 @@ def loss_tied_teacher_forced_ce(
         layout = _arm2.layout_for(model, data, ctx)
         label_nodes = {t: int(placements[t][int(plans[0][t])][0]) for t in range(n_tasks)}
         teacher_anchor = _arm2.anchor_label(layout, label_nodes)
-        score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor)
+        score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor, task_rows_only=NEAR_CFG.score_task_rows_only)
     else:
         teacher_anchor = None
         score = make_partial_state_score_fn(model, data, ctx, task_rows_only=NEAR_CFG.score_task_rows_only)
@@ -676,7 +676,7 @@ def loss_tied_teacher_forced_ce(
         if getattr(model, "committed_inputs", False):
             # One shared encode (empty snapshot) for the whole full-context term, as in Arm 1: re-encoding per held-out task
             # would build about n distinct encodes per plan in one autograd graph.
-            full_score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor, single_encode=True)
+            full_score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor, single_encode=True, task_rows_only=NEAR_CFG.score_task_rows_only)
         full_memo: Dict[Tuple[Any, ...], Tensor] = {}
         full_logps: List[Tensor] = []
         for plan in plans:

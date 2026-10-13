@@ -300,6 +300,7 @@ def make_arm2_score_fn(
     *,
     teacher_anchor: Optional[Sequence[int]] = None,
     single_encode: bool = False,
+    task_rows_only: bool = False,
 ) -> Callable[[int, Mapping[int, Any]], Tensor]:
     """``(task_idx, committed) -> logits[task_idx]`` for a model with B1 and/or B2.
 
@@ -309,7 +310,12 @@ def make_arm2_score_fn(
     ``.anchor_logits()`` and ``.encode_count`` for the loss and the decision-charge meter, ``.snapshot_key(committed)``
     (the committed prefix the encode saw, which a caller memoising logits must key on) and ``.close()`` (drops the Arm 2
     state from the graph). ``single_encode`` forces the empty snapshot (one encode), as the full-context term uses.
+    ``task_rows_only`` (training closure, NEAR_RTT_SCORE_TASK_ROWS_ONLY) scores only the task's own edge rows
+    (``partial_state_edges._score_task_rows``); the encode, the anchor column and the committed state are untouched.
     """
+    from src.policy.gnn.partial_state_edges import _score_task_rows
+
+    rows_state: Dict[str, Any] = {}
     expected = partial_state_feature_dim(getattr(ctx, "contract", None))
     if int(model.partial_state_edge_dim) != expected + (1 if model.group_anchor else 0):
         raise ValueError(
@@ -374,6 +380,8 @@ def make_arm2_score_fn(
                 attr[idx, expected] = torch.as_tensor(
                     [1.0 if c[0] == node else 0.0 for c in candidates], dtype=attr.dtype, device=attr.device)
         data.partial_state_edge_attr = attr
+        if task_rows_only:
+            return _score_task_rows(model, task_emb, platform_emb, data, task_idx, rows_state)
         return model._score(task_emb, platform_emb, data)[task_idx]
 
     def anchor_logits_fn() -> List[Tensor]:
