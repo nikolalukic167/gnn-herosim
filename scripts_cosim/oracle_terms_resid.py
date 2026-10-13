@@ -114,13 +114,13 @@ def evaluate(train, test, label):
     agn = [i for i, n in enumerate(nm) if n.startswith("tot_") or n in ("n_moved", "d_nodes", "n", "early")]
     out = {"label": label, "train_rows": len(y), "test_rows": len(yt), "test_batches": len(test), "rho_std": float(yt.std())}
     early = Xt[:, nm.index("early")] > 0.5
+    rng = np.random.default_rng(0)
     preds = {}
     for nmod, cols in (("typed", typed), ("agnostic", agn)):
         m = fit(X, y, cols); p = m.predict(Xt[:, cols]); preds[nmod] = p
         out[nmod] = {"r2": r2(yt, p), "r2_early": r2(yt[early], p[early]) if early.sum() > 50 else None, "r2_steady": r2(yt[~early], p[~early]) if (~early).sum() > 50 else None}
         if nmod == "typed":
             base = out[nmod]["r2"]; imp = {}
-            rng = np.random.default_rng(0)
             for g in GROUP:
                 gc = [i for i, n in enumerate(nm) if n.endswith("_" + g)]
                 Xp = Xt.copy()
@@ -134,6 +134,19 @@ def evaluate(train, test, label):
                 imp["type:" + t] = base - r2(yt, m.predict(Xp[:, cols]))
     out["regret"] = {k: regret(test, preds[k], bit, ("A", "B")) for k in preds}
     out["regret"]["S_only"] = regret(test, np.zeros(len(yt)), bit, ("A", "B"))
+    for tag, want_early in (("early", True), ("steady", False)):          # the same regret on batches with t < 360 s / t >= 360 s
+        keep = [b for b, bt in enumerate(test) if (bt["t"] < T0) == want_early]
+        sub = [test[b] for b in keep]
+        sel = np.isin(bit, keep)
+        out["regret_" + tag] = {k: regret(sub, preds[k][sel], None, ("A", "B")) for k in preds}
+        if sel.sum() > 50:                                                # permutation importance inside the bin
+            m = fit(X, y, typed); base = r2(yt[sel], m.predict(Xt[sel]))
+            imp2 = {}
+            for g in GROUP:
+                gc = [i for i, n in enumerate(nm) if n.endswith("_" + g)]
+                Xp = Xt[sel].copy(); Xp[:, gc] = Xp[rng.permutation(sel.sum())][:, gc]
+                imp2[g] = base - r2(yt[sel], m.predict(Xp))
+            out["perm_importance_" + tag] = {"base_r2": base, **imp2}
     return out
 
 
