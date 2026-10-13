@@ -299,6 +299,46 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **PRE-DATA: Arm 1 live gate (`uncut_arm1`), SCIENTIST's text, filed before any Arm 1 checkpoint is gated.**
+  - **Conflict with the expert's ruling (2), for the expert to resolve before any id is written.** The text below picks the gate ids as "the first 12 ids above 19472 … (expected 19473–19484)". The expert ruled that S5 picks both blocks by `gnn_overcap`'s token-scan protocol.
+  - SCIENTIST's text, verbatim:
+
+    > Arm 1 live gate (uncut_arm1; SCIENTIST; filed before any Arm 1 checkpoint is gated; date = filing date).
+    >
+    > Prerequisite: per-task batch-size logging (original group size and served batch size per task) in the summarizer. Its identity: SIM-IDENTICAL to an existing `cd_ib0` k = 1 cell on every pre-existing key. No gate cell runs before it.
+    >
+    > Seat: as uncut_groups_s0_v1 (accel 160 × 24, single origin, whole-group serving, gate inputs re-built for the new ids with the same mint and x1_uncut rule), k = 1. Each arm's w is calibrated on k = 0 cells, outside the gate topologies, and frozen in decision_cost_w.json before any gate cell.
+    >
+    > Topologies: 12 fresh ids, the first 12 ids above 19472 that appear in no training, validation or capture list (expected 19473–19484). Windows g0–g3, both rungs, simulation seed 0. The id list and its hash are filed before any cell.
+    >
+    > Arms:
+    > - `uncut_arm1_gnn_eng` nosplit, seeds 1 and 2 (primary)
+    > - `uncut_arm1_twin_eng` nosplit, seeds 1 and 2 (attribution)
+    > - `cd_ib0` (bar) and `cd` (robust fallback)
+    > - the slate_fix_v1 s1 nosplit checkpoint (reference, descriptive)
+    > - MLP same-input s1 if trained, else NOT RUN
+    >
+    > Statistic: as uncut_groups F1. Paired % per topology (median over windows), median over 12, sign count, exact Wilcoxon, Holm (`R.holm`). A learned arm's cell latency is the mean of its two seeds; each seed is also reported alone.
+    >
+    > F1 (Holm over 4): primary vs `cd_ib0`, × 2 rungs × {whole-run, after 360 s}.
+    > WIN: median ≤ −2 % and Holm p < .05 on all four, AND each seed alone has median ≤ −1 % on all four, AND the primary's collapse count ≤ the bar's.
+    > - Anchor clause: met by construction if the primary's decision share is ≥ `cd_ib0`'s; else F3 at k = 0.25 (Holm separately) is required.
+    > - Robust-bar clause as registered. If `cd_ib0` collapses anywhere, the read is also made against the best zero-collapse hand arm (`cd`).
+    > - Labels: WIN-ROBUST / WIN-OVER-BRITTLE-BAR / TIES / E-FASTER (the bar Holm-faster) / MIXED (any other pattern, e.g. a win on after-360 s only).
+    >
+    > F2 (Holm over 4; 8 if the MLP ran): primary vs twin, × 2 rungs × 2 statistics (and primary vs MLP).
+    > - MP-ATTRIBUTED only if F1 is WIN and the primary beats the twin by ≤ −2 % with Holm p < .05 at both rungs on both statistics.
+    > - Otherwise MP-DIRECTION (right sign, not Holm) or NOT-SEPARATED.
+    >
+    > Descriptive, registered:
+    > - UNCUT-ATTRIBUTED: ≥ 50 % of the gap in tasks from original groups > 10, from the per-task logging. Otherwise WIN-NOT-UNCUT.
+    > - OPENING share of the gap (t < 360 s).
+    > - Collapse, tail-flag and wall-infeasible counts per arm.
+    > - Decision share per arm.
+    > - Arm 1 vs the slate_fix_v1 reference: the training effect.
+    >
+    > Cost: about 7 arms × 96 cells; learned cells about 200 s, hand about 50 s; about 30 CPU-h, plus k = 0 calibration.
+
 - 2026-10-13 — **PRE-DATA: the user authorises everything at once; the expert's rulings on the Arm 1 corpus.** Filed while the launches go out. This supersedes the "training not approved" line in the entry below.
   - **The user's words, verbatim** (relayed by the expert): "just do it all and run before smoke (maybe more than 6h timeout idk). wait for nothing and run all so we get some results".
   - **(b) `ils12` budget change, made pre-data.** 868852 was cancelled before any cell finished. The relaunch is job **868854** (S4) at LIMIT 43,200 s, replacing 21,600 s, with the same OUT `ils12_5109d07d` and the same 12 cells. A cell killed at the new limit is still WALL-INFEASIBLE and is never rerun.
@@ -327,6 +367,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Cost:** the node's line is labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule (the expert). SCIENTIST estimates about 60 CPU-h of labels for the spec below. S7 builds them.
   - **Arm 1 corpus spec: SCIENTIST's block, verbatim** (received 2026-10-13, before any label is built; it replaces the expert's relayed summary). Two notes on it:
     - MIN_TIME = 0 (item 1) is covered by the expert's signed amendment (1) in the entry above.
+    - Item 5 carries SCIENTIST's pre-label fix: the labels search the GNN's served top-5 slate, while the oracle keeps the full set. It is **pending the expert's acceptance**, because it reverses for the labels the expert's earlier full-set correction, which was made for the oracle.
     - Item 2 is SCIENTIST's correction, made before any label. The first version (11–50: 4,200; 101–256: 1,000) gave 101–256 about 39 % of the > 10 task share, against the gate's 17 %. That is 2.3×, which breaks § 4's 2× rule. Item 9's label cost drops to about 50 CPU-h.
       - Rechecked at filing: 4,600 × 22, 2,000 × 70 and 600 × 150 give 30.6 / 42.3 / 27.2 %.
       - The mean sizes must be measured on the capture pool, and the final shares printed.
@@ -348,7 +389,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     >
     > 5. Labels:
     > - ≤ 10: the exact optimum on S, as in the slate_fix_v1 corpus, unchanged.
-    > - > 10: ILS on S over `cd_ib0`'s full candidate set (`_pg_candidates`), seeded with the `cd_ib0` plan, at the K1(b) budget rule. Then one replay each of the hand and ILS plans at N = 0.
+    > - > 10: ILS on S over ~~`cd_ib0`'s full candidate set (`_pg_candidates`)~~ **[SCIENTIST's pre-label fix:]** the GNN's served slate (`declared_pruning_v1_uncapped`, per-task top-5), so every label is learnable; the share of tasks whose full-set ILS placement lies outside the slate (about 2.1 % in K1(b)) is reported. ≤ 10 states: exact over the served slate if the slate product is ≤ 100,000; above that, labelled like > 10 states (ILS, replay, r ≥ 0.10), counted in ≤ 10. **[end of fix]** Seeded with the `cd_ib0` plan, at the K1(b) budget rule. Then one replay each of the hand and ILS plans at N = 0.
     > - Label = ILS iff r = (RTT_hand − RTT_ILS) / RTT_hand ≥ 0.10; else the hand plan.
     > - SPLIT / UNPLACED states take the hand label.
     > - Report per bucket and stratum: the ILS-label share, the r histogram, and the counts of SPLIT / UNPLACED / > 256.
