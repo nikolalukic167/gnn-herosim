@@ -319,6 +319,14 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - UNCUT-ATTRIBUTED is not measurable: the cells carry no per-task batch size.
   - The interim `cd_exactS_ib0` heavy row is 45 finished, 2 projection-killed (19468 g1, g3) and 0 stalled. One cell is still running in 865209_1, so it is NOT FINAL; S5 will send the last.
   - Checked against `read_learned.json` at filing: the F1 and F2 medians, wins and Holm p, the NOT-RUN rows, the counts, health and decision shares, and the `F1-CUT-TRAINED` label.
+  - **Labels (the expert's ruling).**
+    - **F1: NO-WIN / TIES**, because no cell has Holm < .05. After 360 s, nosplit is the faster direction at both rungs (−2.60 % moderate, 9/12; −3.96 % heavy, 8/12; Holm .157 / .137). On the whole run, heavy is +4.10 % against nosplit (2/12): its deficit is in the opening. Every line is labelled F1-CUT-TRAINED.
+    - **F2: MP-SEPARATED-ON-WHOLE-GROUPS.** nosplit beats its MP-OFF twin at both rungs on both statistics (Holm ≤ .003). This is the first MP-vs-twin separation in a decision-time-charged seat. It attributes a non-win, since neither arm beats `cd_ib0` by Holm. With the MLP half NOT RUN, there is no pointwise attribution.
+    - **UNCUT-ATTRIBUTED: NOT MEASURABLE**, because the cells carry no per-task batch size. Beside it, the g0 share of tasks in groups > 10 that were served whole: nosplit 97.6 % moderate / 98.9 % heavy, twin 97.5 / 99.0 %, `cd_ib0` 97.5 / 99.0 %.
+    - **F3 is not triggered.** nosplit's decision share is above `cd_ib0`'s, so the anchor clause is met.
+    - **Health.** No arm of the three collapses. Tail flags (moderate / heavy): nosplit 1 / 0, twin 1 / 1, `cd_ib0` 5 / 3.
+    - **The exact-arm comparisons are collapse artefacts, not wins.** In the descriptive rows, nosplit is −92.6 % against `cd_exactS_ib0` moderate and −99.8 % heavy.
+  - Whether the steady-state statistic becomes primary is the user's open decision (ADR 0004). The after-360 direction is reported, not promoted.
 
 - 2026-10-13 — **PRE-DATA: SCIENTIST's myopia test of the K1(b) gap, filed before S7 runs anything.** This is an offline screen: under rule 6 it orders the work and does not close it.
   - **States:** the top 50 by `cd_ib0` regret, plus 50 random states at ≤ 100 % regret. The seed is fixed before running.
