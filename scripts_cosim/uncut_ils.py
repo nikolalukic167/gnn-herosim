@@ -286,6 +286,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
 
     def patched(self, batch_tasks, system_state, queue_snapshot, temporal_state):
         seen["decisions"] += 1
+        seen.setdefault("calls", []).append((round(float(self.env.now), 3), len(batch_tasks), len(set(local_of) & {int(t.id) for t in batch_tasks})))
         node_by_id = {nd.id: nd for nd in self.nodes.items}
         out, free = {}, []
         for i, t in enumerate(batch_tasks):
@@ -331,7 +332,8 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
         except _Done as d:
             out = d.out
         else:
-            raise RuntimeError("FAIL LOUD: the simulation ended without the batch being decided whole (no decision with the whole group)")
+            raise RuntimeError(f"FAIL LOUD: the simulation ended without the batch being decided whole (no decision with the whole group): batch {len(local_of)} tasks, "
+                               f"decisions (sim time, batch size, overlap with the snapshot batch) {seen.get('calls', [])[:12]}, t0 {t0}")
     finally:
         PG.PeerGreedyNetworkBatchScheduler._prefix_inference = orig_inf
         GO.GNNOrchestrator.monitor_process = orig_monitor
@@ -464,11 +466,12 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     return row
 
 
-def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] = ()) -> Dict[str, Any]:
+def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] = (), unreplayable: Sequence[Dict[str, Any]] = ()) -> Dict[str, Any]:
     """K1(b): mean over states of (RTT(hand) - RTT(ILS)) / RTT(ILS) and the shares, pooled and per bucket; S-regret beside the replay. The replay rules.
     The main set is the FIRST capture of every state that has no retry capture. States with a retry (n_extra_captures > 0: the first hand plan left tasks unplaced) are
     excluded from it, listed, and given a descriptive composite (first + retry batches replayed, summed). The mean is printed twice: captured states only, and with every
-    missing id imputed at its bucket's maximum observed regret; NOT-SATISFIED if the first is < 1 % and the second >= 1 %."""
+    missing id imputed at its bucket's maximum observed regret; NOT-SATISFIED if the first is < 1 % and the second >= 1 %. `unreplayable` states (the replay cannot deliver
+    the snapshot batch whole to the hand decision; census-listed, never silently dropped) are reported on their own line and imputed exactly like missing ids."""
     ok = [r for r in rows if r.get("regret") is not None]
     if len(ok) != len(rows):
         raise ValueError(f"FAIL LOUD: {len(rows) - len(ok)} rows carry no replayed regret")
@@ -494,10 +497,12 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
     out["chosen_check"] = {"match": sum(r.get("chosen_match") is True for r in firsts), "mismatch_in_deferral_states": sum(r.get("chosen_match") is False for r in firsts),
                            "not_checked_no_sidecar": sum(r.get("chosen_match") is None for r in firsts)}
     out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
+    out["unreplayable"] = {"total": len(unreplayable), "share_of_sealed": len(unreplayable) / (len(firsts) + len(missing) + len(unreplayable)) if (firsts or missing or unreplayable) else None,
+                           **{name: [m["state_id"] for m in unreplayable if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
     if main:
         pooled_max = max(r["regret"] for r in main)
         imp = []
-        for m in missing:
+        for m in list(missing) + list(unreplayable):
             same = [r["regret"] for r in main if r["bucket"] == m["bucket"]]
             imp.append(max(same) if same else pooled_max)
         mean_cap = st.fmean(r["regret"] for r in main)
@@ -667,6 +672,7 @@ def main() -> int:
     m.add_argument("--missing", default=None, help="JSON list of sealed states that were never a trigger at k = 1 (state ids or {topology, window, rung, trigger_task_id})")
     d = sub.add_parser("read")
     d.add_argument("rows"); d.add_argument("--json", default=None); d.add_argument("--missing", default=None, help="the <jobs>.missing.json make-jobs wrote")
+    d.add_argument("--unreplayable", default=None, help="JSON list of {state_id, bucket, ...}: states whose snapshot batch the replay cannot deliver whole (reported separately, imputed like missing)")
     a = ap.parse_args()
     if a.cmd == "make-labels":
         import hashlib
@@ -704,7 +710,7 @@ def main() -> int:
                           "regret", row.get("regret"), "wall", round(row["wall"], 1), flush=True)
         return 0
     rows = [json.loads(l) for l in open(a.rows) if l.strip()]
-    res = read_rows(rows, json.load(open(a.missing)) if a.missing else ())
+    res = read_rows(rows, json.load(open(a.missing)) if a.missing else (), json.load(open(a.unreplayable)) if a.unreplayable else ())
     print(json.dumps(res, indent=1))
     if a.json:
         Path(a.json).write_text(json.dumps(res, indent=1))
