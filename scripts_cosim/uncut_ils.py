@@ -499,8 +499,18 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
     out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
     out["unreplayable"] = {"total": len(unreplayable), "share_of_sealed": len(unreplayable) / (len(firsts) + len(missing) + len(unreplayable)) if (firsts or missing or unreplayable) else None,
                            **{name: [m["state_id"] for m in unreplayable if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
+    out["accounting"] = {"label": "whole-batch-replayable states", "sealed": len(firsts) + len(missing) + len(unreplayable), "replayable_first_captures": len(firsts),
+                         "in_main_mean": len(main), "excluded_retry": len(excluded), "unreplayable": len(unreplayable), "missing": len(missing),
+                         "by_bucket": {name: {"replayable_main": sum(r["bucket"] == name for r in main), "unreplayable": sum(m["bucket"] == name for m in unreplayable),
+                                              "missing": sum(m["bucket"] == name for m in missing), "excluded_retry": sum(r["bucket"] == name for r in excluded)}
+                                       for name, _lo, _hi in BUCKETS}}
     if main:
         pooled_max = max(r["regret"] for r in main)
+        for name, _lo, _hi in BUCKETS:
+            rs = [r["regret"] for r in main if r["bucket"] == name]
+            if rs:
+                extra = [max(rs)] * (sum(m["bucket"] == name for m in unreplayable) + sum(m["bucket"] == name for m in missing))
+                out[name].update({"max_pct": 100 * max(rs), "mean_imputed_pct": 100 * st.fmean(rs + extra)})
         imp = []
         for m in list(missing) + list(unreplayable):
             same = [r["regret"] for r in main if r["bucket"] == m["bucket"]]
