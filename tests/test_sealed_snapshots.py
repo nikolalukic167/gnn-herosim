@@ -67,3 +67,57 @@ def test_snapshot_estimate_prices_peer_exchange_without_booking_it(monkeypatch):
     priced = p._peer_exchange_time(SimpleNamespace(id=1), record=False)
     assert booked == [] and priced == pytest.approx(0.51)
     assert p._peer_exchange_time(SimpleNamespace(id=1)) == pytest.approx(0.51) and len(booked) == 1
+
+
+def _chosen_env(tmp_path, monkeypatch):
+    snap = tmp_path / "s.jsonl"
+    monkeypatch.setenv("LIVE_AUDIT_SNAPSHOT_PATH", str(snap))
+    monkeypatch.setenv("GNN_ARM_KIND", "cd_exactS_ib0")
+    return str(snap)
+
+
+def test_served_plan_round_trips_for_the_sealed_batch_only(tmp_path, monkeypatch):
+    """K1(b): the served plan of a captured sealed batch is written after the decision and read back by trigger id."""
+    snap = _chosen_env(tmp_path, monkeypatch)
+    s = SimpleNamespace(_audit_pending_chosen=(9, 0), _live_audit_policy_name="p")
+    t9, t10, t11 = (SimpleNamespace(id=i) for i in (9, 10, 11))
+    live_audit.record_chosen(s, [SimpleNamespace(id=4)], [], {}, 5, None)  # another batch: nothing written, still pending
+    assert s._audit_pending_chosen == (9, 0) and live_audit.load_chosen(snap) == {}
+    live_audit.record_chosen(s, [t9, t10, t11], [t9, t11], {0: (3, 7), 1: (5, 2)}, 1234, True)
+    assert s._audit_pending_chosen is None
+    rec = live_audit.load_chosen(snap)[9]
+    assert rec["chosen"] == [[9, 3, 7], [11, 5, 2]] and rec["deferred"] == [10]
+    assert rec["arm"] == "cd_exactS_ib0" and rec["plan_evals"] == 1234 and rec["cap_hit"] is True and rec["snapshot_id"] == 0
+    live_audit.record_chosen(s, [t9], [t9], {0: (1, 1)}, 1, False)  # not pending any more: no second record
+    assert len(open(live_audit.chosen_path(snap)).read().splitlines()) == 1
+
+
+def test_snapshots_without_a_sidecar_still_load(tmp_path):
+    snap = tmp_path / "old.jsonl"
+    snap.write_text(json.dumps({"snapshot_id": 0, "trigger_task_id": 5, "chosen": None, "tasks": []}) + "\n")
+    assert live_audit.load_chosen(str(snap)) == {}
+    assert json.loads(snap.read_text().splitlines()[0])["chosen"] is None
+
+
+def test_the_capture_marks_a_sealed_batch_pending_and_unsealed_runs_never_do(tmp_path, monkeypatch):
+    trig = tmp_path / "t.json"; trig.write_text("[9]")
+    monkeypatch.setenv("LIVE_AUDIT_SNAPSHOT_PATH", str(tmp_path / "s.jsonl"))
+    monkeypatch.setenv("LIVE_AUDIT_TRIGGER_IDS", str(trig))
+    monkeypatch.setattr(live_audit, "_task_payload", lambda *a: {})
+    monkeypatch.setattr(live_audit, "_replicas_by_type_payload", lambda *a: {})
+    monkeypatch.setattr(live_audit.snapshot_fidelity, "enabled", lambda: False)
+    s = SimpleNamespace(env=SimpleNamespace(now=1.0), _capture_full_queue_snapshot=lambda: {}, nodes=SimpleNamespace(items=[]))
+    live_audit.maybe_capture_batch_live_audit_snapshot(s, None, [SimpleNamespace(id=9)], "p")
+    assert s._audit_pending_chosen == (9, 0)
+    monkeypatch.delenv("LIVE_AUDIT_TRIGGER_IDS")
+    s2 = SimpleNamespace(env=SimpleNamespace(now=1.0), _capture_full_queue_snapshot=lambda: {}, nodes=SimpleNamespace(items=[]))
+    monkeypatch.setattr(live_audit, "_batch_qualifies", lambda *a: True)
+    live_audit.maybe_capture_batch_live_audit_snapshot(s2, None, [SimpleNamespace(id=9)], "p")
+    assert getattr(s2, "_audit_pending_chosen", None) is None
+
+
+def test_the_scheduler_records_the_served_plan_before_the_charge():
+    import inspect
+    from src.policy.gnn import scheduler
+    src = inspect.getsource(scheduler.GNNScheduler._process_task_batch_prefix)
+    assert src.index("record_chosen(self, batch_tasks, decodable, placements") < src.index("decision_cost.rate_ms(len(decodable))")

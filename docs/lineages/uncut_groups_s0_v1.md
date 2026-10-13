@@ -299,6 +299,14 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **K1(b) tool and label engine built** (S7, `rp/uncut-ils` dee6e4eb, `scripts_cosim/uncut_ils.py`, tests `tests/test_uncut_ils.py`).
+  - ILS runs on the scheduler's own `_pg_plan_cost` (ib0). Replay runs only on the hand plan and on each new incumbent. The K1(b) reader works per bucket.
+  - **Smoke 2 (validation):** 20 frontier states (n ≤ 6). ILS reaches the exhaustive S-optimum 20/20, replay equals the stored table RTT to within 7e-15, and ILS is at the label optimum on 17/20.
+  - **Smoke 1:** the identity-(m) snapshots (n = 7 / 9 / 10; 16490 g0 heavy, `cd_exactS`; config `slate_fix/smoke_inputs/wf1_heavy/cfg/cc40s16490.json`, md5 9af73d93…, read from 864574's launch). One state (idm_1, n = 9) has a replay regret of 421 %. That is a **one-state observation only**.
+  - Re-deciding the 3 identity-(m) states twice gives identical hand plans, ILS bests, evaluation logs and replayed RTTs.
+  - **Big-n cost is measured only in the sealed run** (ruled by the expert): no gate_k1 snapshot is touched before the read. Nothing is measured yet at n > 10.
+  - Outputs: `/share/nikola.lukic/uncut_ils/{smoke1,smoke2}`.
+  - Sealed snapshots carried `chosen: null`, because the capture runs before the decision. The expert ruled for a served-plan sidecar (`<snapshots>.chosen.jsonl`), to land before the remaining k = 1 snapshot cells. The `cd` and `cd_ib0` k = 1 cells already running keep the re-decision check, disclosed.
 - 2026-10-13 — **Prune smoke: `cd_exactS_ib0_prune` is wall-feasible at both rungs; it is the k = 1 hand bar's third arm** (job 864605 at c671281c; 19461 g0, k = 0, `inputs_group`, LIMIT 21,600 s; `/share/nikola.lukic/uncut_groups/wnprune_c671281c`).
   - Both cells finished all 50,000 tasks: 4,551 s (heavy) and 3,900 s (moderate) of wall time, `pgb_max_batch` 199.
   - Ms per plan by served bucket (≤ 10 / 11–50 / 51+): heavy 0.0549 / 0.1520 / 0.3003 (ratio 1 / 2.77 / 5.48); moderate 0.0573 / 0.1536 / 0.3453 (1 / 2.68 / 6.03). Both exceed 1.5×, so w(n) is frozen by the same rule: heavy 0.09034 / 0.25040 / 0.49467, moderate 0.09134 / 0.24498 / 0.55072.

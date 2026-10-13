@@ -363,6 +363,48 @@ def maybe_capture_batch_live_audit_snapshot(
     with open(output_path, "a") as f:
         f.write(json.dumps(snapshot, separators=(",", ":")) + "\n")
     scheduler._audit_snapshots_written = written + 1
+    if triggers is not None:
+        scheduler._audit_pending_chosen = (int(batch_tasks[0].id), written)
+
+
+def chosen_path(snapshot_path: str) -> str:
+    return snapshot_path + ".chosen.jsonl"
+
+
+def record_chosen(scheduler: Any, batch_tasks: List["Task"], decodable: List["Task"], placements: Dict[int, Any],
+                  plan_evals: int, cap_hit: Optional[bool]) -> None:
+    """uncut_groups_s0_v1 K1(b): the plan served for a sealed batch, appended to `<snapshots>.chosen.jsonl` after the decision.
+    File I/O only (no SimPy event, no counter). Only a batch the sealed hook captured is recorded; anything else returns."""
+    pending = getattr(scheduler, "_audit_pending_chosen", None)
+    if pending is None or not batch_tasks or int(batch_tasks[0].id) != pending[0]:
+        return
+    scheduler._audit_pending_chosen = None
+    decided = {int(t.id) for t in decodable}
+    rec = {
+        "trigger_task_id": pending[0],
+        "snapshot_id": pending[1],
+        "arm": os.environ.get("GNN_ARM_KIND") or getattr(scheduler, "_live_audit_policy_name", None),
+        "policy": type(scheduler).__name__,
+        "plan_evals": int(plan_evals),
+        "cap_hit": cap_hit,
+        "chosen": [[int(t.id), int(placements[i][0]), int(placements[i][1])] for i, t in enumerate(decodable)],
+        "deferred": [int(t.id) for t in batch_tasks if int(t.id) not in decided],
+    }
+    with open(chosen_path(os.environ["LIVE_AUDIT_SNAPSHOT_PATH"]), "a") as f:
+        f.write(json.dumps(rec, separators=(",", ":")) + "\n")
+
+
+def load_chosen(snapshot_path: str) -> Dict[int, Dict[str, Any]]:
+    """trigger task id -> the served-plan record; {} when the run wrote no sidecar (snapshots from before it still load)."""
+    path = chosen_path(snapshot_path)
+    if not os.path.exists(path):
+        return {}
+    out: Dict[int, Dict[str, Any]] = {}
+    for line in open(path):
+        if line.strip():
+            rec = json.loads(line)
+            out[int(rec["trigger_task_id"])] = rec
+    return out
 
 
 def capture_batch_snapshot(
