@@ -592,7 +592,8 @@ def test_arm2_flags_on_teacher_forced_loss_is_bit_identical_on_a_peer_cache():
                 plan = graph.tied_optimal_logit_plans["inf"][0]
                 layout = arm2.layout_for(model, graph, ctx)
                 teacher = arm2.anchor_label(layout, {t: int(graph.task_logit_to_placement[t][plan[t]][0]) for t in range(n)})
-                score = arm2.make_arm2_score_fn(model, graph, ctx, teacher_anchor=teacher)
+                score = arm2.make_arm2_score_fn(model, graph, ctx, teacher_anchor=teacher,
+                                                task_rows_only=os.environ.get("NEAR_RTT_SCORE_TASK_ROWS_ONLY") == "1")
                 orders = [topological_task_order(n, graph.dag_parents)] + arm2.random_topological_orders(
                     n, graph.dag_parents, 2, SEED, str(getattr(graph, "dataset_id", "")))
                 loss = torch.zeros(())
