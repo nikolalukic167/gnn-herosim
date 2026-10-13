@@ -208,9 +208,15 @@ class _Done(Exception):
         self.out = out
 
 
-def _setup_env(arm: str, cell_summary: Optional[str]) -> Tuple[str, Dict[str, str]]:
+def _setup_env(arm: str, job: Dict[str, Any]) -> Tuple[str, Dict[str, str]]:
+    cell_summary = job.get("cell_summary")
     strategy, extra = ARMS[arm]
     os.environ["HEROSIM_SNAPSHOT_FIDELITY"] = "1"
+    if job.get("dataset"):          # the corpus' own physics (generation_provenance.json), as the rollout replay applies it
+        prov = json.load(open(Path(job["dataset"]) / "generation_provenance.json"))
+        for k, v in (prov.get("physics_env") or {}).items():
+            if k.startswith("HEROSIM_") or k == "COSIM_AUTOSCALER_RECONCILE_INTERVAL":
+                os.environ[k] = str(v)
     if cell_summary:
         for k, v in (json.load(open(cell_summary)).get("env") or {}).items():
             if k.startswith("HEROSIM_") or k.startswith("GNN_"):
@@ -236,7 +242,7 @@ def _load_snapshot(job: Dict[str, Any]) -> Dict[str, Any]:
 def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float]) -> Dict[str, Any]:
     """Replay the snapshot under `arm`; at the batch decision score the hand plan with the scheduler's S and run the ILS from it. Returns the search result
     plus the hand plan, in snapshot batch order (gid ascending) as (node id, platform id)."""
-    strategy, _ = _setup_env(arm, job.get("cell_summary"))
+    strategy, _ = _setup_env(arm, job)
     from src.executesimulation import execute_simulation
     from src.placement import fidelity_replay, snapshot_fidelity
     from src.placement.live_snapshot_seed import build_live_snapshot_seed
