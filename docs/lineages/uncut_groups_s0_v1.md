@@ -314,6 +314,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Both summaries are SIM-IDENTICAL on 448 shared keys; the only new keys are the 9 `decisionTiming.by_bucket` counters, which postdate 6d1764bd.
     - The snapshots are byte-equal, and each cell wrote 3 lines to `.chosen.jsonl` (triggers 9743, 24617, 39530; plan_evals 1,698 / 594 / 17,578; `cap_hit` false / true / false).
     - Disclosed: for classical arms, the sidecar's `arm` field is the policy label (`peer_greedy_network_cd`), because the harness sets `GNN_ARM_KIND` only for learned arms. The cell name carries the arm.
+  - **Re-decided == served plan, 3/3** on the identity-cell sidecar (864749, 1929fd3c), and `cap_hit` agrees (S7, tool 98febf7d). Triggers 9743 / 24617 / 39530 compared 7 / 9 / 10 tasks: 0 mismatches, 0 deferrals, keyed on `trigger_task_id`. Rows: `/share/nikola.lukic/uncut_ils/idchosen/rows.jsonl`.
 - 2026-10-13 — **`cdxapply` is wall-feasible where `cd_expand` is not** (S4, smoke 864642; 19461 g0, k = 0; slate_fix_v1 checkpoints trained on cut groups; descriptive, not a gate number; OUT `/share/nikola.lukic/uncut_groups/smoke_learned`).
   - `cdxapply` (GNN seed + α-expansion) finished at both rungs: 3,425 s (moderate) and 4,654 s (heavy) of wall time, `pgb_max_batch` 199, SUB_BATCH violation 0.
   - Hand `cd_expand` runs the same expansion from the hand seed and is wall-infeasible at heavy.
