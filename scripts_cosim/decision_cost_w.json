@@ -37,8 +37,8 @@
    "heavy": 0.02348
   },
   "ra_twin_eng_nosplit": {
-   "moderate": 2.9735974397837213,
-   "heavy": 3.486077231386563
+   "moderate": 2.9736,
+   "heavy": 3.48608
   }
  },
  "_source": "wall decision seconds / sched_plan_evals, k=0 cells: id/new (cd, cd_exactS, cd_exactS_ib0), id/new2 (nosplit), calib (cd_ib0, cd_exactS_ib0_prune, selfsearch, cdxapply); topologies 19405/19411 g0",
