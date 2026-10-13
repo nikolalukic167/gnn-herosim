@@ -3,7 +3,7 @@
 **Status:** `REGISTERED` (2026-10-13). Designed by SCIENTIST (pick D; SCIENTIST keeps the name) and drafted by S6 on the expert's request. SCIENTIST closed the design on 2026-10-13; the expert authorised registration once it was closed. Every bar below was fixed before data.
 - decision_cost kill check 2 PASSED (S4 interim read, job 864514): `cd_exactS` loses +9.53 % (moderate) and +197.4 % (heavy) to its own decision time at k = 1, 0/12 at both rungs.
 - **Authorised now:** the mint of the 12 fresh topologies and the uncut libraries from the raw shards, identities (a)–(l), and the hand-arm cells (150–350 CPU-h).
-- **On hold:** ILS labels and all training wait for S4's decision_cost attribution read (`cd_expand` vs `cdxapply`), and for the expert's clarification of F's "simulated label".
+- **On hold:** ILS labels and all training wait for S4's decision_cost attribution read (`cd_expand` vs `cdxapply`), (the label term is clarified in F).
 - **Labels are ILS incumbents, not optima.** For groups above the 100,000-plan cap, label quality is bounded by the registered convergence check (ruling 3). `placements.jsonl` for those groups is a headed sample, not a sweep (F; the expert's exemption of 2026-10-13).
 
 **Why.** Every grounded and accel gate so far served Alibaba peer groups cut to at most 10 tasks. The library builder keeps only the first `--max-size 10` siblings of a fan-out (`scripts_cosim/grounded_workload_v1_extract.py:74–76`), and the served batch is capped at the cell's `batch_size` 10 (code ceiling 16).
@@ -45,8 +45,9 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
     - **`cd_expand`**, a hand seed with the same α-expansion as `cdxapply`;
     - **a time-bounded `exactS` prune at the same expansion limits as `cdxapply`**.
     These two exist so that a learned win cannot be the search's.
-    - If S4's read has `cd_expand` tying `cdxapply`: no re-sign. `cdxapply` stays the learned-seed arm and must beat `cd_expand` inside this bar.
-    - If `cd_expand` beats `cdxapply`: SCIENTIST proposes moving `cdxapply` out of F1 into the descriptives, freeing a Holm slot. The expert's call. decision_cost's interim read has `cdxapply` beating the hand frontier at k = 1, whole-run (−3.57 / −2.96 %), on a grid with no hand-seeded expansion.
+    - **Ruled by the expert (2026-10-13), no re-sign either way:**
+      - if `cd_expand` beats `cdxapply` by ≥ 2 % (Holm) at a rung, `cdxapply` moves to the descriptives and `cd_expand` stays in the bar;
+      - if they are within 1 pp, or `cdxapply` is ahead, `cdxapply` stays an arm. decision_cost's interim read has `cdxapply` beating the hand frontier at k = 1, whole-run (−3.57 / −2.96 %), on a grid with no hand-seeded expansion.
   - The prune arm is in because cost-order top-k prune beat expansion −1.89 / −2.11 % vs `cd_exactS` at G=8 (`prune_g8_s0_v1`) [V]. It needs the alpha×prune refusal lifted as a registered change (the expert's ruling), with its own identity against the current prune arm at alpha = 1 (8c), before any cell of this node uses it. Amendment 2 lists it as NOT RUN. **No WIN is claimable without it.**
   - `cd` and `cd_exactS` are bar candidates, not reference lines: under a warm heavy surge ib0 collapsed on 3/12 topologies at ×2 (19422, 19425, 19430) and 5/12 at ×3 (19422, 19425, 19426, 19429, 19430); `cd_exactS` on 1/12 at ×3 (19427), `cd` on 0 (warm_surge 0b, `/share/nikola.lukic/warm_surge/collapse_table.md`) [V]. The "5/11" in warm_surge's record line 169 is a denominator error. Uncut giant groups are surges.
 - **(c) Time bound: no wall-clock cap.** Decision time is charged per decision_cost Amendment 3: `t_batch = k × w[arm][rung] × plans_evaluated`, one FIFO scheduler server, mutex held [V].
@@ -128,7 +129,7 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 - (i) **Library rebuild** (S6; condition by SCIENTIST): rebuilt at `--max-size 10`, each library reproduces the committed library's **md5**; if not, the extract has drifted and the node stops. The uncut rebuild reproduces each group's first 10 offsets and `size_raw`.
 - (j) **Snapshot path** (the expert): the snapshot run with the cap removed reproduces the capped run bit-equal on a trace with no group > 10 (a window where that holds, or a filtered trace).
 - (k) **Same batch formation** (SCIENTIST, B): one hand arm and one learned arm produce identical batch membership on a fixed arrival trace.
-- (l) **Sampled `placements.jsonl` readers:** a sampled file without the header is rejected, and one with it is reported as a sample (test in `tests/`).
+- (l) **Sampled `placements.jsonl` readers:** a sampled file without the header is rejected, one with it is reported as a sample, and no reader treats an S value as an RTT (tests in `tests/`).
 
 **9. Origin.** Single origin per group, spread over the 160 clients: the accel seat's existing model (big_groups and prune_g8 designs) [V].
 - A fan-out originates at one caller, so this is the realistic model.
@@ -170,7 +171,12 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datal
 - the metadata and validation readers report `exhaustive=false` and fail loud rather than read a sample as a sweep, with a test.
 
 These reader changes and the test are pre-label code (identity (l)).
-- **Open, for the expert:** "its simulated label" for **every** ILS-evaluated plan. Simulating each evaluated plan would cost the replay rate (5.6–7.7 s per state plus 0.04–0.21 s per evaluation, rising with n) times the eval budget (200 × n × candidates per group), far above ruling 7's label figure. Alternatively, rows carry S, and only the incumbent (or the top-m, under K1b) carries a simulated value.
+- **"Simulated label" clarified (SIGNED by the expert, 2026-10-13, as SCIENTIST recommended):**
+  - S is on every row;
+  - the replayed RTT is only on each new incumbent along the ILS trajectory, and on the top-m = 8 by S if K1b fires; it is null elsewhere;
+  - the header states which rows carry it and their count;
+  - never replay every evaluated plan.
+  Replaying every plan would cost 0.5–3 h per 50-task group.
 
 **G. Pre-gate checks** (from S6's unchecked items):
 - **Feature ranges at large n.** Every per-batch or count feature (prefix block, partner counts, batch-size terms) has its max on batches > 10 compared with the checkpoint's training max (the queue_range_v1 / legacy_v0 lesson). Any feature beyond it is either trained on or reported as out of range.
@@ -192,7 +198,6 @@ These reader changes and the test are pre-label code (identity (l)).
 **Live gate** (rule 6): F1–F3 above are the live gate and its closing step.
 
 **Open before the work they gate:**
-- The expert clarifies F's "simulated label" for every evaluated plan vs the incumbent only.
 - `rp/decision-cost` is merged or pinned, and the w(n) key lands before any cell (G).
 - The alpha×prune relaxation and the whole-group batch mode (C) are implemented with their identities before any cell that uses them.
 
@@ -231,4 +236,5 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
+- 2026-10-13 — **Label term and `cdxapply` contingency ruled** by the expert: S on every row, a replayed RTT on incumbents (and the top-8 if K1b fires); `cdxapply` leaves F1 only if `cd_expand` beats it by ≥ 2 % (Holm) at a rung.
 - 2026-10-13 — Drafted by S6 on the expert's request. Design items 1–9 are SCIENTIST's rulings of the same day; the code-path list is S6's (read only, nothing edited). Not registered; no index row.
