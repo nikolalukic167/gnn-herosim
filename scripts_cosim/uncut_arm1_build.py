@@ -157,6 +157,7 @@ def build_state(label: Dict[str, Any], state: Dict[str, Any], root: str, out_dir
     prov = json.load(open(TEMPLATE_PROV))
     prov.update({"dataset_id": ds.name, "grid": f"uncut_arm1:{state['key']}", "num_tasks": len(ids), "seed": c["seed"], "infrastructure_override": str(ds / "infrastructure.json")})
     prov.pop("generated_at", None)
+    prov["argv"] = ["--source-tag", f"wf1p_cc40s{state['topology']}_{state['rung']}_{state['window']}", "--fidelity"]      # make_r1a_split reads the topology from this tag
     (ds / "generation_provenance.json").write_text(json.dumps(prov, indent=1))
     n_rows = len(rows)
     (ds / "placement_metadata.json").write_text(json.dumps({"num_placements": n_rows, "completed": n_rows, "rows_written": n_rows, "timed_out": 0, "worker_failed": 0, "worker_exception": 0,
