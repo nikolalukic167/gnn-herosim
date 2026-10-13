@@ -299,8 +299,11 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
-- 2026-10-13 — **`ils_oracle_live` read: PARTIAL + CEILING-TRUNCATED + B-NOT-RUN** (job 868854, pin 5109d07d, 12/12 cells, 0 failed, 0 wall-infeasible; reader `scripts_cosim/ils_oracle_read.py` at b2067c68 under the amended read 9f119675; output `/share/nikola.lukic/uncut_groups/s6_reader/read_final_A.json`, md5 00265ed9).
-  - **B-NOT-RUN.** No `ils_oracle_exact10` cells existed when the `ils12` cells finished. Per amendment item 3, the label is read from contrast A and its mechanism alone. B may be added later without changing A's label.
+- 2026-10-13 — **`ils_oracle_live` read: PARTIAL + CEILING-TRUNCATED, contrast A (accepted by the expert); B-PENDING (job 869009 running)** (job 868854, pin 5109d07d, 12/12 cells, 0 failed, 0 wall-infeasible; reader `scripts_cosim/ils_oracle_read.py` at b2067c68 under the amended read 9f119675; output `/share/nikola.lukic/uncut_groups/s6_reader/read_final_A.json`, md5 00265ed9).
+  - **B-PENDING (job 869009 running), not B-NOT-RUN (the expert's ruling).**
+    - `ils_oracle_exact10` is built: identity passed at f8814905. Its 12 cells are running, with logs and no summaries at filing.
+    - The reader printed B-NOT-RUN only because no exact10 summary existed yet.
+    - A's label stands as read. B is added when it lands, without touching A's label.
   - **Contrast A (`ils_oracle_live` vs `cd_ib0`, gate_k0; after 360 s decides).**
 
     | rung | after 360 s median | faster | Wilcoxon p | whole-run median | per topology, after 360 s (19461 … 19466) |
@@ -321,6 +324,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Its late deciles are worse (deciles 7–9 about 2.18 s against `cd_ib0`'s 1.46–1.79 s).
     - Its wall time was 8,881 s.
     - 19463 heavy (+3.62 %) also has the mechanism holding.
+  - **19465 heavy diagnosed** (descriptive, existing outputs only, no rerun; S6 at the expert's request). The loss is **replica-lock contention**, a cost the registered mechanism's queue term does not see.
+    - `lock_wait` (`scripts_cosim/fresh_topo_burst_v1_gate.py:387`) is the wait for the replica's compute lock, compute_start − io_end per task. It is the FIFO backlog on a saturated replica, and it is filed under compute time. `averageQueueTime`, the mechanism's queue term, does not include it.
+    - **On 19465 heavy, the lock-wait mean rises by +0.276 s/task**, about the whole latency loss (+0.235). Its p95 is 4.55 s against 1.62. `averageComputeTime` rises by +0.222, communications fall by −0.096, and `averageQueueTime` rises by only +0.008. Execution time rises by +0.043, and starved replica-create calls are 473 against 297.
+    - **Across all 12 cells:**
+      - The lock-wait mean rises in 9 of 12. It falls only in 19466 moderate (−0.034), 19461 heavy (−0.024) and 19466 heavy (−0.081), which are three of the larger wins.
+      - `effective_queue_share` ((queue + lock wait) / elapsed) rises in all 12.
+      - 19463 heavy (+3.6 %) shows the same signature, milder: lock-wait mean +0.106, p95 1.92 against 0.79.
+    - **Reading:** co-locating peer groups saves exchange but stacks tasks on fewer replicas, so they wait for the compute lock. This is a myopia of the batch objective that the whole-run "exchange vs queue" medians hide.
+    - **Not answerable from existing outputs:**
+      - (a) the per-decile cap share and the queue/exchange split by decile, and (b) whether the late loss sits in ILS-changed batches or in greedy batches of ≤ 10. The per-batch records were in the node-local raw file, which is gone; the summaries carry totals only.
+      - (c) tasks per node over time. There is no per-node series; `lock_wait` and `effective_queue_share` are the available proxies.
+    - This changes no label. The registered mechanism clause stands as read.
+
   - **Under the registered consequences (§ 5 of the design):** PARTIAL means "as planned, stratified on the buckets that gained" (P(WIN) ≈ 0.3). Arm 1 labels proceed, and the stratification is the expert's and SCIENTIST's call.
 
 - 2026-10-13 — **`ils_oracle_live` is not bit-reproducible: a disclosed caveat, ruled by the expert while the ils12 cells land.**
