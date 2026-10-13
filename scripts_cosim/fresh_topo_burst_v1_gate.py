@@ -114,6 +114,7 @@ LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
 SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxib0", "_cdxhib0", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
 # gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
 # accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
+# ra_twin_eng_cdxapply: the same refine seeded by the separately trained MP-OFF twin (GNN_DISABLE_MESSAGE_PASSING via RA_MP_OFF; checkpoint <R1A_STEM>-twin-eng-seed<N>)
 # cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
 # WITH exact-move expansion (GNN_CD_REFINE=apply + HEROSIM_PG_CD_EXPANSION=1): does a learned seed still help the strongest search?
 # cd_exactS_gnn: "_cdxexg" = the cdxapply seed (no-split learned plan) into the CD refine with the EXACT search over S (HEROSIM_PG_CD_EXACT=1, expansion as the
@@ -190,7 +191,7 @@ def check_alias(kind: str) -> str:
 R1A_DIAG = (*OBS_ARMS, "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
-R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
+R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
 # slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
 # submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
