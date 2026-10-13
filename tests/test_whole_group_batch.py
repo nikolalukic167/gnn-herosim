@@ -10,13 +10,15 @@ import simpy
 
 from src.policy.gnn import orchestrator as orch_mod
 from src.policy.gnn.orchestrator import WHOLE_GROUP, apply_cfg_batch_size
-from src.policy.gnn.scheduler import GNNScheduler, PREFIX_DECODE_MODE
+from src.policy.gnn.scheduler import GNNScheduler, PG_BATCH_COUNTERS, PREFIX_DECODE_MODE
 
 
 def _sched(decode=PREFIX_DECODE_MODE, by_group=True, size=4, lo=1, hi=16):
     s = GNNScheduler.__new__(GNNScheduler)
     s._decode_mode, s.batch_by_peer_group, s.whole_group = decode, by_group, False
     s.batch_size, s.batch_min, s.batch_max = size, lo, hi
+    for name in PG_BATCH_COUNTERS:
+        setattr(s, name, 0)
     return s
 
 
@@ -108,14 +110,18 @@ def _collect(n_members, cfg_bs, late_at=None):
 
 
 def test_a_3000_task_group_is_served_whole_only_in_whole_group_mode():
-    batch, _ = _collect(3000, 10)
-    assert len(batch) == 10
+    batch, s = _collect(3000, 10)
+    assert len(batch) == 10 and s.pgb_split_gt100 == 10 and s.pgb_whole_gt100 == 0 and s.pgb_max_batch == 10
     batch, s = _collect(3000, WHOLE_GROUP)
     assert len(batch) == 3000 and s.peer_group_incomplete_batches == 0
+    assert s.pgb_whole_gt100 == 3000 and s.pgb_split_gt100 == 0 and s.pgb_max_batch == 3000
 
 
 def test_late_member_rule_is_unchanged_in_whole_group_mode():
     batch, s = _collect(50, WHOLE_GROUP, late_at=2.0)  # arrives after the 1 s window
     assert len(batch) == 49 and s.peer_group_incomplete_batches == 1
+    assert s.pgb_split_11_50 == 49 and s.pgb_whole_11_50 == 0  # bucketed by the group's original size, 50
     batch, s = _collect(50, WHOLE_GROUP, late_at=0.5)  # arrives inside it
-    assert len(batch) == 50 and s.peer_group_incomplete_batches == 0
+    assert len(batch) == 50 and s.peer_group_incomplete_batches == 0 and s.pgb_whole_11_50 == 50
+    batch, s = _collect(4, 10)
+    assert s.pgb_whole_le10 == 4 and s.pgb_max_batch == 4

@@ -224,6 +224,9 @@ class Orchestrator:
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",
             "v4_backlog_batches", "v4_backlog_nonzero",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
+            # uncut_groups_s0_v1: tasks served whole / split by original peer-group size, and the largest batch
+            "pgb_whole_le10", "pgb_whole_11_50", "pgb_whole_51_100", "pgb_whole_gt100",
+            "pgb_split_le10", "pgb_split_11_50", "pgb_split_51_100", "pgb_split_gt100", "pgb_max_batch",
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
             "qr_batches", "qr_blind_batches", "qr_divisor_above_one_batches",
