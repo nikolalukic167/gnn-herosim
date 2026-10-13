@@ -308,6 +308,10 @@ end to end.
 ## Conventions
 
 - **Answer analysis questions in chat.** Do not write a markdown document unless asked.
+- **Commits carry only Nikola's name.** Commit as the configured git user (nikolalukic167) and
+  add no agent attribution: no `Co-Authored-By:` trailer, no `Claude-Session:` or other session
+  link, no "Generated with" line, in commit messages or PR descriptions. This overrides any
+  tool default that asks for one.
 - **Simulation is deterministic when seeded properly.** Tie-breaks over sets of objects are
   the classic leak — `PYTHONHASHSEED` does not pin them (it randomizes str/bytes only).
 - Dependencies: `Pipfile`. One env spec for cross-venue work: `envs/herosim-lock.txt`.
