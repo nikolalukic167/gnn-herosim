@@ -66,6 +66,14 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
 | L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
 
+## 2026-10-13 — Fidelity capture booked priced exchanges into the access-class tally (fixed 6d1764bd, 2026-10-13)
+
+`snapshot_fidelity._expected_input_seconds` priced each popped task's input stage with `Platform._peer_exchange_time`, which also calls `fabric.record_exchange`. So every capture booked transfers that never happened into the access-class tally. The fix adds `_peer_exchange_time(task, record=False)` for the capture; the physics call keeps `record=True`. Found by `uncut_groups_s0_v1` identity (m).
+- **What is affected:** every run that captured fidelity snapshots (`cd_oracle` arms, warm-snapshot corpora, `link_bound_s0_v1` capture cells) carries inflated `peerExchangeByAccessClass.*.{seconds,transfers}` only.
+- **What is not:** `averageElapsedTime`, `steady_state` and every other key are bit-equal, per the hook-on/off read (16490 g0 heavy `cd_exactS`: 8 keys differ, all in that tally). Trajectories are unaffected.
+- **Scope (verified by the expert):** a grep of `docs/` and `LINEAGES.md` finds no node quoting a `peerExchangeByAccessClass` number from a capture run. The five hits (workload_fix_v1, r1_attribution_v1, link_bound_s0_v1, gnn_overcap_v1, prune_g8_s0_v1) describe the W3 access classes, and link_bound's "links never bind" metric is not that tally.
+- No quoted number is affected and no audit of past result files is needed. Any future quote of that tally from a pre-6d1764bd capture run must be re-derived.
+
 ## 2026-10-13 — A cell `batch_size` outside the GNN range was ignored with a print
 
 `gnn/orchestrator.py:72–84` silently ignored a cell batch_size outside [1, 16] and served GNN_BATCH_SIZE (4). This hit only offline snapshot replays of > 16-task batches: fidelity_cd_plans 855859/855861 (40/104 each), plan_rerank S_alpha 859727 (1/3,103) and cost_to_go train_h5 (1/2,173). No live gate. Fixed by uncut_groups_s0_v1 ruling C (raise).

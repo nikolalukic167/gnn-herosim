@@ -87,3 +87,47 @@ def test_group_size_makes_exact_groups_at_the_same_task_rate():
             assert doc["events"][i]["peer_group"] == doc["events"][j]["peer_group"]
     with pytest.raises(SystemExit):
         M.mint(lib, base, seed=1, n_tasks=300, merge_k=2, group_size=8)
+
+
+def _lib_base(n_groups=200, n_events=300):
+    lib = {"source": {"md5": "abc"}, "groups": [{"t0_ms": 1000 * i, "offsets_ms": [0, 1, 5][: 1 + i % 3]} for i in range(n_groups)]}
+    base = {"rps": 1, "duration": 1, "events": [
+        {"timestamp": 2.0 * i, "application": {"name": "nofs-dnn1", "dag": {"dnn1": []}}, "qos": {"name": "m"},
+         "node_name": "c0"} for i in range(n_events)]}
+    return lib, base
+
+
+def test_start_group_zero_is_todays_mint_byte_for_byte():
+    """uncut_groups_s0_v1 identity (a): --start-group 0 adds nothing to the workload or its metadata."""
+    lib, base = _lib_base()
+    ref = M.mint(lib, base, seed=3, n_tasks=200)
+    got = M.mint(lib, base, seed=3, n_tasks=200, start_group=0)
+    assert json.dumps(got, sort_keys=True) == json.dumps(ref, sort_keys=True)
+    assert "start_group" not in got[1]
+
+
+def test_start_group_mints_the_later_requests():
+    lib, base = _lib_base()
+    doc, meta = M.mint(lib, base, seed=3, n_tasks=100, start_group=60)
+    assert meta["start_group"] == 60
+    want = sum(len(g["offsets_ms"]) for g in lib["groups"][60:60 + meta["n_groups"]])
+    assert want >= 100 and len(doc["events"]) == 100
+    for bad in (-1, 200):
+        with pytest.raises(SystemExit):
+            M.mint(lib, base, seed=3, n_tasks=100, start_group=bad)
+    with pytest.raises(SystemExit):
+        M.mint(lib, base, seed=3, n_tasks=100, start_group=5, group_size=8)
+
+
+def test_corpus_mint_must_not_overlap_the_gate_windows(tmp_path):
+    gate = tmp_path / "gate.json"
+    gate.write_text(json.dumps({"n_groups": 50, "library_source": {"md5": "abc"}}))
+    M.check_disjoint(50, 40, "abc", [str(gate)])  # groups 50..89 after the gate's 0..49
+    with pytest.raises(SystemExit, match="overlap"):
+        M.check_disjoint(49, 40, "abc", [str(gate)])
+    with pytest.raises(SystemExit, match="source CSV"):
+        M.check_disjoint(100, 40, "other", [str(gate)])
+    later = tmp_path / "later.json"
+    later.write_text(json.dumps({"grounded_workload_v1": {"n_groups": 10, "start_group": 95, "library_source": {"md5": "abc"}}}))
+    with pytest.raises(SystemExit, match="overlap"):
+        M.check_disjoint(50, 50, "abc", [str(later)])

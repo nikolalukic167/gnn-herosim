@@ -1,0 +1,1802 @@
+[
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "moderate",
+  "state_id": "moderate_g0_00",
+  "topology": 19468,
+  "trigger_task_id": 32482,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g0_01",
+  "topology": 19461,
+  "trigger_task_id": 24016,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 20,
+  "rung": "moderate",
+  "state_id": "moderate_g0_02",
+  "topology": 19461,
+  "trigger_task_id": 9904,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "moderate",
+  "state_id": "moderate_g0_03",
+  "topology": 19466,
+  "trigger_task_id": 30708,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "moderate",
+  "state_id": "moderate_g0_04",
+  "topology": 19462,
+  "trigger_task_id": 47138,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "moderate",
+  "state_id": "moderate_g0_05",
+  "topology": 19461,
+  "trigger_task_id": 48977,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g0_06",
+  "topology": 19470,
+  "trigger_task_id": 37305,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 23,
+  "rung": "moderate",
+  "state_id": "moderate_g0_07",
+  "topology": 19471,
+  "trigger_task_id": 17593,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 17,
+  "rung": "moderate",
+  "state_id": "moderate_g0_08",
+  "topology": 19464,
+  "trigger_task_id": 24592,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g0_09",
+  "topology": 19463,
+  "trigger_task_id": 4922,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g0_10",
+  "topology": 19464,
+  "trigger_task_id": 22384,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 35,
+  "rung": "moderate",
+  "state_id": "moderate_g0_11",
+  "topology": 19463,
+  "trigger_task_id": 32964,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g0_12",
+  "topology": 19461,
+  "trigger_task_id": 32701,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g0_13",
+  "topology": 19467,
+  "trigger_task_id": 37663,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 23,
+  "rung": "moderate",
+  "state_id": "moderate_g0_14",
+  "topology": 19469,
+  "trigger_task_id": 31990,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g0_15",
+  "topology": 19466,
+  "trigger_task_id": 2912,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g0_16",
+  "topology": 19472,
+  "trigger_task_id": 44671,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "moderate",
+  "state_id": "moderate_g0_17",
+  "topology": 19464,
+  "trigger_task_id": 38064,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 85,
+  "rung": "moderate",
+  "state_id": "moderate_g0_18",
+  "topology": 19463,
+  "trigger_task_id": 14961,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 67,
+  "rung": "moderate",
+  "state_id": "moderate_g0_19",
+  "topology": 19462,
+  "trigger_task_id": 39643,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 57,
+  "rung": "moderate",
+  "state_id": "moderate_g0_20",
+  "topology": 19464,
+  "trigger_task_id": 4765,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 63,
+  "rung": "moderate",
+  "state_id": "moderate_g0_21",
+  "topology": 19468,
+  "trigger_task_id": 692,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 53,
+  "rung": "moderate",
+  "state_id": "moderate_g0_22",
+  "topology": 19471,
+  "trigger_task_id": 13642,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 61,
+  "rung": "moderate",
+  "state_id": "moderate_g0_23",
+  "topology": 19465,
+  "trigger_task_id": 45782,
+  "window": "g0"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 103,
+  "rung": "moderate",
+  "state_id": "moderate_g0_24",
+  "topology": 19472,
+  "trigger_task_id": 46248,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g0_00",
+  "topology": 19464,
+  "trigger_task_id": 5167,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 26,
+  "rung": "heavy",
+  "state_id": "heavy_g0_01",
+  "topology": 19468,
+  "trigger_task_id": 13083,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 26,
+  "rung": "heavy",
+  "state_id": "heavy_g0_02",
+  "topology": 19468,
+  "trigger_task_id": 32144,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 22,
+  "rung": "heavy",
+  "state_id": "heavy_g0_03",
+  "topology": 19461,
+  "trigger_task_id": 6664,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "heavy",
+  "state_id": "heavy_g0_04",
+  "topology": 19462,
+  "trigger_task_id": 10126,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "heavy",
+  "state_id": "heavy_g0_05",
+  "topology": 19466,
+  "trigger_task_id": 23859,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g0_06",
+  "topology": 19462,
+  "trigger_task_id": 26196,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 27,
+  "rung": "heavy",
+  "state_id": "heavy_g0_07",
+  "topology": 19470,
+  "trigger_task_id": 38490,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "heavy",
+  "state_id": "heavy_g0_08",
+  "topology": 19467,
+  "trigger_task_id": 7644,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 45,
+  "rung": "heavy",
+  "state_id": "heavy_g0_09",
+  "topology": 19471,
+  "trigger_task_id": 2655,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g0_10",
+  "topology": 19461,
+  "trigger_task_id": 7225,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "heavy",
+  "state_id": "heavy_g0_11",
+  "topology": 19463,
+  "trigger_task_id": 35710,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 48,
+  "rung": "heavy",
+  "state_id": "heavy_g0_12",
+  "topology": 19464,
+  "trigger_task_id": 35919,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 25,
+  "rung": "heavy",
+  "state_id": "heavy_g0_13",
+  "topology": 19462,
+  "trigger_task_id": 11701,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 22,
+  "rung": "heavy",
+  "state_id": "heavy_g0_14",
+  "topology": 19462,
+  "trigger_task_id": 8818,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "heavy",
+  "state_id": "heavy_g0_15",
+  "topology": 19471,
+  "trigger_task_id": 31688,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g0_16",
+  "topology": 19465,
+  "trigger_task_id": 47760,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "heavy",
+  "state_id": "heavy_g0_17",
+  "topology": 19466,
+  "trigger_task_id": 32399,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 55,
+  "rung": "heavy",
+  "state_id": "heavy_g0_18",
+  "topology": 19468,
+  "trigger_task_id": 47423,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 81,
+  "rung": "heavy",
+  "state_id": "heavy_g0_19",
+  "topology": 19470,
+  "trigger_task_id": 21007,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 52,
+  "rung": "heavy",
+  "state_id": "heavy_g0_20",
+  "topology": 19471,
+  "trigger_task_id": 26908,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 54,
+  "rung": "heavy",
+  "state_id": "heavy_g0_21",
+  "topology": 19468,
+  "trigger_task_id": 28844,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 67,
+  "rung": "heavy",
+  "state_id": "heavy_g0_22",
+  "topology": 19467,
+  "trigger_task_id": 47891,
+  "window": "g0"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 59,
+  "rung": "heavy",
+  "state_id": "heavy_g0_23",
+  "topology": 19465,
+  "trigger_task_id": 43867,
+  "window": "g0"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 180,
+  "rung": "heavy",
+  "state_id": "heavy_g0_24",
+  "topology": 19468,
+  "trigger_task_id": 35501,
+  "window": "g0"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g1_00",
+  "topology": 19464,
+  "trigger_task_id": 41976,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 20,
+  "rung": "moderate",
+  "state_id": "moderate_g1_01",
+  "topology": 19465,
+  "trigger_task_id": 41168,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "moderate",
+  "state_id": "moderate_g1_02",
+  "topology": 19471,
+  "trigger_task_id": 27772,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 30,
+  "rung": "moderate",
+  "state_id": "moderate_g1_03",
+  "topology": 19463,
+  "trigger_task_id": 45393,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "moderate",
+  "state_id": "moderate_g1_04",
+  "topology": 19468,
+  "trigger_task_id": 34606,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "moderate",
+  "state_id": "moderate_g1_05",
+  "topology": 19472,
+  "trigger_task_id": 33067,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 20,
+  "rung": "moderate",
+  "state_id": "moderate_g1_06",
+  "topology": 19463,
+  "trigger_task_id": 28090,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 20,
+  "rung": "moderate",
+  "state_id": "moderate_g1_07",
+  "topology": 19466,
+  "trigger_task_id": 28090,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 30,
+  "rung": "moderate",
+  "state_id": "moderate_g1_08",
+  "topology": 19465,
+  "trigger_task_id": 24890,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g1_09",
+  "topology": 19469,
+  "trigger_task_id": 26907,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 24,
+  "rung": "moderate",
+  "state_id": "moderate_g1_10",
+  "topology": 19461,
+  "trigger_task_id": 22337,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "moderate",
+  "state_id": "moderate_g1_11",
+  "topology": 19468,
+  "trigger_task_id": 13786,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 17,
+  "rung": "moderate",
+  "state_id": "moderate_g1_12",
+  "topology": 19472,
+  "trigger_task_id": 42078,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g1_13",
+  "topology": 19463,
+  "trigger_task_id": 45008,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g1_14",
+  "topology": 19471,
+  "trigger_task_id": 16994,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "moderate",
+  "state_id": "moderate_g1_15",
+  "topology": 19461,
+  "trigger_task_id": 267,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 47,
+  "rung": "moderate",
+  "state_id": "moderate_g1_16",
+  "topology": 19471,
+  "trigger_task_id": 47662,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 20,
+  "rung": "moderate",
+  "state_id": "moderate_g1_17",
+  "topology": 19462,
+  "trigger_task_id": 8280,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 52,
+  "rung": "moderate",
+  "state_id": "moderate_g1_18",
+  "topology": 19469,
+  "trigger_task_id": 42793,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 59,
+  "rung": "moderate",
+  "state_id": "moderate_g1_19",
+  "topology": 19469,
+  "trigger_task_id": 25165,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 75,
+  "rung": "moderate",
+  "state_id": "moderate_g1_20",
+  "topology": 19462,
+  "trigger_task_id": 18869,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 64,
+  "rung": "moderate",
+  "state_id": "moderate_g1_21",
+  "topology": 19469,
+  "trigger_task_id": 6184,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 94,
+  "rung": "moderate",
+  "state_id": "moderate_g1_22",
+  "topology": 19465,
+  "trigger_task_id": 37730,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 52,
+  "rung": "moderate",
+  "state_id": "moderate_g1_23",
+  "topology": 19472,
+  "trigger_task_id": 39672,
+  "window": "g1"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 148,
+  "rung": "moderate",
+  "state_id": "moderate_g1_24",
+  "topology": 19461,
+  "trigger_task_id": 47994,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "heavy",
+  "state_id": "heavy_g1_00",
+  "topology": 19466,
+  "trigger_task_id": 2429,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "heavy",
+  "state_id": "heavy_g1_01",
+  "topology": 19466,
+  "trigger_task_id": 37360,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g1_02",
+  "topology": 19470,
+  "trigger_task_id": 26488,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 47,
+  "rung": "heavy",
+  "state_id": "heavy_g1_03",
+  "topology": 19468,
+  "trigger_task_id": 38472,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g1_04",
+  "topology": 19472,
+  "trigger_task_id": 3828,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g1_05",
+  "topology": 19461,
+  "trigger_task_id": 27902,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 23,
+  "rung": "heavy",
+  "state_id": "heavy_g1_06",
+  "topology": 19463,
+  "trigger_task_id": 32239,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 34,
+  "rung": "heavy",
+  "state_id": "heavy_g1_07",
+  "topology": 19463,
+  "trigger_task_id": 26664,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g1_08",
+  "topology": 19467,
+  "trigger_task_id": 7990,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 20,
+  "rung": "heavy",
+  "state_id": "heavy_g1_09",
+  "topology": 19471,
+  "trigger_task_id": 30710,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g1_10",
+  "topology": 19464,
+  "trigger_task_id": 1243,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 42,
+  "rung": "heavy",
+  "state_id": "heavy_g1_11",
+  "topology": 19461,
+  "trigger_task_id": 24600,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "heavy",
+  "state_id": "heavy_g1_12",
+  "topology": 19469,
+  "trigger_task_id": 43766,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g1_13",
+  "topology": 19465,
+  "trigger_task_id": 45745,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g1_14",
+  "topology": 19466,
+  "trigger_task_id": 1243,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g1_15",
+  "topology": 19463,
+  "trigger_task_id": 24249,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 17,
+  "rung": "heavy",
+  "state_id": "heavy_g1_16",
+  "topology": 19464,
+  "trigger_task_id": 11687,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g1_17",
+  "topology": 19468,
+  "trigger_task_id": 20792,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 66,
+  "rung": "heavy",
+  "state_id": "heavy_g1_18",
+  "topology": 19470,
+  "trigger_task_id": 10957,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 69,
+  "rung": "heavy",
+  "state_id": "heavy_g1_19",
+  "topology": 19470,
+  "trigger_task_id": 14835,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 95,
+  "rung": "heavy",
+  "state_id": "heavy_g1_20",
+  "topology": 19464,
+  "trigger_task_id": 2607,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 73,
+  "rung": "heavy",
+  "state_id": "heavy_g1_21",
+  "topology": 19470,
+  "trigger_task_id": 43386,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 54,
+  "rung": "heavy",
+  "state_id": "heavy_g1_22",
+  "topology": 19471,
+  "trigger_task_id": 28342,
+  "window": "g1"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 51,
+  "rung": "heavy",
+  "state_id": "heavy_g1_23",
+  "topology": 19461,
+  "trigger_task_id": 4623,
+  "window": "g1"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 146,
+  "rung": "heavy",
+  "state_id": "heavy_g1_24",
+  "topology": 19467,
+  "trigger_task_id": 25553,
+  "window": "g1"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "moderate",
+  "state_id": "moderate_g2_00",
+  "topology": 19466,
+  "trigger_task_id": 2976,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "moderate",
+  "state_id": "moderate_g2_01",
+  "topology": 19470,
+  "trigger_task_id": 17133,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 26,
+  "rung": "moderate",
+  "state_id": "moderate_g2_02",
+  "topology": 19463,
+  "trigger_task_id": 23618,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "moderate",
+  "state_id": "moderate_g2_03",
+  "topology": 19470,
+  "trigger_task_id": 12013,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "moderate",
+  "state_id": "moderate_g2_04",
+  "topology": 19467,
+  "trigger_task_id": 39487,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 38,
+  "rung": "moderate",
+  "state_id": "moderate_g2_05",
+  "topology": 19463,
+  "trigger_task_id": 36242,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "moderate",
+  "state_id": "moderate_g2_06",
+  "topology": 19469,
+  "trigger_task_id": 11367,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "moderate",
+  "state_id": "moderate_g2_07",
+  "topology": 19469,
+  "trigger_task_id": 44107,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "moderate",
+  "state_id": "moderate_g2_08",
+  "topology": 19462,
+  "trigger_task_id": 28306,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g2_09",
+  "topology": 19469,
+  "trigger_task_id": 31326,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "moderate",
+  "state_id": "moderate_g2_10",
+  "topology": 19467,
+  "trigger_task_id": 11265,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "moderate",
+  "state_id": "moderate_g2_11",
+  "topology": 19461,
+  "trigger_task_id": 6728,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 37,
+  "rung": "moderate",
+  "state_id": "moderate_g2_12",
+  "topology": 19464,
+  "trigger_task_id": 42539,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "moderate",
+  "state_id": "moderate_g2_13",
+  "topology": 19470,
+  "trigger_task_id": 43059,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g2_14",
+  "topology": 19462,
+  "trigger_task_id": 48970,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "moderate",
+  "state_id": "moderate_g2_15",
+  "topology": 19471,
+  "trigger_task_id": 403,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "moderate",
+  "state_id": "moderate_g2_16",
+  "topology": 19463,
+  "trigger_task_id": 35150,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 19,
+  "rung": "moderate",
+  "state_id": "moderate_g2_17",
+  "topology": 19469,
+  "trigger_task_id": 14904,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "moderate",
+  "state_id": "moderate_g2_18",
+  "topology": 19471,
+  "trigger_task_id": 46604,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "moderate",
+  "state_id": "moderate_g2_19",
+  "topology": 19472,
+  "trigger_task_id": 36090,
+  "window": "g2"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 85,
+  "rung": "moderate",
+  "state_id": "moderate_g2_20",
+  "topology": 19465,
+  "trigger_task_id": 36431,
+  "window": "g2"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 65,
+  "rung": "moderate",
+  "state_id": "moderate_g2_21",
+  "topology": 19471,
+  "trigger_task_id": 2537,
+  "window": "g2"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 60,
+  "rung": "moderate",
+  "state_id": "moderate_g2_22",
+  "topology": 19471,
+  "trigger_task_id": 26599,
+  "window": "g2"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 101,
+  "rung": "moderate",
+  "state_id": "moderate_g2_23",
+  "topology": 19468,
+  "trigger_task_id": 43770,
+  "window": "g2"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 125,
+  "rung": "moderate",
+  "state_id": "moderate_g2_24",
+  "topology": 19465,
+  "trigger_task_id": 32679,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "heavy",
+  "state_id": "heavy_g2_00",
+  "topology": 19467,
+  "trigger_task_id": 9105,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g2_01",
+  "topology": 19463,
+  "trigger_task_id": 35133,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "heavy",
+  "state_id": "heavy_g2_02",
+  "topology": 19467,
+  "trigger_task_id": 46412,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "heavy",
+  "state_id": "heavy_g2_03",
+  "topology": 19465,
+  "trigger_task_id": 26107,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "heavy",
+  "state_id": "heavy_g2_04",
+  "topology": 19470,
+  "trigger_task_id": 22615,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g2_05",
+  "topology": 19463,
+  "trigger_task_id": 39715,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g2_06",
+  "topology": 19471,
+  "trigger_task_id": 45439,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 32,
+  "rung": "heavy",
+  "state_id": "heavy_g2_07",
+  "topology": 19472,
+  "trigger_task_id": 27402,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 18,
+  "rung": "heavy",
+  "state_id": "heavy_g2_08",
+  "topology": 19467,
+  "trigger_task_id": 36556,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "heavy",
+  "state_id": "heavy_g2_09",
+  "topology": 19467,
+  "trigger_task_id": 38189,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g2_10",
+  "topology": 19471,
+  "trigger_task_id": 29798,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g2_11",
+  "topology": 19469,
+  "trigger_task_id": 3352,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 17,
+  "rung": "heavy",
+  "state_id": "heavy_g2_12",
+  "topology": 19471,
+  "trigger_task_id": 22005,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "heavy",
+  "state_id": "heavy_g2_13",
+  "topology": 19465,
+  "trigger_task_id": 17212,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g2_14",
+  "topology": 19469,
+  "trigger_task_id": 17438,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "heavy",
+  "state_id": "heavy_g2_15",
+  "topology": 19469,
+  "trigger_task_id": 28330,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "heavy",
+  "state_id": "heavy_g2_16",
+  "topology": 19469,
+  "trigger_task_id": 23017,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "heavy",
+  "state_id": "heavy_g2_17",
+  "topology": 19463,
+  "trigger_task_id": 47400,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 28,
+  "rung": "heavy",
+  "state_id": "heavy_g2_18",
+  "topology": 19463,
+  "trigger_task_id": 21784,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "heavy",
+  "state_id": "heavy_g2_19",
+  "topology": 19465,
+  "trigger_task_id": 43234,
+  "window": "g2"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 67,
+  "rung": "heavy",
+  "state_id": "heavy_g2_20",
+  "topology": 19462,
+  "trigger_task_id": 16914,
+  "window": "g2"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 55,
+  "rung": "heavy",
+  "state_id": "heavy_g2_21",
+  "topology": 19468,
+  "trigger_task_id": 35393,
+  "window": "g2"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 59,
+  "rung": "heavy",
+  "state_id": "heavy_g2_22",
+  "topology": 19464,
+  "trigger_task_id": 10298,
+  "window": "g2"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 101,
+  "rung": "heavy",
+  "state_id": "heavy_g2_23",
+  "topology": 19461,
+  "trigger_task_id": 43770,
+  "window": "g2"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 158,
+  "rung": "heavy",
+  "state_id": "heavy_g2_24",
+  "topology": 19468,
+  "trigger_task_id": 29988,
+  "window": "g2"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g3_00",
+  "topology": 19466,
+  "trigger_task_id": 32485,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 23,
+  "rung": "moderate",
+  "state_id": "moderate_g3_01",
+  "topology": 19472,
+  "trigger_task_id": 31532,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "moderate",
+  "state_id": "moderate_g3_02",
+  "topology": 19466,
+  "trigger_task_id": 49089,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 27,
+  "rung": "moderate",
+  "state_id": "moderate_g3_03",
+  "topology": 19461,
+  "trigger_task_id": 43040,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g3_04",
+  "topology": 19467,
+  "trigger_task_id": 38319,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "moderate",
+  "state_id": "moderate_g3_05",
+  "topology": 19471,
+  "trigger_task_id": 34981,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "moderate",
+  "state_id": "moderate_g3_06",
+  "topology": 19471,
+  "trigger_task_id": 15954,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g3_07",
+  "topology": 19469,
+  "trigger_task_id": 11539,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 21,
+  "rung": "moderate",
+  "state_id": "moderate_g3_08",
+  "topology": 19465,
+  "trigger_task_id": 13620,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "moderate",
+  "state_id": "moderate_g3_09",
+  "topology": 19471,
+  "trigger_task_id": 49307,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 24,
+  "rung": "moderate",
+  "state_id": "moderate_g3_10",
+  "topology": 19461,
+  "trigger_task_id": 33553,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 46,
+  "rung": "moderate",
+  "state_id": "moderate_g3_11",
+  "topology": 19462,
+  "trigger_task_id": 32531,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 32,
+  "rung": "moderate",
+  "state_id": "moderate_g3_12",
+  "topology": 19470,
+  "trigger_task_id": 18391,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "moderate",
+  "state_id": "moderate_g3_13",
+  "topology": 19463,
+  "trigger_task_id": 11754,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 24,
+  "rung": "moderate",
+  "state_id": "moderate_g3_14",
+  "topology": 19472,
+  "trigger_task_id": 12261,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "moderate",
+  "state_id": "moderate_g3_15",
+  "topology": 19465,
+  "trigger_task_id": 13573,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "moderate",
+  "state_id": "moderate_g3_16",
+  "topology": 19463,
+  "trigger_task_id": 46539,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 14,
+  "rung": "moderate",
+  "state_id": "moderate_g3_17",
+  "topology": 19468,
+  "trigger_task_id": 38263,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "moderate",
+  "state_id": "moderate_g3_18",
+  "topology": 19466,
+  "trigger_task_id": 44136,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 53,
+  "rung": "moderate",
+  "state_id": "moderate_g3_19",
+  "topology": 19469,
+  "trigger_task_id": 1571,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 60,
+  "rung": "moderate",
+  "state_id": "moderate_g3_20",
+  "topology": 19468,
+  "trigger_task_id": 8838,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 63,
+  "rung": "moderate",
+  "state_id": "moderate_g3_21",
+  "topology": 19472,
+  "trigger_task_id": 28118,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 76,
+  "rung": "moderate",
+  "state_id": "moderate_g3_22",
+  "topology": 19468,
+  "trigger_task_id": 48779,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 91,
+  "rung": "moderate",
+  "state_id": "moderate_g3_23",
+  "topology": 19461,
+  "trigger_task_id": 6911,
+  "window": "g3"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 104,
+  "rung": "moderate",
+  "state_id": "moderate_g3_24",
+  "topology": 19469,
+  "trigger_task_id": 46295,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 22,
+  "rung": "heavy",
+  "state_id": "heavy_g3_00",
+  "topology": 19465,
+  "trigger_task_id": 16713,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g3_01",
+  "topology": 19471,
+  "trigger_task_id": 25803,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 15,
+  "rung": "heavy",
+  "state_id": "heavy_g3_02",
+  "topology": 19464,
+  "trigger_task_id": 22192,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g3_03",
+  "topology": 19470,
+  "trigger_task_id": 21062,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 23,
+  "rung": "heavy",
+  "state_id": "heavy_g3_04",
+  "topology": 19466,
+  "trigger_task_id": 30408,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 31,
+  "rung": "heavy",
+  "state_id": "heavy_g3_05",
+  "topology": 19465,
+  "trigger_task_id": 25348,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 50,
+  "rung": "heavy",
+  "state_id": "heavy_g3_06",
+  "topology": 19468,
+  "trigger_task_id": 10252,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g3_07",
+  "topology": 19469,
+  "trigger_task_id": 13893,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 25,
+  "rung": "heavy",
+  "state_id": "heavy_g3_08",
+  "topology": 19464,
+  "trigger_task_id": 20118,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g3_09",
+  "topology": 19464,
+  "trigger_task_id": 20311,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "heavy",
+  "state_id": "heavy_g3_10",
+  "topology": 19465,
+  "trigger_task_id": 32666,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g3_11",
+  "topology": 19471,
+  "trigger_task_id": 45584,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 25,
+  "rung": "heavy",
+  "state_id": "heavy_g3_12",
+  "topology": 19467,
+  "trigger_task_id": 8254,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 24,
+  "rung": "heavy",
+  "state_id": "heavy_g3_13",
+  "topology": 19468,
+  "trigger_task_id": 36438,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 16,
+  "rung": "heavy",
+  "state_id": "heavy_g3_14",
+  "topology": 19469,
+  "trigger_task_id": 18197,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 13,
+  "rung": "heavy",
+  "state_id": "heavy_g3_15",
+  "topology": 19462,
+  "trigger_task_id": 18906,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 11,
+  "rung": "heavy",
+  "state_id": "heavy_g3_16",
+  "topology": 19465,
+  "trigger_task_id": 23459,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 12,
+  "rung": "heavy",
+  "state_id": "heavy_g3_17",
+  "topology": 19469,
+  "trigger_task_id": 36016,
+  "window": "g3"
+ },
+ {
+  "bucket": "11_50",
+  "group_size": 22,
+  "rung": "heavy",
+  "state_id": "heavy_g3_18",
+  "topology": 19469,
+  "trigger_task_id": 44926,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 53,
+  "rung": "heavy",
+  "state_id": "heavy_g3_19",
+  "topology": 19464,
+  "trigger_task_id": 1571,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 93,
+  "rung": "heavy",
+  "state_id": "heavy_g3_20",
+  "topology": 19465,
+  "trigger_task_id": 30504,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 55,
+  "rung": "heavy",
+  "state_id": "heavy_g3_21",
+  "topology": 19472,
+  "trigger_task_id": 15870,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 52,
+  "rung": "heavy",
+  "state_id": "heavy_g3_22",
+  "topology": 19472,
+  "trigger_task_id": 6695,
+  "window": "g3"
+ },
+ {
+  "bucket": "51_100",
+  "group_size": 58,
+  "rung": "heavy",
+  "state_id": "heavy_g3_23",
+  "topology": 19467,
+  "trigger_task_id": 34823,
+  "window": "g3"
+ },
+ {
+  "bucket": "gt100",
+  "group_size": 123,
+  "rung": "heavy",
+  "state_id": "heavy_g3_24",
+  "topology": 19470,
+  "trigger_task_id": 40116,
+  "window": "g3"
+ }
+]

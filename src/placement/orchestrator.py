@@ -224,6 +224,9 @@ class Orchestrator:
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",
             "v4_backlog_batches", "v4_backlog_nonzero",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
+            # uncut_groups_s0_v1: tasks served whole / split by original peer-group size, and the largest batch
+            "pgb_whole_le10", "pgb_whole_11_50", "pgb_whole_51_100", "pgb_whole_gt100",
+            "pgb_split_le10", "pgb_split_11_50", "pgb_split_51_100", "pgb_split_gt100", "pgb_max_batch",
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
             "qr_batches", "qr_blind_batches", "qr_divisor_above_one_batches",
@@ -248,7 +251,7 @@ class Orchestrator:
             "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
             "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
             # plan_rerank_v1 Phase 0: the live oracle (HEROSIM_PG_ORACLE=1)
-            "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks",
+            "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks", "pg_oracle_search_batches", "pg_oracle_search_tasks", "pg_oracle_search_replays", "pg_oracle_search_steps", "pg_oracle_search_improved", "pg_oracle_search_gain_seconds", "pg_oracle_search_exhausted", "pg_oracle_search_seconds",
             # decima_rule_v1: the weighted-fair share books (src/policy/decima_wfair)
             "decima_batches", "decima_jobs", "decima_active_jobs", "decima_pool_platforms",
             "decima_allowed_platforms", "decima_fallbacks",
@@ -257,6 +260,9 @@ class Orchestrator:
             # sparse_obs_s0_v1: degraded observation channels actually used
             "obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted",
             "obs_cold_degraded", "obs_cold_exact", "pg_cold_tail_calls",
+            # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
+            "sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
+            "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max",
         )
         out: Dict[str, Any] = {}
         for name in names:
