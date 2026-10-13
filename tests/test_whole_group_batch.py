@@ -125,3 +125,22 @@ def test_late_member_rule_is_unchanged_in_whole_group_mode():
     assert len(batch) == 50 and s.peer_group_incomplete_batches == 0 and s.pgb_whole_11_50 == 50
     batch, s = _collect(4, 10)
     assert s.pgb_whole_le10 == 4 and s.pgb_max_batch == 4
+
+
+def test_members_carry_group_and_served_size():
+    batch, _ = _collect(50, WHOLE_GROUP, late_at=2.0)  # 49 served, original group 50
+    assert {(t.pgb_group_size, t.pgb_served) for t in batch} == {(50, 49)}
+    batch, _ = _collect(4, 10)
+    assert {(t.pgb_group_size, t.pgb_served) for t in batch} == {(4, 4)}
+
+
+def test_task_bsz_sidecar_rows_follow_tasks_npy(tmp_path):
+    import numpy as np
+    from scripts_cosim.fresh_topo_burst_v1_gate import write_task_bsz, write_task_times
+
+    trs = [{"taskId": 7, "dispatchedTime": 2.0, "doneTime": 5.0, "groupSize": 3, "servedBatchSize": 2},
+           {"taskId": 3, "dispatchedTime": 1.0, "doneTime": 4.0},
+           {"taskId": -1, "dispatchedTime": 0.5, "doneTime": 0.6}]
+    assert write_task_bsz(trs, str(tmp_path / "a.tasks_bsz.npy")) == write_task_times(trs, str(tmp_path / "a.tasks.npy")) == 2
+    b, t = np.load(tmp_path / "a.tasks_bsz.npy"), np.load(tmp_path / "a.tasks.npy")
+    assert (b[:, 1:3] == t).all() and b[:, 0].tolist() == [3, 7] and b[:, 3:].tolist() == [[-1, -1], [3, 2]]

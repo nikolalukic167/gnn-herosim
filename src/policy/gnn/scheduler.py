@@ -607,7 +607,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                     timeout_remaining -= wait_time
             if remaining:
                 self.peer_group_incomplete_batches += 1
-            self._count_group_batch(len(group), len(batch))
+            self._count_group_batch(len(group), batch)
             return batch
 
         while len(batch) < self.batch_size and timeout_remaining > 0:
@@ -776,13 +776,19 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
     # peer_affinity_v1 stage 3: prefix-conditioned serving (GNN_DECODE_MODE=masked_topo)
     # ------------------------------------------------------------------
 
-    def _count_group_batch(self, group_size: int, served: int) -> None:
+    def _count_group_batch(self, group_size: int, batch: List[Task]) -> None:
         """uncut_groups_s0_v1 K0: tasks served in a batch holding their whole peer group vs split off, bucketed by the group's
-        ORIGINAL size (its peer closure), so a split big group still counts in its own bucket. Always on."""
+        ORIGINAL size (its peer closure), so a split big group still counts in its own bucket. Always on.
+        Each member also carries its group size and served batch size (Task.pgb_group_size / pgb_served), which the task result
+        and the gate's `.tasks_bsz.npy` sidecar read; a task served in more than one batch keeps the last."""
+        served = len(batch)
         bucket = next(tag for hi, tag in PG_SIZE_BUCKETS if hi is None or group_size <= hi)
         name = f"pgb_{'whole' if served == group_size else 'split'}_{bucket}"
         setattr(self, name, getattr(self, name) + served)
         self.pgb_max_batch = max(self.pgb_max_batch, served)
+        for member in batch:
+            member.pgb_group_size = group_size
+            member.pgb_served = served
 
     def enable_whole_group(self) -> None:
         """uncut_groups_s0_v1: serve each peer group as one batch (cell scheduler.batch_size = "group").

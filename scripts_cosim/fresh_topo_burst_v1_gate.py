@@ -434,6 +434,23 @@ def steady_state_latency(task_results: Optional[List[dict]]) -> Optional[Dict[st
             "decile_mean": [sum(done - d for d, done in part) / len(part) for part in deciles]}
 
 
+def write_task_bsz(task_results: Optional[List[dict]], path: str) -> Optional[int]:
+    """Sidecar of `.tasks.npy`, same rows in the same order: (taskId, dispatchedTime, doneTime, groupSize, servedBatchSize) as float64.
+    groupSize is the task's original peer group (its closure), servedBatchSize the batch it was last served in; -1 where the
+    scheduler does not batch by peer group. uncut_groups_s0_v1 needs both per task to attribute a gain to the uncut batches."""
+    import numpy as np
+
+    rows = sorted((float(r["dispatchedTime"]), float(r["doneTime"]), int(r["taskId"]), int(r.get("groupSize", -1)),
+                   int(r.get("servedBatchSize", -1))) for r in task_results or () if r.get("taskId") is None or int(r["taskId"]) >= 0)
+    if not rows:
+        return None
+    arr = np.asarray([(t, d, e, g, b) for d, e, t, g, b in rows], dtype=np.float64)
+    with open(path + ".partial", "wb") as fh:
+        np.save(fh, arr)
+    os.replace(path + ".partial", path)
+    return len(rows)
+
+
 def write_task_times(task_results: Optional[List[dict]], path: str) -> Optional[int]:
     """Per-task (dispatchedTime, doneTime) as float32, in dispatch order, so any warm-up cut can be read after the raw file is
     deleted (~400 KB per 50k-task cell). Written atomically; returns the row count."""
@@ -1369,6 +1386,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["queue_share"] = q / e if e > 0 else None
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     out["task_times_rows"] = write_task_times(st.get("taskResults"), os.path.join(out_dir, name + ".tasks.npy"))
+    out["task_bsz_rows"] = write_task_bsz(st.get("taskResults"), os.path.join(out_dir, name + ".tasks_bsz.npy"))
     sealed = sealed_triggers(int(t["topo"]), window)
     if sealed is not None:
         snap = os.path.join(out_dir, name + ".snapshots.jsonl")
