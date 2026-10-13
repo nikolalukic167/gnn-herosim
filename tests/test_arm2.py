@@ -274,7 +274,7 @@ def test_random_orders_are_seeded_topological_and_distinct_from_each_other():
     assert arm2.random_topological_orders(4, parents, 0, 7, "ds1") == []
 
 
-def _train_two_epochs():
+def _train_two_epochs(rows_only=False):
     """The trainer's loss on the synthetic batch: label-order loss + 2 random orders + anchor CE, Adam, two epochs."""
     torch.manual_seed(3)
     model = _model(every="auto", anchor=True)
@@ -287,7 +287,7 @@ def _train_two_epochs():
         layout = arm2.layout_for(model, data, ctx)
         label_nodes = {t: REPLICAS[plan[t]][0] for t in range(N_TASKS)}
         teacher = arm2.anchor_label(layout, label_nodes)
-        score = arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher)
+        score = arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher, task_rows_only=rows_only)
         orders = [list(range(N_TASKS))] + arm2.random_topological_orders(N_TASKS, {}, 2, 42, "ds")
         total = torch.zeros(())
         for order in orders:
@@ -353,3 +353,39 @@ def _graph_with_zero_attr():
     g = _graph()
     g.partial_state_edge_attr = torch.zeros((g.edge_index.size(1), WIDTH + 1))
     return g
+
+
+@pytest.mark.parametrize("train", [False, True])
+def test_rows_only_composes_with_reencode_anchor_and_random_prefix(train):
+    """NEAR_RTT_SCORE_TASK_ROWS_ONLY on the Arm 2 closure equals the full-tensor score to float precision, same dropout stream."""
+    ctx = _ctx()
+    plan = {0: 1, 1: 4, 2: 5, 3: 2}
+    orders = [list(range(N_TASKS))] + arm2.random_topological_orders(N_TASKS, {}, 2, 42, "ds")
+
+    def walk(rows_only):
+        torch.manual_seed(5)
+        model = _model(every="1", anchor=True)
+        model.train(train)
+        data = _graph()
+        layout = arm2.layout_for(model, data, ctx)
+        teacher = arm2.anchor_label(layout, {t: REPLICAS[plan[t]][0] for t in range(N_TASKS)})
+        score = arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher, task_rows_only=rows_only)
+        torch.manual_seed(9)
+        out = []
+        for order in orders:
+            committed = {}
+            for t in order:
+                out.append(score(t, committed).detach().clone())
+                committed[t] = REPLICAS[plan[t]]
+        return out, torch.get_rng_state(), score.encode_count()
+
+    full, rng_full, enc_full = walk(False)
+    rows, rng_rows, enc_rows = walk(True)
+    assert torch.equal(rng_full, rng_rows) and enc_full == enc_rows > 1
+    for a, b in zip(full, rows):
+        assert float((a - b).abs().max()) <= 1e-5 * max(float(a.abs().max()), 1.0)
+
+
+def test_training_loop_with_rows_only_is_bit_identical():
+    a, b = _train_two_epochs(rows_only=True), _train_two_epochs(rows_only=True)
+    assert all(torch.equal(a[k], b[k]) for k in a)

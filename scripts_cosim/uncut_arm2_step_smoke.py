@@ -33,6 +33,8 @@ def main() -> int:
     ap.add_argument("--yaml", required=True)
     ap.add_argument("--min-tasks", type=int, default=200)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--target-tasks", type=int, default=0, help="pick the graph whose n_tasks is closest to this instead of the largest")
+    ap.add_argument("--threads", type=int, default=0)
     args = ap.parse_args()
     cfg = yaml.safe_load(open(args.yaml))
     env = {str(k): str(v) for k, v in (cfg.get("env") or {}).items()}
@@ -57,6 +59,7 @@ def main() -> int:
         NEAR_CFG=types.SimpleNamespace(
             dag_alpha_key=env.get("NEAR_RTT_DAG_ALPHA_KEY", "inf"), tied_max_plans=int(env.get("NEAR_RTT_TIED_MAX_PLANS", "0")),
             anchor_ce_weight=float(env.get("NEAR_RTT_ANCHOR_CE_WEIGHT", "0.5")),
+            score_task_rows_only=env.get("NEAR_RTT_SCORE_TASK_ROWS_ONLY", "0") == "1",
         ),
     )
     module = ast.Module(body=[fn], type_ignores=[])
@@ -69,7 +72,9 @@ def main() -> int:
     cands = [g for g in graphs if int(g.n_tasks) >= args.min_tasks and (getattr(g, "tied_optimal_logit_plans", {}) or {}).get("inf")]
     if not cands:
         raise SystemExit(f"FAIL LOUD: no graph with >= {args.min_tasks} tasks and an 'inf' label in {args.cache}")
-    graph = max(cands, key=lambda g: int(g.n_tasks))
+    graph = (min(cands, key=lambda g: abs(int(g.n_tasks) - args.target_tasks)) if args.target_tasks else max(cands, key=lambda g: int(g.n_tasks)))
+    if args.threads:
+        torch.set_num_threads(args.threads)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(1)
     args_cfg = cfg.get("args") or {}
@@ -103,7 +108,7 @@ def main() -> int:
     wall = time.perf_counter() - t0
     out = {"yaml": args.yaml, "dataset_id": str(getattr(graph, "dataset_id", "?")), "n_tasks": int(graph.n_tasks),
            "n_labels": len(graph.tied_optimal_logit_plans["inf"]), "loss": float(loss.detach()), "forward_s": t_fwd, "step_s": wall,
-           "device": str(device), "peak_cuda_mb": (torch.cuda.max_memory_allocated() / 2**20) if device.type == "cuda" else None,
+           "device": str(device), "threads": torch.get_num_threads(), "rows_only": env.get("NEAR_RTT_SCORE_TASK_ROWS_ONLY") == "1", "peak_cuda_mb": (torch.cuda.max_memory_allocated() / 2**20) if device.type == "cuda" else None,
            "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0,
            "anchor_stats": ns["_ANCHOR_STATS"]["train"]}
     Path(args.out).write_text(json.dumps(out, indent=1))
