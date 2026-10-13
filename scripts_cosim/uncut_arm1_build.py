@@ -119,7 +119,8 @@ def build_state(label: Dict[str, Any], state: Dict[str, Any], root: str, out_dir
         tt = [[int(tr["taskId"]), float(tr["dispatchedTime"]), float(tr["doneTime"])] for tr in stats["taskResults"] if tr.get("taskId") is not None and tr["taskId"] >= 0]
         rows.append({"name": name, "row": {"placement_plan": dp, "S": s_of[name], "iter": (label.get("iters") if (name == "label" and label["source"] == "ils") else 0), "rtt": rtt, "task_times": tt, "makespan": max(d for _, _, d in tt) - min(s for _, s, _ in tt),
                                            "peer_exchange_total": float(stats["totalPeerExchangeTime"])}})
-        res["config"] = {"infrastructure": infra, "workload": workload}
+        # the full simulated infrastructure (nodes, network, seed), as executecosimulation records it in optimal_result.json
+        res["config"] = {"infrastructure": {**deepcopy(fr.base_infra), **infra}, "workload": workload}
         res["sample"] = {"apps": apps, "placement_plan": dp}
         results[name] = res
     label_row = rows[0]["row"]
