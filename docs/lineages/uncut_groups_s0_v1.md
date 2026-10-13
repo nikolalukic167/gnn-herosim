@@ -299,6 +299,29 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **K1(a) PASS: `cd_ib0` decides at both rungs, and `cd` agrees** (S5; `gate_k1`, pin 1929fd3c, `cd`/`cd_ib0` at 33629f1f; seed 0, 12 topologies × g0–g3, LIMIT 14,400 s). K1(b) is with S7 (`cd_ib0` at both rungs, plus the recapture cells for 45393 / 41168), and its read follows.
+  - **Units.** Every decision share below is in percent; the bar is 3 %. The reader's fractions are heavy 9.5e-05 and moderate 6.3e-05, which is 0.0095 % and 0.0063 %.
+  - **Decision share** = (`sched_queue_wait_seconds` + `sched_busy_seconds`) / `num_tasks` ÷ mean latency. Each entry gives the median [max] over finished cells, whole run and after 360 s. Cell counts are finished / projection-killed / stalled, of 48.
+
+    | arm × rung | cells | whole % | after 360 s % |
+    |---|---|---|---|
+    | `cd` moderate | 48 / 0 / 0 | 0.0062 [0.0075] | 0.0079 [0.0090] |
+    | `cd` heavy | 48 / 0 / 0 | 0.0087 [0.0105] | 0.0152 [0.0171] |
+    | `cd_ib0` moderate | 48 / 0 / 0 | 0.0063 [0.0074] | 0.0081 [0.0094] |
+    | `cd_ib0` heavy | 48 / 0 / 0 | 0.0095 [0.0117] | 0.0172 [0.0197] |
+    | `cd_exactS_ib0` moderate | 41 / 7 / 0 | 0.297 [0.569] | 0.296 [0.595] |
+    | `cd_exactS_ib0` heavy | 37 / 2 / 0 (**not final until 865209 drains**) | 0.0095 [0.0172] | 0.0086 [0.0157] |
+    | `cd_expand` moderate | 30 / 18 / 0 (g0 3/12) | 0.052 [0.182] | 0.050 [0.187] |
+    | `cd_exactS_ib0_prune` moderate | 39 / 8 / 1 (g0 11/12, admitted) | 0.0265 [0.105] | 0.0255 [0.102] |
+
+  - **Not launched at heavy:** `cd_expand`, which is WALL-INFEASIBLE at k = 0 (g0: 1 of 12 finished, 5 killed); and the prune arm, with the verdict "prune heavy: k=0 not admissible (6 finished / 2 killed of 12 g0)".
+  - The prune stall is topology 19467 g2 (`watchdog: stall`). It is listed separately and is not counted in WALL-INFEASIBLE.
+  - **K1-EXACT-ARMS-COLLAPSE-AT-k=1.** Every finished exact, expand and prune cell has a mean latency more than 3× `cd`'s: 44 to 1,233 s, against 2.6 to 2.9 s for `cd`.
+    - Median mean latency: `cd_exactS_ib0` 1,233 s heavy and 44 s moderate; `cd_expand` 398 s moderate; prune 870 s moderate.
+    - `cd_ib0` is 2.58 s heavy and 2.94 s moderate; `cd` is 2.59 s and 3.09 s.
+    - These arms' small decision shares come from their large latency, not from cheap decisions.
+  - Sources: `/share/nikola.lukic/uncut_groups/read_k1a.json` and `k1a_table.py`. The counts, rankings, headroom medians and `a_pass` were checked against the JSON at filing.
+
 - 2026-10-13 — **Bucketed clock verified live; served-plan sidecar identities PASS.**
   - **Live bucketed charge (job 864626, PASS):** `cd_exactS_ib0_k100`, 19461 g0 moderate, pin 33629f1f, `inputs_group`.
     - All 50,000 tasks finished (6,420 s wall), and the harness's served-cost check passed.
