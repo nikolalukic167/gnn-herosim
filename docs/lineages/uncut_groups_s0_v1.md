@@ -299,6 +299,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 disclosure: replica compute lock** (S7). Labels replay with HEROSIM_REPLICA_RELEASE=1 (checked via `_setup_env` on 3 drawn states, not on a live process); in-batch lock priced (`infrastructure.py:794`, `:1856`), later-arrival lock not (label = Σ(doneTime − scheduledTime) over the batch, `fidelity_replay.py:156`). The fresh-100 W-horizon check reports per-task lock wait (computeStartTime − ioEndTime), batch vs later arrivals, ILS- vs hand-labelled (`uncut_arm1.py check lockwait`); descriptive, not a gate.
 - 2026-10-13 — **K1(b) tool and label engine built** (S7, `rp/uncut-ils` dee6e4eb, `scripts_cosim/uncut_ils.py`, tests `tests/test_uncut_ils.py`).
   - ILS runs on the scheduler's own `_pg_plan_cost` (ib0). Replay runs only on the hand plan and on each new incumbent. The K1(b) reader works per bucket.
   - **Smoke 2 (validation):** 20 frontier states (n ≤ 6). ILS reaches the exhaustive S-optimum 20/20, replay equals the stored table RTT to within 7e-15, and ILS is at the label optimum on 17/20.
