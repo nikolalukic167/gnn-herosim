@@ -124,3 +124,22 @@ def test_failed_cell_is_wall_infeasible_not_imputed(dirs):
     h = res["A"]["heavy"]
     assert h["n"] == 5 and h["wall_infeasible"] == 1 and h["after360"]["faster"] == 5
     assert res["label"].startswith("TRANSFERS")
+
+
+def test_differs_counter_read_when_present(dirs):
+    o, r = dirs
+    for t in TOPOS:
+        for rung in O.RUNGS:
+            s = summ(1.8, 0.9, exch=0.6, queue=0.52)
+            for b in O.BUCKETS:
+                s["schedulerCounters"][f"pg_ils_differs_{b}"] = 2
+                s["schedulerCounters"][f"pg_ils_gain_seconds_{b}"] = 1.5
+            write(o, O.ORACLE, t, rung, s)
+    w = run(o, r)["A"]["heavy"]["ils_work"]["served_differs_from_bar"]
+    assert w["11_50"] == {"differs": 12, "gain_seconds_S": 9.0} and w["cells_without"] == 0
+
+
+def test_differs_counter_absent_says_not_available(dirs):
+    o, r = dirs
+    write(o, O.ORACLE, 1, "heavy", summ(1.8, 0.9))
+    assert run(o, r)["A"]["heavy"]["ils_work"]["served_differs_from_bar"] == "not available"
