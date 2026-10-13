@@ -3,6 +3,8 @@
 gate-tools 2026-10-13: until this change GNNOrchestrator printed and ignored a cell batch_size outside the
 scheduler's range and served GNN_BATCH_SIZE, so snapshot replays of > 16-task batches were served 4 at a time.
 """
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +13,8 @@ import simpy
 from src.policy.gnn import orchestrator as orch_mod
 from src.policy.gnn.orchestrator import WHOLE_GROUP, apply_cfg_batch_size
 from src.policy.gnn.scheduler import GNNScheduler, PG_BATCH_COUNTERS, PREFIX_DECODE_MODE
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts_cosim"))
 
 
 def _sched(decode=PREFIX_DECODE_MODE, by_group=True, size=4, lo=1, hi=16):
