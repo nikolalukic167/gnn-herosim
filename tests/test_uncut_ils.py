@@ -140,8 +140,8 @@ def test_missing_ids_are_skipped_and_reported_but_unlisted_ones_fail_loud(tmp_pa
         U.make_jobs(sealed, cells, "cd_expand_k100", inputs, "x", missing=["gone"])
     jobs, gone = U.make_jobs(sealed, cells, "cd_expand_k100", inputs, "x", missing=["gone", {"topology": 1, "window": "g0", "rung": "heavy", "trigger_task_id": 98}])
     assert [j["state_id"] for j in jobs] == ["a"] and [(g["state_id"], g["bucket"]) for g in gone] == [("gone", "51_100"), ("gone2", "101_226")]
-    r = U.read_rows([_row("11_50", 100, 100, 5, 5) | {"n_extra_captures": 2}], gone)
-    assert r["missing"]["total"] == 2 and r["missing"]["51_100"] == ["gone"] and r["11_50"]["n_extra_captures_total"] == 2 and r["11_50"]["states_with_extra_captures"] == 1
+    r = U.read_rows([_row("11_50", 100, 100, 5, 5)], gone)
+    assert r["missing"]["total"] == 2 and r["missing"]["51_100"] == ["gone"] and r["missing"]["101_226"] == ["gone2"]
 
 
 def _snap(chosen):
@@ -154,3 +154,43 @@ def test_chosen_check_is_bit_equal_and_fails_loud():
         U.check_chosen(_snap({"3": [1, 2], "5": [4, 5]}), [[1, 2], [4, 6]], "s")
     with pytest.raises(ValueError, match="not a map over the batch"):
         U.check_chosen(_snap({"3": [1, 2]}), [[1, 2], [4, 5]], "s")
+
+
+def _r(sid, bucket, hand, ils, **kw):
+    return {"state_id": sid, "bucket": bucket, "regret": (hand - ils) / ils, "s_regret": 0.0, "rtt_hand": hand, "rtt_ils": ils, **kw}
+
+
+def test_mean_is_printed_twice_and_imputation_can_unsatisfy_k1b():
+    rows = [_r("a", "11_50", 100, 100), _r("b", "11_50", 100, 100), _r("c", "11_50", 150, 100), _r("d", "51_100", 100, 100)]    # regrets 0, 0, 50 %, 0
+    ok = U.read_rows(rows)
+    assert ok["mean_captured_pct"] == ok["mean_imputed_pct"] == 12.5 and ok["NOT_SATISFIED"] is False
+    rows = [_r(c, "11_50", 100, 100) for c in "abcd"] + [_r("e", "51_100", 100.5, 100)]      # captured mean 0.1 %
+    gone = [{"state_id": "m1", "bucket": "11_50"}, {"state_id": "m2", "bucket": "51_100"}]
+    r = U.read_rows(rows, gone)
+    assert abs(r["mean_captured_pct"] - 0.1) < 1e-9
+    assert abs(r["mean_imputed_pct"] - 100 * (0.005 + 0.0 + 0.005) / 7) < 1e-9          # m1 at 11_50's max 0, m2 at 51_100's max 0.5 %
+    assert r["NOT_SATISFIED"] is False
+    rows = [_r("a", "11_50", 100, 100), _r("b", "11_50", 101.5, 100), _r("c", "11_50", 100, 100)]                                  # captured mean 0.5 %
+    r = U.read_rows(rows, [{"state_id": "m1", "bucket": "11_50"}, {"state_id": "m2", "bucket": "11_50"}])        # imputed at 1.5 %: (0+1.5+0+1.5+1.5)/5 = 0.9 %
+    assert r["mean_imputed_pct"] < 1.0 and r["NOT_SATISFIED"] is False
+    r = U.read_rows(rows, [{"state_id": f"m{i}", "bucket": "11_50"} for i in range(4)])                           # (1.5 + 4 x 1.5)/7 = 1.07 %
+    assert r["mean_captured_pct"] < 1.0 <= r["mean_imputed_pct"] and r["NOT_SATISFIED"] is True
+
+
+def test_retry_states_are_out_of_the_mean_listed_and_flagged_with_a_composite():
+    rows = [_r(f"s{i}", "11_50", 100, 100) for i in range(8)]
+    rows += [_r("x", "51_100", 200, 100, n_extra_captures=1), _r("x#r1", "51_100", 120, 100, role="retry", parent="x", n_extra_captures=0),
+             _r("y", "11_50", 100, 100, n_extra_captures=1)]                    # y: retry capture absent -> no composite
+    r = U.read_rows(rows)
+    assert r["pooled"]["n"] == 8 and r["pooled"]["mean_regret_pct"] == 0.0              # x and y are not in the mean, the retry row neither
+    e = r["excluded_retry_states"]
+    assert e["count"] == 2 and e["by_bucket"]["51_100"] == ["x"] and e["by_bucket"]["11_50"] == ["y"]
+    assert abs(e["share_of_captured_states"] - 0.2) < 1e-12 and e["flag_gt_10pct"] is True
+    assert [(c["state_id"], c["captures"]) for c in e["composite"]] == [("x", 2)] and abs(e["composite"][0]["composite_regret_pct"] - 60.0) < 1e-9
+    assert U.read_rows([_r(f"s{i}", "11_50", 100, 100) for i in range(11)] + [_r("z", "11_50", 100, 100, n_extra_captures=1)])["excluded_retry_states"]["flag_gt_10pct"] is False
+
+
+def test_make_jobs_emits_retry_captures_as_descriptive_jobs(tmp_path):
+    cells, inputs = _cells(tmp_path, [(7, 1.0, 12), (7, 1.01, 5)])
+    jobs, _ = U.make_jobs([_st("a", 7)], cells, "cd_expand_k100", inputs, "x")
+    assert [(j["state_id"], j["role"], j["time"]) for j in jobs] == [("a", "first", 1.0), ("a#r1", "retry", 1.01)] and jobs[1]["parent"] == "a"
