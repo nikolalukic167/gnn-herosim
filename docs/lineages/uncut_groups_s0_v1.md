@@ -299,6 +299,30 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **`ils_oracle_live` read: PARTIAL + CEILING-TRUNCATED + B-NOT-RUN** (job 868854, pin 5109d07d, 12/12 cells, 0 failed, 0 wall-infeasible; reader `scripts_cosim/ils_oracle_read.py` at b2067c68 under the amended read 9f119675; output `/share/nikola.lukic/uncut_groups/s6_reader/read_final_A.json`, md5 00265ed9).
+  - **B-NOT-RUN.** No `ils_oracle_exact10` cells existed when the `ils12` cells finished. Per amendment item 3, the label is read from contrast A and its mechanism alone. B may be added later without changing A's label.
+  - **Contrast A (`ils_oracle_live` vs `cd_ib0`, gate_k0; after 360 s decides).**
+
+    | rung | after 360 s median | faster | Wilcoxon p | whole-run median | per topology, after 360 s (19461 … 19466) |
+    |---|---|---|---|---|---|
+    | moderate | −7.76 % | 6/6 | .031 | −6.05 % (6/6) | −1.42, −3.22, −7.93, −7.60, −8.27, −12.76 |
+    | heavy | −4.09 % | 4/6 | .69 | −4.86 % (5/6) | −10.22, −5.63, +3.62, −2.55, +19.55, −14.27 |
+
+    - TRANSFERS fails on heavy: the median is above −6 % and only 4/6 topologies are faster.
+    - MYOPIC-LIVE does not fire: A ≤ −2 % at both rungs, 0 collapse in 12 cells, no tail flag.
+    - The mechanism holds on the whole-run medians (Δexchange / Δqueue s/task): moderate −0.256 / +0.048, heavy −0.152 / +0.015.
+  - **CEILING-TRUNCATED.** The > 50-task cap share is 27.0 % moderate (118/437) and 36.5 % heavy (163/446). The measured ceiling is a lower bound on the oracle's room.
+  - **Served plan ≠ `cd_ib0` plan** (batches, 11–50 / 51–100 / 101–226): moderate 2,580 / 355 / 32, heavy 2,503 / 320 / 29.
+  - **Descriptive, confounded on ≤ 10 batches:** oracle vs `cd_exactS_ib0` is +1.82 % moderate and −1.10 % heavy after 360 s.
+  - **Caveats:**
+    - **Not bit-reproducible.** Cap-hit batches depend on wall time (entry below). The smoke's second draw of 19461 g0 heavy read −15.06 % against this run's −10.22 %.
+    - **Mechanism read on whole-run**, because the summaries have no after-360 s exchange or queue. This was decided before any `ils12` cell.
+  - **Open, flagged (not part of the label):** 19465 heavy is +19.55 % after 360 s (+9.96 % whole-run), yet its exchange still falls (−0.096 s/task) and its queue barely rises (+0.009). So its loss is not the registered exchange-vs-queue trade.
+    - Its late deciles are worse (deciles 7–9 about 2.18 s against `cd_ib0`'s 1.46–1.79 s).
+    - Its wall time was 8,881 s.
+    - 19463 heavy (+3.62 %) also has the mechanism holding.
+  - **Under the registered consequences (§ 5 of the design):** PARTIAL means "as planned, stratified on the buckets that gained" (P(WIN) ≈ 0.3). Arm 1 labels proceed, and the stratification is the expert's and SCIENTIST's call.
+
 - 2026-10-13 — **`ils_oracle_live` is not bit-reproducible: a disclosed caveat, ruled by the expert while the ils12 cells land.**
   - **Observation.** The smoke (bf0a2c0d) and `ils12` (5109d07d) both ran 19461 g0 heavy at seed 0, and they differ.
     - Smoke: −9.98 % whole-run, −15.06 % after 360 s, cap 16/74.
