@@ -13,6 +13,7 @@ trajectory with the evaluation index, ties broken by candidate order (node id, p
 
   uncut_ils.py run   JOBS.jsonl OUT.jsonl [--arm cd_expand] [--seed 0] [--max-evals N | --evals-per-task-cand 200] [--max-seconds T] [--replay all|final|none]
   uncut_ils.py make-jobs SEALED.json CELLS_DIR JOBS.jsonl --token <arm token> --inputs <inputs_group>
+  uncut_ils.py make-labels JOBS.jsonl OUT_DIR --sealed k1_sealed_states.json (--k1-read-commit <hash> | --dry-run)   labels refuse until K1 is read
   uncut_ils.py read  ROWS.jsonl [--json OUT]       K1(b): mean (RTT(hand) - RTT(ILS)) / RTT(ILS), share within 1 %, p90, per bucket, S-regret beside it
 
 A job: {"state_id", "bucket", "snapfile", "trigger_task_id", "cell_config", "sim_input", "cell_summary" (its `env` is the physics env of the capture), "time" (optional)}.
@@ -75,7 +76,7 @@ def ils(cands: Sequence[Sequence[Key]], start: Sequence[Key], S: Callable[[Tuple
     cache: Dict[Tuple[Key, ...], float] = {}
     evals: List[Dict[str, Any]] = []
     traj: List[Dict[str, Any]] = []
-    state = {"iter": 0, "stop": None}
+    state = {"iter": 0, "stop": None, "revisits": 0}
     best: Dict[str, Any] = {"S": None, "plan": None}
 
     class _Stop(Exception):
@@ -84,6 +85,7 @@ def ils(cands: Sequence[Sequence[Key]], start: Sequence[Key], S: Callable[[Tuple
     def score(plan: Tuple[Key, ...]) -> float:
         v = cache.get(plan)
         if v is not None:
+            state["revisits"] += 1
             return v
         if len(cache) >= max_evals:
             state["stop"] = "evals"
@@ -196,7 +198,7 @@ def ils(cands: Sequence[Sequence[Key]], start: Sequence[Key], S: Callable[[Tuple
     if state["stop"] is None:
         state["stop"] = "done"
     return {"best": best["plan"], "best_S": best["S"], "start_S": cache[plan0], "trajectory": traj, "evals": evals, "n_evals": len(cache),
-            "stopped": state["stop"], "iters": state["iter"], "wall": time.time() - t0}
+            "stopped": state["stop"], "iters": state["iter"], "revisits": state["revisits"], "wall": time.time() - t0}
 
 
 def default_budget(cands: Sequence[Sequence[Key]], per: int = 200) -> int:
@@ -304,7 +306,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
             res.update(out)
         if set(local_of) <= {int(t.id) for t in batch_tasks} and "out" not in seen:
             seen["out"] = _search_at_decision(self, batch_tasks, system_state, res, local_of, set(fr.queued_forced), seed, max_evals, per, max_seconds,
-                                                int(job.get("exhaustive_cap") or 0))
+                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")))
             raise _Done(seen["out"])
         return res
 
@@ -337,7 +339,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     return out
 
 
-def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0) -> Dict[str, Any]:
+def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False) -> Dict[str, Any]:
     """Runs inside the decision: res[i] = (node id, platform id) of batch_tasks[i] under the hand arm."""
     placements = {i: (int(res[i][0]), int(res[i][1])) for i in range(len(batch_tasks))}
     cands_o, couple, keys, plan_o, pinned = sched._pg_plan_objects(batch_tasks, system_state, placements)
@@ -384,12 +386,13 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
         sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha = saved
     order = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
     to_batch = lambda plan: [list(plan[i]) for _b, i in order]       # snapshot batch order (gid ascending)
-    return {"n": len(batch_tasks), "n_batch": len(order), "n_pinned": len(pinned), "cands_mean": sum(len(c) for c in ckeys) / len(ckeys),
+    return {"plan_space": math.prod(len(c) for c in ckeys), "n": len(batch_tasks), "n_batch": len(order), "n_pinned": len(pinned), "cands_mean": sum(len(c) for c in ckeys) / len(ckeys),
             "hand": to_batch(start), "start_S": r["start_S"], "best": to_batch(r["best"]), "best_S": r["best_S"], "n_evals": r["n_evals"], "budget": budget,
             "stopped": r["stopped"], "iters": r["iters"], "s_calls": ils_calls, "search_wall": wall_s, "exhaustive": exh,
             "slate_log10": slate_log10, "exact_cap_hit": exact_cap_hit,
             "trajectory": [{"eval": t["eval"], "S": t["S"], "iter": t["iter"], "plan": to_batch(t["plan"])} for t in r["trajectory"]],
-            "evals_log": [(e["eval"], e["S"], e["iter"]) for e in r["evals"]]}
+            "evals_log": [(e["eval"], e["S"], e["iter"]) for e in r["evals"]], "revisits": r["revisits"],
+            "evals_full": [(e["eval"], e["S"], e["iter"], to_batch(e["plan"])) for e in r["evals"]] if keep_plans else None}
 
 
 def replay_rtts(spec: Dict[str, Any], types: Sequence[str], plans: Sequence[Sequence[Sequence[int]]]) -> Tuple[List[float], float, List[float]]:
@@ -412,29 +415,40 @@ def bucket_of(n: int) -> str:
     raise ValueError(f"group of {n} tasks is outside the K1 buckets")
 
 
-def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], state_id: Any) -> bool:
-    """The served plan the capture recorded (`chosen`: {"<gid>": [node id, platform id]} for every batch task) against the replayed re-decision, bit-equal, batch order
-    = gid ascending. A mismatch stops the run: nothing is read until it is understood."""
+def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], rec: Dict[str, Any], state_id: Any) -> Dict[str, Any]:
+    """The served plan the capture recorded in `<snapshots>.chosen.jsonl` (`live_audit.load_chosen`: {"chosen": [[task, node, platform]], "deferred", "arm", "plan_evals",
+    "cap_hit"}) against the replayed re-decision (`hand`, batch order = gid ascending), bit-equal. Tasks the live decision deferred are not in `chosen`; the comparison is on
+    the tasks it placed. With no deferral a mismatch stops the run (nothing is read until it is understood); in a state with deferrals the re-decision saw the whole batch,
+    so a mismatch is returned, flagged, not fatal."""
     gids = [int(r["gid"]) for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
-    ch = snap["chosen"]
-    if not isinstance(ch, dict) or {int(k) for k in ch} != set(gids):
-        raise ValueError(f"FAIL LOUD: state {state_id}: snapshot `chosen` is not a map over the batch's gids")
-    live = [[int(ch[str(g)][0]), int(ch[str(g)][1])] for g in gids]
-    if live != [[int(a), int(b)] for a, b in hand]:
-        raise RuntimeError(f"FAIL LOUD: state {state_id}: the replayed re-decision differs from the served plan; "
-                           f"{sum(a != list(map(int, b)) for a, b in zip(live, hand))} of {len(gids)} tasks differ")
-    return True
+    live = {int(t): [int(n), int(p)] for t, n, p in rec["chosen"]}
+    deferred = {int(x) for x in rec.get("deferred") or []}
+    if set(live) | deferred != set(gids) or set(live) & deferred:
+        raise ValueError(f"FAIL LOUD: state {state_id}: chosen + deferred do not partition the batch's gids")
+    mine = {g: [int(a), int(b)] for g, (a, b) in zip(gids, hand)}
+    bad = sorted(g for g in live if live[g] != mine[g])
+    out = {"match": not bad, "compared": len(live), "deferred": len(deferred), "mismatched_tasks": len(bad), "live_arm": rec.get("arm"), "live_cap_hit": rec.get("cap_hit"),
+           "live_plan_evals": rec.get("plan_evals")}
+    if bad and not deferred:
+        raise RuntimeError(f"FAIL LOUD: state {state_id}: the replayed re-decision differs from the served plan on {len(bad)} of {len(gids)} tasks")
+    return out
 
 
 def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float], replay: str) -> Dict[str, Any]:
     t0 = time.time()
     d = decision_pass(job, arm, seed, max_evals, per, max_seconds)
     row = {k: d[k] for k in ("n", "n_batch", "n_pinned", "cands_mean", "start_S", "best_S", "n_evals", "budget", "stopped", "iters", "s_calls", "search_wall",
-                             "hand", "best", "t0", "exhaustive", "slate_log10", "exact_cap_hit")}
+                             "hand", "best", "t0", "exhaustive", "slate_log10", "exact_cap_hit", "plan_space")}
     row["n_extra_captures"] = int(job.get("n_extra_captures") or 0)
     row["role"], row["parent"] = job.get("role", "first"), job.get("parent")
     row["time_bound"] = d["stopped"] == "seconds"          # the per-state --max-seconds bound, logged where it binds
-    row["chosen_match"] = check_chosen(d["snap"], d["hand"], job.get("state_id")) if d["snap"].get("chosen") is not None else None
+    from src.placement import live_audit
+
+    rec = live_audit.load_chosen(job["snapfile"]).get(int(job["trigger_task_id"])) if job.get("snapfile") else None
+    ck = check_chosen(d["snap"], d["hand"], rec, job.get("state_id")) if rec is not None and job.get("role", "first") == "first" else None
+    row["chosen_check"] = ck
+    row["chosen_match"] = None if ck is None else ck["match"]
+    row["revisits"], row["evals_full"] = d["revisits"], d["evals_full"]
     row.update(state_id=job.get("state_id"), bucket=job.get("bucket") or bucket_of(d["n_batch"]), arm=arm, seed=seed,
                s_per_call_ms=1000.0 * d["search_wall"] / max(d["s_calls"], 1), n_incumbents=len(d["trajectory"]),
                trajectory=[{"eval": t["eval"], "S": t["S"], "iter": t["iter"]} for t in d["trajectory"]], evals_log=d["evals_log"])
@@ -477,6 +491,8 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
     out = {"pooled": block(main)}
     for name, _lo, _hi in BUCKETS:
         out[name] = block([r for r in main if r["bucket"] == name])
+    out["chosen_check"] = {"match": sum(r.get("chosen_match") is True for r in firsts), "mismatch_in_deferral_states": sum(r.get("chosen_match") is False for r in firsts),
+                           "not_checked_no_sidecar": sum(r.get("chosen_match") is None for r in firsts)}
     out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
     if main:
         pooled_max = max(r["regret"] for r in main)
@@ -504,6 +520,77 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
                                     "composite_note": "descriptive: the sum of RTT over the first batch and each retry batch, each replayed as its own snapshot; not in any mean",
                                     "composite": comp}
     return out
+
+
+# ---- the label driver (dry-run only until K1 is read) ---------------------------------------------------------------------------------------
+
+ILS_VERSION = "uncut_ils/1"
+LABEL_FIELDS = ("topology", "window", "rung", "trigger_task_id")
+
+
+def sealed_keys(sealed: Sequence[Dict[str, Any]]) -> set:
+    return {(str(x["topology"]), str(x["window"]), str(x["rung"]), int(x["trigger_task_id"])) for x in sealed}
+
+
+def label_gate(jobs: Sequence[Dict[str, Any]], sealed: Sequence[Dict[str, Any]], k1_read_commit: Optional[str], dry_run: bool, repo: Path = REPO) -> None:
+    """Labels cannot start before K1 is read. Without --k1-read-commit only a --dry-run on identity (m) states (state ids `idm_*`) is allowed; with it, a real commit of
+    this repository must be named. A sealed K1(b) state is never labelled, with or without the flag. Every job names (topology, window, rung, trigger_task_id)."""
+    import re
+    import subprocess
+
+    if k1_read_commit:
+        if not re.fullmatch(r"[0-9a-f]{7,40}", k1_read_commit):
+            raise ValueError(f"FAIL LOUD: --k1-read-commit {k1_read_commit!r} is not a commit hash")
+        if subprocess.run(["git", "-C", str(repo), "cat-file", "-e", k1_read_commit + "^{commit}"], capture_output=True).returncode != 0:
+            raise ValueError(f"FAIL LOUD: --k1-read-commit {k1_read_commit} is not a commit of {repo}")
+    elif not dry_run:
+        raise RuntimeError("FAIL LOUD: labels refuse to run on any corpus state until K1 is read: pass --k1-read-commit <hash of the commit that records the K1 read> "
+                           "(or --dry-run on identity (m) states only)")
+    ex = sealed_keys(sealed)
+    for j in jobs:
+        miss = [f for f in LABEL_FIELDS if j.get(f) is None]
+        if miss:
+            raise ValueError(f"FAIL LOUD: state {j.get('state_id')}: the job lacks {miss}")
+        if (str(j["topology"]), str(j["window"]), str(j["rung"]), int(j["trigger_task_id"])) in ex:
+            raise RuntimeError(f"FAIL LOUD: state {j.get('state_id')} is a sealed K1(b) state; it is never labelled")
+        if not k1_read_commit and not str(j.get("state_id", "")).startswith("idm_"):
+            raise RuntimeError(f"FAIL LOUD: state {j.get('state_id')} is not an identity (m) state; a dry run is for identity (m) states only")
+
+
+def label_header(row: Dict[str, Any], job: Dict[str, Any], seed: int, k1_read_commit: Optional[str], dry_run: bool, sealed_file: Optional[str], sealed_sha: Optional[str],
+                 code_commit: Optional[str]) -> Dict[str, Any]:
+    """The mandatory first line of a sampled placements.jsonl (docs/notes/placements_jsonl_required.md, 'Sampled files above the plan cap')."""
+    return {"header": True, "exhaustive": False, "plan_space_size": row["plan_space"],
+            "n_tasks": row["n_batch"], "eval_budget": row["budget"], "evals_done": row["n_evals"], "search": ILS_VERSION, "ils_version": ILS_VERSION, "seed": seed,
+            "s_pin": {"surrogate": "peer_greedy_network _pg_plan_cost", "batch_alpha": 0.0, "drain_alpha": 1.0, "arm": row["arm"], "code_commit": code_commit},
+            "cap": CAP, "stopped": row["stopped"], "revisits_not_rescored": row["revisits"], "distinct_plans_only": True,
+            "replayed_rows": row["n_incumbents"], "replayed_rows_are": "the hand plan (start) and each new ILS incumbent; null elsewhere; "
+            "the top-8 by S are replayed only if K1(b) fires (not done here)", "top8_replayed": False, "state_id": row["state_id"], "bucket": row.get("bucket"),
+            "sealed_exclusion": {"file": sealed_file, "sha256": sealed_sha}, "k1_read_commit": k1_read_commit, "dry_run": dry_run,
+            "hand_plan_source": "the served plan (`chosen`), bit-equal to the re-decision" if row.get("chosen_match") else "replayed re-decision (the snapshot carries no `chosen`)"}
+
+
+def label_rows(row: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """One row per ILS-evaluated plan: iteration index, S, placement_plan (batch order), and the replayed RTT on the hand plan and on new incumbents only."""
+    rtt_at = {1: row.get("rtt_hand")}
+    for t, v in zip(row["trajectory"][1:], row.get("rtt_incumbents") or []):
+        rtt_at[t["eval"]] = v
+    out = []
+    for ev, sv, it, plan in row["evals_full"]:
+        out.append({"eval": ev, "iter": it, "S": sv, "placement_plan": {str(i): [int(a), int(b)] for i, (a, b) in enumerate(plan)}, "rtt": rtt_at.get(ev),
+                    "replayed": ev in rtt_at})
+    return out
+
+
+def write_labels(out_dir: Path, header: Dict[str, Any], rows: Sequence[Dict[str, Any]]) -> Path:
+    d = out_dir / str(header["state_id"]).replace("/", "_") / "placements"
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / "placements.jsonl"
+    with open(f, "w") as fh:
+        fh.write(json.dumps(header, separators=(",", ":")) + "\n")
+        for r in rows:
+            fh.write(json.dumps(r, separators=(",", ":")) + "\n")
+    return f
 
 
 def _is_missing(st_: Dict[str, Any], missing: Sequence[Any]) -> bool:
@@ -551,7 +638,7 @@ def make_jobs(sealed: Sequence[Dict[str, Any]], cells: Path, token: str, inputs:
         if not caps:
             raise FileNotFoundError(f"FAIL LOUD: state {st_['state_id']}: trigger {st_['trigger_task_id']} was never captured in {stem}.snapshots.jsonl and is not listed as missing")
         jobs.append({"state_id": st_["state_id"], "bucket": st_["bucket"], "group_size": st_["group_size"], "snapfile": str(stem) + ".snapshots.jsonl",
-                     "trigger_task_id": st_["trigger_task_id"], "time": caps[0]["time"], "n_extra_captures": len(caps) - 1, "first_capture_n": caps[0]["n_batch"],
+                     "trigger_task_id": st_["trigger_task_id"], "topology": st_["topology"], "window": st_["window"], "rung": st_["rung"], "time": caps[0]["time"], "n_extra_captures": len(caps) - 1, "first_capture_n": caps[0]["n_batch"],
                      "cell_summary": str(stem) + ".summary.json", "cell_config": str(cfg), "sim_input": sim_input, "role": "first"})
         for k, cap in enumerate(caps[1:], 1):       # descriptive only: a retry capture is its own batch, replayed for the composite and never in the main mean
             jobs.append({**jobs[-k], "state_id": f"{st_['state_id']}#r{k}", "role": "retry", "parent": st_["state_id"], "time": cap["time"],
@@ -567,6 +654,12 @@ def main() -> int:
     r.add_argument("--arm", default="cd_expand", choices=sorted(ARMS)); r.add_argument("--seed", type=int, default=0)
     r.add_argument("--max-evals", type=int, default=None); r.add_argument("--evals-per-task-cand", type=int, default=200)
     r.add_argument("--max-seconds", type=float, default=300.0, help="per-state bound on the ILS search; logged as time_bound where it binds"); r.add_argument("--replay", default="all", choices=("all", "final", "none"))
+    lb = sub.add_parser("make-labels", help="the label driver: a headed, sampled placements.jsonl per state; refuses until --k1-read-commit (or --dry-run on identity (m) states)")
+    lb.add_argument("jobs"); lb.add_argument("out_dir"); lb.add_argument("--sealed", required=True, help="k1_sealed_states.json: its states are never labelled")
+    lb.add_argument("--k1-read-commit", default=None); lb.add_argument("--dry-run", action="store_true")
+    lb.add_argument("--arm", default="cd_expand", choices=sorted(ARMS)); lb.add_argument("--seed", type=int, default=0)
+    lb.add_argument("--max-evals", type=int, default=None); lb.add_argument("--evals-per-task-cand", type=int, default=200)
+    lb.add_argument("--max-seconds", type=float, default=300.0)
     m = sub.add_parser("make-jobs")
     m.add_argument("sealed"); m.add_argument("cells"); m.add_argument("out"); m.add_argument("--token", required=True, help="the hand cell's arm token, e.g. cd_ib0_k100")
     m.add_argument("--inputs", required=True, help="gate inputs_group dir"); m.add_argument("--sim-input", default=str(REPO / "data" / "nofs-ids"))
@@ -575,6 +668,21 @@ def main() -> int:
     d = sub.add_parser("read")
     d.add_argument("rows"); d.add_argument("--json", default=None); d.add_argument("--missing", default=None, help="the <jobs>.missing.json make-jobs wrote")
     a = ap.parse_args()
+    if a.cmd == "make-labels":
+        import hashlib
+        import subprocess
+
+        jobs = [json.loads(l) for l in open(a.jobs) if l.strip()]
+        sealed = json.load(open(a.sealed))
+        label_gate(jobs, sealed, a.k1_read_commit, a.dry_run)
+        sha = hashlib.sha256(Path(a.sealed).read_bytes()).hexdigest()
+        head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip() or None
+        for job in jobs:
+            job = dict(job, keep_plans=True)
+            row = run_state(job, a.arm, a.seed, a.max_evals, a.evals_per_task_cand, a.max_seconds, "all")
+            f = write_labels(Path(a.out_dir), label_header(row, job, a.seed, a.k1_read_commit, a.dry_run, a.sealed, sha, head), label_rows(row))
+            print(job["state_id"], "n", row["n_batch"], "evals", row["n_evals"], "replayed", row["n_replays"], "->", f, flush=True)
+        return 0
     if a.cmd == "make-jobs":
         sealed = json.load(open(a.sealed))
         if a.only:
