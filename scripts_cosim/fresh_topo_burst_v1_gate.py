@@ -199,6 +199,22 @@ DC_K = {"k025": 0.25, "k050": 0.5, "k100": 1.0, "k200": 2.0}
 DC_W_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decision_cost_w.json")
 
 
+# uncut_groups_s0_v1 K1 (identity (m)): R1A_SNAPSHOT_PLAN names a JSON file {"<topology>__<window>": [trigger task ids]} sealed
+# before any cell runs. Every cell of that topology and window captures exactly those batches (fidelity snapshots, for the
+# replay); the summary reports how many it wanted and wrote. Unset: nothing is captured, as before.
+SNAP_ENV = ("LIVE_AUDIT_TRIGGER_IDS", "LIVE_AUDIT_MAX_SNAPSHOTS", "LIVE_AUDIT_STRIDE", "LIVE_AUDIT_MIN_BATCH_SIZE", "LIVE_AUDIT_MIN_CANDIDATES")
+
+
+def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
+    path = os.environ.get("R1A_SNAPSHOT_PLAN")
+    if not path:
+        return None
+    ids = json.load(open(path)).get(f"{topo}__{window}")
+    if ids is not None and not (isinstance(ids, list) and all(isinstance(i, int) for i in ids)):
+        raise SystemExit(f"FAIL LOUD: R1A_SNAPSHOT_PLAN {path} entry {topo}__{window} must be a list of task ids")
+    return sorted(ids) if ids else None
+
+
 def split_dc(kind: str) -> Tuple[str, Optional[float]]:
     for tag, k in DC_K.items():
         if kind.endswith("_" + tag):
@@ -844,6 +860,15 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     env.pop("HEROSIM_DECISION_COST_MS", None)
     if dc_ms is not None:
         env["HEROSIM_DECISION_COST_MS"] = dc_ms
+    for k in SNAP_ENV:
+        env.pop(k, None)
+    sealed = sealed_triggers(int(t["topo"]), window)
+    if sealed is not None:
+        trig = os.path.join(out_dir, name + ".triggers.json")
+        with open(trig, "w") as fh:
+            json.dump(sealed, fh)
+        env.update(LIVE_AUDIT_SNAPSHOT_PATH=os.path.join(out_dir, name + ".snapshots.jsonl"), LIVE_AUDIT_TRIGGER_IDS=trig,
+                   LIVE_AUDIT_MAX_SNAPSHOTS=str(len(sealed)), HEROSIM_SNAPSHOT_FIDELITY="1")
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
@@ -1324,6 +1349,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["queue_share"] = q / e if e > 0 else None
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     out["task_times_rows"] = write_task_times(st.get("taskResults"), os.path.join(out_dir, name + ".tasks.npy"))
+    sealed = sealed_triggers(int(t["topo"]), window)
+    if sealed is not None:
+        snap = os.path.join(out_dir, name + ".snapshots.jsonl")
+        got = [json.loads(line)["trigger_task_id"] for line in open(snap)] if os.path.exists(snap) else []
+        out["sealed_snapshots"] = {"wanted": len(sealed), "written": len(got), "missing": sorted(set(sealed) - set(got))}
     json.dump(out, open(summary + ".partial", "w"), indent=1)
     os.replace(summary + ".partial", summary)
     keep = os.environ.get("KEEP_RAW_DIR")
