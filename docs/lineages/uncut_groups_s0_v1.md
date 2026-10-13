@@ -299,6 +299,40 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **K1(b): K1B-FIRES / GAP-IS-CO-LOCATION / MYOPIC-REPLAY** (S7; label by the expert's ruling). **K1 fired; labels not run by the user's decision (2026-10-13, paper pivot).** `make-labels` was dry-run only, on identity states, and any label run needs the user's approval.
+  - **Read.** 200 sealed states (sha 755ace02…, seed 20261013). Hand `cd_ib0` against ILS on S (`uncut_ils/1`, seed 0, budget 200 evaluations per task-candidate, no time bound hit), with RTT replayed.
+    - Tool: rp/uncut-ils-k1b 948f31cd, run at 98febf7d. The difference is a reader fix for the gt100 bucket alias.
+    - Rows: `/share/nikola.lukic/uncut_ils/k1b/{rows_all.jsonl,k1b_read.json,unreplayable.json}`.
+  - **Accounting.** 193 states replay as whole batches; 193 + 7 = 200.
+    - 7 are UNREPLAYABLE. Six are SPLIT: heavy_g0_04, moderate_g1_06, moderate_g1_08, moderate_g2_13, heavy_g2_05 and moderate_g1_22. One, moderate_g1_15, has an UNPLACED PARTNER.
+    - The likely cause is that the live collector joined the group through partners outside the snapshot set. This is unverified.
+    - Against the sealed counts, 11–50 is 6 states thinner and 51–100 is 1 thinner.
+    - 45393 and 41168 were recaptured (`gate_k1_recapture`, both 11–50) and counted once.
+    - The retry share is 2/200 = 1 %, and no retry state is in the main mean. `rows_all.jsonl` holds the 193 first captures plus 1 retry row, moderate_g1_06#r1.
+  - **Mean regret** is (RTT(hand) − RTT(ILS)) / RTT(ILS). The kill bar is a mean ≥ 1 %, and it fires on both means.
+
+    | | n | mean (captured) | mean (7 imputed at bucket max) |
+    |---|---|---|---|
+    | pooled | 193 | 165.4 % | 298.4 % |
+    | 11–50 | 144 | 204.5 % | 376.5 % |
+    | 51–100 | 39 | 61.8 % | 78.7 % |
+    | 101–226 | 10 | 5.3 % | 5.3 % |
+
+    - Pooled: median 6.5 %, p90 353.7 %. 45.1 % of states are within 1 %, and ILS is worse than the hand in 10.9 %.
+  - **Task-weighted** (S7's figures, not re-derived here): Σ hand 18,868 s against Σ ILS 13,610 s, which is 38.6 % (2.92 against 2.10 s per task, over 6,468 tasks).
+    - The 143 states at ≤ 100 % average 12.9 %.
+    - The 50 states above 100 % hold 31.1 % of hand RTT and 1,293 tasks.
+  - **Mechanism: GAP-IS-CO-LOCATION.** The large regrets are peer exchange.
+    - Example, heavy_g0_05 (18 tasks): the hand takes 207 s, of which 202.3 s is exchange, because 18 of 33 in-batch pairs cross nodes (538 MB). ILS takes 4.5 s with every pair on one node.
+    - 9 of the top 10 states show the same pattern.
+    - Both search the same per-task candidate set (mean 7.6), so the gap is search, not a slate the hand never offers.
+  - **Plan identity.**
+    - Inferred from outcome reproduction: on the top 10, replayed hand RTT is 0.9956–0.9998 of the live `tasks.npy`, and the sorted per-task vectors agree within 0.075 s.
+    - Proven on 5 states (3 `idchosen` + 2 recaptured), where the served plan is bit-equal (`chosen_check` match 2 in `k1b_read.json`).
+    - For groups of 53–101 tasks the fidelity ratio is 0.95–0.98.
+  - **Caveat: MYOPIC-REPLAY.** The replay holds only the group's own tasks at t = 0 and sees no later arrival. This is what sank `rollout_imitation_v1` live, so the K1(b) regret is an offline gap, not a live one.
+  - Checked against `k1b_read.json` at filing: the pooled and per-bucket n, the means, imputed means, median, p90, within-1 % and ILS-worse shares, `kill_K1b_mean_ge_1pct`, the unreplayable list and causes, and the 193 + 7 accounting. The task-weighted figures and the mechanism example are S7's and were not re-derived.
+
 - 2026-10-13 — **K1(a) PASS: `cd_ib0` decides at both rungs, and `cd` agrees** (S5; `gate_k1`, pin 1929fd3c, `cd`/`cd_ib0` at 33629f1f; seed 0, 12 topologies × g0–g3, LIMIT 14,400 s). K1(b) is with S7 (`cd_ib0` at both rungs, plus the recapture cells for 45393 / 41168), and its read follows.
   - **Units.** Every decision share below is in percent; the bar is 3 %. The reader's fractions are heavy 9.5e-05 and moderate 6.3e-05, which is 0.0095 % and 0.0063 %.
   - **Decision share** = (`sched_queue_wait_seconds` + `sched_busy_seconds`) / `num_tasks` ÷ mean latency. Each entry gives the median [max] over finished cells, whole run and after 360 s. Cell counts are finished / projection-killed / stalled, of 48.
