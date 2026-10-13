@@ -58,6 +58,15 @@ def test_missing_contract_fails(src):
         S.main(args(t, ck, ig, md5, split))
 
 
+def test_duplicate_md5_across_keys_fails(src):
+    t, ck, ig, md5, split = src
+    want = json.loads(md5.read_text())
+    want["mlp_same|s2"] = want["mlp_same|s1"]
+    md5.write_text(json.dumps(want))
+    with pytest.raises(SystemExit, match="several keys"):
+        S.main(args(t, ck, ig, md5, split))
+
+
 def test_existing_dest_fails(src):
     t, ck, ig, md5, split = src
     (t / "in").mkdir()
