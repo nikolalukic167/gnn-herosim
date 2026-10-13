@@ -110,3 +110,104 @@ def test_harness_names_the_ib0_expansion_arms():
     assert "GNN_CD_SEED" in G.ORACLE_ENV
     src = open(G.__file__).read()
     assert 'env["GNN_CD_SEED"] = "hand"' in src and "HEROSIM_PG_CD_EXPANSION=\"1\", **ib0_alpha(kind))" in src
+
+
+# ---- full-coverage oracle: the replay-scored local search on over-cap batches ----
+from test_plan_oracle import SNAP, StubOracle, _oracle_shell  # noqa: E402
+
+TOGETHER_C = ((3, 33), (3, 33))
+A_C, A_B, SPLIT = ((1, 11), (3, 33)), ((1, 11), (2, 22)), ((1, 11), (2, 22))
+
+
+def _search_shell(monkeypatch, labels, budget=None, ib0=False):
+    monkeypatch.setenv(S.PG_ORACLE_SEARCH_ENV, "1")
+    if budget is not None:
+        monkeypatch.setenv(S.PG_ORACLE_SEARCH_BUDGET_ENV, str(budget))
+    if ib0:
+        monkeypatch.setenv(S.PG_BATCH_ALPHA_ENV, "0")
+    return _oracle_shell(monkeypatch, labels, max_plans=4)   # 3 x 3 = 9 slate plans: over the cap of 4
+
+
+def test_search_descends_from_the_surrogates_plan_to_the_replay_optimum(monkeypatch):
+    # S puts both on C (label 9); moving task 0 to A gives 8, then task 1 to B gives 5: two steps, no single move reaches 5 from C-C
+    s, tasks, state = _search_shell(monkeypatch, {TOGETHER_C: 9.0, A_C: 8.0, A_B: 5.0})
+    assert s._pg_decide(tasks, state) == {0: (1, 11), 1: (2, 22)}
+    assert (s.pg_oracle_search_batches, s.pg_oracle_search_tasks, s.pg_oracle_search_steps, s.pg_oracle_search_improved) == (1, 2, 2, 1)
+    assert s.pg_oracle_search_gain_seconds == pytest.approx(4.0) and s.pg_oracle_search_exhausted == 0
+    assert (s.pg_oracle_batches, s.pg_oracle_over_cap_batches, s.pg_oracle_seen_batches) == (0, 0, 1)   # books: seen = served + searched + over cap + unplaced
+    assert s.pg_oracle_search_replays >= 4   # the incumbent plus the neighbours of each round
+
+
+def test_search_keeps_the_surrogates_plan_at_a_local_optimum_and_counts_it(monkeypatch):
+    s, tasks, state = _search_shell(monkeypatch, {TOGETHER_C: 1.0})   # everything else replays at 50
+    assert s._pg_decide(tasks, state) == {0: (3, 33), 1: (3, 33)}
+    assert (s.pg_oracle_search_batches, s.pg_oracle_search_steps, s.pg_oracle_search_improved) == (1, 0, 0)
+    assert s.pg_oracle_search_gain_seconds == 0.0
+
+
+def test_search_stops_at_the_replay_budget(monkeypatch):
+    s, tasks, state = _search_shell(monkeypatch, {TOGETHER_C: 9.0, A_C: 8.0, A_B: 5.0}, budget=1)
+    assert s._pg_decide(tasks, state) == {0: (3, 33), 1: (3, 33)}   # only the incumbent was replayed
+    assert (s.pg_oracle_search_replays, s.pg_oracle_search_exhausted, s.pg_oracle_search_steps) == (1, 1, 0)
+
+
+def test_search_passes_an_unlabellable_batch_through_and_counts_it(monkeypatch):
+    s, tasks, state = _search_shell(monkeypatch, {TOGETHER_C: 9.0, A_C: 8.0, A_B: 5.0})
+    monkeypatch.setattr("src.placement.live_audit.capture_batch_snapshot",
+                        lambda *a, **k: {"fidelity": {"peers": {"0": [[99, None, 1.0]]}, "future": {}}})
+    assert s._pg_decide(tasks, state) == {0: (3, 33), 1: (3, 33)}
+    assert (s.pg_oracle_search_batches, s.pg_oracle_unplaced_batches, s.pg_oracle_unplaced_tasks, s.pg_oracle_seen_batches) == (0, 1, 2, 1)
+
+
+def test_search_flag_off_is_phase_0s_over_cap_fallback(monkeypatch):
+    monkeypatch.delenv(S.PG_ORACLE_SEARCH_ENV, raising=False)
+    s, tasks, state = _oracle_shell(monkeypatch, {A_B: 0.0}, max_plans=4)
+    assert s._pg_decide(tasks, state) == {0: (3, 33), 1: (3, 33)}
+    assert (s.pg_oracle_over_cap_batches, s.pg_oracle_search_batches, s._plan_oracle.calls) == (1, 0, 0)
+
+
+def test_search_needs_the_oracle(monkeypatch):
+    _clear(monkeypatch)
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_ORACLE_SEARCH_ENV, "1")
+    with pytest.raises(RuntimeError, match="FAIL LOUD"):
+        _shell(monkeypatch)
+
+
+def test_harness_serves_the_ib0_oracle():
+    assert G.RULE_POLICY["cd_oracle_ib0"] == "peer_greedy_network_cd" and "cd_oracle_ib0" in G.R1A_DIAG and "cd_oracle_ib0" in G.R1A_ARMS
+    assert G.ib0_alpha("cd_oracle_ib0") == {"HEROSIM_PG_BATCH_ALPHA": "0"} and G.check_alias("cd_oracle_ib0") == "cd_oracle"
+    assert {"HEROSIM_PG_ORACLE_SEARCH", "HEROSIM_PG_ORACLE_SEARCH_BUDGET"} <= set(G.ORACLE_ENV)
+
+
+def test_cost_prune_accepts_alpha_on_plain_cd_and_gnn_prune_does_not(monkeypatch):
+    """decision_cost_s0_v1: cd_exactS_ib0_prune (alpha 0 + cost-ordered prune on the plain CD) is defined; the GNN-ranked prune and the GNN-scored exact search are not."""
+    _clear(monkeypatch)
+    monkeypatch.setenv(S.PG_BATCH_ALPHA_ENV, "0")
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "cost")
+    s, _t, _st = _shell(monkeypatch)
+    assert s.pg_alpha_on and s.pg_cd_exact and s.pg_cd_exact_prune == "cost"
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "gnn")
+    with pytest.raises(RuntimeError, match="FAIL LOUD"):
+        _shell(monkeypatch)
+
+
+def test_alpha_unset_prune_alone_is_unchanged(monkeypatch):
+    _clear(monkeypatch)
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "cost")
+    s, _t, _st = _shell(monkeypatch)
+    assert not s.pg_alpha_on and s.pg_cd_exact_prune == "cost"
+
+
+def test_dc_suffix_and_new_hand_arms_in_the_harness():
+    assert G.split_dc("cd_exactS_ib0_k025") == ("cd_exactS_ib0", 0.25)
+    assert G.split_dc("ra_gnn_eng_cdxapply_k100") == ("ra_gnn_eng_cdxapply", 1.0)
+    assert G.split_dc("cd_exactS_ib0") == ("cd_exactS_ib0", None)
+    for k in ("cd_ib0", "cd_exactS_ib0_prune"):
+        assert k in G.R1A_ARMS and G.RULE_POLICY[k] == "peer_greedy_network_cd"
+    assert G.ib0_alpha("cd_ib0") == {"HEROSIM_PG_BATCH_ALPHA": "0"} and G.check_alias("cd_ib0") == "cd"
+    assert G.EXACT_ALPHA["cd_exactS_ib0_prune"] == {"HEROSIM_PG_BATCH_ALPHA": "0"}

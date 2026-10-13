@@ -27,7 +27,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from capped_log import cap_bytes, run_logged
 import progress_watchdog as pw
@@ -62,7 +62,10 @@ RULE_POLICY = {
     **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
         "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
         "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
+    "cd_ib0": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: plain CD greedy on the ib0 surrogate (HEROSIM_PG_BATCH_ALPHA=0)
+    "cd_exactS_ib0_prune": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: cd_exactS_ib0 with cost-ordered top-k pruning of over-cap batches (HEROSIM_PG_CD_EXACT_PRUNE=cost)
     "cd_exactS_ib0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with only the in-batch stacking term zeroed (HEROSIM_PG_BATCH_ALPHA=0)
+    "cd_oracle_ib0": "peer_greedy_network_cd",  # ib0_confirm_v1 full-coverage oracle: the ib0 surrogate's plan, the exact label on covered batches, a replay-scored local search on over-cap ones
     "cd_oracle": "peer_greedy_network_cd",  # plan_rerank_v1 Phase 0: cd_exactS with the exact search scored by the real single-batch RTT (HEROSIM_PG_ORACLE=1); a measurement arm
     "cd_random_seed": "peer_greedy_network_cd_random_seed",  # r1_attribution_v1 CD<-random: random plan in the declared slate, then CD<-GNN's refine
     "decima": "decima_wfair_network",  # decima_rule_v1: alpha from the driver's HEROSIM_DECIMA_ALPHA (the tuned value)
@@ -152,7 +155,8 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
-EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"}}  # plan_rerank_v1 S_alpha arms
+EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"},
+               "cd_exactS_ib0_prune": {"HEROSIM_PG_BATCH_ALPHA": "0"}}  # plan_rerank_v1 S_alpha arms; decision_cost_s0_v1 prune arm
 _BUNDLE = {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_PARTNERS": "arrival"}
 OBS_ARMS = {  # sparse_obs_s0_v1 degradations (the estimator is the naive/ec arm); every one searches exactly as cd_exactS_ib0
     "cd_obs_queue_naive": {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_ESTIMATOR": "naive"},
@@ -168,23 +172,51 @@ OBS_ARMS = {  # sparse_obs_s0_v1 degradations (the estimator is the naive/ec arm
 }
 OBS_ENV = ("HEROSIM_OBS_QUEUE", "HEROSIM_OBS_EXEC_SIGMA", "HEROSIM_OBS_INFLIGHT", "HEROSIM_OBS_PARTNERS", "HEROSIM_OBS_WARM", "HEROSIM_PG_COLD_TAIL", "HEROSIM_OBS_ESTIMATOR", "HEROSIM_OBS_SEED")
 EXACT_ALPHA.update({k: {"HEROSIM_PG_BATCH_ALPHA": "0"} for k in OBS_ARMS})  # sparse_obs_s0_v1
-ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
+ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_PG_ORACLE_SEARCH", "HEROSIM_PG_ORACLE_SEARCH_BUDGET", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
 
 
 def ib0_alpha(kind: str) -> dict:
     """ib0_confirm_v1: the batch alpha the expansion arms on the ib0 surrogate must serve (none for every other arm)."""
-    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind == "cdx_ib0" or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
+    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
 def check_alias(kind: str) -> str:
     """ib0_confirm_v1: the registered arm whose instrument checks an ib0-surrogate expansion arm shares (the alpha and seed are checked on top)."""
     if kind == "cdx_ib0":
         return "cd_expand"
+    if kind == "cd_oracle_ib0":
+        return "cd_oracle"
+    if kind == "cd_ib0":
+        return "cd"
     for suffix in ("_cdxib0", "_cdxhib0"):
         if kind.endswith(suffix):
             return kind[:-len(suffix)] + "_cdxapply"
     return kind
-R1A_DIAG = (*OBS_ARMS, "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cdx_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+# decision_cost_s0_v1 (Amendment 3): a cell kind "<arm>_k<centi>" serves <arm> with the scheduler's decision time charged as simulated time, arm-calibrated:
+# t_batch = k * w[arm][rung] ms * plans_evaluated, so HEROSIM_DECISION_COST_MS = k * w (src/placement/decision_cost.py). w is the measured wall ms per plan,
+# fixed in scripts_cosim/decision_cost_w.json before any cell counts. The file name keeps the suffix; every arm check runs on the base arm.
+DC_K = {"k025": 0.25, "k050": 0.5, "k100": 1.0, "k200": 2.0}
+DC_W_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decision_cost_w.json")
+
+
+def split_dc(kind: str) -> Tuple[str, Optional[float]]:
+    for tag, k in DC_K.items():
+        if kind.endswith("_" + tag):
+            return kind[:-len(tag) - 1], k
+    return kind, None
+
+
+def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[str]:
+    """The per-plan cost (ms, as the env string) cell `kind` at rung serves under k: k x the arm's calibrated w. None when k is not set."""
+    if k is None:
+        return None
+    w = json.load(open(DC_W_FILE))["w_ms_per_plan"]
+    if kind not in w or rung not in w[kind]:
+        raise SystemExit(f"FAIL LOUD: no calibrated w (ms per plan) for {kind!r} at rung {rung!r} in {DC_W_FILE}")
+    return repr(k * float(w[kind][rung]))
+
+
+R1A_DIAG = (*OBS_ARMS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
@@ -443,12 +475,12 @@ def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
     wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
     arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX)).split(",") if k]
     seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
-    unknown = [k for k in arms if k not in R1A_ARMS]
+    unknown = [k for k in arms if split_dc(k)[0] not in R1A_ARMS]
     if unknown:
         raise SystemExit(f"FAIL LOUD: R1A_ARMS {unknown}; arms are {R1A_ARMS}")
     single = R1A_CLASSICAL + R1A_DIAG
-    cells = [task(t, f"{w}{tag}", k, 0 if k in single else sd)
-             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if k in single else seeds)]
+    cells = [task(t, f"{w}{tag}", k, 0 if split_dc(k)[0] in single else sd)
+             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if split_dc(k)[0] in single else seeds)]
     shard = os.environ.get("R1A_SHARD", "")
     if shard:
         i, n = (int(x) for x in shard.split("/"))
@@ -769,6 +801,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if os.path.exists(summary) or os.path.exists(failed):
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
+    kind, dc_k = split_dc(kind)
+    dc_ms = dc_cost_ms(kind, dc_k, window[2:])
     if R1A_ON:
         state = pw.rung_state(out_dir, window[2:])
         if pw.paused(state):
@@ -807,6 +841,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         env.pop(k, None)
     for k in OBS_ENV:
         env.pop(k, None)
+    env.pop("HEROSIM_DECISION_COST_MS", None)
+    if dc_ms is not None:
+        env["HEROSIM_DECISION_COST_MS"] = dc_ms
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
@@ -915,7 +952,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
@@ -937,6 +974,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_CD_EXPANSION"] = "1"
         if kind == "cdx_ib0":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1", HEROSIM_PG_CD_EXPANSION="1", **ib0_alpha(kind))
+        if kind == "cd_oracle_ib0":
+            env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1", HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1",
+                       HEROSIM_PG_ORACLE_SEARCH="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
+                       HEROSIM_ORACLE_SIM_INPUT=os.path.join(REPO, "data/nofs-ids"), HEROSIM_ORACLE_WORKERS=os.environ.get("R1A_ORACLE_WORKERS", "8"), **ib0_alpha(kind))
+            env["ORACLE_DIAG_DIR"] = os.path.join(out_dir, "oracle_diag", name)
+            for src_env, dst in (("R1A_ORACLE_MAX_PLANS", "HEROSIM_PG_ORACLE_MAX_PLANS"), ("R1A_ORACLE_SEARCH_BUDGET", "HEROSIM_PG_ORACLE_SEARCH_BUDGET")):
+                if os.environ.get(src_env):
+                    env[dst] = os.environ[src_env]
         if kind == "cd_exactS":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")
         if kind in EXACT_ALPHA:
@@ -945,6 +990,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(OBS_ARMS[kind])
             if "HEROSIM_OBS_ESTIMATOR" in OBS_ARMS[kind]:
                 env["HEROSIM_OBS_SEED"] = str(seed)
+        if kind == "cd_exactS_ib0_prune":
+            env["HEROSIM_PG_CD_EXACT_PRUNE"] = "cost"
+        if kind == "cd_ib0":
+            env.update(ib0_alpha(kind))
         if kind == "cd_oracle":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
                        HEROSIM_ORACLE_SIM_INPUT=os.path.join(REPO, "data/nofs-ids"),
@@ -1024,6 +1073,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["queue_drift"] = drift
     out["code"] = (doc.get("run_provenance") or {}).get("code")
+    out["python_env"] = (doc.get("run_provenance") or {}).get("python_env")  # the raw JSON is deleted at job exit; PARITY.md reads the interpreter from here
+    out["env_fingerprint"] = (doc.get("run_provenance") or {}).get("env_fingerprint")
     n = out.get("num_tasks")
     problems = []
     orig_kind, kind = kind, check_alias(kind)
@@ -1085,7 +1136,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
     expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) or kind == "cd_expand"
-    prune_kind = kind.endswith(("_cdxpra", "_cdxprb"))
+    prune_kind = kind.endswith(("_cdxpra", "_cdxprb")) or kind == "cd_exactS_ib0_prune"
     if prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) != 0):
         # the prune arms run the expansion only as a dry counterfactual whose counters are restored; applied expansion must read 0
         problems.append(f"prune arm expansion flag/counter wrong: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')} (want 0)")
@@ -1129,8 +1180,19 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(var)
         if out["env"].get(var) != want:
             problems.append(f"{var} served {out['env'].get(var)!r}, want {want!r} for {kind}")
+    # decision_cost_s0_v1: the cost served is the cost named, the plan counter always runs, the scheduler server's books exist exactly when c > 0
+    served_dc = out["env"].get("HEROSIM_DECISION_COST_MS")
+    if (float(served_dc) if served_dc else None) != (float(dc_ms) if dc_ms else None):  # dc_ms is k x w for this arm and rung
+        problems.append(f"HEROSIM_DECISION_COST_MS served {served_dc!r}, want {dc_ms!r}")
+    if int(c.get("sched_plan_evals") or 0) == 0 and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
+        problems.append("plan-evaluation meter off: sched_plan_evals == 0")
+    charged = int(c.get("sched_batches_charged") or 0)
+    if dc_ms and (charged == 0 or float(c.get("sched_busy_seconds") or 0) <= 0):
+        problems.append(f"scheduler server idle at c = {dc_ms}: sched_batches_charged {charged}, sched_busy_seconds {c.get('sched_busy_seconds')}")
+    if not dc_ms and (charged or c.get("sched_busy_seconds")):
+        problems.append("scheduler server charged time at c = 0")
     exact_arm = kind in ("cd_exactS", "cd_oracle", *EXACT_ALPHA) or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb"))
-    prune_arm = kind.endswith(("_cdxpra", "_cdxprb"))
+    prune_arm = kind.endswith(("_cdxpra", "_cdxprb")) or kind == "cd_exactS_ib0_prune"
     if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     want_prune = "gnn" if kind.endswith("_cdxpra") else "cost"
@@ -1153,8 +1215,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
         if out["env"].get("HEROSIM_PG_ORACLE") != "1" or int(c.get("pg_oracle_batches") or 0) == 0:
             problems.append(f"oracle instrument off: HEROSIM_PG_ORACLE={out['env'].get('HEROSIM_PG_ORACLE')!r}, pg_oracle_batches {c.get('pg_oracle_batches')}")
-        if int(c.get("pg_oracle_seen_batches") or 0) != int(c.get("pg_oracle_batches") or 0) + int(c.get("pg_oracle_over_cap_batches") or 0) + int(c.get("pg_oracle_unplaced_batches") or 0):
-            problems.append(f"oracle books do not close: seen {c.get('pg_oracle_seen_batches')} != served {c.get('pg_oracle_batches')} + over cap {c.get('pg_oracle_over_cap_batches')} + unplaced {c.get('pg_oracle_unplaced_batches')}")
+        if int(c.get("pg_oracle_seen_batches") or 0) != int(c.get("pg_oracle_batches") or 0) + int(c.get("pg_oracle_over_cap_batches") or 0) + int(c.get("pg_oracle_unplaced_batches") or 0) + int(c.get("pg_oracle_search_batches") or 0):
+            problems.append(f"oracle books do not close: seen {c.get('pg_oracle_seen_batches')} != served {c.get('pg_oracle_batches')} + over cap {c.get('pg_oracle_over_cap_batches')} + unplaced {c.get('pg_oracle_unplaced_batches')} + searched {c.get('pg_oracle_search_batches')}")
+        want_search = orig_kind == "cd_oracle_ib0"
+        if (out["env"].get("HEROSIM_PG_ORACLE_SEARCH") == "1") != want_search or bool(int(c.get("pg_oracle_search_batches") or 0)) != want_search:
+            problems.append(f"over-cap search: HEROSIM_PG_ORACLE_SEARCH={out['env'].get('HEROSIM_PG_ORACLE_SEARCH')!r}, searched {c.get('pg_oracle_search_batches')}, want {want_search}")
     elif out["env"].get("HEROSIM_PG_ORACLE") or int(c.get("pg_oracle_batches") or 0):
         problems.append("a non-oracle arm ran the live oracle")
     if kind == "cd_random_seed":

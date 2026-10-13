@@ -71,7 +71,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
     "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
     "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
-    "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks",
+    "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks", "pg_oracle_search_batches", "pg_oracle_search_tasks", "pg_oracle_search_replays", "pg_oracle_search_steps", "pg_oracle_search_improved", "pg_oracle_search_gain_seconds", "pg_oracle_search_exhausted", "pg_oracle_search_seconds",
 )
 
 # cd_gap_v1 D1 (2026-09-25): a DISCLOSED probe knob for the batched flavours only. A partner outside
@@ -167,6 +167,8 @@ PG_BATCH_ALPHA_ENV = "HEROSIM_PG_BATCH_ALPHA"
 PG_COLD_TAIL_ENV = "HEROSIM_PG_COLD_TAIL"
 PG_ORACLE_ENV = "HEROSIM_PG_ORACLE"
 PG_ORACLE_MAX_PLANS_ENV = "HEROSIM_PG_ORACLE_MAX_PLANS"
+PG_ORACLE_SEARCH_ENV = "HEROSIM_PG_ORACLE_SEARCH"  # ib0_confirm_v1: over-cap batches get a replay-scored local search seeded from the surrogate's plan
+PG_ORACLE_SEARCH_BUDGET_ENV = "HEROSIM_PG_ORACLE_SEARCH_BUDGET"  # replays per batch (default 1500)
 PG_CD_EXACT_MAX_PLANS_ENV = "HEROSIM_PG_CD_EXACT_MAX_PLANS"  # default 100000, the declared pruning's cap
 PG_CD_EXACT_TOP_K_ENV = "HEROSIM_PG_CD_EXACT_TOP_K"  # default 5, the declared pruning's slate width
 # cd_exactS_gnn (HEROSIM_PG_CD_EXACT_GNN=1, gnn_cd_refine only): S-ties among the exact plans (and the pass plan when it ties) are broken by the
@@ -194,7 +196,7 @@ PG_EXACT_COUNTERS = ("pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_
                      "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
                      "pg_exact_prune_kept_pass", "pg_exact_prune_tasks_moved", "pg_exact_prune_gain_fb_seconds", "pg_exact_prune_gain_pass_seconds",
                      "pg_exact_prune_set_differs", "pg_exact_prune_k3", "pg_exact_prune_k4", "pg_exact_prune_kother",
-                     "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks")
+                     "pg_oracle_batches", "pg_oracle_tasks", "pg_oracle_plans", "pg_oracle_changed", "pg_oracle_tasks_moved", "pg_oracle_gain_seconds", "pg_oracle_seconds", "pg_oracle_seen_batches", "pg_oracle_seen_tasks", "pg_oracle_over_cap_batches", "pg_oracle_over_cap_tasks", "pg_oracle_unplaced_batches", "pg_oracle_unplaced_tasks", "pg_oracle_search_batches", "pg_oracle_search_tasks", "pg_oracle_search_replays", "pg_oracle_search_steps", "pg_oracle_search_improved", "pg_oracle_search_gain_seconds", "pg_oracle_search_exhausted", "pg_oracle_search_seconds")
 PG_SEARCH_COUNTERS = PG_EXPAND_COUNTERS + PG_EXACT_COUNTERS
 
 
@@ -267,6 +269,9 @@ def _require_peer_physics(policy_name: str) -> None:
             f"FAIL LOUD: {policy_name} scores peer exchange but HEROSIM_PEER_EXCHANGE is not 1; "
             "the simulator would never charge the term the rule optimises"
         )
+
+
+from src.placement.decision_cost import meter as _meter
 
 
 class _PeerGreedyCore:
@@ -365,6 +370,10 @@ class _PeerGreedyCore:
                 raise ValueError(f"FAIL LOUD: {name} must be in [0, 1], got {v}")
         self.pg_alpha_on = (self.pg_drain_alpha, self.pg_batch_alpha) != (1.0, 1.0)
         self.pg_oracle_max_plans = _pg_int(PG_ORACLE_MAX_PLANS_ENV, 625)
+        self.pg_oracle_search = _pg_flag(PG_ORACLE_SEARCH_ENV)
+        self.pg_oracle_search_budget = _pg_int(PG_ORACLE_SEARCH_BUDGET_ENV, 1500)
+        if self.pg_oracle_search and not self.pg_oracle:
+            raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_SEARCH_ENV}=1 needs {PG_ORACLE_ENV}=1")
         self.pg_shared_link = _pg_flag(PG_SHARED_LINK_ENV)
         if self.pg_shared_link and not (self._pg_batched and self.exchange_on):
             raise RuntimeError(f"FAIL LOUD: {PG_SHARED_LINK_ENV}=1 prices a batch's pairs over shared links: it needs a batched flavour with peer exchange; "
@@ -390,10 +399,12 @@ class _PeerGreedyCore:
             raise RuntimeError(f"FAIL LOUD: {PG_CD_EXACT_PRUNE_ENV} needs {PG_CD_EXACT_ENV}=1")
         # ib0_confirm_v1: also the expansion refines on the surrogate -- plain CD (cd_expand flow) and the GNN-seeded refiner (cdxapply) -- never with the
         # exact search under the refiner, the GNN-scored exact search or the prune
-        alpha_ok = (self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune) or (
+        # decision_cost_s0_v1: the cost-ordered prune (not the GNN-ranked one, which needs the refiner) is defined on the surrogate too: its slate cut is the standalone
+        # cost order (never alpha-scaled) and every plan it enumerates is scored by `_pg_plan_cost`, which applies the alphas
+        alpha_ok = (self._policy_label == "peer_greedy_network_cd" and not self.pg_cd_exact_gnn and self.pg_cd_exact_prune in ("", "cost")) or (
             self._policy_label == "gnn_cd_refine" and not self.pg_cd_exact and not self.pg_cd_exact_gnn and not self.pg_cd_exact_prune)
         if self.pg_alpha_on and not alpha_ok:
-            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd (not with the GNN-scored exact search or the prune) "
+            raise RuntimeError(f"FAIL LOUD: {PG_DRAIN_ALPHA_ENV}/{PG_BATCH_ALPHA_ENV} != 1 are defined for peer_greedy_network_cd (not with the GNN-scored exact search or the GNN-ranked prune) "
                                f"and for gnn_cd_refine without the exact search; {self._policy_label}")
         if self.pg_oracle and (not self.pg_cd_exact or self._policy_label != "peer_greedy_network_cd" or self.pg_cd_exact_gnn or self.pg_cd_exact_prune):
             raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_ENV}=1 is defined for peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1 alone; {self._policy_label}")
@@ -519,6 +530,7 @@ class _PeerGreedyCore:
     ) -> Tuple["Node", "Platform", float]:
         """Argmin of S over `candidates`; returns the couple and the service seconds the task
         adds to its platform's backlog (for in-batch commitments)."""
+        _meter(self, len(candidates))
         peer_nodes = self._pg_peer_nodes(task, orch, planned) if self.exchange_on else []
         comm = _approx_comm(task.type)
         scored = []
@@ -856,6 +868,7 @@ class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
         planned: Dict[int, str],
         nodes,
     ) -> Tuple["Node", "Platform", float]:
+        _meter(self, len(candidates))
         if getattr(self, "pg_pull_hold", False):
             raise ValueError(f"FAIL LOUD: {PG_PULL_HOLD_ENV}=1 is priced by the hand rule only; the learned scorer has no such term")
         peer_nodes = self._pg_peer_nodes(task, orch, planned) if self.exchange_on else []
@@ -1053,6 +1066,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         state recomputed from the plan itself: every partner's node is the plan's, and the backlog a task sees on its platform
         is the platform's drain plus the service (exec + I/O + exchange) of every OTHER batch task the plan puts there.
         Returns (sum of S, per-task service, per-task S). No counters: this is the expansion's objective, not a decision."""
+        _meter(self, 1)
         n = len(batch_tasks)
         planned = {int(batch_tasks[i].id): plan[i][0].node_name for i in range(n)}
         # _pg_peer_nodes keeps the partner books of the DECISIONS; a scored trial plan is not one, so they are restored
@@ -1295,6 +1309,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
     def _pg_standalone(self, task: "Task", node: "Node", platform: "Platform", orch, memo: Dict[str, float], nodes) -> float:
         """A task's S on a couple with no partner known and nothing committed: drain + cold + exec + latency, the terms the declared
         pruning ranks candidates by (src/placement/declared_slate.py), computed as `_pg_choose` computes them."""
+        _meter(self, 1)
         xf = self._pg_xf(platform)
         drain = self._pg_drain(platform, orch, memo, xf)
         if self.pg_inflight:
@@ -1339,7 +1354,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         if self.pg_oracle:
             self.pg_oracle_seen_batches += 1
             self.pg_oracle_seen_tasks += n
-            if total > self.pg_oracle_max_plans:
+            if total > self.pg_oracle_max_plans and not self.pg_oracle_search:
                 self.pg_oracle_over_cap_batches += 1
                 self.pg_oracle_over_cap_tasks += n
         if n < 2 and not (self.pg_oracle and total <= self.pg_oracle_max_plans):
@@ -1348,7 +1363,14 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             self.pg_exact_fallbacks += 1
             if self.pg_cd_exact_prune:
                 return self._pg_exact_pruned(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of, tops, plan)
-            return self._pg_expand(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of) if self.pg_cd_expansion else 0
+            moved = self._pg_expand(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of) if self.pg_cd_expansion else 0
+            if self.pg_oracle_search and n >= 2:
+                # the expansion's plan is the surrogate's plan for this batch; the search starts from it
+                held = self._pg_plan_objects(batch_tasks, system_state, placements)[3]   # the books already hold the expansion's plan: moves count from it
+                found = self._pg_oracle_search(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of, slates, held, held)
+                if found:
+                    return found
+            return moved
         self.pg_exact_batches += 1
         self.pg_exact_plans += total
         cur, _service, _scores = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)
@@ -1371,6 +1393,11 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                                "slate": [len(sl) for sl in slates], "pass_rank": diag_ranks, "k": self.pg_cd_exact_top_k})
         ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
         keep_pass = best_cost >= cur - 1e-9
+        if self.pg_oracle_search and total > self.pg_oracle_max_plans:
+            found = self._pg_oracle_search(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of, slates, plan,
+                                           plan if keep_pass else best_plan)
+            if found is not None:
+                return found
         if self.pg_oracle and total <= self.pg_oracle_max_plans:
             moved = self._pg_oracle_apply(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of,
                                           slates, plan, plan if keep_pass else best_plan)
@@ -1478,6 +1505,104 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             return 0
         self.pg_exact_tasks_moved += moved
         self._pg_write_books(batch_tasks, best, orch, memo, committed_service, planned, placements, service_of)
+        return moved
+
+    def _pg_oracle_search(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
+                          committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                          service_of: Dict[int, Tuple[str, float]], slates: List[List], plan: List, s_plan: List) -> int:
+        """ib0_confirm_v1 full-coverage oracle, over-cap batches (HEROSIM_PG_ORACLE_SEARCH=1): steepest-descent local search on the real single-batch
+        RTT of a fidelity replay, seeded from `s_plan` (what the surrogate's exact search or expansion chose). A round replays every unseen neighbour of the
+        incumbent in one pool call: each single-task move to a slate couple, and each label move (all tasks whose slate holds the couple go to it, up to the
+        expansion's mover limit). The best strictly cheaper neighbour becomes the incumbent; the search stops at a local optimum or when
+        `HEROSIM_PG_ORACLE_SEARCH_BUDGET` replays are spent. A lower bound on the label headroom, never an upper one. Returns the tasks moved off the pass
+        plan, or None when the batch cannot be labelled (a partner outside the batch not yet placed), where the surrogate's choice stands."""
+        from src.placement import plan_oracle
+        from src.placement.live_audit import capture_batch_snapshot
+
+        t0 = default_timer()
+        n = len(batch_tasks)
+        ident = lambda pl: tuple((int(c[0].id), int(c[1].id)) for c in pl)
+        if getattr(self, "_plan_oracle", None) is None:
+            self._plan_oracle = plan_oracle.PlanOracle()
+        snapshot = capture_batch_snapshot(self, system_state, batch_tasks, self._live_audit_policy_name)
+        fid = snapshot["fidelity"]
+        future = fid.get("future") or {}
+        if any(node is None and str(other) not in future for row in (fid.get("peers") or {}).values() for other, node, _p in row):
+            self.pg_oracle_unplaced_batches += 1
+            self.pg_oracle_unplaced_tasks += n
+            return None
+        order = sorted(range(n), key=lambda i: int(batch_tasks[i].id))
+        types = [batch_tasks[i].type["name"] for i in order]
+        couples = {}
+        for i in range(n):
+            for c in list(slates[i]) + [s_plan[i]]:
+                couples[(int(c[0].id), int(c[1].id))] = c
+        allowed = [{(int(c[0].id), int(c[1].id)) for c in slates[i]} | {ident([s_plan[i]])[0]} for i in range(n)]
+        labels: Dict[tuple, float] = {}
+        replays = 0
+
+        def evaluate(plans):
+            nonlocal replays
+            fresh, seen = [], set()
+            for p in plans:
+                key = ident(p)
+                if key not in labels and key not in seen:
+                    seen.add(key)
+                    fresh.append(p)
+            fresh = fresh[:max(0, self.pg_oracle_search_budget - replays)]
+            if fresh:
+                got = self._plan_oracle.labels(snapshot, types, [[(int(c[i][0].id), int(c[i][1].id)) for i in order] for c in fresh])
+                replays += len(fresh)
+                for p, lab in zip(fresh, got):
+                    labels[ident(p)] = lab
+
+        cur = list(s_plan)
+        evaluate([cur])
+        s_label = labels[ident(cur)]
+        cur_label, steps = s_label, 0
+        while True:
+            neigh = []
+            for i in range(n):
+                for key in sorted(allowed[i]):
+                    if key != ident([cur[i]])[0]:
+                        nb = list(cur)
+                        nb[i] = couples[key]
+                        neigh.append(nb)
+            for key in sorted(couples):
+                movers = [i for i in range(n) if key in allowed[i] and ident([cur[i]])[0] != key]
+                if 2 <= len(movers) <= self.pg_cd_expansion_max_movers:
+                    nb = list(cur)
+                    for i in movers:
+                        nb[i] = couples[key]
+                    neigh.append(nb)
+            evaluate(neigh)
+            scored = [(labels[ident(nb)], ident(nb), nb) for nb in neigh if ident(nb) in labels]
+            if not scored:
+                break
+            lab, _key, nb = min(scored, key=lambda x: (x[0], x[1]))
+            if lab >= cur_label - 1e-9:
+                break
+            cur, cur_label, steps = nb, lab, steps + 1
+            if replays >= self.pg_oracle_search_budget:
+                break
+        exhausted = replays >= self.pg_oracle_search_budget
+        moved = sum(1 for i in range(n) if ident([cur[i]]) != ident([plan[i]]))
+        self.pg_oracle_search_batches += 1
+        self.pg_oracle_search_tasks += n
+        self.pg_oracle_search_replays += replays
+        self.pg_oracle_search_steps += steps
+        self.pg_oracle_search_improved += int(ident(cur) != ident(s_plan))
+        self.pg_oracle_search_gain_seconds += s_label - cur_label
+        self.pg_oracle_search_exhausted += int(exhausted)
+        self.pg_oracle_search_seconds += default_timer() - t0
+        if os.environ.get(plan_oracle.DIAG_DIR_ENV):
+            plan_oracle.diag_write({"t": float(self.env.now), "n": n, "search": True, "replays": replays, "steps": steps, "s_plan": list(ident(s_plan)),
+                                    "s_label": s_label, "best": list(ident(cur)), "best_label": cur_label, "exhausted": exhausted,
+                                    "wall": default_timer() - t0, "timing": getattr(self._plan_oracle, "last", None)})
+        if ident(cur) == ident(plan):
+            return 0
+        self.pg_exact_tasks_moved += moved
+        self._pg_write_books(batch_tasks, cur, orch, memo, committed_service, planned, placements, service_of)
         return moved
 
     def _pg_exact_pruned(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
