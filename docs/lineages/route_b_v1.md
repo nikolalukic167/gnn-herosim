@@ -1,6 +1,8 @@
-# route_b_v1 — ACTIVE
+# route_b_v1 — CLOSED
 
-> **Status:** `ACTIVE` (reopened 2026-09-03 by the fit-ceiling probe; Phase 2 REGISTERED 2026-09-06) &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-09-06
+> **Status:** `CLOSED` (2026-09-08) — **TIE**: message passing is redundant, not harmful (Phase 2, p = 0.25, at an honest checkpoint selector; reopened 2026-09-03, Phase 2 registered 2026-09-06) &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-25 → 2026-09-08
+
+> ⚠ **Physics (caveat added 2026-10-12).** Measured before reference physics R1.1 + WF1 (2026-10-08, `physics_audit_v1`, `workload_fix_v1`); not re-measured on it. Breaking-changes table in `docs/gates/gate-tools.md`.
 
 **Outcome.** **Stage 1 PASS** — contention + coupling produces the non-pointwise structure five mechanisms and route A could not. **Stage 2 NO-GO-PREPROBE** (2026-08-26): a GNN cannot beat pointwise-plus-prefix on this environment even at memorization. Forked to `route_b_env_pivot_v1` — **that fork was PARKED 2026-08-28** (see its closing entry), so this lineage is PARKED with it: both measured results stand, and the program's effort moved to [objective_pivot_v1](objective_pivot_v1.md) (change the training objective, not the environment).
 

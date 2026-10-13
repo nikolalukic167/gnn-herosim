@@ -224,6 +224,9 @@ class Orchestrator:
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",
             "v4_backlog_batches", "v4_backlog_nonzero",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",
+            # uncut_groups_s0_v1: tasks served whole / split by original peer-group size, and the largest batch
+            "pgb_whole_le10", "pgb_whole_11_50", "pgb_whole_51_100", "pgb_whole_gt100",
+            "pgb_split_le10", "pgb_split_11_50", "pgb_split_51_100", "pgb_split_gt100", "pgb_max_batch",
             "gnn_pure_decisions", "fallback_decisions",
             "queue_guard_decisions", "queue_guard_steps_active", "queue_guard_masked",
             "qr_batches", "qr_blind_batches", "qr_divisor_above_one_batches",
@@ -254,6 +257,12 @@ class Orchestrator:
             "decima_allowed_platforms", "decima_fallbacks",
             # lookahead_mp_v1 P0: unarrived partners priced / left unpriced
             "pg_lookahead_priced", "pg_lookahead_blind",
+            # sparse_obs_s0_v1: degraded observation channels actually used
+            "obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted",
+            "obs_cold_degraded", "obs_cold_exact", "pg_cold_tail_calls",
+            # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
+            "sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
+            "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max",
         )
         out: Dict[str, Any] = {}
         for name in names:

@@ -1,6 +1,6 @@
 # `placements/placements.jsonl` — REQUIRED (never optional)
 
-**Last Updated:** 2026-06-27  
+**Last Updated:** 2026-10-13  
 **Applies to:** all co-sim regen, transfer, repair, recache, and training pipelines
 
 > **Policy:** `placements/placements.jsonl` is **mandatory disk**, not an optional sweep artifact. **`--repair` + recache is NOT a substitute** for keeping it.
@@ -85,3 +85,23 @@ When an older corpus was generated **without** `--allow-non-unique-replicas`, JS
 | contention_v2 | **900/900 jsonl** (had `--allow-non-unique-replicas` at regen; finisher closed last 189) |
 
 After backfill: rsync `placements/` to mitrix before recache/training.
+
+---
+
+## Sampled files above the plan cap (2026-10-13, signed by the expert for `uncut_groups_s0_v1`)
+
+A convention change, reversible. **The rule for within-cap datasets is untouched.** The exemption is decided per **dataset**, by plan-space size, not per lineage.
+
+- **Which datasets.** A group whose plan space fits the registered 100,000-plan cap still gets the full sweep, exactly as above. Only a group above the cap may write an ILS sample instead.
+- **Same file.** The file name (`placements/placements.jsonl`) and the row schema are unchanged.
+- **Mandatory header.** Every file a sampling lineage writes, sampled or not, starts with a header line carrying:
+  - `exhaustive` (true | false), `plan_space_size` (exact or log10), `eval_budget`, `evals_done`;
+  - `search` = `"ils"`, `seed`, the S version / pin, and the cap.
+  A sampled file without the header is a **FAILED dataset**, not a dataset.
+- **Every evaluated plan.** Every ILS-evaluated plan goes in, with its S value and its simulated label. Nothing is deduplicated away. An iteration index per row makes the incumbent trajectory recoverable.
+- **Readers.**
+  - `scripts_cosim/extract_dataset_metadata.py` and `scripts_cosim/validate_dataset_collection.py` read the header and report `exhaustive=false` per dataset: a count and a share in `METADATA.json` and the validation report.
+  - Wherever either would otherwise treat a sampled file as a sweep, it fails loud.
+  - A test in `tests/` asserts that a sampled file without the header is rejected, and that one with it is reported as a sample.
+- **Which rows carry a replayed RTT** (signed 2026-10-13). S is on every row. The replayed RTT is only on each new incumbent along the ILS trajectory, and on the top-m = 8 by S if the lineage's fidelity check (K1b) fires; it is null elsewhere. The header states which rows carry it and their count, and no reader may treat an S value as an RTT. Never replay every evaluated plan.
+- **What a sampled dataset's label is.** An ILS incumbent, not an optimum. Its quality is bounded by the lineage's registered convergence check (`uncut_groups_s0_v1`, ruling 3).

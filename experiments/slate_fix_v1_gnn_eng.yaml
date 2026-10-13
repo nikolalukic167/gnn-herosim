@@ -1,0 +1,49 @@
+# slate_fix_v1 -- the accel_replica_v1 gnn_eng g4 recipe (lr 0.001, embedding = hidden = 128, 100-epoch cap, patience 60), byte-identical
+# except lineage, cache_dir and the W&B names, trained on the UNCAPPED accel corpus (accel_uncap/4f41b771, rule
+# declared_pruning_v1_uncapped). Seeds 1 and 2 via run_experiment.py --seed. One checkpoint serves both the no-split and the
+# self-search arm (as in selfsearch_confirm_v1). cache_dir: S7's uncapped recache (rp/corpus-uncap 836e469d, absolute on /share);
+# slate_fix_v1_train.sbatch runs scripts_cosim/slate_fix_v1_cache_check.py on it before training.
+trainer: gnn
+lineage: slate_fix_v1
+cache_dir: /share/nikola.lukic/accel_uncap/4f41b771/cache_run/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '1'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v5
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/accel_replica_v1_split.json
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+wandb:
+  project: gnn-slate-fix-v1
+  run_name: slate-fix-v1-gnn-eng
+  tags:
+  - slate-fix-v1
+  - uncapped-slate
+  - partial-state-v5
+  - gnn-eng
+  - grid4

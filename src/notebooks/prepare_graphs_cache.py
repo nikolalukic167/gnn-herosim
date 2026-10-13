@@ -696,10 +696,25 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
 
 
 def _single_candidate_slate(all_datasets: Mapping[str, Mapping[str, Any]]) -> Optional[str]:
+    """The cache's candidate-slate rule. One rule across the datasets is that rule. The one mixed set allowed is a corpus part-extended by
+    scripts_cosim/extend_corpus_slate.py, {declared_pruning_v1, declared_pruning_v1_uncapped}: it is cached (and a checkpoint trained on it is
+    served) as the uncapped rule, and `_candidate_slate_rules` records both. Any other mixture fails loudly."""
     rules = {d.get('candidate_slate') for d in all_datasets.values()}
     if len(rules) > 1:
-        raise RuntimeError(f"datasets were built under different candidate slates {sorted(map(str, rules))}; a cache has one")
+        if rules != set(_MIXED_SLATE_RULES):
+            raise RuntimeError(f"datasets were built under different candidate slates {sorted(map(str, rules))}; a cache has one "
+                               f"(the only mixture allowed is {sorted(_MIXED_SLATE_RULES)})")
+        return "declared_pruning_v1_uncapped"
     return next(iter(rules)) if rules else None
+
+
+_MIXED_SLATE_RULES = ("declared_pruning_v1", "declared_pruning_v1_uncapped")
+
+
+def _candidate_slate_rules(all_datasets: Mapping[str, Mapping[str, Any]]) -> Optional[List[str]]:
+    """Both rules of a mixed corpus, sorted; None when the corpus has one rule (its metadata is then unchanged)."""
+    rules = {d.get('candidate_slate') for d in all_datasets.values()}
+    return sorted(rules) if len(rules) > 1 and rules == set(_MIXED_SLATE_RULES) else None
 
 
 def _declared_slate_of(dataset_dir: Path) -> Dict[str, Any]:
@@ -714,7 +729,17 @@ def _declared_slate_of(dataset_dir: Path) -> Dict[str, Any]:
     spec = seed.get("fidelity_replay") or {}
     return {"task_candidates": spec.get("task_candidates"), "candidate_slate": spec.get("candidate_slate"),
             "inflight_capture": _inflight_capture_of_seed(seed),
-            "replica_placement_rule": _replica_rule_of_dataset(Path(dataset_dir), infra)}
+            "replica_placement_rule": _replica_rule_of_dataset(Path(dataset_dir), infra),
+            "warmth_physics": _warmth_physics_of_dataset(Path(dataset_dir))}
+
+
+def _warmth_physics_of_dataset(dataset_dir: Path) -> Optional[str]:
+    """The warmth physics the generator recorded (generation_provenance.json); None when the dataset predates the record."""
+    gp = Path(dataset_dir) / "generation_provenance.json"
+    if not gp.exists():
+        return None
+    with open(gp) as fh:
+        return json.load(fh).get("warmth_physics") or None
 
 
 def _replica_rule_of_dataset(dataset_dir: Path, infra: Mapping[str, Any]) -> str:
@@ -760,6 +785,27 @@ def _single_replica_rule(all_datasets: Mapping[str, Mapping[str, Any]]) -> str:
     if len(rules) > 1:
         raise RuntimeError(f"datasets were labelled under different replica_placement_rules {sorted(rules)}; a cache has one")
     return next(iter(rules)) if rules else "first_compatible"
+
+
+def _cache_physics_env(all_datasets: Mapping[str, Mapping[str, Any]]) -> Dict[str, Any]:
+    """The physics a cache's datasets were built under; warmth_physics comes from the datasets, never the build shell, and is left out
+    when they do not record it."""
+    env = {**current_physics_env(), 'inflight_capture': _single_inflight_capture(all_datasets),
+           'replica_placement_rule': _single_replica_rule(all_datasets)}
+    env.pop('warmth_physics', None)
+    warmth = _single_warmth_physics(all_datasets)
+    if warmth is not None:
+        env['warmth_physics'] = warmth
+    return env
+
+
+def _single_warmth_physics(all_datasets: Mapping[str, Mapping[str, Any]]) -> Optional[str]:
+    """One warmth physics per cache (audit M3). None, and no record, when any dataset predates the field."""
+    values = {d.get('warmth_physics') for d in all_datasets.values()}
+    known = values - {None}
+    if len(known) > 1:
+        raise RuntimeError(f"datasets were generated under different warmth physics {sorted(known)}; a cache has one")
+    return next(iter(known)) if known and None not in values else None
 
 
 def _single_inflight_capture(all_datasets: Mapping[str, Mapping[str, Any]]) -> str:
@@ -2299,10 +2345,11 @@ def main():
         # same bug class the inference_feature_layout confound (40.8% of total_rtt) had.
         'topology_feature_contract': resolve_topology_feature_contract(),
         # the transfer model / replica release / scale-out the exchange seconds and candidate sets were built under
-        'physics_env': {**current_physics_env(), 'inflight_capture': _single_inflight_capture(all_datasets),
-                        'replica_placement_rule': _single_replica_rule(all_datasets)},
+        'physics_env': _cache_physics_env(all_datasets),
         # the candidate-slate rule every dataset was built under (None: the sweep's own slate); serving must run the same one
         'candidate_slate': _single_candidate_slate(all_datasets),
+        # a corpus part-extended to the uncapped slate: both rules, so the cache says what was mixed (absent otherwise)
+        **({'candidate_slate_rules': _candidate_slate_rules(all_datasets)} if _candidate_slate_rules(all_datasets) else {}),
         # route_b stage 2 (B3): present + truthy only on a DAG cache. The dim63crk
         # trainer refuses a cache without partial_state_contract, so a legacy cache
         # can never silently serve a stage-2 arm.

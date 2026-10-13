@@ -101,6 +101,8 @@ def test_gnn_scheduler_takes_a_hand_seed_only_when_asked():
 def test_harness_names_the_ib0_expansion_arms():
     assert G.RULE_POLICY["cdx_ib0"] == "peer_greedy_network_cd" and "cdx_ib0" in G.R1A_DIAG and "cdx_ib0" in G.R1A_ARMS
     assert G.RULE_POLICY["cd_exactS_a05"] == "peer_greedy_network_cd" and G.EXACT_ALPHA["cd_exactS_a05"] == {"HEROSIM_PG_BATCH_ALPHA": "0.5"}
+    assert G.RULE_POLICY["cd_exactS_ib0_d05"] == "peer_greedy_network_cd" and G.EXACT_ALPHA["cd_exactS_ib0_d05"] == {"HEROSIM_PG_DRAIN_ALPHA": "0.5", "HEROSIM_PG_BATCH_ALPHA": "0"}
+    assert "cd_exactS_ib0_d05" in G.R1A_DIAG
     assert "_cdxib0" in G.SUFFIXES and "_cdxhib0" in G.SUFFIXES
     assert {"ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0"} <= set(G.R1A_CDX)
     assert G.ib0_alpha("cdx_ib0") == G.ib0_alpha("ra_gnn_eng_cdxib0") == G.ib0_alpha("ra_gnn_eng_cdxhib0") == {"HEROSIM_PG_BATCH_ALPHA": "0"}
@@ -178,3 +180,36 @@ def test_harness_serves_the_ib0_oracle():
     assert G.RULE_POLICY["cd_oracle_ib0"] == "peer_greedy_network_cd" and "cd_oracle_ib0" in G.R1A_DIAG and "cd_oracle_ib0" in G.R1A_ARMS
     assert G.ib0_alpha("cd_oracle_ib0") == {"HEROSIM_PG_BATCH_ALPHA": "0"} and G.check_alias("cd_oracle_ib0") == "cd_oracle"
     assert {"HEROSIM_PG_ORACLE_SEARCH", "HEROSIM_PG_ORACLE_SEARCH_BUDGET"} <= set(G.ORACLE_ENV)
+
+
+def test_cost_prune_accepts_alpha_on_plain_cd_and_gnn_prune_does_not(monkeypatch):
+    """decision_cost_s0_v1: cd_exactS_ib0_prune (alpha 0 + cost-ordered prune on the plain CD) is defined; the GNN-ranked prune and the GNN-scored exact search are not."""
+    _clear(monkeypatch)
+    monkeypatch.setenv(S.PG_BATCH_ALPHA_ENV, "0")
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "cost")
+    s, _t, _st = _shell(monkeypatch)
+    assert s.pg_alpha_on and s.pg_cd_exact and s.pg_cd_exact_prune == "cost"
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "gnn")
+    with pytest.raises(RuntimeError, match="FAIL LOUD"):
+        _shell(monkeypatch)
+
+
+def test_alpha_unset_prune_alone_is_unchanged(monkeypatch):
+    _clear(monkeypatch)
+    monkeypatch.setenv(S.PG_CD_EXACT_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXPANSION_ENV, "1")
+    monkeypatch.setenv(S.PG_CD_EXACT_PRUNE_ENV, "cost")
+    s, _t, _st = _shell(monkeypatch)
+    assert not s.pg_alpha_on and s.pg_cd_exact_prune == "cost"
+
+
+def test_dc_suffix_and_new_hand_arms_in_the_harness():
+    assert G.split_dc("cd_exactS_ib0_k025") == ("cd_exactS_ib0", 0.25)
+    assert G.split_dc("ra_gnn_eng_cdxapply_k100") == ("ra_gnn_eng_cdxapply", 1.0)
+    assert G.split_dc("cd_exactS_ib0") == ("cd_exactS_ib0", None)
+    for k in ("cd_ib0", "cd_exactS_ib0_prune"):
+        assert k in G.R1A_ARMS and G.RULE_POLICY[k] == "peer_greedy_network_cd"
+    assert G.ib0_alpha("cd_ib0") == {"HEROSIM_PG_BATCH_ALPHA": "0"} and G.check_alias("cd_ib0") == "cd"
+    assert G.EXACT_ALPHA["cd_exactS_ib0_prune"] == {"HEROSIM_PG_BATCH_ALPHA": "0"}

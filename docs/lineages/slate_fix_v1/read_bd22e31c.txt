@@ -1,0 +1,94 @@
+816 summaries, 0 failed, 12 topologies
+-- code: gate_A_4d90119c 4d90119c; gate_B_4d90119c 4d90119c; gate_B2_d192081f d192081f; reader bd22e31c
+-- cells per arm and rung (finished/failed, median wall s)
+  cd|moderate                                24/0   wall 46
+  cd|heavy                                   24/0   wall 46
+  cd_exactS|moderate                         24/0   wall 1742
+  cd_exactS|heavy                            24/0   wall 1875
+  cd_exactS_ib0|moderate                     24/0   wall 1782
+  cd_exactS_ib0|heavy                        24/0   wall 2002
+  new:ra_gnn_eng_cdxapply|moderate           48/0   wall 354
+  new:ra_gnn_eng_cdxapply|heavy              48/0   wall 328
+  new:ra_gnn_eng_nosplit|moderate            48/0   wall 317
+  new:ra_gnn_eng_nosplit|heavy               48/0   wall 286
+  new:ra_gnn_eng_selfsearch|moderate         48/0   wall 1259
+  new:ra_gnn_eng_selfsearch|heavy            48/0   wall 1388
+  new:ra_twin_eng_nosplit|moderate           48/0   wall 260
+  new:ra_twin_eng_nosplit|heavy              48/0   wall 227
+  new:ra_twin_eng_selfsearch|moderate        48/0   wall 1142
+  new:ra_twin_eng_selfsearch|heavy           48/0   wall 1306
+  old:ra_gnn_eng_nosplit|moderate            48/0   wall 294
+  old:ra_gnn_eng_nosplit|heavy               48/0   wall 270
+  old:ra_gnn_eng_selfsearch|moderate         48/0   wall 1100
+  old:ra_gnn_eng_selfsearch|heavy            48/0   wall 1156
+-- primary (Holm over 8)
+  new self-search vs cd_exactS_ib0|moderate    2.62 % (3/12) p 0.0093 Holm 0.0278  E-FASTER
+  new self-search vs cd_exactS_ib0|heavy       5.34 % (0/12) p 0.0005 Holm 0.0039  E-FASTER
+  new no-split vs cd_exactS_ib0|moderate       2.78 % (1/12) p 0.0010 Holm 0.0049  E-FASTER
+  new no-split vs cd_exactS_ib0|heavy          7.38 % (0/12) p 0.0005 Holm 0.0039  E-FASTER
+  new self-search vs cd_exactS|moderate        -2.08 % (9/12) p 0.1294 Holm 0.2588  DIRECTION-ONLY
+  new self-search vs cd_exactS|heavy           3.70 % (1/12) p 0.0010 Holm 0.0049  E-FASTER
+  new no-split vs cd_exactS|moderate           -1.21 % (9/12) p 0.2036 Holm 0.2588  DIRECTION-ONLY
+  new no-split vs cd_exactS|heavy              4.14 % (0/12) p 0.0005 Holm 0.0039  E-FASTER
+-- data_effect (Holm over 4)
+  self-search new vs old|moderate              -1.70 % (9/12) p 0.0342 Holm 0.1074  DIRECTION-ONLY
+  self-search new vs old|heavy                 1.10 % (4/12) p 0.1294 Holm 0.2588  NOT-SEPARATED
+  no-split new vs old|moderate                 -0.79 % (10/12) p 0.0269 Holm 0.1074  DIRECTION-ONLY
+  no-split new vs old|heavy                    0.58 % (6/12) p 0.1763 Holm 0.2588  NOT-SEPARATED
+-- mp (Holm over 4)
+  self-search gnn vs twin|moderate             -0.65 % (8/12) p 0.1514 Holm 0.3027  DIRECTION-ONLY
+  self-search gnn vs twin|heavy                -0.62 % (7/12) p 0.1763 Holm 0.3027  DIRECTION-ONLY
+  no-split gnn vs twin|moderate                -1.55 % (11/12) p 0.0015 Holm 0.0044  DIRECTION-ONLY
+  no-split gnn vs twin|heavy                   -2.57 % (12/12) p 0.0005 Holm 0.0020  CONFIRMED
+  ARM new self-search vs cd_exactS_ib0: E-FASTER
+  ARM new no-split vs cd_exactS_ib0: E-FASTER
+  ARM new self-search vs cd_exactS: E-FASTER
+  ARM new no-split vs cd_exactS: E-FASTER
+-- gap change, pp (new vs cd_exactS minus old vs cd_exactS; negative = shrank)
+  ra_gnn_eng_selfsearch|moderate           -1.32 pp (shrank on 10/12)
+  ra_gnn_eng_selfsearch|heavy              0.95 pp (shrank on 2/12)
+  ra_gnn_eng_nosplit|moderate              -1.18 pp (shrank on 10/12)
+  ra_gnn_eng_nosplit|heavy                 1.36 pp (shrank on 4/12)
+-- descriptive
+  old self-search vs cd_exactS|moderate        -1.14 % (7/12) p 1.0000
+  old self-search vs cd_exactS|heavy           3.30 % (2/12) p 0.0068
+  old no-split vs cd_exactS|moderate           -1.01 % (7/12) p 0.8501
+  old no-split vs cd_exactS|heavy              3.25 % (2/12) p 0.0024
+  new cdxapply vs cd_exactS|moderate           0.17 % (6/12) p 0.3013
+  new cdxapply vs cd_exactS|heavy              0.63 % (5/12) p 0.3013
+  new cdxapply vs cd|moderate                  -7.01 % (12/12) p 0.0005
+  new cdxapply vs cd|heavy                     -7.67 % (12/12) p 0.0005
+  cd_exactS vs cd|moderate                     -8.20 % (12/12) p 0.0005
+  cd_exactS vs cd|heavy                        -6.98 % (11/12) p 0.0010
+  cd_exactS_ib0 vs cd_exactS|moderate          -4.68 % (12/12) p 0.0005
+  cd_exactS_ib0 vs cd_exactS|heavy             -1.34 % (11/12) p 0.0161
+  cd_exactS_ib0 vs cd|moderate                 -12.61 % (12/12) p 0.0005
+  cd_exactS_ib0 vs cd|heavy                    -9.66 % (11/12) p 0.0010
+  new self-search vs cd|moderate               -11.07 % (10/12) p 0.0024
+  new self-search vs cd|heavy                  -6.16 % (9/12) p 0.0771
+  new self-search vs new no-split|moderate     -0.41 % (7/12) p 0.3804
+  new self-search vs new no-split|heavy        -1.93 % (7/12) p 0.2334
+-- served slate per arm and rung (audit M4: read a NO-WIN against these): batches, sub-batched (tasks %), unsplit, self-search exact / ascent (ascent %)
+  new:ra_gnn_eng_cdxapply|moderate          635412  sub  42983 (16.1 %)  unsplit  42983  pruned     0  ss      0 /      0 (- %)
+  new:ra_gnn_eng_cdxapply|heavy             615892  sub  67284 (23.9 %)  unsplit  67284  pruned     0  ss      0 /      0 (- %)
+  new:ra_gnn_eng_nosplit|moderate           637270  sub  39893 (15.0 %)  unsplit  39893  pruned     0  ss      0 /      0 (- %)
+  new:ra_gnn_eng_nosplit|heavy              615288  sub  63543 (22.7 %)  unsplit  63543  pruned     0  ss      0 /      0 (- %)
+  new:ra_gnn_eng_selfsearch|moderate        642220  sub  40481 (15.1 %)  unsplit  40481  pruned     0  ss 497979 / 144241 (22.5 %)
+  new:ra_gnn_eng_selfsearch|heavy           618435  sub  65417 (23.2 %)  unsplit  65417  pruned     0  ss 411166 / 207269 (33.5 %)
+  new:ra_twin_eng_nosplit|moderate          636662  sub  39645 (14.9 %)  unsplit  39645  pruned     0  ss      0 /      0 (- %)
+  new:ra_twin_eng_nosplit|heavy             614983  sub  63563 (22.7 %)  unsplit  63563  pruned     0  ss      0 /      0 (- %)
+  new:ra_twin_eng_selfsearch|moderate       641991  sub  39686 (14.8 %)  unsplit  39686  pruned     0  ss 500108 / 141883 (22.1 %)
+  new:ra_twin_eng_selfsearch|heavy          618542  sub  64844 (23.0 %)  unsplit  64844  pruned     0  ss 412025 / 206517 (33.4 %)
+  old:ra_gnn_eng_nosplit|moderate           636475  sub  25947 (10.6 %)  unsplit  25947  pruned 298310  ss      0 /      0 (- %)
+  old:ra_gnn_eng_nosplit|heavy              614772  sub  38514 (15.7 %)  unsplit  38514  pruned 379041  ss      0 /      0 (- %)
+  old:ra_gnn_eng_selfsearch|moderate        640860  sub  25330 (10.3 %)  unsplit  25330  pruned 314377  ss 540614 / 100246 (15.6 %)
+  old:ra_gnn_eng_selfsearch|heavy           617025  sub  37749 (15.4 %)  unsplit  37749  pruned 396429  ss 491702 / 125323 (20.3 %)
+-- queue time over Q2-Q4, paired % (queue component only, Q1 dropped, outside every family)
+  new self-search vs cd_exactS_ib0|moderate    39.58 % (0/12) p 0.0005
+  new self-search vs cd_exactS_ib0|heavy       44.55 % (0/12) p 0.0005
+  new no-split vs cd_exactS_ib0|moderate       5.40 % (4/12) p 0.1099
+  new no-split vs cd_exactS_ib0|heavy          1.38 % (5/12) p 0.4697
+  new self-search vs cd_exactS|moderate        61.89 % (0/12) p 0.0005
+  new self-search vs cd_exactS|heavy           52.58 % (0/12) p 0.0005
+  new no-split vs cd_exactS|moderate           15.88 % (0/12) p 0.0005
+  new no-split vs cd_exactS|heavy              3.80 % (2/12) p 0.0093

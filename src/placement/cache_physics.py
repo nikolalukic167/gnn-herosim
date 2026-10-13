@@ -9,13 +9,18 @@ the v5 parity run caught it only because that script compares node_exchange. Abs
 `inflight_capture` (HEROSIM_INFLIGHT_CAPTURE: legacy | service_end_v1) is the fourth switch: it decides whether a snapshot's backlog carries the
 in-flight task's remaining service time, so capture and serving must agree. A cache records the mode its SNAPSHOTS were captured under (read off the
 datasets: a service_end_v1 capture writes `current_task_remaining` on every replica spec, a legacy one never does), not the shell that built it.
+
+`warmth_physics` (node_disk_v2 | platform_reuse_v1; ~100x apart in live RTT) is recorded since audit M3, 2026-10-12: a cache takes it from its
+datasets' generation_provenance.json, a run from the cell config's `warmth_physics`, else HEROSIM_WARMTH_PHYSICS, else the simulator default. A
+record without it (every cache and checkpoint before M3) is not checked for it: those stay as they are, disclosed.
 """
 from __future__ import annotations
 
 import os
 from typing import Any, Dict, Mapping, Optional
 
-KEYS = ("transfer_model", "replica_release", "scaleout", "inflight_capture", "replica_placement_rule")
+KEYS = ("transfer_model", "replica_release", "scaleout", "inflight_capture", "replica_placement_rule", "warmth_physics")
+CHECKED_ONLY_WHEN_RECORDED = ("warmth_physics",)
 # A record from before the field priced in-flight tasks the only way there was (`legacy`) and placed replicas by the first compatible platform.
 DEFAULT_WHEN_ABSENT = {"inflight_capture": "legacy", "replica_placement_rule": "first_compatible"}
 
@@ -29,12 +34,14 @@ def current_physics_env(space_config: Optional[Mapping[str, Any]] = None) -> Dic
         raise ValueError(f"HEROSIM_REPLICA_RELEASE={release!r}; expected 0 or 1")
     from src.placement.live_audit import inflight_capture_mode
     from src.placement import replica_rule
+    from src.placement.warmth import resolve_warmth_physics
 
     # the rule of THIS run: the cell config when one is at hand (checkpoint loading precedes the simulator), else what the simulator was set to
     rule = replica_rule.validate((space_config.get("preinit") or {}).get("replica_placement_rule", replica_rule.FIRST)) \
         if space_config is not None else replica_rule.current_rule()
     return {"transfer_model": transfer_model(), "replica_release": release, "scaleout": scaleout_mode(),
-            "inflight_capture": inflight_capture_mode(), "replica_placement_rule": rule}
+            "inflight_capture": inflight_capture_mode(), "replica_placement_rule": rule,
+            "warmth_physics": resolve_warmth_physics((space_config or {}).get("warmth_physics"))}
 
 
 def require_matching_physics_env(recorded: Optional[Mapping[str, Any]], *, what: str, require: bool = False,
@@ -47,6 +54,7 @@ def require_matching_physics_env(recorded: Optional[Mapping[str, Any]], *, what:
             raise ValueError(f"{what} records no physics_env; rebuild it under the R1 environment")
         return
     bad = {k: (recorded.get(k, DEFAULT_WHEN_ABSENT.get(k)), now[k]) for k in KEYS if k not in skip
+           if not (k in CHECKED_ONLY_WHEN_RECORDED and k not in recorded)
            if recorded.get(k, DEFAULT_WHEN_ABSENT.get(k)) != now[k]}
     if bad:
         detail = ", ".join(f"{k}: built/trained under {a!r}, this run has {b!r}" for k, (a, b) in bad.items())

@@ -57,7 +57,8 @@ def main() -> int:
             pass
         t = time.time() - t0
         p = last_progress(a.progress_file, a.progress_key)
-        verdict = wd.update(t, p)
+        # a run that has not written its first progress line yet (start-up, fast-forward) is not stalled; the hard limit still applies
+        verdict = wd.update(t, p) if p > 0 else None
         if a.timeline:
             with open(a.timeline, "a") as fh:
                 fh.write(json.dumps({"t": round(t, 1), "progress": p, "rate": wd.rate()}) + "\n")

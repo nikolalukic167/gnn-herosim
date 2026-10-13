@@ -2,6 +2,16 @@
 
 > **Status:** `SYNTHESIS` &nbsp;·&nbsp; **Index:** [LINEAGES.md](../../LINEAGES.md) &nbsp;·&nbsp; **Record spans:** 2026-08-18 → 2026-09-09
 
+**Now (2026-10-12, head rewritten).** Accel seat (R1.1 + WF1, 160 clients × 24 servers, moderate and heavy rungs).
+- **The hand bar is `cd_exactS_ib0`**: exact search on CD's surrogate S with the in-batch stacking term zeroed. It beats `cd_exactS` −4.73 / −2.27 % (12/12 each, Holm .001) and CD −12.07 / −7.36 % ([`ib0_confirm_v1`](ib0_confirm_v1.md)).
+- **Against plain CD a learned scorer wins at moderate only, CONFIRMED on fresh topologies:** whole-group GNN −6.9 / −7.7 % ([accel_nosplit_v1](accel_nosplit_v1.md)), GNN self-search −8.5 / −10.1 % ([selfsearch_confirm_v1](selfsearch_confirm_v1.md)). Heavy −1 to −4 %, under the −5 % bar. Served on the cold-mispriced declared slate; not re-measured (`slate_fix_v1` running).
+- **Against `cd_exactS` the heavy deficit is a candidate-set handicap:** matched-slate, the GNN self-search wins −4.85 / −1.94 % ([slate_bar_v1](slate_bar_v1.md)).
+- **Against the `ib0` bar the GNN is under it:** a GNN seed inside the `ib0` expansion search beats the same search hand-seeded by −0.99 % (11/12, Holm .020) / −1.22 % (9/12, Holm .154), DIRECTION-ONLY at moderate and NOT-SEPARATED at heavy, but is +0.73 / +0.41 % slower than `cd_exactS_ib0` itself. Even a full-coverage label oracle beats `ib0` by only −2.82 % at moderate (6/6), above the registered −3 % line, so the supervised batch-label family closes (`ib0_confirm_v1`).
+- **No message-passing win over a bar:** the winning arms tie their MP-OFF twins; where MP beats its twin (raw inputs, −4.75 / −4.62 / −7.99 %, [r1_attribution_v1](r1_attribution_v1.md)) both lose to CD.
+- **Closed 2026-10-12:** [plan_rerank_v1](plan_rerank_v1.md), [gnn_overcap_v1](gnn_overcap_v1.md), [prune_g8_s0_v1](prune_g8_s0_v1.md), [long_horizon_s0_v1](long_horizon_s0_v1.md), [high_rho_s0_v1](high_rho_s0_v1.md), [slate_bar_v1](slate_bar_v1.md). Numbers are in their index rows.
+- **Open levers, both REGISTERED, hand arms first:** `sparse_obs_s0_v1` (how much of the hand lead is information a real scheduler lacks; branch `rp/sparse-obs`) and `decision_cost_s0_v1` (decision time charged as simulated time; branch `rp/decision-cost`).
+- The count-shaped-or-negligible conclusion below still stands as a message-passing claim. Routes 1–3, moved from AGENTS.md, are the last section.
+
 **Outcome.** Cross-lineage synthesis: four mechanisms, one collapse. **In this simulator, coupling is either count-shaped or negligible** — and the negligible half is demonstrated, not assumed. **Closed as a question 2026-09-09:** a graph-reasoning win over a pointwise scorer is not available on this simulator's supervised targets — by the structure of what the simulator computes, not by a shortfall of data, epochs or architecture; the 2026-09-09 section below says why in plain language and what would change the answer.
 
 **Related:** [graph_structure_physics](graph_structure_physics.md) · [network_contention_v1](network_contention_v1.md) · [link_contention_v1](link_contention_v1.md) · [shallow_longexec_v1](shallow_longexec_v1.md)
@@ -313,3 +323,33 @@ every batch is scored into the state it was labelled in; live, 45,375 batches la
 queues. Relabelling on realistic loaded snapshots does not close that gap either — measured, 4,400
 live-visited states, additive R² 0.99999 (`cosim_deepdive_v1`). Full record:
 `docs/lineages/peer_affinity_v1.md`, `serving_gap_v1.md`, `serving_gap_v2.md`.
+
+---
+
+## Routes 1–3 (moved from AGENTS.md, 2026-10-12)
+
+Nodes cite these as "CLAUDE.md option 1/2/3"; the numbering is kept.
+
+Three routes to a positive answer. All three have been answered; route 2 was later reopened.
+
+1. **Generate better co-sim data** so a GNN beats Knative and the MLP on latency.
+   **Closed by measurement** (`program_verdict_v1`): the co-sim target is
+   pointwise-separable, so the MLP is the *correctly specified* model class and more data
+   cannot change that. Do not restart without reading that node.
+2. **Change the environment** so exploitable joint structure exists. `route_b_env_pivot_v1`
+   is `PARKED` (could not measure S0 on its overlap rungs). **Reopened** via
+   `peer_affinity_v1`: a cost indexed by *pairs of task instances* under a binding cap is
+   neither node-indexed nor routable-around. Before proposing any contention physics, read
+   that node and `dag_fabric_contention_v1` — the one untried non-node-indexed lever, DAG
+   output over the link fabric, is NO-GO before any code, and node-indexed CPU/memory
+   contention is closed by the count theorem it cites.
+3. **Change the training objective, not the environment** (`objective_pivot_v1`).
+   **CLOSED 2026-09-03.** Phase 1 PASSED (reliability, scope-limited to severe collapse),
+   Phase 2 CLOSED (horizon labels are deterministic chaos), Phase 3 MEASURED-NEGATIVE at
+   n = 120 (−0.85 %, p = 0.928, powered). Do not restart without reading that node.
+
+Options 1 and 2 are cited as "CLAUDE.md option 1/2" from several lineage nodes — keep the
+numbering. What a GNN needs to have anything to learn from a *supervised* target is
+**multi-task placements under contention**: route A proved coupling alone is not enough, and
+route B proved contention alone is not enough either, which is why option 3 changed the
+objective instead.

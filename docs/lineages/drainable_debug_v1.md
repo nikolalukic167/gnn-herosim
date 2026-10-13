@@ -1,6 +1,8 @@
 # drainable_debug_v1 — why do both learned arms lose to reactive Knative at ρ ≈ 0.16?
 
-**Status:** `REGISTERED` 2026-09-14 — bars below are signed before any datum exists.
+**Status:** `CLOSED` (2026-09-14) — **D1: H-MYOPIA** on all three state sources (one-step quality is not where it loses to Knative; Amendment 1 narrows this); ordered `drainable_objective_v1`. Registered 2026-09-14, bars signed before any datum.
+
+> ⚠ **Physics (caveat added 2026-10-12).** Measured before reference physics R1.1 + WF1 (2026-10-08, `physics_audit_v1`, `workload_fix_v1`); not re-measured on it. Breaking-changes table in `docs/gates/gate-tools.md`.
 
 **Parents:** [`drainable_regime_v1`](drainable_regime_v1.md) (S1 live gate: `gnn` −226.04 % vs
 `knative_network`, 0/16) and [`drainable_serving_config_v1`](drainable_serving_config_v1.md)

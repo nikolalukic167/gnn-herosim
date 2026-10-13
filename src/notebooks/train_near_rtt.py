@@ -337,9 +337,10 @@ if _metadata_path.exists():
     _cache_candidate_slate = _cache_meta.get("candidate_slate")
     from src.placement.cache_physics import require_matching_physics_env
     from src.placement.four_type_features import four_type_enabled
-    # the trainer is rule-agnostic: it records the cache's replica_placement_rule in the sidecar (serving enforces it)
+    # the trainer is rule- and warmth-agnostic: it reads cached features and records the cache's replica_placement_rule and
+    # warmth_physics in the sidecar; serving enforces both
     require_matching_physics_env(_cache_physics_env, what=f"cache {CACHE_CTX.cache_dir}", require=four_type_enabled(),
-                                 skip=("replica_placement_rule",))
+                                 skip=("replica_placement_rule", "warmth_physics"))
     # Caches older than CACHE_VERSION 5.7 predate the field and are legacy_v0 by construction.
     _queue_feature_contract = validate_queue_feature_contract(
         _cache_meta.get("queue_feature_contract") or DEFAULT_QUEUE_FEATURE_CONTRACT
@@ -2336,6 +2337,43 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
         + "\n"
     )
 
+
+# slate_fix_v1 offline screen: score an existing checkpoint (NEAR_RTT_EVAL_ONLY_CHECKPOINT; the configs unset TRAIN_INIT_CHECKPOINT) on
+# this cache's val split through the same evaluate() the training loop selects on, write the metrics to NEAR_RTT_EVAL_ONLY_JSON and
+# stop before any gradient step or checkpoint write.
+_eval_only_json = os.environ.get("NEAR_RTT_EVAL_ONLY_JSON", "").strip()
+if _eval_only_json:
+    _init_path = Path(os.environ.get("NEAR_RTT_EVAL_ONLY_CHECKPOINT", "").strip() or "/nonexistent")
+    if not _init_path.is_file():
+        raise SystemExit(f"FAIL LOUD: NEAR_RTT_EVAL_ONLY_JSON needs NEAR_RTT_EVAL_ONLY_CHECKPOINT to name a checkpoint (got {str(_init_path)!r})")
+    model.load_state_dict(torch.load(str(_init_path), map_location=DEVICE))
+    if not NEAR_CFG.val_exact_regret:
+        raise SystemExit("FAIL LOUD: NEAR_RTT_EVAL_ONLY_JSON needs NEAR_RTT_VAL_EXACT_REGRET=1 (regret against the full sweep)")
+    _eval_metrics = evaluate(
+        model, val_loader, RTT_BY_DATASET, WORST_REGRET_BY_DATASET, "evalonly/val",
+        full_sweep_rtt_by_dataset=FULL_SWEEP_RTT_BY_DATASET,
+    )
+    import hashlib
+
+    _eval_out = {
+        "checkpoint": str(_init_path),
+        "checkpoint_md5": hashlib.md5(_init_path.read_bytes()).hexdigest(),
+        "cache_dir": str(CACHE_CTX.cache_dir),
+        "candidate_slate": _cache_candidate_slate,
+        "split_artifact": SPLIT_ARTIFACT_PROVENANCE,
+        "disable_message_passing": os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower() in ("1", "true", "yes"),
+        "val_datasets": len(val_ids),
+        "metrics": {k: float(v) for k, v in _eval_metrics.items() if isinstance(v, (int, float))},
+    }
+    Path(_eval_only_json).parent.mkdir(parents=True, exist_ok=True)
+    Path(_eval_only_json + ".partial").write_text(json.dumps(_eval_out, indent=2) + "\n")
+    os.replace(_eval_only_json + ".partial", _eval_only_json)
+    for _k, _v in _eval_out["metrics"].items():
+        wandb.summary[f"evalonly/val_{_k}"] = _v
+    print(f"[eval-only] {_init_path.name} on {CACHE_CTX.cache_dir}: val regret_masked_topo="
+          f"{_eval_out['metrics'].get('regret_masked_topo', float('nan')):.4f}s -> {_eval_only_json}")
+    wandb.finish()
+    sys.exit(0)
 
 best_val_regret = float("inf")
 best_val_acc = 0.0

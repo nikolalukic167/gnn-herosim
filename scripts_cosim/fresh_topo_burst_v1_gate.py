@@ -27,7 +27,7 @@ import subprocess
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from capped_log import cap_bytes, run_logged
 import progress_watchdog as pw
@@ -57,8 +57,15 @@ RULE_POLICY = {
     "cd_expand": "peer_greedy_network_cd",  # cd_expand: CD + exact-move alpha-expansion in its refine (HEROSIM_PG_CD_EXPANSION=1); descriptive, the stronger hand control
     "cd_exactS": "peer_greedy_network_cd",  # cd_exactS: CD + exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1, expansion as the over-cap fallback); the hand bar
     "cd_exactS_a0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with S's whole queue term scaled to 0 (HEROSIM_PG_DRAIN_ALPHA=0, S6's S_alpha)
+    "cd_exactS_ib0_d05": "peer_greedy_network_cd",  # ib0_confirm_v1 diagnostic S_drain_weight: ib0 with the platform's own drain weighted 0.5 (HEROSIM_PG_DRAIN_ALPHA=0.5, BATCH_ALPHA=0)
+    "cd_exactS_a025": "peer_greedy_network_cd",  # warm_surge_s0_v1 0c: batch alpha 0.25
     "cd_exactS_a05": "peer_greedy_network_cd",  # ib0_confirm_v1 descriptive: batch alpha 0.5, to show alpha = 0 is not a knife-edge
     "cdx_ib0": "peer_greedy_network_cd",  # ib0_confirm_v1 hand-seed control: the cd_expand flow (greedy first pass, passes, one expansion, passes) on the ib0 surrogate
+    **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
+        "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
+        "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
+    "cd_ib0": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: plain CD greedy on the ib0 surrogate (HEROSIM_PG_BATCH_ALPHA=0)
+    "cd_exactS_ib0_prune": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: cd_exactS_ib0 with cost-ordered top-k pruning of over-cap batches (HEROSIM_PG_CD_EXACT_PRUNE=cost)
     "cd_exactS_ib0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with only the in-batch stacking term zeroed (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_oracle_ib0": "peer_greedy_network_cd",  # ib0_confirm_v1 full-coverage oracle: the ib0 surrogate's plan, the exact label on covered batches, a replay-scored local search on over-cap ones
     "cd_oracle": "peer_greedy_network_cd",  # plan_rerank_v1 Phase 0: cd_exactS with the exact search scored by the real single-batch RTT (HEROSIM_PG_ORACLE=1); a measurement arm
@@ -110,6 +117,7 @@ LADDER_LEARNED = ("xs1load_selfref", "xs1load_cdapply")
 SUFFIXES = ("_spread", "_slate", "_cdshadow", "_cdapply", "_cdxapply", "_cdxib0", "_cdxhib0", "_cdxexg", "_cdxpra", "_cdxprb", "_selfref", "_selfrefkw", "_se", "_nosplit", "_selfsearch")
 # gnn_selfsearch: "_selfsearch" = "_nosplit" plus GNN_SELF_SEARCH=1 (the slate plan with the highest GNN plan score)
 # accel_nosplit_v1: "_nosplit" serves a declared-slate arm with GNN_SLATE_NO_SPLIT=1 (an over-100k batch decoded whole)
+# ra_twin_eng_cdxapply: the same refine seeded by the separately trained MP-OFF twin (GNN_DISABLE_MESSAGE_PASSING via RA_MP_OFF; checkpoint <R1A_STEM>-twin-eng-seed<N>)
 # cdxapply: "_cdxapply" = the NO-SPLIT learned plan (GNN_SLATE_NO_SPLIT=1, so the refine sees whole groups), then the CD refine
 # WITH exact-move expansion (GNN_CD_REFINE=apply + HEROSIM_PG_CD_EXPANSION=1): does a learned seed still help the strongest search?
 # cd_exactS_gnn: "_cdxexg" = the cdxapply seed (no-split learned plan) into the CD refine with the EXACT search over S (HEROSIM_PG_CD_EXACT=1, expansion as the
@@ -150,13 +158,30 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
-EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"}}  # plan_rerank_v1 S_alpha arms
+EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"}, "cd_exactS_a025": {"HEROSIM_PG_BATCH_ALPHA": "0.25"},
+               "cd_exactS_ib0_d05": {"HEROSIM_PG_DRAIN_ALPHA": "0.5", "HEROSIM_PG_BATCH_ALPHA": "0"},
+               "cd_exactS_ib0_prune": {"HEROSIM_PG_BATCH_ALPHA": "0"}}  # plan_rerank_v1 S_alpha arms; warm_surge/drain-weight arms; decision_cost_s0_v1 prune arm
+_BUNDLE = {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_PARTNERS": "arrival"}
+OBS_ARMS = {  # sparse_obs_s0_v1 degradations (the estimator is the naive/ec arm); every one searches exactly as cd_exactS_ib0
+    "cd_obs_queue_naive": {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_queue_ec": {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_ESTIMATOR": "ec"},
+    "cd_obs_bundle_naive": {**_BUNDLE, "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_bundle_ec": {**_BUNDLE, "HEROSIM_OBS_ESTIMATOR": "ec"},
+    "cd_obs_exec": {"HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_partners_naive": {"HEROSIM_OBS_PARTNERS": "arrival", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_partners_ec": {"HEROSIM_OBS_PARTNERS": "arrival", "HEROSIM_OBS_ESTIMATOR": "ec"},
+    "cd_obs_a0plus": {"HEROSIM_PG_COLD_TAIL": "1"},  # stage 2: A0 with the cold term priced against the type the task follows
+    "cd_obs_w1_naive": {"HEROSIM_PG_COLD_TAIL": "1", "HEROSIM_OBS_WARM": "seconds", "HEROSIM_OBS_ESTIMATOR": "naive"},
+    "cd_obs_w1_ec": {"HEROSIM_PG_COLD_TAIL": "1", "HEROSIM_OBS_WARM": "seconds", "HEROSIM_OBS_ESTIMATOR": "ec"},
+}
+OBS_ENV = ("HEROSIM_OBS_QUEUE", "HEROSIM_OBS_EXEC_SIGMA", "HEROSIM_OBS_INFLIGHT", "HEROSIM_OBS_PARTNERS", "HEROSIM_OBS_WARM", "HEROSIM_PG_COLD_TAIL", "HEROSIM_OBS_ESTIMATOR", "HEROSIM_OBS_SEED")
+EXACT_ALPHA.update({k: {"HEROSIM_PG_BATCH_ALPHA": "0"} for k in OBS_ARMS})  # sparse_obs_s0_v1
 ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_PG_ORACLE_SEARCH", "HEROSIM_PG_ORACLE_SEARCH_BUDGET", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
 
 
 def ib0_alpha(kind: str) -> dict:
     """ib0_confirm_v1: the batch alpha the expansion arms on the ib0 surrogate must serve (none for every other arm)."""
-    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
+    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
 def check_alias(kind: str) -> str:
@@ -165,15 +190,74 @@ def check_alias(kind: str) -> str:
         return "cd_expand"
     if kind == "cd_oracle_ib0":
         return "cd_oracle"
+    if kind == "cd_ib0":
+        return "cd"
     for suffix in ("_cdxib0", "_cdxhib0"):
         if kind.endswith(suffix):
             return kind[:-len(suffix)] + "_cdxapply"
     return kind
-R1A_DIAG = ("cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
-R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit")  # accel_nosplit_v1 primary arms, checkpoint seeds; name them in R1A_ARMS
-R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
-R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
+# decision_cost_s0_v1 (Amendment 3): a cell kind "<arm>_k<centi>" serves <arm> with the scheduler's decision time charged as simulated time, arm-calibrated:
+# t_batch = k * w[arm][rung] ms * plans_evaluated, so HEROSIM_DECISION_COST_MS = k * w (src/placement/decision_cost.py). w is the measured wall ms per plan,
+# fixed in scripts_cosim/decision_cost_w.json before any cell counts. The file name keeps the suffix; every arm check runs on the base arm.
+DC_K = {"k025": 0.25, "k050": 0.5, "k100": 1.0, "k200": 2.0}
+DC_W_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decision_cost_w.json")
+
+
+# uncut_groups_s0_v1 K1 (identity (m)): R1A_SNAPSHOT_PLAN names a JSON file {"<topology>__<window>": [trigger task ids]} sealed
+# before any cell runs. Every cell of that topology and window captures exactly those batches (fidelity snapshots, for the
+# replay); the summary reports how many it wanted and wrote. Unset: nothing is captured, as before.
+SNAP_ENV = ("LIVE_AUDIT_TRIGGER_IDS", "LIVE_AUDIT_MAX_SNAPSHOTS", "LIVE_AUDIT_STRIDE", "LIVE_AUDIT_MIN_BATCH_SIZE", "LIVE_AUDIT_MIN_CANDIDATES")
+
+
+def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
+    path = os.environ.get("R1A_SNAPSHOT_PLAN")
+    if not path:
+        return None
+    ids = json.load(open(path)).get(f"{topo}__{window}")
+    if ids is not None and not (isinstance(ids, list) and all(isinstance(i, int) for i in ids)):
+        raise SystemExit(f"FAIL LOUD: R1A_SNAPSHOT_PLAN {path} entry {topo}__{window} must be a list of task ids")
+    return sorted(ids) if ids else None
+
+
+def split_dc(kind: str) -> Tuple[str, Optional[float]]:
+    for tag, k in DC_K.items():
+        if kind.endswith("_" + tag):
+            return kind[:-len(tag) - 1], k
+    return kind, None
+
+
+def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[str]:
+    """The per-plan cost (ms, as the env string) cell `kind` at rung serves under k: k x the arm's calibrated w. None when k is not set."""
+    if k is None:
+        return None
+    w = json.load(open(DC_W_FILE))["w_ms_per_plan"]
+    if kind not in w or rung not in w[kind]:
+        raise SystemExit(f"FAIL LOUD: no calibrated w (ms per plan) for {kind!r} at rung {rung!r} in {DC_W_FILE}")
+    return repr(k * float(w[kind][rung]))
+
+
+R1A_DIAG = (*OBS_ARMS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
+R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
+R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
 R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
+# slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
+# submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
+def r1a_slate() -> str:
+    from src.placement.declared_slate import RULE, RULES
+    want = os.environ.get("R1A_SLATE", "").strip() or RULE
+    if want not in RULES:
+        raise SystemExit(f"FAIL LOUD: R1A_SLATE={want!r}; expected one of {RULES}")
+    return want
+
+
+def ra_serving_slate(side: str) -> str:
+    rule = json.load(open(side)).get("candidate_slate")
+    if rule != r1a_slate():
+        raise SystemExit(f"FAIL LOUD: {side} records candidate_slate={rule!r}; this gate serves R1A_SLATE={r1a_slate()!r}")
+    return rule
+
+
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
 R1A_LIMIT_S = 8100
 _LAST_ARRIVAL: Dict[str, float] = {}
@@ -311,6 +395,48 @@ def lock_wait_profile(task_results: Optional[List[dict]]) -> Optional[Dict[str, 
             "queue_share_same_tasks": queue / elapsed if elapsed > 0 else None}
 
 
+STEADY_T_S = 360.0  # the corpus MIN_TIME
+
+
+def _workload_rows(task_results: Optional[List[dict]]) -> List[tuple]:
+    return sorted((float(r["dispatchedTime"]), float(r["doneTime"])) for r in task_results or ()
+                  if r.get("taskId") is None or int(r["taskId"]) >= 0)
+
+
+def steady_state_latency(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
+    """The live path autoscales from zero replicas with no warm-up discard, so averageElapsedTime carries a whole-system cold
+    start (expert's ruling, 2026-10-12). Mean latency (done - dispatched, the averageElapsedTime quantity) over the tasks
+    dispatched at or after T, for T = 360 s and T = the dispatch time of the 5th-percentile task (nearest rank), and the mean
+    of each tenth of the tasks in dispatch order."""
+    rows = _workload_rows(task_results)
+    n = len(rows)
+    if n < 10:
+        return None
+
+    def after(t_s: float) -> Dict[str, object]:
+        lat = [done - d for d, done in rows if d >= t_s]
+        return {"T_s": t_s, "n": len(lat), "mean": sum(lat) / len(lat) if lat else None}
+
+    t5 = rows[min(n - 1, max(0, math.ceil(0.05 * n) - 1))][0]
+    deciles = [rows[i * n // 10:(i + 1) * n // 10] for i in range(10)]
+    return {"after_360s": after(STEADY_T_S), "after_p5_dispatch": after(t5),
+            "decile_mean": [sum(done - d for d, done in part) / len(part) for part in deciles]}
+
+
+def write_task_times(task_results: Optional[List[dict]], path: str) -> Optional[int]:
+    """Per-task (dispatchedTime, doneTime) as float32, in dispatch order, so any warm-up cut can be read after the raw file is
+    deleted (~400 KB per 50k-task cell). Written atomically; returns the row count."""
+    import numpy as np
+
+    rows = _workload_rows(task_results)
+    if not rows:
+        return None
+    with open(path + ".partial", "wb") as fh:
+        np.save(fh, np.asarray(rows, dtype=np.float32))
+    os.replace(path + ".partial", path)
+    return len(rows)
+
+
 def arrival_end(workload_path: str, end_time: Optional[float]) -> Optional[Dict[str, object]]:
     """load_recalibration_v1: the run's end time against the last arrival in its workload file."""
     last = max(float(e["timestamp"]) for e in json.load(open(workload_path))["events"])
@@ -369,12 +495,12 @@ def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
     wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
     arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX)).split(",") if k]
     seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
-    unknown = [k for k in arms if k not in R1A_ARMS]
+    unknown = [k for k in arms if split_dc(k)[0] not in R1A_ARMS]
     if unknown:
         raise SystemExit(f"FAIL LOUD: R1A_ARMS {unknown}; arms are {R1A_ARMS}")
     single = R1A_CLASSICAL + R1A_DIAG
-    cells = [task(t, f"{w}{tag}", k, 0 if k in single else sd)
-             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if k in single else seeds)]
+    cells = [task(t, f"{w}{tag}", k, 0 if split_dc(k)[0] in single else sd)
+             for tag in WF1_TAGS for t in topos for w in wins for k in arms for sd in ([0] if split_dc(k)[0] in single else seeds)]
     shard = os.environ.get("R1A_SHARD", "")
     if shard:
         i, n = (int(x) for x in shard.split("/"))
@@ -695,6 +821,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if os.path.exists(summary) or os.path.exists(failed):
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
+    kind, dc_k = split_dc(kind)
+    dc_ms = dc_cost_ms(kind, dc_k, window[2:])
     if R1A_ON:
         state = pw.rung_state(out_dir, window[2:])
         if pw.paused(state):
@@ -731,6 +859,20 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "HEROSIM_PG_INFLIGHT", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
               "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV, *ORACLE_ENV):
         env.pop(k, None)
+    for k in OBS_ENV:
+        env.pop(k, None)
+    env.pop("HEROSIM_DECISION_COST_MS", None)
+    if dc_ms is not None:
+        env["HEROSIM_DECISION_COST_MS"] = dc_ms
+    for k in SNAP_ENV:
+        env.pop(k, None)
+    sealed = sealed_triggers(int(t["topo"]), window)
+    if sealed is not None:
+        trig = os.path.join(out_dir, name + ".triggers.json")
+        with open(trig, "w") as fh:
+            json.dump(sealed, fh)
+        env.update(LIVE_AUDIT_SNAPSHOT_PATH=os.path.join(out_dir, name + ".snapshots.jsonl"), LIVE_AUDIT_TRIGGER_IDS=trig,
+                   LIVE_AUDIT_MAX_SNAPSHOTS=str(len(sealed)), HEROSIM_SNAPSHOT_FIDELITY="1")
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
@@ -799,7 +941,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar. The graph-free arms
             # additionally refuse a serving environment that names another arm.
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v5", PARTIAL_STATE_LOAD_SECONDS="1",
-                       PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE="declared_pruning_v1")
+                       PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE=ra_serving_slate(side))
             if base_kind in ("ra_mlp_same", "ra_set_transformer"):
                 env["GNN_ARM_KIND"] = base_kind[3:]
         if base_kind in LOAD_KINDS:
@@ -839,7 +981,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
@@ -873,6 +1015,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1")
         if kind in EXACT_ALPHA:
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", **EXACT_ALPHA[kind])
+        if kind in OBS_ARMS:
+            env.update(OBS_ARMS[kind])
+            if "HEROSIM_OBS_ESTIMATOR" in OBS_ARMS[kind]:
+                env["HEROSIM_OBS_SEED"] = str(seed)
+        if kind == "cd_exactS_ib0_prune":
+            env["HEROSIM_PG_CD_EXACT_PRUNE"] = "cost"
+        if kind == "cd_ib0":
+            env.update(ib0_alpha(kind))
         if kind == "cd_oracle":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
                        HEROSIM_ORACLE_SIM_INPUT=os.path.join(REPO, "data/nofs-ids"),
@@ -952,6 +1102,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["queue_drift"] = drift
     out["code"] = (doc.get("run_provenance") or {}).get("code")
+    out["python_env"] = (doc.get("run_provenance") or {}).get("python_env")  # the raw JSON is deleted at job exit; PARITY.md reads the interpreter from here
+    out["env_fingerprint"] = (doc.get("run_provenance") or {}).get("env_fingerprint")
     n = out.get("num_tasks")
     problems = []
     orig_kind, kind = kind, check_alias(kind)
@@ -970,6 +1122,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["lock_wait"] = lock_wait_profile(st.get("taskResults"))
     out["arrival_end"] = arrival_end(wl, st.get("endTime"))
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
+    out["steady_state"] = steady_state_latency(st.get("taskResults"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
         want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
                 "panic_window_s": 6.0 * time_scale, "panic_threshold": 2.0}
@@ -1012,7 +1165,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if not kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and kind != "cd_random_seed" and int(c.get("cdr_batches") or 0):
         problems.append("unrefined arm was refined")
     expands = kind.endswith(("_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) or kind == "cd_expand"
-    prune_kind = kind.endswith(("_cdxpra", "_cdxprb"))
+    prune_kind = kind.endswith(("_cdxpra", "_cdxprb")) or kind == "cd_exactS_ib0_prune"
     if prune_kind and (out["env"].get("HEROSIM_PG_CD_EXPANSION") != "1" or int(c.get("pg_expand_batches") or 0) != 0):
         # the prune arms run the expansion only as a dry counterfactual whose counters are restored; applied expansion must read 0
         problems.append(f"prune arm expansion flag/counter wrong: HEROSIM_PG_CD_EXPANSION={out['env'].get('HEROSIM_PG_CD_EXPANSION')!r}, pg_expand_batches {c.get('pg_expand_batches')} (want 0)")
@@ -1024,12 +1177,51 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     if kind in EXACT_ALPHA and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
-    for name in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
-        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(name)
-        if out["env"].get(name) != want:
-            problems.append(f"{name} served {out['env'].get(name)!r}, want {want!r} for {kind}")
+    obs_want = OBS_ARMS.get(kind, {})
+    for var in OBS_ENV:
+        want_o = obs_want.get(var, str(seed) if (var == "HEROSIM_OBS_SEED" and "HEROSIM_OBS_ESTIMATOR" in obs_want) else None)
+        if out["env"].get(var) != want_o:
+            problems.append(f"{var} served {out['env'].get(var)!r}, want {want_o!r} for {kind}")
+    used = {n: int(c.get(n) or 0) for n in ("obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted", "obs_cold_degraded", "obs_cold_exact")}
+    tail_calls = int(c.get("pg_cold_tail_calls") or 0)
+    if bool(obs_want.get("HEROSIM_PG_COLD_TAIL")) != bool(tail_calls):
+        problems.append(f"cold-tail instrument: HEROSIM_PG_COLD_TAIL={obs_want.get('HEROSIM_PG_COLD_TAIL')!r} but pg_cold_tail_calls {tail_calls}")
+    if obs_want.get("HEROSIM_OBS_WARM") and (not used["obs_cold_degraded"] or used["obs_cold_exact"]):
+        problems.append(f"warmth channel: degraded cold prices {used['obs_cold_degraded']}, exact {used['obs_cold_exact']}")
+    if not obs_want.get("HEROSIM_OBS_WARM") and used["obs_cold_degraded"]:
+        problems.append("cold seconds degraded on an arm that does not degrade them")
+    if not obs_want and any(used.values()):
+        problems.append(f"an exact-observation arm used degraded channels: {used}")
+    if obs_want:
+        if obs_want.get("HEROSIM_OBS_QUEUE") and (not used["obs_drain_degraded"] or used["obs_drain_exact"]):
+            problems.append(f"queue channel: degraded drains {used['obs_drain_degraded']}, exact walks {used['obs_drain_exact']}")
+        if not obs_want.get("HEROSIM_OBS_QUEUE") and used["obs_drain_degraded"]:
+            problems.append("queue degraded on an arm that does not degrade it")
+        if obs_want.get("HEROSIM_OBS_EXEC_SIGMA") and not used["obs_exec_degraded"]:
+            problems.append("exec channel off: obs_exec_degraded == 0")
+        if obs_want.get("HEROSIM_OBS_PARTNERS") and not used["obs_partner_hidden"]:
+            problems.append("partner channel off: obs_partner_hidden == 0")
+        if obs_want.get("HEROSIM_OBS_ESTIMATOR") == "ec" and obs_want.get("HEROSIM_OBS_PARTNERS") and not used["obs_partner_predicted"]:
+            problems.append("ec partner prediction off: obs_partner_predicted == 0")
+        if not obs_want.get("HEROSIM_OBS_INFLIGHT") and used["obs_inflight_degraded"]:
+            problems.append("in-flight degraded on an arm that does not degrade it")
+    for var in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
+        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(var)
+        if out["env"].get(var) != want:
+            problems.append(f"{var} served {out['env'].get(var)!r}, want {want!r} for {kind}")
+    # decision_cost_s0_v1: the cost served is the cost named, the plan counter always runs, the scheduler server's books exist exactly when c > 0
+    served_dc = out["env"].get("HEROSIM_DECISION_COST_MS")
+    if (float(served_dc) if served_dc else None) != (float(dc_ms) if dc_ms else None):  # dc_ms is k x w for this arm and rung
+        problems.append(f"HEROSIM_DECISION_COST_MS served {served_dc!r}, want {dc_ms!r}")
+    if int(c.get("sched_plan_evals") or 0) == 0 and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
+        problems.append("plan-evaluation meter off: sched_plan_evals == 0")
+    charged = int(c.get("sched_batches_charged") or 0)
+    if dc_ms and (charged == 0 or float(c.get("sched_busy_seconds") or 0) <= 0):
+        problems.append(f"scheduler server idle at c = {dc_ms}: sched_batches_charged {charged}, sched_busy_seconds {c.get('sched_busy_seconds')}")
+    if not dc_ms and (charged or c.get("sched_busy_seconds")):
+        problems.append("scheduler server charged time at c = 0")
     exact_arm = kind in ("cd_exactS", "cd_oracle", *EXACT_ALPHA) or kind.endswith(("_cdxexg", "_cdxpra", "_cdxprb"))
-    prune_arm = kind.endswith(("_cdxpra", "_cdxprb"))
+    prune_arm = kind.endswith(("_cdxpra", "_cdxprb")) or kind == "cd_exactS_ib0_prune"
     if prune_arm and (out["env"].get("HEROSIM_PG_CD_EXACT") != "1" or int(c.get("pg_exact_batches") or 0) == 0):
         problems.append(f"exact-search instrument off: HEROSIM_PG_CD_EXACT={out['env'].get('HEROSIM_PG_CD_EXACT')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
     want_prune = "gnn" if kind.endswith("_cdxpra") else "cost"
@@ -1142,7 +1334,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("v4 instrument off: no candidate ever had a backlog")
     elif base_kind in RA_KINDS:
         for key, want in (("PARTIAL_STATE_CONTRACT", "partial_state_v5"), ("PARTIAL_STATE_LOAD_SECONDS", "1"),
-                          ("PARTIAL_STATE_EXCHANGE_SECONDS", "1"), ("GNN_SERVE_CANDIDATE_SLATE", "declared_pruning_v1")):
+                          ("PARTIAL_STATE_EXCHANGE_SECONDS", "1"), ("GNN_SERVE_CANDIDATE_SLATE", r1a_slate())):
             if out["env"].get(key, "") != want:
                 problems.append(f"served {key}={out['env'].get(key)!r}, {base_kind} needs {want!r}")
     elif int(c.get("v4_backlog_batches") or 0):
@@ -1160,6 +1352,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     e, q = float(out["averageElapsedTime"]), float(out["averageQueueTime"])
     out["queue_share"] = q / e if e > 0 else None
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
+    out["task_times_rows"] = write_task_times(st.get("taskResults"), os.path.join(out_dir, name + ".tasks.npy"))
+    sealed = sealed_triggers(int(t["topo"]), window)
+    if sealed is not None:
+        snap = os.path.join(out_dir, name + ".snapshots.jsonl")
+        got = [json.loads(line)["trigger_task_id"] for line in open(snap)] if os.path.exists(snap) else []
+        out["sealed_snapshots"] = {"wanted": len(sealed), "written": len(got), "missing": sorted(set(sealed) - set(got))}
     json.dump(out, open(summary + ".partial", "w"), indent=1)
     os.replace(summary + ".partial", summary)
     keep = os.environ.get("KEEP_RAW_DIR")

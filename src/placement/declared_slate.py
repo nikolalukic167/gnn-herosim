@@ -25,6 +25,8 @@ from collections import deque
 from typing import Any, Dict, Iterable, List, Mapping, NamedTuple, Sequence, Tuple
 
 RULE = "declared_pruning_v1"
+RULE_UNCAPPED = "declared_pruning_v1_uncapped"   # the full candidate set per task (no top-k); the plan cap and sub-batching are unchanged
+RULES = (RULE, RULE_UNCAPPED)
 TOP_K = 5
 MAX_PLANS = 100_000
 SUB_BATCH = 4
@@ -43,7 +45,7 @@ def top_k() -> int:
 
 
 def standalone_cost(candidate: Mapping[str, Any]) -> float:
-    cold = 0.0 if candidate.get("initialized", True) else float(candidate.get("cold_start_time", 0.0) or 0.0)
+    cold = 0.0 if candidate["initialized"] else float(candidate.get("cold_start_time", 0.0) or 0.0)
     return (float(candidate.get("queue_drain_seconds", 0.0) or 0.0) + cold
             + float(candidate.get("execution_time", 0.0) or 0.0) + float(candidate.get("network_latency", 0.0) or 0.0))
 
@@ -100,10 +102,14 @@ class Slate(NamedTuple):
     sub_batched: bool                     # the pruned plan space exceeded MAX_PLANS
 
 
-def slate(tasks: Sequence[Mapping[str, Any]], pairs: Iterable[Tuple[int, int]] = ()) -> Slate:
+def slate(tasks: Sequence[Mapping[str, Any]], pairs: Iterable[Tuple[int, int]] = (), rule: str | None = None) -> Slate:
     """`tasks`: [{task_id, candidates: [payload dicts with node_id, platform_id, ...]}] in any fixed order; `pairs`: the batch's
-    peer pairs over task_id."""
-    kept = [prune_candidates(t["candidates"]) for t in tasks]
+    peer pairs over task_id. `rule` None or RULE: the top-k pruning below (the corpus builder's call and every earlier caller);
+    RULE_UNCAPPED: every candidate is kept, in the same rank order, and the plan cap and sub-batching apply to the full product."""
+    if rule not in (None, *RULES):
+        raise ValueError(f"FAIL LOUD: unknown candidate slate rule {rule!r}; expected one of {RULES}")
+    uncapped = rule == RULE_UNCAPPED
+    kept = [prune_candidates(t["candidates"], len(t["candidates"]) if uncapped else None) for t in tasks]
     full = [len(t["candidates"]) for t in tasks]
     plans = plan_space(len(k) for k in kept)
     if plans <= max_plans():
@@ -111,7 +117,7 @@ def slate(tasks: Sequence[Mapping[str, Any]], pairs: Iterable[Tuple[int, int]] =
     else:
         pos = {int(t["task_id"]): i for i, t in enumerate(tasks)}
         groups = [[pos[g] for g in grp] for grp in sub_batches(list(pos), pairs)]
-    return Slate(kept, full, plans, groups, any(f > top_k() for f in full), len(groups) > 1)
+    return Slate(kept, full, plans, groups, (not uncapped) and any(f > top_k() for f in full), len(groups) > 1)
 
 
 # ---- serving mode: recorded in the checkpoint's sidecar, refused on mismatch -------------------------------------------------
@@ -119,12 +125,12 @@ ENV = "GNN_SERVE_CANDIDATE_SLATE"
 
 
 def serving_slate() -> str | None:
-    """The candidate-slate rule this process serves under: RULE, or None (every reachable replica, as before this mode)."""
+    """The candidate-slate rule this process serves under: RULE, RULE_UNCAPPED, or None (every reachable replica, as before this mode)."""
     raw = os.environ.get(ENV, "").strip()
     if raw in ("", "0", "none"):
         return None
-    if raw != RULE:
-        raise ValueError(f"FAIL LOUD: {ENV}={raw!r}; expected unset or {RULE!r}")
+    if raw not in RULES:
+        raise ValueError(f"FAIL LOUD: {ENV}={raw!r}; expected unset or one of {RULES}")
     return raw
 
 
