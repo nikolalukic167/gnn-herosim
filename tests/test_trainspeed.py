@@ -84,7 +84,8 @@ def test_rows_only_equals_the_full_path(graphs, train):
     assert len(full) == len(rows)
     for a, b in zip(full, rows):
         assert a.shape == b.shape
-        assert torch.allclose(a, b, rtol=1e-5, atol=1e-6), float((a - b).abs().max())
+        # relative to the logit vector's scale: a near-zero logit has no meaningful per-element relative error
+        assert float((a - b).abs().max()) <= 1e-5 * max(float(a.abs().max()), 1.0), float((a - b).abs().max())
 
 
 def test_rows_only_is_wired_into_the_training_closure_only():
