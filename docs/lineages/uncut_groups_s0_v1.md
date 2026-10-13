@@ -299,6 +299,24 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **`ils_oracle_live` contrast B added: the label stays PARTIAL + CEILING-TRUNCATED** (job 869009, `ils_oracle_exact10` at f8814905, identity passed; 12/12 cells, 0 failed; same reader; output `/share/nikola.lukic/uncut_groups/s6_reader/read_final_AB.json`, md5 1078e60c). A's label is untouched.
+  - **Contrast B (`ils_oracle_exact10` vs `cd_exactS_ib0`, after 360 s):**
+
+    | rung | after 360 s median | faster | whole-run | per topology, after 360 s (19461 … 19466) |
+    |---|---|---|---|---|
+    | moderate | −2.58 % | 5/6 | −2.06 % (4/6) | +1.62, −1.18, −2.70, −7.68, −2.46, −11.74 |
+    | heavy | −9.89 % | 5/6 | −7.90 % (4/6) | −0.52, −9.76, −10.01, −21.24, +36.36, −18.81 |
+
+    - B clears its TRANSFERS line (≤ −2 % at both rungs), and its mechanism holds on the whole-run medians: moderate Δexchange −0.183 / Δqueue +0.033, heavy −0.116 / +0.014.
+    - B does not fire MYOPIC-LIVE: not > 0 % at either rung, 0 collapse.
+    - **The label is still PARTIAL because A fails TRANSFERS on heavy** (−4.09 %, 4/6).
+  - **CEILING-TRUNCATED** in B too: > 50-task cap share 31.4 % moderate (137/437) and 36.5 % heavy (163/446).
+  - **19465 heavy is again the outlier:** B reads +36.4 %, and its lock-wait mean is 1.054 s/task against the oracle's 0.968. That is the same replica-lock signature as in A (entry below).
+  - **Descriptive, confounded on ≤ 10 batches:**
+    - `ils_oracle_exact10` vs `cd_ib0` is −13.60 % moderate (6/6) and −11.12 % heavy (5/6) after 360 s. Exact search on ≤ 10 plus ILS on > 10 is the fastest arm measured in this node, and it is a ceiling, not a servable arm.
+    - Oracle vs `cd_exactS_ib0`: +1.82 % moderate, −1.10 % heavy.
+  - **Caveat:** not bit-reproducible (the wall cap), the same as A.
+
 - 2026-10-13 — **Arm 1 gate mint assigned: S5 mints the gate inputs for 19537–19548 now** (the expert). Minting does not depend on any checkpoint.
   - **Minted (S5).** Root `/share/nikola.lukic/uncut_groups/gate_inputs_arm1`.
     - `inputs/` (batch size 10): MD5SUMS md5 `071becf4c9940952125500c0b3afbb05`.
