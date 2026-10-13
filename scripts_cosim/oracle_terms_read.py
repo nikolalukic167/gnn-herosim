@@ -117,8 +117,8 @@ def summarize(rows):
     if not rows:
         return out
     big = [r for r in rows if r["rel"] > BIG]
-    out["improved"] = sum(1 for r in rows if r["d_label"] < -1e-9)
-    out["big"] = len(big)
+    out["n_improved"] = sum(1 for r in rows if r["d_label"] < -1e-9)
+    out["n_big"] = len(big)
     for name, sel in (("improved", [r for r in rows if r["d_label"] < -1e-9]), ("big", big)):
         if not sel:
             continue
@@ -186,7 +186,7 @@ def main():
             res[rung][bn]["random_plans"] = ols(rsel)
             print(f"  random unselected plans vs hand: {ols(rsel)}")
             s = res[rung][bn]
-            print(f"\n== {rung} {bn}: {s['batches']} batches, improved {s.get('improved')}, big(>10 %) {s.get('big')}")
+            print(f"\n== {rung} {bn}: {s['batches']} batches, improved {(s.get("improved") or {}).get("n")}, big(>10 %) {(s.get("big") or {}).get("n")}")
             for name in ("improved", "big"):
                 c = s.get(name)
                 if not c:
