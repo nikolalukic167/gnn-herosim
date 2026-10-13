@@ -299,6 +299,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Myopia test: MYOPIA-SMALL (≤ 16 s horizon)** (S7; the label is the expert's ruling). This is an offline screen under rule 6, and the live `ils_oracle_live` decides.
+  - **Provenance.** Code 7248b056; ids sha256 0bb8b089…, seed 20261014. Files: `/share/nikola.lukic/uncut_ils/myopia/{summary.json,hrows_all.jsonl,idrows_s*.jsonl,ids.json}`.
+  - **Identity at N = 0.** Through the batch-only path, every plan replays to its K1(b) RTT: 300/300 (100 states × hand, ILS, exactS).
+    - Disclosure: in the single-run horizon metric, N = 0 differs from the batch-only path on 36 of 100 hand plans and 39 of 100 ILS plans.
+    - The relative difference has median 0 and max 1.2 % (hand) / 9.9 % (ILS).
+  - **ILS advantage over the hand, pooled over 100 states.**
+    - It keeps 99.7 / 99.4 / 98.8 % of its batch-only value at N = 1 / 3 / 10, with 100 % sign agreement.
+    - The median advantage at N = 10 is 8.6 s, against a chaos floor of 0.11 s (23 states).
+  - **exactS calibration:** it keeps 99.4 % at N = 10, with sign agreement 0.99.
+  - **Limit.** The 10 later groups arrive within a median 4.9 s (max 16.2 s), so a pile-up lasting minutes is untested. A longer horizon is running: N = 50 plus a time window.
+  - Checked against `summary.json` and the rows at filing: the 300/300 identity, the 36 / 100 disclosure, the kept shares, the sign agreement, the median advantage, the floor and its n, and the ids sha.
+    - The code sha and the arrival spread (4.9 / 16.2 s) are S7's figures; the arrival times are not in the row files.
+
 - 2026-10-13 — **S7's Step 0: GNN-PROPOSES-NOT-COMPOSES** (offline, the 193 K1(b) states; `/share/nikola.lukic/uncut_ils/step0/{gnn,twin}_summary.json`). The label is the expert's ruling.
   - Task-weighted regret against ILS: GNN 51.7 %, MP-OFF twin 58.3 %, hand (`cd_ib0`) 38.6 %.
   - At 51+ tasks the GNN is worse than the hand. In the 51–100 bucket it is 55.8 % against the hand's 43.2 %, with 57.7 cross-node pairs against 40.9.
