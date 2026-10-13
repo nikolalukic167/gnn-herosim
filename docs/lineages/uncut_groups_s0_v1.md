@@ -1,10 +1,10 @@
 # uncut_groups_s0_v1 — does a learned scorer beat the time-bounded hand bar when Alibaba peer groups are served uncut and decision time is charged?
 
-**Status:** `DRAFT — NOT REGISTERED` (2026-10-13). Drafted by S6 on the expert's request; the design is SCIENTIST's (pick D), and SCIENTIST keeps the name.
+**Status:** `REGISTERED` (2026-10-13). Designed by SCIENTIST (pick D; SCIENTIST keeps the name) and drafted by S6 on the expert's request. SCIENTIST closed the design on 2026-10-13; the expert authorised registration once it was closed. Every bar below was fixed before data.
 - decision_cost kill check 2 PASSED (S4 interim read, job 864514): `cd_exactS` loses +9.53 % (moderate) and +197.4 % (heavy) to its own decision time at k = 1, 0/12 at both rungs.
-- Registration waits on SCIENTIST closing the [M] items, and on the expert's ruling on the `placements.jsonl` exemption (Serving and corpus, F).
-- Authorised by the expert once registered: the topology and library mint, identities (a)–(j), and the hand-arm cells.
-- **On hold:** ILS labels and all training wait for S4's decision_cost attribution read (`cd_expand` vs `cdxapply`).
+- **Authorised now:** the mint of the 12 fresh topologies and the uncut libraries from the raw shards, identities (a)–(l), and the hand-arm cells (150–350 CPU-h).
+- **On hold:** ILS labels and all training wait for S4's decision_cost attribution read (`cd_expand` vs `cdxapply`), and for the expert's clarification of F's "simulated label".
+- **Labels are ILS incumbents, not optima.** For groups above the 100,000-plan cap, label quality is bounded by the registered convergence check (ruling 3). `placements.jsonl` for those groups is a headed sample, not a sweep (F; the expert's exemption of 2026-10-13).
 
 **Why.** Every grounded and accel gate so far served Alibaba peer groups cut to at most 10 tasks. The library builder keeps only the first `--max-size 10` siblings of a fan-out (`scripts_cosim/grounded_workload_v1_extract.py:74–76`), and the served batch is capped at the cell's `batch_size` 10 (code ceiling 16).
 
@@ -21,7 +21,8 @@ So the joint problem studied so far is the easy part of the workload. On the big
 
 **Prior and hypothesis (SCIENTIST): P(WIN) ≈ 0.10.**
 - Coupling stays sparse. Each member draws `min(2, size − 1)` partners (`grounded_workload_v1_mint.py:13–14`, `:140`), so a 2,876-task group is a graph of mean degree about 4, not a clique.
-- Hand local search is strong on sparse pairwise objectives: α-expansion reaches the exact optimum on 67 % of tables (`cd_expand`; from memory, not re-read).
+- On states of ≤ 6 tasks, S plus CD is within about 2–4 % of the true optimum on average (frontier_v1: ib0_s mean regret 4.06 % heavy / 1.39 % moderate, cd_s 2.67 / 1.99 %). Whether S stays that good on groups > 10 is unmeasured; the K1b replay diagnostic measures it.
+- α-expansion's exact-optimum hit rate of 67.2 % (ICM 55.3 %; 1,017 whole-batch datasets of 2–8 tasks, true replayed RTT; `/share/nikola.lukic/workload_fix_v1/accel_state_stats/expansion_summary.txt`) is **not** evidence that hand local search is near-optimal: its misses are large (median +44 %, p90 +748 %).
 - **Registered hypothesis:** any learned edge comes from decision **time**, not plan quality.
 
 **Parents to read:**
@@ -33,9 +34,9 @@ So the joint problem studied so far is the easy part of the workload. On the big
 - [slate_bar_v1](slate_bar_v1.md): the slate handicap.
 - [slate_fix_v2](slate_fix_v2.md): after-360 s and whole-run side by side.
 
-## Design (SCIENTIST's rulings, 2026-10-13; not signed)
+## Design (SCIENTIST's rulings, 2026-10-13; registered)
 
-Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not re-read. Every [M] item is checked before registration.
+Marks: [V] SCIENTIST read it on reference-physics 18161421 or at source on datalab. The five [M] items of the first draft were closed by SCIENTIST on 2026-10-13: four verified, one (α-expansion) corrected.
 
 **1. The bar.**
 - **(a) Enumeration limit:** the existing 100,000-plan cap (`HEROSIM_PG_CD_EXACT_MAX_PLANS`, `peer_greedy_network/scheduler.py:170`, `:356`) [V]. ib0 was confirmed there and decision_cost's w was calibrated there. On top-5 slates it means exact search up to n = 7.
@@ -43,16 +44,19 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
   - Candidates: `cd`, `cd_ib0`, `cd_exactS` (expansion), `cd_exactS_ib0` (expansion), `cd_exactS_ib0_prune`, plus the expert's 2026-10-13 additions:
     - **`cd_expand`**, a hand seed with the same α-expansion as `cdxapply`;
     - **a time-bounded `exactS` prune at the same expansion limits as `cdxapply`**.
-    These two exist so that a learned win cannot be the search's. decision_cost's interim read has `cdxapply` beating the hand frontier at k = 1, whole-run (−3.57 / −2.96 %), on a grid with no hand-seeded expansion.
+    These two exist so that a learned win cannot be the search's.
+    - If S4's read has `cd_expand` tying `cdxapply`: no re-sign. `cdxapply` stays the learned-seed arm and must beat `cd_expand` inside this bar.
+    - If `cd_expand` beats `cdxapply`: SCIENTIST proposes moving `cdxapply` out of F1 into the descriptives, freeing a Holm slot. The expert's call. decision_cost's interim read has `cdxapply` beating the hand frontier at k = 1, whole-run (−3.57 / −2.96 %), on a grid with no hand-seeded expansion.
   - The prune arm is in because cost-order top-k prune beat expansion −1.89 / −2.11 % vs `cd_exactS` at G=8 (`prune_g8_s0_v1`) [V]. It needs the alpha×prune refusal lifted as a registered change (the expert's ruling), with its own identity against the current prune arm at alpha = 1 (8c), before any cell of this node uses it. Amendment 2 lists it as NOT RUN. **No WIN is claimable without it.**
-  - `cd` and `cd_exactS` are bar candidates, not reference lines: under a warm heavy surge ib0 ran away on 3/12 topologies (×2) and 5/11 (×3) while they held (warm_surge 0b) [M]. Uncut giant groups are surges.
+  - `cd` and `cd_exactS` are bar candidates, not reference lines: under a warm heavy surge ib0 collapsed on 3/12 topologies at ×2 (19422, 19425, 19430) and 5/12 at ×3 (19422, 19425, 19426, 19429, 19430); `cd_exactS` on 1/12 at ×3 (19427), `cd` on 0 (warm_surge 0b, `/share/nikola.lukic/warm_surge/collapse_table.md`) [V]. The "5/11" in warm_surge's record line 169 is a denominator error. Uncut giant groups are surges.
 - **(c) Time bound: no wall-clock cap.** Decision time is charged per decision_cost Amendment 3: `t_batch = k × w[arm][rung] × plans_evaluated`, one FIFO scheduler server, mutex held [V].
   - Expansion and prune run to their own termination and pay for it on the clock. That is the bound.
   - k = 1 (as measured on the cluster CPU) is primary, and is where kill check 2 reads. k = 0.25 is a secondary family; k = 0 is a reference.
   - **w is recalibrated for size.** On the smoke, report ms per plan by batch size (≤ 10, 11–50, 51+). If any bucket differs from ≤ 10 by more than 1.5×, fit `w(n) = a + b·n` per arm and rung and freeze it in `decision_cost_w.json` under a new key, before any gate cell.
-- **(d) Collapse:** warm_surge's collapse rule has not landed; S5 writes it after the 0c diagnostic (the expert, 2026-10-13). Until it lands, this extension of gate-tools 2026-10-08 is registered, and the node switches to warm_surge's rule verbatim when it does:
-  - a cell collapses if its end minus its last arrival is more than 300 s (the request timeout), **or** its mean latency is more than 5× the median of the hand arms' means on that topology × window × rung;
-  - the collapse count per arm is a registered line beside every median.
+- **(d) Collapse:** warm_surge's rule, adopted (gate-tools 2026-10-13 section on `rp/warm-surge`, not yet on reference-physics). Its thresholds sit in the 2.4×–8.1× gap of 576 cells. Rewritten for a whole-run seat:
+  - **COLLAPSE:** a cell's mean latency is more than 3× the same topology × window × rung's `cd` mean, tested separately on whole-run and after-360 s;
+  - **TAIL FLAG:** end minus last arrival is more than 120 s, counted separately;
+  - the collapse count and the tail-flag count per arm are registered lines beside every median. SCIENTIST's earlier fallback (300 s / 5× hand median) is dropped.
 
 **2. Arms.** One clock for all: k × the arm's own calibrated w × its own plans. Each arm serves the slate it was trained on (named per arm; `slate_bar_v1`).
 
@@ -66,11 +70,11 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 - Plain no-split is dropped: it is E-FASTER in slate_fix_v2 (+3.6 / +7.1 %) [V].
 - Search machinery is unchanged: self-search is exact up to `SELF_SEARCH_EXACT_MAX` = 625 slate plans, coordinate ascent above (`gnn/scheduler.py:174`, `:1066`) [V]. There is no hand expansion inside the pure GNN arms.
 
-**3. Labels.** ILS on ib0's surrogate S, not exact replay: exact search is impossible above n = 7, and a replay build costs 5.6–7.7 s per state plus 0.05 s per evaluation (S7's frontier figure as recorded in decision_cost; not re-read).
+**3. Labels.** ILS on ib0's surrogate S, not exact replay: exact search is impossible above n = 7, and a replay build costs 5.59–7.73 s on its first call per state (raw range 4.98–7.96 s) plus **0.04–0.21 s per evaluation, rising with n** (0.05 s up to n = 4 heavy, 0.21 s at heavy n = 6, p90 about 0.22–0.25) (frontier_v1 `read.txt` §wall and `walls.jsonl`, 30 states, replay = label exactly) [V]. Replay-label costs at n > 10 are therefore lower bounds.
 - **Budget:** α-expansion plus random-restart perturbation, capped at 200 × n × (mean candidates per task) evaluations per group.
 - **Convergence (registered):** on a 200-state sample, doubling the budget moves the label's S by less than 0.1 %. Otherwise the budget is raised until it does.
 - **Ties:** lexicographic on (node id, platform id) per task in task order, never set order. Seeded; two label runs are byte-identical (8h).
-- **S-fidelity (kill K1b's input):** exact replay on 200 sampled groups > 10 (about 0.5 CPU-h) gives argmin-S's true regret. The reference is ib0's S regret at n ≤ 6, 4.1 % heavy / 1.4 % moderate (as relayed). If the mean regret on groups > 10 exceeds 2× that (8 % heavy), S labels are wrong where this node lives: switch to replay-evaluated top-m labels (m = 8).
+- **S-fidelity (kill K1b's input):** exact replay on 200 sampled groups > 10 (about 0.5 CPU-h) gives argmin-S's true regret. The reference is ib0's S mean regret at n = 2–6, k = 0: 4.06 % heavy (245 states), 1.39 % moderate (274); medians 0.00 (frontier_v1 `read.txt`; 27 states logged as errors are excluded) [V]. If the mean regret on groups > 10 exceeds 2× that (8.1 % heavy, 2.8 % moderate), S labels are wrong where this node lives: switch to replay-evaluated top-m labels (m = 8).
 
 **4. Seat and corpus.**
 - **Seat:** accel 160 × 24, WF1, p 0.6, `fastest_compatible`, KPA, pipelined, `HEROSIM_REPLICA_RELEASE=1`, 1 s window. That is where the bar, ib0 and decision_cost's w live.
@@ -93,10 +97,11 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 - **Labels:**
   - WIN / TIES / E-FASTER (the bar Holm-faster at both rungs);
   - MP: MP-WIN / DIRECTION-ONLY (right sign, not Holm) / NOT-SEPARATED;
-  - **UNCUT-ATTRIBUTED** (registered, descriptive): at least 50 % of the pp gap sits in batches > 10, by gnn_overcap's by-batch bucket method on g0 cells. A win carried by batches ≤ 10 is labelled **WIN-NOT-UNCUT**, not a result for this node.
+  - **UNCUT-ATTRIBUTED** (registered, descriptive): at least 50 % of the pp gap sits in batches > 10, by gnn_overcap's by-batch bucket method on g0 cells, bucketed by the group's **original** size (a split big group still counts as > 10). A win carried by batches ≤ 10 is labelled **WIN-NOT-UNCUT**, not a result for this node.
 
 **6. Kill rules.**
 - **K0, admissibility, before any learned work** (hand arms at k = 0, g0, 12 topologies, both rungs): `cd` and `cd_exactS` must be healthy (no collapse, effective queue share ≤ 0.80) on ≥ 10/12 at heavy. Otherwise the giant groups are a load lever: fall back to the moderate rung only, disclosed. If moderate also fails, **STOP (NO-SEAT)**.
+  - **Uncut admissibility** (SCIENTIST): at k = 0 on the bar arm, at least 90 % of the tasks in groups > 10 are served in a whole-group batch. Otherwise the seat isn't serving uncut: say so and stop.
 - **K1, before training** (live hand arms at k = 1, plus offline labels):
   - (a) Decision-time headroom: the best hand arm's scheduler wait plus decision share is under 3 % of its mean latency (kill check 2, restated on uncut groups).
   - (b) Plan headroom: on batches > 10, the hand fallback's plan is within 1 % of the ILS label on S (median over batches).
@@ -123,6 +128,7 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 - (i) **Library rebuild** (S6; condition by SCIENTIST): rebuilt at `--max-size 10`, each library reproduces the committed library's **md5**; if not, the extract has drifted and the node stops. The uncut rebuild reproduces each group's first 10 offsets and `size_raw`.
 - (j) **Snapshot path** (the expert): the snapshot run with the cap removed reproduces the capped run bit-equal on a trace with no group > 10 (a window where that holds, or a filtered trace).
 - (k) **Same batch formation** (SCIENTIST, B): one hand arm and one learned arm produce identical batch membership on a fixed arrival trace.
+- (l) **Sampled `placements.jsonl` readers:** a sampled file without the header is rejected, and one with it is reported as a sample (test in `tests/`).
 
 **9. Origin.** Single origin per group, spread over the 160 clients: the accel seat's existing model (big_groups and prune_g8 designs) [V].
 - A fan-out originates at one caller, so this is the realistic model.
@@ -132,13 +138,13 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 ## Serving and corpus rulings (SCIENTIST A–H and the expert, 2026-10-13)
 
 **A. No bridge** on the plain mint (both). The batch is the trace group as the mint draws it, so identity (a) holds.
-- A random 2-out graph is connected with high probability at large n [M].
+- The mint's rule, each member drawing `min(2, n − 1)` distinct partners (undirected union), gave **zero disconnected draws** in SCIENTIST's simulation. Seed 0; 2,000 draws per n ≤ 300 and 200 above; n = 3, 5, 10, 11, 15, 20, 30, 50, 100, 300, 1,000 and 2,876 [V]. The k-out literature is cited as background only.
 - The inputs report gives the number of exchange-graph components per group (1, 2, 3+) by size bucket × shard.
 - A bridged arm would be a separate registered condition, not the default.
 
 **B. Late members:** today's rule stays exactly as written (`gnn/scheduler.py:578–601`). A batch waits up to `batch_timeout` (1.0 s), serves what has arrived, and late members go to later batches with their placed partners fixed. Changing it would be a breaking change to the seat. The sibling span is p50 2 ms, p99 430 ms [V].
 - **Registered readouts per cell:** `peer_group_incomplete_batches`, and the share of tasks split off past the timeout by size bucket, per arm and rung, beside every table.
-- Above 1 %, the read says so and SCIENTIST rules whether it is a confound.
+- **The split share is a mediator, not a confound** (SCIENTIST). Batch collection runs when the scheduler server is free, so at k > 0 a slower arm collects later and splits fewer groups: the split share is part of the arm's decision-time effect. It is reported per arm and condition, and is never removed. Above 1 %, the read says so.
 - **Same batch formation for every arm (checked by S6):** the hand batch arms inherit `GNNScheduler._collect_task_batch` without overriding it. `PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler)` is at `peer_greedy_network/scheduler.py:896`, and `PeerGreedyNetworkCDScheduler` subclasses it at `:1577`. `:909` refuses to run without `GNN_DECODE_MODE=masked_topo` and `GNN_BATCH_BY_PEER_GROUP=1`. The tabular `XGBoostBatchScheduler(GNNScheduler)` doesn't override it either.
 - A test that two arms form identical batch membership on a fixed arrival trace is still to be written (identity (k)).
 
@@ -156,13 +162,19 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
 - Corpus topologies are disjoint from the gate's.
 
 **F. Labels and `placements.jsonl`:** labels are ILS on S (ruling 3), never `executecosimulation`'s sweep, so the 250,000-combo skip is not in the label path. A state whose label fails fails loud and is never dropped.
-- This conflicts with AGENTS' mandatory full-sweep `placements/placements.jsonl`.
-- SCIENTIST's proposal: write every ILS-evaluated plan with its S and the label, under a header with `exhaustive=false` and the eval budget, and state in the node that it is a sample, not a sweep.
-- **Open ruling, the expert's.**
+
+**Exemption SIGNED by the expert (2026-10-13).** The terms are owned by [docs/notes/placements_jsonl_required.md](../notes/placements_jsonl_required.md), "Sampled files above the plan cap":
+- the exemption is per dataset, by plan-space size: groups within the 100,000-plan cap keep the full sweep;
+- a mandatory header line (`exhaustive`, `plan_space_size`, `eval_budget`, `evals_done`, `search`, `seed`, the S pin, the cap) on every file this lineage writes;
+- every ILS-evaluated plan, with its S, its simulated label and an iteration index, with nothing deduplicated away;
+- the metadata and validation readers report `exhaustive=false` and fail loud rather than read a sample as a sweep, with a test.
+
+These reader changes and the test are pre-label code (identity (l)).
+- **Open, for the expert:** "its simulated label" for **every** ILS-evaluated plan. Simulating each evaluated plan would cost the replay rate (5.6–7.7 s per state plus 0.04–0.21 s per evaluation, rising with n) times the eval budget (200 × n × candidates per group), far above ruling 7's label figure. Alternatively, rows carry S, and only the incumbent (or the top-m, under K1b) carries a simulated value.
 
 **G. Pre-gate checks** (from S6's unchecked items):
 - **Feature ranges at large n.** Every per-batch or count feature (prefix block, partner counts, batch-size terms) has its max on batches > 10 compared with the checkpoint's training max (the queue_range_v1 / legacy_v0 lesson). Any feature beyond it is either trained on or reported as out of range.
-- **Memory and forward time at n = 2,876.** Peak RSS and forward wall are measured in identity (d). An OOM fails loud. Forward time is charged through w(n), not capped. The gate's per-cell `--mem 8G` (`CELL_MEM`) is the binding limit to check.
+- **Memory and forward time at n = 2,876.** Peak RSS and forward wall are measured in identity (d). An OOM fails loud. Forward time is charged through w(n), not capped. The gate's per-cell `--mem 8G` (`CELL_MEM`) is the binding limit to check. If a 2,876-task decode exceeds it, `CELL_MEM` is raised for **every** arm equally (not a physics change), disclosed, and never for the learned arms alone.
 - **Merge order:** decision_cost reads first (kill check 2, done), then the w(n) key lands in `decision_cost_w.json`, then this node's code.
 
 **H. Capacity structures** (SCIENTIST's question; S6 read at 18161421):
@@ -171,14 +183,16 @@ Marks: [V] SCIENTIST read it on reference-physics 18161421; [M] from memory, not
   - Platform queues are unbounded `Store(env)` (`src/placement/infrastructure.py:778`).
   - The per-node `compute_slots` `Resource` (`infrastructure.py:2019`) is contention physics, not a size cap.
   - The orchestrator mutex (`orchestrator.py:118`) is capacity 1 by design.
-- **Unverified ceiling:** `replica_count_series.peak` is exactly 120 in every accel summary read for slate_fix_v2. It is the max of a 121-point sampled total (`fresh_topo_burst_v1_gate.py:396–422`). It is likely full scale-out onto every eligible (node, platform) pair, a physical limit and not a code cap, but that is not confirmed from the cfg. A 2,876-task burst cannot get more replicas than that, so identity (d)'s smoke reports it.
+- **Replica ceiling, CONFIRMED (S6, 2026-10-13):** `replica_count_series.peak` is exactly 120 in every accel summary read for slate_fix_v2. It is the max of a 121-point sampled total (`fresh_topo_burst_v1_gate.py:396–422`).
+  - Topology 19420's infrastructure, built by `prepare_infrastructure_for_real_simulation` (`src/executesimulation.py:110`) from `inputs_12/inputs/wf1_heavy/cfg/cc40s19420.json` at f4f0453f, has **24 servers carrying exactly 120 platforms**: 8 servers × 4, 8 × 10 and 8 × 1. By type: rpiCpu 32, xavierCpu 64, xavierGpu 8, xavierDla 8, pynqFpga 8.
+  - So the peak is every server platform holding a replica, i.e. full scale-out: a physical ceiling, not a code cap. A 2,876-task burst cannot get more replicas than this.
+  - Checked on one topology. The other topologies use the same node-type percentages; identity (d)'s smoke reports the count per topology.
 - **Keep-warm:** `GNN_REPLICA_KEEPWARM_MAX_REPLICAS` (default 4, `gnn/scheduler.py:212`) applies only when keep-warm is on, which it is not in this seat (counters 0).
 
 **Live gate** (rule 6): F1–F3 above are the live gate and its closing step.
 
-**Open points before registration:**
-- SCIENTIST verifies the [M] items: the warm_surge 0b counts, α-expansion's 67 %, the ib0 S-regret and replay-cost figures as relayed, and random 2-out connectivity.
-- The expert rules on the `placements.jsonl` exemption (F).
+**Open before the work they gate:**
+- The expert clarifies F's "simulated label" for every evaluated plan vs the incumbent only.
 - `rp/decision-cost` is merged or pinned, and the w(n) key lands before any cell (G).
 - The alpha×prune relaxation and the whole-group batch mode (C) are implemented with their identities before any cell that uses them.
 
@@ -216,4 +230,5 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
 - 2026-10-13 — Drafted by S6 on the expert's request. Design items 1–9 are SCIENTIST's rulings of the same day; the code-path list is S6's (read only, nothing edited). Not registered; no index row.
