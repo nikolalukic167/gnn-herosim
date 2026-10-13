@@ -299,6 +299,13 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **`cdxapply` is wall-feasible where `cd_expand` is not** (S4, smoke 864642; 19461 g0, k = 0; slate_fix_v1 checkpoints trained on cut groups; descriptive, not a gate number; OUT `/share/nikola.lukic/uncut_groups/smoke_learned`).
+  - `cdxapply` (GNN seed + α-expansion) finished at both rungs: 3,425 s (moderate) and 4,654 s (heavy) of wall time, `pgb_max_batch` 199, SUB_BATCH violation 0.
+  - Hand `cd_expand` runs the same expansion from the hand seed and is wall-infeasible at heavy.
+  - Decision wall 67.8 / 92.4 ms per task mean (median 4.2 / 4.6 ms). The largest single call took 186 / 215 s, on a 199-task group.
+  - This is a **cost-side difference of the learned seed**, and the paper quotes it as that.
+  - Mechanism unmeasured: S4's hypothesis is that a GNN seed nearer a local optimum leaves the expansion fewer moves. This is a hypothesis, not a claim.
+  - Not run at k = 1 under the paper pivot (the user's decision, 2026-10-13) unless the user asks.
 - 2026-10-13 — **Exact-search cap hits at k = 0** (S7, `scripts_cosim/uncut_caphit.py`, `/share/nikola.lukic/uncut_groups/caphit_k0.json`, read from the finished cells of `gate_k0`).
   - Counters per cell summary: `pg_exact_fallbacks` (batches over the 100,000-plan cap; the scheduler's own cap counter), `pg_exact_batches`, `pg_exact_plans`. Served batches by size are `pgb_whole_*` + `pgb_split_*`. Share = hits ÷ (exact + hits).
 
@@ -324,6 +331,10 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - The same pin writes the served plan of each sealed batch to `<snapshots>.chosen.jsonl` (`live_audit.load_chosen`), so K1(b) can check re-decided = served.
   - S5's line, corrected: the 3 missing ids are "missing: cap exhausted by a retry capture; whether the id triggered is unknown (launch defect, fixed 1929fd3c)", not "never a trigger at k = 1".
   - **Ruled (the expert):** recapture, not impute. The 3 cells run at 1929fd3c (jobs 864752–864754, OUT `gate_k1_recap_1929fd3c`). Acceptance: SIM-IDENTICAL summaries, and byte-equal snapshots for the ids already captured. Imputation at the bucket max (signed rule (1)) is the fallback only if that identity fails. Imputation was written for a trigger that never fired; here the state can be measured.
+  - **Read: PASS** (ruled by the expert). The summaries are SIM-IDENTICAL to the gate_k1 originals on 451–452 shared keys, except `sealed_snapshots.missing` (now []). All 3 ids are recovered (3/3, 2/2, 3/3 written).
+    - Old capture order [28090, 28090, 45008], [11754, 11754], [24890, 37730, 37730]; new order [28090, 45008, 45393], [11754, 46539], [24890, 37730, 41168].
+    - The first capture of each already-captured id is byte-equal, except 45008 in 19463 g1 `cd_ib0_k100`, which differs only in `snapshot_id` (old 2, new 1). That is the file's write counter, moved because the dropped duplicate came first.
+    - The recapture ran twice at 1929fd3c with the same result. **S5's OUT `gate_k1_recapture` (jobs 864750/864751) is canonical for K1(b).** S6's OUT `gate_k1_recap_1929fd3c` (jobs 864752–864754) is an independent confirmation: SIM-IDENTICAL summaries and byte-equal snapshots against S5's, with the same 3 ids recovered. It is kept on disk and is not read into K1.
 - 2026-10-13 — **K1(b) tool and label engine built** (S7, `rp/uncut-ils` dee6e4eb, `scripts_cosim/uncut_ils.py`, tests `tests/test_uncut_ils.py`).
   - ILS runs on the scheduler's own `_pg_plan_cost` (ib0). Replay runs only on the hand plan and on each new incumbent. The K1(b) reader works per bucket.
   - **Smoke 2 (validation):** 20 frontier states (n ≤ 6). ILS reaches the exhaustive S-optimum 20/20, replay equals the stored table RTT to within 7e-15, and ILS is at the label optimum on 17/20.
