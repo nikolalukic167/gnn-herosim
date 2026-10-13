@@ -404,7 +404,7 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
                     v = S(plan)
                     if best_e is None or v < best_e - EPS:
                         best_e, argm = v, plan
-                exh = {"plans": total, "s_opt": best_e, "ils_gap": r["best_S"] - best_e}
+                exh = {"plans": total, "s_opt": best_e, "ils_gap": r["best_S"] - best_e, "argmin": argm}
         order_ = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
         ranks = None
         if rank_plans:          # the standalone-cost rank (the declared slate's order, top-5 = the slate) of each task's placement in the given plans (snapshot batch order)
@@ -419,6 +419,8 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
         sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha = saved
     order = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
     to_batch = lambda plan: [list(plan[i]) for _b, i in order]       # snapshot batch order (gid ascending)
+    if exh is not None:
+        exh = {**{k: v for k, v in exh.items() if k != "argmin"}, "argmin_batch": to_batch(exh["argmin"])}
     return {"plan_space": math.prod(len(c) for c in ckeys), "n": len(batch_tasks), "n_batch": len(order), "n_pinned": len(pinned), "cands_mean": sum(len(c) for c in ckeys) / len(ckeys),
             "hand": to_batch(start), "start_S": r["start_S"], "best": to_batch(r["best"]), "best_S": r["best_S"], "n_evals": r["n_evals"], "budget": budget,
             "stopped": r["stopped"], "iters": r["iters"], "s_calls": ils_calls, "search_wall": wall_s, "exhaustive": exh,

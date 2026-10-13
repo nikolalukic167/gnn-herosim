@@ -17,6 +17,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Tuple
 
+U_REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(U_REPO))
 BUCKETS = (("le10", 1, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("101_256", 101, 256))
 DRAWS = {"le10": 4800, "11_50": 4600, "51_100": 2000, "101_256": 600}       # 12,000 labelled states (SCIENTIST, as corrected)
 EARLY_SHARE, EARLY_T, POOL_MULT, MIN_MULT = 0.30, 360.0, 5, 3
@@ -192,6 +194,54 @@ def capture_rows(pool: Sequence[Dict[str, Any]], cap_root: str) -> Tuple[List[Di
     return rows, missing
 
 
+R_MIN = 0.10             # SCIENTIST: the label is the ILS plan only if (RTT_hand - RTT_ILS) / RTT_hand >= 0.10 at N = 0
+EXACT_CAP = 100_000      # <= 10-task states: exact optimum on S over the full candidate product when it has at most this many plans, else the > 10 path
+ILS_SECONDS = 600.0
+
+
+def job_of(state: Dict[str, Any], root: str) -> Dict[str, Any]:
+    """The decision-pass job for a drawn state. The cell env comes from the full-length set-A summary of the same cell (opening-only cells write none: the runner's
+    N_TASKS check marks them failed); the config from the set's own whole-group inputs."""
+    topo, w, rung, s = state["topology"], state["window"], state["rung"], state["set"]
+    return {"state_id": state["key"], "bucket": state["bucket"], "group_size": state["n_batch"], "snapfile": state["snapfile"], "trigger_task_id": int(state["trigger"]),
+            "time": state["time"], "cell_summary": f"{root}/cap/A/cc40s{topo}__{w}{rung}__cd_ib0_s0.summary.json",
+            "cell_config": f"{root}/inputs{s}/inputs_group/wf1_{rung}/cfg/cc40s{topo}.json", "sim_input": str(U_REPO / "data" / "nofs-ids"), "role": "first"}
+
+
+def label_state(job: Dict[str, Any], seed: int = 0) -> Dict[str, Any]:
+    """The Arm 1 label of one state. <= 10 tasks: the exact S-optimum when the candidate product has <= EXACT_CAP plans. Otherwise ILS from the hand (cd_ib0) plan at the K1(b)
+    budget, one replay each of the hand and ILS plans, label = ILS iff r >= R_MIN else hand. A state whose hand plan cannot be re-decided whole (SPLIT / UNPLACED) takes the served
+    plan from the capture's chosen sidecar (hand label); one with deferrals in the served plan is dropped and reported."""
+    from scripts_cosim import uncut_ils as U
+
+    base = {"state_id": job["state_id"], "bucket": job["bucket"], "n_batch": job["group_size"], "trigger_task_id": job["trigger_task_id"], "snapfile": job["snapfile"]}
+    try:
+        if job["group_size"] <= 10:
+            d = U.decision_pass(dict(job, exhaustive_cap=EXACT_CAP), "cd_ib0", seed, 5, 200, 30.0)
+            base.update(plan_space=d["plan_space"], slate_log10=d["slate_log10"], hand=d["hand"], start_S=d["start_S"])
+            if d["exhaustive"]:
+                return {**base, "source": "exact", "label": d["exhaustive"]["argmin_batch"], "label_S": d["exhaustive"]["s_opt"], "exact_plans": d["exhaustive"]["plans"],
+                        "hand_equals_label": d["hand"] == d["exhaustive"]["argmin_batch"]}
+        row = U.run_state(dict(job), "cd_ib0", seed, None, 200, ILS_SECONDS, "final")
+    except RuntimeError as exc:
+        from src.placement import live_audit
+
+        rec = live_audit.load_chosen(job["snapfile"]).get(int(job["trigger_task_id"]))
+        reason = "SPLIT" if "decided whole" in str(exc) else "UNPLACED" if "partner the live run" in str(exc) else "OTHER"
+        if reason == "OTHER" or rec is None or rec.get("deferred"):
+            return {**base, "source": "dropped", "reason": reason, "error": str(exc)[:300], "n_deferred": None if rec is None else len(rec.get("deferred") or [])}
+        snap = U._load_snapshot(job)
+        gids = [int(r["gid"]) for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
+        served = {int(t): [int(n), int(p)] for t, n, p in rec["chosen"]}
+        return {**base, "source": "hand_served", "reason": reason, "label": [served[g] for g in gids]}
+    r = (row["rtt_hand"] - row["rtt_ils"]) / row["rtt_hand"] if row["rtt_hand"] > 0 else 0.0
+    use_ils = r >= R_MIN
+    return {**base, "source": "ils" if use_ils else "hand", "label": row["best"] if use_ils else row["hand"], "r": r, "rtt_hand": row["rtt_hand"], "rtt_ils": row["rtt_ils"],
+            "hand": row["hand"], "ils": row["best"], "start_S": row["start_S"], "best_S": row["best_S"], "n_evals": row["n_evals"], "budget": row["budget"], "stopped": row["stopped"],
+            "time_bound": row["time_bound"], "plan_space": row["plan_space"], "slate_log10": row["slate_log10"], "cands_mean": row["cands_mean"], "search_wall": row["search_wall"],
+            "chosen_match": row.get("chosen_match")}
+
+
 def truncate_workload(wl: Dict[str, Any], open_s: float) -> Dict[str, Any]:
     """The workload cut to events arriving by open_s (ids unchanged: events are in arrival order); pairs touching a dropped event go."""
     keep = sum(1 for e in wl["events"] if float(e["timestamp"]) <= open_s)
@@ -211,6 +261,9 @@ def main() -> int:
     p.add_argument("--topos", nargs="+", type=int, required=True); p.add_argument("--seed", type=int, required=True); p.add_argument("--out", required=True)
     d = sub.add_parser("draw")
     d.add_argument("--pool", required=True); d.add_argument("--cap-root", required=True); d.add_argument("--seed", type=int, required=True); d.add_argument("--out", required=True)
+    lb = sub.add_parser("label")
+    lb.add_argument("ids"); lb.add_argument("--root", default="/share/nikola.lukic/uncut_arm1"); lb.add_argument("--shard", default="0/1"); lb.add_argument("--out", required=True)
+    lb.add_argument("--seed", type=int, default=0)
     o = sub.add_parser("openings")
     o.add_argument("--src", required=True); o.add_argument("--dst", required=True); o.add_argument("--open-s", type=float, default=420.0)
     a = ap.parse_args()
@@ -225,6 +278,21 @@ def main() -> int:
                 wl = truncate_workload(json.load(open(f"{a.src}/{f}")), a.open_s)
                 json.dump(wl, open(f"{a.dst}/{f}", "w"), separators=(",", ":"))
                 print(f"[open] {rung} {w}: {wl['rps']} events kept (arrival <= {a.open_s} s)")
+        return 0
+    if a.cmd == "label":
+        states = json.load(open(a.ids))["states"]
+        k, m = (int(x) for x in a.shard.split("/"))
+        done = set()
+        if os.path.exists(a.out):
+            done = {json.loads(l)["state_id"] for l in open(a.out) if l.strip()}
+        with open(a.out, "a") as fh:
+            for st_ in states[k::m]:
+                if st_["key"] in done:
+                    continue
+                row = label_state(job_of(st_, a.root), a.seed)
+                row["set"], row["topology"], row["window"], row["rung"], row["early"], row["side"] = st_["set"], st_["topology"], st_["window"], st_["rung"], st_["early"], st_["side"]
+                fh.write(json.dumps(row, separators=(",", ":")) + "\n"); fh.flush()
+                print(row["state_id"], row["source"], flush=True)
         return 0
     if a.cmd == "draw":
         pool = json.load(open(a.pool))
