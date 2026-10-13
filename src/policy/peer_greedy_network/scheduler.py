@@ -69,6 +69,8 @@ PEER_GREEDY_COUNTERS = (
     "pg_ils_batches", "pg_ils_evals", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget_stops",
     "pg_ils_batches_11_50", "pg_ils_batches_51_100", "pg_ils_batches_101_226",
     "pg_ils_cap_hits_11_50", "pg_ils_cap_hits_51_100", "pg_ils_cap_hits_101_226",
+    "pg_ils_differs_11_50", "pg_ils_differs_51_100", "pg_ils_differs_101_226",
+    "pg_ils_gain_seconds_11_50", "pg_ils_gain_seconds_51_100", "pg_ils_gain_seconds_101_226",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
     "pg_exact_gain_seconds",
     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
@@ -368,7 +370,7 @@ class _PeerGreedyCore:
         self.pg_ils_min_batch = None
         for _n in PEER_GREEDY_COUNTERS:
             if _n.startswith("pg_ils_"):
-                setattr(self, _n, 0.0 if _n == "pg_ils_gain_seconds" else 0)
+                setattr(self, _n, 0.0 if _n.startswith("pg_ils_gain_seconds") else 0)
         raw_min = os.environ.get(PG_ILS_MIN_BATCH_ENV, "").strip()
         if raw_min:
             if self._policy_label != "peer_greedy_network_cd":
@@ -1410,6 +1412,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         best = tuple(r["best"])
         moved = sum(1 for i in range(n) if best[i] != start[i])
         self.pg_ils_tasks_moved += moved
+        setattr(self, f"pg_ils_differs_{bucket}", getattr(self, f"pg_ils_differs_{bucket}") + 1)
+        setattr(self, f"pg_ils_gain_seconds_{bucket}", getattr(self, f"pg_ils_gain_seconds_{bucket}") + (r["start_S"] - r["best_S"]))
         self.pg_ils_gain_seconds += r["start_S"] - r["best_S"]
         self._pg_write_books(batch_tasks, [couple[k] for k in best], orch, memo, committed_service, planned, placements, service_of)
         return moved

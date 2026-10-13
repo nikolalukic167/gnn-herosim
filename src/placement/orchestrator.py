@@ -245,6 +245,7 @@ class Orchestrator:
             "pg_expand_gain_seconds", "pg_expand_labels_skipped",
             "pg_ils_batches", "pg_ils_evals", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget_stops",
             "pg_ils_batches_11_50", "pg_ils_batches_51_100", "pg_ils_batches_101_226", "pg_ils_cap_hits_11_50", "pg_ils_cap_hits_51_100", "pg_ils_cap_hits_101_226",
+            "pg_ils_differs_11_50", "pg_ils_differs_51_100", "pg_ils_differs_101_226", "pg_ils_gain_seconds_11_50", "pg_ils_gain_seconds_51_100", "pg_ils_gain_seconds_101_226",
             # cd_exactS: exact search over S on the top-5 slate (HEROSIM_PG_CD_EXACT=1)
             "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
             "pg_exact_gain_seconds", "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped",

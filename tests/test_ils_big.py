@@ -26,3 +26,10 @@ def test_scheduler_reads_env_opt_in(monkeypatch):
         monkeypatch.delenv(v, raising=False)
     src = (REPO / "src/policy/peer_greedy_network/scheduler.py").read_text()
     assert "self.pg_ils_min_batch = None" in src
+
+
+def test_reporting_counters_per_bucket():
+    exporter = (REPO / "src/placement/orchestrator.py").read_text()
+    for b in ("11_50", "51_100", "101_226"):
+        for k in (f"pg_ils_differs_{b}", f"pg_ils_gain_seconds_{b}", f"pg_ils_cap_hits_{b}", f"pg_ils_batches_{b}"):
+            assert k in S.PEER_GREEDY_COUNTERS and f'"{k}"' in exporter
