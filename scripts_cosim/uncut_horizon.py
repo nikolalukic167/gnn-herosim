@@ -158,7 +158,7 @@ def phase2(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, An
     spec = dict(spec, queued_tasks=len(snap["fidelity"]["queued"]), batch_tasks=len(snap["fidelity"]["batch"]))
     with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
         replay = FidelityReplay(spec, types, {})
-        replay.queued_forced = dict(replay.queued_forced, **{i: tuple(p) for i, p in placed.items()})
+        replay.queued_forced = {**replay.queued_forced, **{int(i): (int(p[0]), int(p[1])) for i, p in placed.items()}}
         replay.wl = deepcopy(ext["wl"])
         result = replay.run({i: (int(p[0]), int(p[1])) for i, p in enumerate(plan)})
     trs = {tr["taskId"]: tr for tr in result["stats"]["taskResults"] if tr.get("taskId", -1) >= 0}
