@@ -34,8 +34,15 @@ RA_ARMS = {
 }
 
 
+# uncut_groups_s0_v1 Arm 2: the gnn_eng / twin_eng architectures plus the B1 re-encode, the B2 group anchor and random-prefix K = 2.
+ARM2_ARMS = {
+    "ra_gnn_eng_arm2": ("gnn", False, False, True, False),
+    "ra_twin_eng_arm2": ("gnn", True, False, False, False),
+}
+
+
 def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
-    kind, mp_off, raw, conv, phys = RA_ARMS[arm]
+    kind, mp_off, raw, conv, phys = {**RA_ARMS, **ARM2_ARMS}[arm]
     graph_free = kind != "gnn"
     want = {
         "arm_kind": kind, "disable_message_passing": mp_off, "partial_state_contract": "partial_state_v5",
@@ -44,6 +51,11 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
         "mp_bipartite_edge_conv": conv, "mp_bipartite_edge_attr_zero": conv and not phys,
         "mp_peer_edges": not graph_free, "partial_state_feature_dim": 2 if raw else 27,
     }
+    if arm in ARM2_ARMS:
+        want.update(reencode_every="auto", group_anchor=True, random_prefix_k=2, anchor_ce_weight=0.5)
+    elif sc.get("group_anchor") or sc.get("reencode_every") not in (None, "inf"):
+        print(f"FAIL LOUD: sidecar is an Arm 2 checkpoint (group_anchor/reencode_every), arm {arm} is not", file=sys.stderr)
+        return 1
     if graph_free:
         want.update(mp_bipartite_edge_conv=False, mp_bipartite_edge_attr_zero=False)
     if kind == "set_transformer" and not sc.get("set_heads"):
@@ -69,7 +81,7 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
 def main() -> int:
     contract_path, arm, split, want_alpha = sys.argv[1:5]
     sc = json.load(open(contract_path))
-    if arm in RA_ARMS:
+    if arm in RA_ARMS or arm in ARM2_ARMS:
         return check_ra(sc, arm, split, want_alpha)
     aggr = "sum" if arm in AGG_BASE else "mean"
     arm = AGG_BASE.get(arm, arm)
