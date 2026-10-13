@@ -1032,6 +1032,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["queue_drift"] = drift
     out["code"] = (doc.get("run_provenance") or {}).get("code")
+    out["python_env"] = (doc.get("run_provenance") or {}).get("python_env")  # the raw JSON is deleted at job exit; PARITY.md reads the interpreter from here
+    out["env_fingerprint"] = (doc.get("run_provenance") or {}).get("env_fingerprint")
     n = out.get("num_tasks")
     problems = []
     orig_kind, kind = kind, check_alias(kind)
