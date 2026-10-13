@@ -190,6 +190,15 @@ def test_mean_is_printed_twice_and_imputation_can_unsatisfy_k1b():
     assert r["mean_captured_pct"] < 1.0 <= r["mean_imputed_pct"] and r["NOT_SATISFIED"] is True
 
 
+def test_unreplayable_states_are_listed_apart_from_missing_and_imputed_like_missing():
+    rows = [_r("a", "11_50", 100, 100), _r("b", "11_50", 101.5, 100), _r("c", "11_50", 100, 100)]            # captured mean 0.5 %
+    bad = [{"state_id": f"u{i}", "bucket": "11_50"} for i in range(4)]
+    r = U.read_rows(rows, (), bad)
+    assert r["unreplayable"]["total"] == 4 and r["unreplayable"]["11_50"] == ["u0", "u1", "u2", "u3"] and r["missing"]["total"] == 0
+    assert abs(r["unreplayable"]["share_of_sealed"] - 4 / 7) < 1e-9
+    assert r["mean_captured_pct"] < 1.0 <= r["mean_imputed_pct"] and r["NOT_SATISFIED"] is True        # (1.5 + 4 x 1.5)/7 = 1.07 %
+
+
 def test_retry_states_are_out_of_the_mean_listed_and_flagged_with_a_composite():
     rows = [_r(f"s{i}", "11_50", 100, 100) for i in range(8)]
     rows += [_r("x", "51_100", 200, 100, n_extra_captures=1), _r("x#r1", "51_100", 120, 100, role="retry", parent="x", n_extra_captures=0),
