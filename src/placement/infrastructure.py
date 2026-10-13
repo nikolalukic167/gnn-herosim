@@ -1251,7 +1251,7 @@ class Platform:
             self.executing = False
         return duration
 
-    def _peer_exchange_time(self, task: "Task") -> SimTime:
+    def _peer_exchange_time(self, task: "Task", record: bool = True) -> SimTime:
         """peer_affinity_v1: cost of exchanging state with this task's peers.
 
         The workload may carry `peer_exchange`: [i, j, bytes] triples over global task ids
@@ -1268,6 +1268,9 @@ class Platform:
 
         Returns 0.0 unless HEROSIM_PEER_EXCHANGE=1, and 0.0 for a task with no peers, so
         every existing corpus (no `peer_exchange` in its workload) is bit-identical either way.
+
+        `record=False` prices the exchange without booking it (the fabric's access-class tally and the audit): a
+        snapshot's estimate of a popped task's input stage must not count a transfer the task has not made.
         """
         if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
             return 0.0
@@ -1303,14 +1306,14 @@ class Platform:
                 )
             if peer_node_name == self.node.node_name:
                 continue
-            if _AUDIT is not None:
+            if record and _AUDIT is not None:
                 self._audit_payload("peer", task, peer_node_name, payload, self.peer_link_latency(
                     peer_node_name, context=f"peer {peer_id} of task {task.id}"))
             term = self._payload_transfer_time(peer_node_name, payload) + self.peer_link_latency(
                 peer_node_name, context=f"peer {peer_id} of task {task.id}")
             total += term
             fabric = getattr(self.node, "fabric", None)
-            if fabric is not None and fabric.access_classes:
+            if record and fabric is not None and fabric.access_classes:
                 fabric.record_exchange(peer_node_name, self.node.node_name, term)
         return total
 
