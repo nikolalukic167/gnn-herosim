@@ -144,16 +144,29 @@ def test_missing_ids_are_skipped_and_reported_but_unlisted_ones_fail_loud(tmp_pa
     assert r["missing"]["total"] == 2 and r["missing"]["51_100"] == ["gone"] and r["missing"]["101_226"] == ["gone2"]
 
 
-def _snap(chosen):
-    return {"fidelity": {"batch": [{"gid": 5}, {"gid": 3}]}, "chosen": chosen}
+def _snap():
+    return {"fidelity": {"batch": [{"gid": 5}, {"gid": 3}, {"gid": 9}]}}
+
+
+def _rec(chosen, deferred=()):
+    return {"trigger_task_id": 3, "chosen": chosen, "deferred": list(deferred), "arm": "cd_expand", "plan_evals": 10, "cap_hit": False}
 
 
 def test_chosen_check_is_bit_equal_and_fails_loud():
-    assert U.check_chosen(_snap({"3": [1, 2], "5": [4, 5]}), [[1, 2], [4, 5]], "s")
+    hand = [[1, 2], [4, 5], [7, 8]]                                  # gids ascending: 3, 5, 9
+    ok = U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 5], [9, 7, 8]]), "s")
+    assert ok["match"] and ok["compared"] == 3 and ok["live_cap_hit"] is False
     with pytest.raises(RuntimeError, match="differs from the served plan"):
-        U.check_chosen(_snap({"3": [1, 2], "5": [4, 5]}), [[1, 2], [4, 6]], "s")
-    with pytest.raises(ValueError, match="not a map over the batch"):
-        U.check_chosen(_snap({"3": [1, 2]}), [[1, 2], [4, 5]], "s")
+        U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 6], [9, 7, 8]]), "s")
+    with pytest.raises(ValueError, match="do not partition"):
+        U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 5]]), "s")
+
+
+def test_chosen_check_in_a_state_with_deferrals_flags_but_does_not_stop():
+    hand = [[1, 2], [4, 5], [7, 8]]
+    r = U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 6]], deferred=[9]), "s")
+    assert r["match"] is False and r["deferred"] == 1 and r["mismatched_tasks"] == 1 and r["compared"] == 2
+    assert U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 5]], deferred=[9]), "s")["match"] is True
 
 
 def _r(sid, bucket, hand, ils, **kw):
@@ -181,7 +194,9 @@ def test_retry_states_are_out_of_the_mean_listed_and_flagged_with_a_composite():
     rows = [_r(f"s{i}", "11_50", 100, 100) for i in range(8)]
     rows += [_r("x", "51_100", 200, 100, n_extra_captures=1), _r("x#r1", "51_100", 120, 100, role="retry", parent="x", n_extra_captures=0),
              _r("y", "11_50", 100, 100, n_extra_captures=1)]                    # y: retry capture absent -> no composite
+    rows[0]["chosen_match"] = True
     r = U.read_rows(rows)
+    assert r["chosen_check"] == {"match": 1, "mismatch_in_deferral_states": 0, "not_checked_no_sidecar": 9}
     assert r["pooled"]["n"] == 8 and r["pooled"]["mean_regret_pct"] == 0.0              # x and y are not in the mean, the retry row neither
     e = r["excluded_retry_states"]
     assert e["count"] == 2 and e["by_bucket"]["51_100"] == ["x"] and e["by_bucket"]["11_50"] == ["y"]
