@@ -261,6 +261,7 @@ def main() -> int:
     p.add_argument("--topos", nargs="+", type=int, required=True); p.add_argument("--seed", type=int, required=True); p.add_argument("--out", required=True)
     d = sub.add_parser("draw")
     d.add_argument("--pool", required=True); d.add_argument("--cap-root", required=True); d.add_argument("--seed", type=int, required=True); d.add_argument("--out", required=True)
+    d.add_argument("--exclude-topos", nargs="*", type=int, default=[16226], help="never drawn: 16226 is accel_replica_v1's TEST topology (S6) until the expert rules")
     lb = sub.add_parser("label")
     lb.add_argument("ids"); lb.add_argument("--root", default="/share/nikola.lukic/uncut_arm1"); lb.add_argument("--shard", default="0/1"); lb.add_argument("--out", required=True)
     lb.add_argument("--seed", type=int, default=0)
@@ -295,12 +296,16 @@ def main() -> int:
                 print(row["state_id"], row["source"], flush=True)
         return 0
     if a.cmd == "draw":
-        pool = json.load(open(a.pool))
+        pool = [r for r in json.load(open(a.pool)) if r["topology"] not in set(a.exclude_topos)]
         rows, missing = capture_rows(pool, a.cap_root)
         print(f"pool {len(pool)} pairs; captured {len(rows)}; not captured {len(missing)}")
         if missing:
             print("  first missing:", [(m["set"], m["topology"], m["window"], m["rung"], m["trigger"]) for m in missing[:5]])
         res = draw_states(rows, a.seed)
+        bad = [r["key"] for r in res["drawn"] if r["topology"] in set(a.exclude_topos)]
+        if bad:
+            raise SystemExit(f"FAIL LOUD: excluded topologies {a.exclude_topos} appear in drawn states {bad[:3]}")
+        assert not any(r["topology"] == 16226 for r in res["drawn"]), "16226 (accel_replica_v1 test topology) is never drawn"
         out = Path(a.out)
         text = json.dumps({"seed": a.seed, "states": res["drawn"], "census": res["census"], "counts": res["counts"], "opening_share": res["opening_share"],
                            "opening_share_by_bucket": res["opening_share_by_bucket"], "task_weighted_shares_gt10": res["task_weighted_shares_gt10"], "problems": res["problems"],
