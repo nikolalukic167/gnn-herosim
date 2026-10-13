@@ -220,7 +220,7 @@ class Orchestrator:
             "ss_batches", "ss_tasks", "ss_exact_batches", "ss_ascent_batches", "ss_ascent_sweeps", "ss_scored", "ss_changed_batches",
             "ss_changed_tasks", "ss_seconds",
             "cdr_batches", "cdr_batches_changed", "cdr_tasks", "cdr_moved", "cdr_node_change",
-            "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves",
+            "cdr_platform_only", "cdr_unstack", "prefix_self_refine_batches", "prefix_self_refine_moves", "arm2_batches", "arm2_encodes", "arm2_extra_evals",
             "keepwarm_armed", "keepwarm_batches_fired", "keepwarm_moves", "keepwarm_expiring_seen",
             "v4_backlog_batches", "v4_backlog_nonzero",
             "peer_group_incomplete_batches", "prefix_batches_load_seeded",

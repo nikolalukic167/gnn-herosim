@@ -267,6 +267,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self._cd_refiner = None
         self.prefix_self_refine_batches = 0
         self.prefix_self_refine_moves = 0
+        self.arm2_batches = 0
+        self.arm2_encodes = 0
+        self.arm2_extra_evals = 0
         self.keepwarm_armed = 1 if _keepwarm_params() is not None else 0
         self.keepwarm_batches_fired = 0
         self.keepwarm_moves = 0
@@ -969,6 +972,16 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 self.gnn_model, graph, self._prefix_options, stats=self.decode_stats
             )
         self.last_prefix_graph = graph  # parity checks read the served graph
+        if hasattr(graph, "_arm2_encodes"):
+            # uncut_groups_s0_v1 Arm 2: each encode after the first costs n_tasks plan-equivalents on top of the n
+            # that _prefix_inference already metered for the single-encode decode.
+            from src.placement.decision_cost import meter
+
+            extra = (int(graph._arm2_encodes) - 1) * int(graph.n_tasks)
+            self.arm2_batches = getattr(self, "arm2_batches", 0) + 1
+            self.arm2_encodes = getattr(self, "arm2_encodes", 0) + int(graph._arm2_encodes)
+            self.arm2_extra_evals = getattr(self, "arm2_extra_evals", 0) + extra
+            meter(self, extra)
         if hasattr(graph, "_self_refine_moves"):
             self.prefix_self_refine_batches += 1
             self.prefix_self_refine_moves += int(graph._self_refine_moves)
