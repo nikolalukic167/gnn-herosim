@@ -1,6 +1,6 @@
 # ib0_confirm_v1 — does the hand `ib0` surrogate beat `cd_exactS` on fresh topologies, and does a GNN seed add anything on top of it?
 
-**Status:** `CLOSED` (2026-10-12) — `IB0-NEW-BAR` / `ORACLE-ROOM-UNDER-3 %`. Owner S4. Parent: `plan_rerank_v1` (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record).
+**Status:** `CLOSED` (2026-10-12) — `IB0-NEW-BAR` / `ORACLE-ROOM-UNDER-3 %`. Owner S4. Post-close diagnostics 2026-10-13 (S term decomposition, S_drain_weight; amendment in `ib0_confirm_v1/oracle_loss_diag.md`). Parent: `plan_rerank_v1` (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record).
 
 > ⚠ **Not re-measured (2026-10-12).** The GNN seed arm here is trained and served on the cold-mispriced declared slate (`declared_pruning_v1`); `slate_fix_v1` (uncapped, corrected) is running.
 
@@ -194,4 +194,7 @@ a0 2,504 / 2,396 s, CD 93 / 70 s. `cdxapply`-type cells are **not measured here*
   - **Prediction check (1–2.5 % moderate, 2–4 % heavy):** moderate −2.82 % above the band, heavy −1.96 % just below it.
 
 - 2026-10-12 — **Post-close diagnostic (S7, not a reopening):** where the hand bar loses the oracle, split by batch size, over-cap, cold proxy and slate membership; inside-slate room (the live -2.82 / -1.96 %) is scorer-reachable but deep in the S rank (S top 4 reaches 28 / 21 % of gain seconds), outside-slate room is 9 / 13 % of corpus states (median 92 / 19 % worse, live size unmeasured) — `docs/lineages/ib0_confirm_v1/oracle_loss_diag.md`.
+- 2026-10-13 — **Amendment (diagnostics on the bar):** per-plan S term decomposition (interim: queue term has about no label response in steady state, 87 % / 66 % of oracle gain is before t < 360 s) and the registered S_drain_weight live test (drain weight 0 / 0.5 vs 1, predictions and labels signed before data) — same attachment.
+- 2026-10-13 — **Residual of S is the queue term, no steady-state plan gain** (`RESIDUAL-IS-QUEUE / NO-PLAN-GAIN-STEADY`, 6 cells): held-out R2 0.26-0.47 steady carried by queue alone, corrected argmin buys +-1 % steady; the opening's +6..+19 % is the cold-start transient — same attachment.
+- 2026-10-13 — **S_drain_weight read** (72 cells, pin 9bd1b145, identity exact 24/24): drain weight 0 / 0.5 vs 1 — moderate `DRAIN-WEIGHT-NEUTRAL` (within +-1 %), heavy slower in point estimate (+1.3 / +4.2 % after_360s) but not significant after Holm, 0 collapses; the bar `cd_exactS_ib0` does not move — same attachment.
 - 2026-10-12 — **Time split of the oracle room (SCIENTIST, post-close, not a reopening):** 84 % (heavy) / 68 % (moderate) of the within-cap label gain sits in the first 5 % of the run, the whole-system cold start (live path autoscales from zero, no warm-up discard); steady-state batch-label room 5.35 / 2.75 %, oracle median S rank 13 → 2 (heavy) opening → steady; ΔS explains ≥ 98.9 % of label variance, plan structure adds nothing held out — `docs/lineages/ib0_confirm_v1/oracle_loss_diag.md` § Time split, scripts in `docs/lineages/ib0_confirm_v1/scripts/`.
