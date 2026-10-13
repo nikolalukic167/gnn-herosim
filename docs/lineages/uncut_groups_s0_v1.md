@@ -299,20 +299,75 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **PRE-DATA: the user authorises everything at once; the expert's rulings on the Arm 1 corpus.** Filed while the launches go out. This supersedes the "training not approved" line in the entry below.
+  - **The user's words, verbatim** (relayed by the expert): "just do it all and run before smoke (maybe more than 6h timeout idk). wait for nothing and run all so we get some results".
+  - **(b) `ils12` budget change, made pre-data.** 868852 was cancelled before any cell finished. The relaunch is job **868854** (S4) at LIMIT 43,200 s, replacing 21,600 s, with the same OUT `ils12_5109d07d` and the same 12 cells. A cell killed at the new limit is still WALL-INFEASIBLE and is never rerun.
+  - **(c) The Arm 1 label build launched without a separate smoke.** Its registered checks run alongside: the fresh-100 split, the per-bucket ILS share, and the SPLIT / UNPLACED / > 256 counts.
+  - **(d) Arm 1 training is authorised** to start on the first complete label set. The MP arm, MP-OFF twin and MLP train on the identical corpus and split (spec item 8). SCIENTIST's Arm 1 gate text is requested and will be filed before any checkpoint is gated.
+  - **(e) Arm 2 code is being built.**
+  - **The expert's rulings:**
+    1. **MIN_TIME: a signed amendment, not a tension.**
+       - The Arm 1 label corpus departs from § 4's "MIN_TIME stays 360 s" and includes opening states (t < 360 s) at ≥ 25 % of states. SCIENTIST's spec item 3 sets ≥ 30 %.
+       - The reason: the learned k = 1 read put the whole-run deficit in the opening (heavy +4.10 % whole-run against −3.96 % after 360 s).
+       - The gate statistic is unchanged: whole-run and after-360 s are both still required.
+    2. **Corpus topology ids.** S5 picks them by `gnn_overcap`'s token-scan protocol, as the gate ids were chosen. There are two disjoint fresh blocks:
+       - the corpus block, sized from SCIENTIST's corpus spec;
+       - a separate 12-topology block reserved now for Arm 1's live gate.
+       - Both are disjoint from 19461–19472, 19405–19431, 19440–19452 and every earlier pool. The prep fails loud on an existing ROOT.
+       - Both id lists are written into this node before minting.
+    3. **Ownership.**
+       - S5 mints the libraries with the gate recipe (`--start-group` G0 per § 4) and owns the inputs.
+       - S7 runs the snapshot cells and `make-labels`, and owns the label OUT.
+
 - 2026-10-13 — **PRE-DATA: the user approves the Arm 1 label build, in parallel with the oracle; `ils12` launches without waiting for the smoke.** Filed before any label is built.
   - **The user's words, verbatim** (typed in S6's session): "let's just run the data generation in parallel. it's not worth waiting this much".
     - The expert's reading, confirmed: the Arm 1 **label build** is approved now and is not gated on `ils_oracle_live`.
     - **Training is not approved** and needs the user's separate word.
     - The oracle's registered label still decides how the labels are used (§ 5 of the `ils_oracle_live` design below).
-  - **Cost:** labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule. S7 builds them.
-  - **Arm 1 corpus spec (SCIENTIST, as relayed by the expert; SCIENTIST's verbatim block with the exact sampling numbers is requested and will be filed beside this):**
-    - The registered D corpus: option (a) libraries from G0, fresh topologies disjoint from the gate, and snapshot runs serving uncut (§ 4 "Corpus requests" and "Giant groups").
-    - Sampling is heavy on the 11–100-task groups and on the co-location shape.
-    - PLUS opening states (t < 360 s) at ≥ 25 % of states.
-    - The label set is capped at 256 tasks.
-    - Labels follow the r ≥ 0.10 rule (dd2e44e0, entry below).
-    - The fresh-100 below/above split is printed without re-tuning, and the per-bucket ILS share is reported.
-    - **Disclosed tension, for the expert or SCIENTIST to resolve before the build:** § 4 registered "MIN_TIME stays 360 s". The opening-state requirement (≥ 25 % at t < 360 s) departs from it for the label corpus.
+  - **Cost:** the node's line is labels (S) 150–300 CPU-h (§ 7 cost table), plus about 20–40 CPU-h for the replay check of the r rule (the expert). SCIENTIST estimates about 60 CPU-h of labels for the spec below. S7 builds them.
+  - **Arm 1 corpus spec: SCIENTIST's block, verbatim** (received 2026-10-13, before any label is built; it replaces the expert's relayed summary). Two notes on it:
+    - MIN_TIME = 0 (item 1) is covered by the expert's signed amendment (1) in the entry above.
+    - Item 2 is SCIENTIST's correction, made before any label. The first version (11–50: 4,200; 101–256: 1,000) gave 101–256 about 39 % of the > 10 task share, against the gate's 17 %. That is 2.3×, which breaks § 4's 2× rule. Item 9's label cost drops to about 50 CPU-h.
+      - Rechecked at filing: 4,600 × 22, 2,000 × 70 and 600 × 150 give 30.6 / 42.3 / 27.2 %.
+      - The mean sizes must be measured on the capture pool, and the final shares printed.
+
+    > Arm 1 corpus (SCIENTIST, filed before any label is built; date = filing date).
+    >
+    > 1. Source of states:
+    > - Snapshot states captured with the sealed-snapshot hook from `cd_ib0` k = 0 runs on the option-(a) libraries' training topologies, both rungs 50/50.
+    > - Never topologies 19461–19472, and never the fresh gate topologies.
+    > - MIN_TIME = 0. Batches > 256 tasks are not labelled; they are counted.
+    >
+    > 2. Count and buckets: 12,000 labelled states. ≤ 10: 4,800 (40 %); 11–50: 4,600; 51–100: 2,000; 101–256: 600 (> 10 total 7,200, 60 %). At mean sizes 22 / 70 / 150, the task-weighted shares within > 10 are about 31 / 42 / 27 %, against the gate's about 39 / 44 / 17 % (ratios 0.78 / 0.96 / 1.6, all within 2×). If S7's census gives different mean sizes, shift states between 101–256 and 11–50 until every ratio is within 2×, and print the final shares.
+    >
+    > 3. Opening: in every bucket, ≥ 30 % of states have batch arrival t < 360 s; the rest have t ≥ 360 s. That exceeds the plan's ≥ 25 % floor.
+    >
+    > 4. Co-location stratification (observable before labelling):
+    > - In each > 10 bucket and each time stratum, 2/3 of states are drawn from those whose `cd_ib0` plan's cross-node in-batch partner-pair count is above that bucket's median, and 1/3 from those at or below it.
+    > - The medians are computed on the capture pool before sampling and printed.
+    >
+    > 5. Labels:
+    > - ≤ 10: the exact optimum on S, as in the slate_fix_v1 corpus, unchanged.
+    > - > 10: ILS on S over `cd_ib0`'s full candidate set (`_pg_candidates`), seeded with the `cd_ib0` plan, at the K1(b) budget rule. Then one replay each of the hand and ILS plans at N = 0.
+    > - Label = ILS iff r = (RTT_hand − RTT_ILS) / RTT_hand ≥ 0.10; else the hand plan.
+    > - SPLIT / UNPLACED states take the hand label.
+    > - Report per bucket and stratum: the ILS-label share, the r histogram, and the counts of SPLIT / UNPLACED / > 256.
+    >
+    > 6. Held out: whole topologies holding about 10 % of states, fixed by topology id before sampling, for K2 (offline S-regret and replay-regret on > 10 batches). K2 orders the work and never closes it.
+    >
+    > 7. Fresh-100 check of the r ≥ 0.10 rule (no re-tuning):
+    > - 100 states > 10 drawn from the capture pool after the label set is fixed, excluding every labelled and held-out state.
+    > - Seed 20261014; 50 / 30 / 20 from 11–50 / 51–100 / 101–256.
+    > - The id list and its sha256 are written before any replay.
+    > - Run S7's horizon tool (window W = max(120 s, batch makespan)) and print the below/above split at r = 0.10.
+    > - HOLDS if the below side's net W advantage is ≤ 0 and the above side keeps ≥ 90 % of its batch-only gain. If it fails, flag it; the threshold is not changed after data.
+    >
+    > 8. Sampling seed for the label set: 20261013. MP arm, MP-OFF twin and MLP train on the identical corpus and split.
+    >
+    > 9. Cost (my estimate):
+    > - 11–50 about 10 s per state (ILS about 2.3 s plus one replay build about 7 s); 51–100 about 42 s; 101–256 about 105 s; ≤ 10 about 1 s.
+    > - About 60 CPU-h of labels, plus capture runs and the fresh-100 (about 3 CPU-h).
+    > - It sits under the node's 150–300 CPU-h line because the per-state replay replaces the full replay sweep.
   - **The expert's ruling on `ils12`:** launch now, without waiting for the smoke, matching the user's "not worth waiting".
     - LIMIT stays 21,600 s.
     - A cell killed at the limit is WALL-INFEASIBLE under the registered rule and is never rerun with another budget.
