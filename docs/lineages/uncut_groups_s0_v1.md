@@ -276,6 +276,11 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-13 — **Registered.** SCIENTIST closed the five [M] items (four verified, α-expansion corrected) and ruled on B–H follow-ups. The expert signed the `placements.jsonl` exemption (owned by `docs/notes/placements_jsonl_required.md`) and the bar additions (`cd_expand`, a time-bounded prune at `cdxapply`'s limits). Kill check 2 PASSED. The replica ceiling of 120 is confirmed as full scale-out (24 servers, 120 platforms). Labels and training are on hold.
+- 2026-10-13 — **Per-size decision counters for w(n)** (S5's request, approved by the expert as measurement only).
+  - c671281c on eb22be53 adds `decisionTiming.by_bucket.{le10,11_50,gt50}.{calls,total_s,plan_evals}`, by served batch size.
+  - Identity job 864590 (19461 g0 heavy `cd`, `inputs_group`, k = 0) is SIM-IDENTICAL to S5's f36f293f cell (`smoke/`, job 864578) on all 441 shared keys. The only new keys are the 9 bucket counters.
+  - The buckets sum to the totals: calls 9,553, decision wall 9.81339 s, plan evaluations 1,353,318 = `sched_plan_evals`.
+  - This cell's ms per plan is 0.0068 / 0.0078 / 0.0079 (≤ 10 / 11–50 / 51+). That is descriptive; the registered w(n) table comes from S5's five-arm smoke.
 - 2026-10-13 — **Identities (1), (3), (m) PASSED; hand cells handed to S5** (split confirmed by the expert).
   - All runs are the smoke cells 16490 g0 heavy; summaries are compared on every shared key, with timing and provenance excluded.
   - (1) whole-group mode + raise, 4523dc56 (jobs 864543 / 864544): `cd_exactS` s0 and `ra_gnn_eng_nosplit` s1 are SIM-IDENTICAL to `v2_identity_f4f0453f` (427 / 369 keys).
