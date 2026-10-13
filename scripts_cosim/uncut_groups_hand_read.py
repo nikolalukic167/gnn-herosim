@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """uncut_groups_s0_v1 hand-arm readers (docs/lineages/uncut_groups_s0_v1.md, K0 and K1). Written before any hand cell exists.
 
-  k0  --gate <dir> --topos t1,...,t12 [--arms cd,cd_expand,cd_exactS,cd_exactS_ib0,...] --bar-arm A [--wg-big NAME --wg-whole NAME]
+  k0  --gate <dir> --topos t1,...,t12 [--arms cd,cd_expand,cd_exactS,cd_exactS_ib0,...] --bar-arm A
       Counts first (summaries and failed against 12 topologies x g0-g3 x 2 rungs per arm). Then, per arm and rung, the COLLAPSE count (whole-run and
       after-360 s mean > 3x the same topology x window x rung's `cd` mean) and the TAIL FLAG count (end - last arrival > 120 s), separately. K0 health
       on g0: `cd` and `cd_exactS` healthy (no collapse on either statistic, effective_queue_share <= 0.80) on >= 10/12 at heavy, else the moderate
       rung only, else NO-SEAT. Uncut admissibility on the bar arm: tasks in groups > 10 served in a whole-group batch >= 90 % pooled over the four
-      windows (per window and rung beside it), from two scheduler counters named by --wg-big / --wg-whole (the code pin names them; a missing
-      counter fails loud).
+      windows (per window and rung beside it), from the always-on schedulerCounters pgb_whole_<b> / pgb_split_<b> (tasks served in a batch holding
+      their whole peer group / in a smaller batch, <b> = the group's ORIGINAL size: le10, 11_50, 51_100, gt100); the share is
+      sum(pgb_whole over 11_50, 51_100, gt100) / (that + sum(pgb_split over the same)); a missing counter fails loud.
   k1  --gate <dir> --topos ... --suffix _k100 [--replay rows.json --sample ids.json --sample-sha256 H]
       Hand arm per rung: the best arm by the median over topologies of the per-topology median whole-run latency; if it collapses (any cell, either
       statistic), the best non-collapsing arm decides. (a) decision-time headroom from the summaries' own counters: (sched_queue_wait_seconds +
@@ -107,7 +108,18 @@ def k0_health(cells, topos):
     return out, verdict
 
 
-def whole_group_share(cells, bar, topos, big, whole):
+BIG_BUCKETS = ("11_50", "51_100", "gt100")
+
+
+def _pgb(c, who, key):
+    names = [f"pgb_{key}_{b}" for b in BIG_BUCKETS]
+    for n in names:
+        if n not in c:
+            raise SystemExit(f"FAIL LOUD: counter {n!r} missing ({who})")
+    return sum(int(c[n]) for n in names)
+
+
+def whole_group_share(cells, bar, topos):
     out = {}
     for rung in RUNGS:
         per, tb, tw = {}, 0, 0
@@ -118,10 +130,10 @@ def whole_group_share(cells, bar, topos, big, whole):
                 if s is None:
                     continue
                 c = s["schedulerCounters"]
-                if big not in c or whole not in c:
-                    raise SystemExit(f"FAIL LOUD: counters {big!r}/{whole!r} missing in {bar} t{t} {w} {rung}")
-                b += int(c[big])
-                wl += int(c[whole])
+                who = f"{bar} t{t} {w} {rung}"
+                wh, sp = _pgb(c, who, "whole"), _pgb(c, who, "split")
+                b += wh + sp
+                wl += wh
             per[w] = wl / b if b else None
             tb += b
             tw += wl
@@ -194,14 +206,44 @@ def replay_regret(rows, sample_ids, sample_sha, sample_path, arms_by_rung):
             "pass": sum(reg) / len(reg) < REGRET_MAX}
 
 
+ROB_MEDIAN, ROB_ALPHA = -2.0, 0.05
+
+
+def win_rule(by_rung):
+    """by_rung: {rung: {"median": %, "p_holm": p}} for one arm against one reference; WIN rule: median <= -2 % and Holm p < .05 at both rungs."""
+    return all(by_rung[r]["median"] is not None and by_rung[r]["median"] <= ROB_MEDIAN and by_rung[r]["p_holm"] is not None and by_rung[r]["p_holm"] < ROB_ALPHA
+               for r in RUNGS)
+
+
+def bar_faster(by_rung):
+    """E-FASTER: the bar Holm-faster at both rungs (the arm's % against it positive)."""
+    return all(by_rung[r]["median"] is not None and by_rung[r]["median"] > 0 and by_rung[r]["p_holm"] is not None and by_rung[r]["p_holm"] < ROB_ALPHA
+               for r in RUNGS)
+
+
+def f1_label(vs_bar, vs_robust, arm_collapse, bar_collapse, anchor_ok):
+    """F1 label for one learned arm at k = 1. vs_bar / vs_robust: {rung: {median, p_holm}} against the median-chosen bar and against the best
+    zero-collapse hand arm per rung (cd is always a candidate; when no hand arm is clean the caller passes cd). arm_collapse / bar_collapse:
+    {rung: count}. anchor_ok: the crossover-k rule. Registered robust-bar clause: where the median-chosen bar has collapse > 0 in a rung, a WIN
+    needs the WIN rule against the robust arm too (WIN-ROBUST); clearing only the brittle bar is WIN-OVER-BRITTLE-BAR, never quoted as WIN."""
+    if not win_rule(vs_bar):
+        return "E-FASTER" if bar_faster(vs_bar) else "TIES"
+    if any(arm_collapse[r] > bar_collapse[r] for r in RUNGS):
+        return "TIES"
+    if not anchor_ok:
+        return "NO-GO"
+    if any(bar_collapse[r] > 0 for r in RUNGS):
+        return "WIN-ROBUST" if win_rule(vs_robust) else "WIN-OVER-BRITTLE-BAR"
+    return "WIN"
+
+
 def read_k0(a):
     topos = [int(x) for x in a.topos.split(",")]
     arms = a.arms.split(",")
     cells, failed = load_gate(a.gate)
     out = {"counts": counts(cells, failed, arms, topos), "health": health_table(cells, arms, topos)}
     out["k0_health"], out["verdict"] = k0_health(cells, topos)
-    if a.wg_big and a.wg_whole:
-        out["uncut_share"] = whole_group_share(cells, a.bar_arm, topos, a.wg_big, a.wg_whole)
+    out["uncut_share"] = whole_group_share(cells, a.bar_arm, topos)
     out["split_counts"] = split_counts(cells, arms, topos)
     return out
 
@@ -233,8 +275,6 @@ def main():
         p.add_argument("--out")
     p = sub.choices["k0"]
     p.add_argument("--bar-arm", default="cd_expand")
-    p.add_argument("--wg-big")
-    p.add_argument("--wg-whole")
     p = sub.choices["k1"]
     p.add_argument("--suffix", default="_k100")
     p.add_argument("--replay")
