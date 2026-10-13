@@ -299,6 +299,20 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Signed amendment: the Arm 1 corpus is 16201–16250 minus 16226 (49 topologies), made before any state draw or label; per-task batch-size logging merged.**
+  - **Corpus ids.** S7 minted and started capture on 16201–16250 (the accel train list) before the 20119–20158 filing reached it.
+    - The expert ruled 16201–16250 the Arm 1 corpus by signed amendment, made before any state draw or label. It was chosen from an existing list, not from outcomes.
+    - It is disjoint from the gate 19537–19548 and from all uncut pools. S7 confirms that no corpus id appears in any gate, sealed or Step 0 state.
+    - **20119–20158 is withdrawn and not minted.** The gate block 19537–19548 stands.
+  - **16226 is excluded (the expert's ruling (i), raised by S6).** It is the `accel_replica_v1` split's test topology (the 57 test tables), and the standing rule "never use the 57 test ids" binds.
+    - The accel train list was built from `split["train"]` only, so it never included 16226.
+    - **The corpus is 49 topologies.** S7 drops any 16226 captures before the draw.
+  - **Held out by whole topology** (fixed by rule, every 10th id, before any data): 16210, 16220, 16230, 16240, 16250. This replaces 20128 / 20138 / 20148 / 20158.
+  - **Disclosure (S5):** 16201–16250 is slate_fix's training pool (`cost_to_go/train_tables` holds the cc40s162xx tables). The topologies are reused, but the request libraries are new (option (a), from G0). Freshness is required of the gate, not of the corpus.
+  - **Per-task batch-size logging (the gate's prerequisite, S5).** 62eb3a96 adds per-task `groupSize` and `servedBatchSize` to the task results and a `.tasks_bsz.npy` sidecar, always on.
+    - Identity PASS on 19461 g0 heavy `cd_ib0_k100` (S5).
+    - Merged at 1ec2eb5e, with the expert's test-path fix 468a471f (`test_whole_group_batch` puts scripts_cosim on sys.path). Both are in reference-physics at 3a7e1c57.
+
 - 2026-10-13 — **PRE-DATA: Arm 1 live gate (`uncut_arm1`), SCIENTIST's text, filed before any Arm 1 checkpoint is gated.**
   - **The expert's rulings on this text:**
     - **(A) Gate ids**, the agreed rule of SCIENTIST and the expert, which replaces the topology sentence of the text below: "Gate ids are picked by S5's token scan as the next free block above 19472 (expected 19473–19484). Required property: no gate id appears in any training, validation or capture list. The list and its hash are filed before any cell."
@@ -313,7 +327,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
       - The prep fails loud on an existing ROOT. This refines ruling (2) in the entry below.
       - **The id lists (S5, by the literal rule; filed before minting):**
         - **Arm 1 live gate: 19537–19548** (12 ids). sha256 of the comma-joined decimal list `553ef17de81af2bd61a72b716e8f48163c6b0e8f8050dd71323183750b29a5d7`.
-        - **Corpus: 20119–20158** (40 ids). sha256 `1ab2da9e2fb2808d73b26c9d218f55a9fcfe7d680ad03dd100b71be0caa8ebf2`.
+        - **Corpus: 20119–20158** (40 ids). sha256 `1ab2da9e2fb2808d73b26c9d218f55a9fcfe7d680ad03dd100b71be0caa8ebf2`. **Withdrawn, not minted: superseded by 16201–16250 minus 16226 (entry above).**
         - Why these blocks: 19473–19536 is not free (19473, 19477, 19484, 19486, 19490–92, 19500–02, 19507, 19516, 19518, 19525, 19528, 19534, 19536 appear in the scan), and 19553 is the next used token after the gate block. For the corpus, 20118 is used and 20182 is the next used token, so 20119–20158 is the lowest 40-run.
         - **Held out (accepted by the expert; fixed by rule before any data):** 4 of 40, every 10th corpus id: 20128, 20138, 20148, 20158. Proposed by S5.
         - Scan: 5-digit tokens 19400–29999 over every local and remote branch (docs, LINEAGES.md, scripts_cosim, experiments, tests, src), plus name tokens under `/share/nikola.lukic` (excluding ds_* and snapshots) and the datalab simulation_data JSONs. Saved under `/share/nikola.lukic/uncut_groups/`: `tok_git.txt` md5 aeb6e100…, `tok_share.txt` md5 6200f11d…, and `ids.txt` (the 52 ids).
