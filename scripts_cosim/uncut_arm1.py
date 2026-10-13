@@ -298,7 +298,8 @@ def main() -> int:
     d.add_argument("--exclude-topos", nargs="*", type=int, default=[16226], help="never drawn: 16226 is accel_replica_v1's TEST topology (S6) until the expert rules")
     lb = sub.add_parser("label")
     lb.add_argument("ids"); lb.add_argument("--root", default="/share/nikola.lukic/uncut_arm1"); lb.add_argument("--shard", default="0/1"); lb.add_argument("--out", required=True)
-    lb.add_argument("--seed", type=int, default=0)
+    lb.add_argument("--seed", type=int, default=0); lb.add_argument("--k1-read-commit", required=True, help="the commit that records the K1(b) read (label_gate refuses without it)")
+    lb.add_argument("--sealed", default=str(U_REPO / "docs/lineages/uncut_groups_s0_v1/k1_sealed_states.json"), help="the sealed K1(b) states: never labelled")
     ck = sub.add_parser("check")
     ck.add_argument("which", choices=("convergence", "determinism", "fresh100")); ck.add_argument("ids"); ck.add_argument("--root", default="/share/nikola.lukic/uncut_arm1")
     ck.add_argument("--pool", required=True); ck.add_argument("--shard", default="0/1"); ck.add_argument("--out", required=True); ck.add_argument("--labels", nargs="*", default=[])
@@ -319,6 +320,10 @@ def main() -> int:
         return 0
     if a.cmd == "label":
         states = json.load(open(a.ids))["states"]
+        from scripts_cosim import uncut_ils as U
+
+        gate_jobs = [{**job_of(st_, a.root), "topology": st_["topology"], "window": st_["window"], "rung": st_["rung"]} for st_ in states]
+        U.label_gate(gate_jobs, json.load(open(a.sealed)), a.k1_read_commit, False, U_REPO)
         k, m = (int(x) for x in a.shard.split("/"))
         done = set()
         if os.path.exists(a.out):
