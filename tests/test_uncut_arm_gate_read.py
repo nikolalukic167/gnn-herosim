@@ -14,11 +14,11 @@ TOPS = ",".join(map(str, TOPOS))
 P, T, M = "uncut_arm1_gnn_eng", "uncut_arm1_twin_eng", "ra_mlp_same"
 
 
-def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0):
+def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2"):
     name = f"cc40s{t}__{w}{r}__{arm}_k100_s{seed}"
     s = {"averageElapsedTime": mean, "steady_state": {"after_360s": {"mean": mean}}, "num_tasks": 4,
          "endTime": 100.0, "arrival_end": {"last_arrival_s": 99.0}, "code": {"commit": "pin1234", "dirty": False},
-         "schedulerCounters": {"sched_queue_wait_seconds": 0.0, "sched_busy_seconds": busy}, "env": {}}
+         "schedulerCounters": {"sched_queue_wait_seconds": 0.0, "sched_busy_seconds": busy}, "env": {"HEROSIM_WARMTH_PHYSICS": warmth}}
     if ckpt:
         s["env"]["GNN_MODEL_PATH"] = ckpt
     with open(os.path.join(d, name + ".summary.json"), "w") as fh:
@@ -179,3 +179,13 @@ def test_training_log_keys_and_merged_files(gate, tmp_path):
     ref.write_text(json.dumps({f"{T}|s1": "0" * 32}))
     with pytest.raises(SystemExit, match="disagree"):
         run(d, f"{log},{ref}")
+
+
+@pytest.mark.parametrize("warmth", ["platform_reuse_v1", None])
+def test_warmth_physics_must_agree_across_bar_and_learned(gate, warmth):
+    d, ck, cm = gate
+    fill(d, ck, 2.0)
+    assert run(d, cm)["warmth_physics"] == "node_disk_v2"
+    cell(d, P, 1, TOPOS[0], G.WINDOWS[0], G.RUNGS[0], 2.0, ck, warmth=warmth)
+    with pytest.raises(SystemExit, match="HEROSIM_WARMTH_PHYSICS"):
+        run(d, cm)
