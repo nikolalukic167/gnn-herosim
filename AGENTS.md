@@ -27,7 +27,7 @@ in-batch stacking term zeroed: −4.7 / −2.3 % vs `cd_exactS` (12/12 fresh top
 accel gates (24 topologies −8.6 / −6.8 %, `link_bound_s0_v1` −11.1 / −8.0 %, G8 −9.2 / −7.7 %). No learned arm beats
 either, a full-coverage oracle beats `ib0` by only −2.8 / −2.0 %, and no learned win in this programme is a message-passing win.** Seat: R1.1 + WF1, warmth physics `node_disk_v2`, replicas on the fastest
 compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm names: `CONTEXT.md` → Arms.
-> ⚠ The GNN numbers here are on the cold-mispriced declared slate and not re-measured (`slate_fix_v1` running). Audit: gate-tools → "Numbers measured before a change".
+> ⚠ The GNN numbers here are on the cold-mispriced declared slate and re-measured in `slate_fix_v1`/`slate_fix_v2` (CLOSED 2026-10-12/13): the deficit stands. Audit: gate-tools → "Numbers measured before a change".
 - **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 %
   (`accel_nosplit_v1`), `gnn_selfsearch` −8.5 / −10.1 % (`selfsearch_confirm_v1`). Heavy: −1 to −4 %, under the −5 % bar.
   `gnn_selfsearch` ties its MP-OFF twin.
@@ -41,7 +41,7 @@ compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm na
 - **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 %
   (regret 6 %); platforms 95–99 % idle; one-step lookahead headroom 3–5 %; more servers made it easier.
 - **Closed levers:** post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links
-  (`link_bound_s0_v1`), a high-but-stable rung (`high_rho_s0_v1`), a longer horizon (`long_horizon_s0_v1`: 24 h, the GNN's deficit to cd_exactS widens, not narrows), supervised plan reranking (`plan_rerank_v1`), GNN self-search on over-cap batches only (`gnn_overcap_v1`: +0.2 / +2.5 % vs cd_exactS, HAND-FALLBACK-FASTER), GNN-ordered pruning of over-cap batches (`prune_g8_s0_v1`: pruning beats the expansion fallback −1.4 / −2.1 %, but any top-k order does; not learned, not MP). observation sparsity (`sparse_obs_s0_v1`, CLOSED 2026-10-12: hiding exact queue drain or cold seconds from the hand bar costs it nothing a per-class estimator does not recover; the bar's lead is not privileged information), better uncapped training data (`slate_fix_v1`). Numbers in
+  (`link_bound_s0_v1`), a high-but-stable rung (`high_rho_s0_v1`), a longer horizon (`long_horizon_s0_v1`: 24 h, the GNN's deficit to cd_exactS widens, not narrows), supervised plan reranking (`plan_rerank_v1`), GNN self-search on over-cap batches only (`gnn_overcap_v1`: +0.2 / +2.5 % vs cd_exactS, HAND-FALLBACK-FASTER), GNN-ordered pruning of over-cap batches (`prune_g8_s0_v1`: pruning beats the expansion fallback −1.4 / −2.1 %, but any top-k order does; not learned, not MP). observation sparsity (`sparse_obs_s0_v1`, CLOSED 2026-10-12: hiding exact queue drain or cold seconds from the hand bar costs it nothing a per-class estimator does not recover; the bar's lead is not privileged information), better uncapped training data (`slate_fix_v1`), the deploy transient as the explanation (`slate_fix_v2`, CLOSED 2026-10-13: after 360 s self-search is +0.7 / +1.7 % behind the bar, not separated, and no-split +3.6 / +7.1 % behind; MP vs twin −0.7 / −1.2 % steady, direction only). Numbers in
   their index rows.
 - **Knative under R1:** quote only the concurrency-key arm (+48 / +68 % vs CD); the queue-keyed arm herds (gate-tools,
   2026-10-11).
