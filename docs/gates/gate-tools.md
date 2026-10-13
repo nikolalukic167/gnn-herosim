@@ -808,6 +808,21 @@ tasks died mid-epoch with nothing in their logs.
 - **Rule:** rc 120, or a run whose log stops mid-simulation with no error, is the quota until shown otherwise; check
   `du -sh ~` before rerunning, and remove those records — they are not outcomes.
 
+## 2026-10-13 — `sched_queue_wait_seconds` is 0 by construction: serialised decisions show up as latency, not as server wait
+
+`decision_cost_s0_v1` charges the scheduler's decision time as simulated time through one FIFO `simpy.Resource` (capacity 1)
+requested before the state mutex. `sched_queue_wait_seconds` (and `_max`) measure the time a batch spends waiting for
+that resource. They read 0.000 at every utilisation, 0.995 included (seen on the `cd_exactS` heavy k = 2 cells of `/share/nikola.lukic/decision_cost/grid_03615acd`, utilisation 0.995, `sched_queue_wait_seconds` 0.000), because the GNN/peer-greedy scheduler loop
+(`src/policy/gnn/scheduler.py:486–492`) is sequential — it collects a batch, then yields on processing it — so at most one
+batch is ever in flight and the resource never has a second requester. The cost of a slow decision is paid in the next
+batch's collection starting late: arrivals accumulate and the batch is larger and later, which appears as latency.
+
+- **What the counter measures:** contention between concurrent decision processes, which this scheduler does not have.
+  `sched_busy_seconds` ÷ end time (utilisation) and the latency contrast against the same arm at k = 0 carry the signal.
+- **Which tables depend on it:** none; the decision_cost read uses mean latency (paired %) and utilisation.
+- **Rule:** a queue-wait counter that is zero under saturation is a statement about the process structure, not about
+  headroom; read utilisation and the latency of the same arm at c = 0. The counter is left as it is.
+
 ## 2026-10-12 — `read_training_curves.py` read rising accuracies as falling and train/ce against the wrong floor
 
 The wandb curve audit (343 run dirs) found two defects in the reader. Neither changes a checkpoint, selection or live number, but both are in curve reads quoted since the plan-exact metrics landed.
