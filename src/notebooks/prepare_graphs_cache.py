@@ -1860,24 +1860,28 @@ def attach_dag_partial_state_block(
         # a sampled file lists a handful of plans, not every candidate; the decoder scores every candidate, so its demand
         # table must cover the candidate set (an exhaustive file's rows already do, so those corpora are unchanged)
         sweep_pairs += [(t, tuple(int(v) for v in c)) for t in range(n_tasks) for c in graph.task_logit_to_placement[t]]
-    if True:
-        for t, placement in sweep_pairs:
-            if (t, placement) in demand:
-                continue
-            pid = int(placement[1])
-            if pid not in ptype_by_pid:
-                raise RuntimeError(f"{ds.name}: sweep references platform_id {pid} "
-                                   "absent from the graph's platform meta")
-            ttype = dag["task_type_names"][t]
-            mem = (task_priors.get(ttype) or {}).get("memoryRequirements") or {}
-            ptype = ptype_by_pid[pid]
-            if ptype not in mem:
-                raise RuntimeError(f"{ds.name}: no memoryRequirements[{ttype}]"
-                                   f"[{ptype}] — refusing to invent a demand")
-            # peer_affinity_v1 / route_b env pivot: the per-instance demand_scale the
-            # scorer applies (score_route_b_contention.Dataset) -- absent -> 1.0, so every
-            # corpus without the key is unchanged.
-            demand[(t, placement)] = float(mem[ptype]) * float(dag["demand_scales"][t])
+    for t, placement in sweep_pairs:
+        if (t, placement) in demand:
+            continue
+        pid = int(placement[1])
+        if pid not in ptype_by_pid:
+            raise RuntimeError(f"{ds.name}: sweep references platform_id {pid} "
+                               "absent from the graph's platform meta")
+        ttype = dag["task_type_names"][t]
+        mem = (task_priors.get(ttype) or {}).get("memoryRequirements") or {}
+        ptype = ptype_by_pid[pid]
+        if ptype not in mem:
+            raise RuntimeError(f"{ds.name}: no memoryRequirements[{ttype}]"
+                               f"[{ptype}] — refusing to invent a demand")
+        # peer_affinity_v1 / route_b env pivot: the per-instance demand_scale the
+        # scorer applies (score_route_b_contention.Dataset) -- absent -> 1.0, so every
+        # corpus without the key is unchanged.
+        demand[(t, placement)] = float(mem[ptype]) * float(dag["demand_scales"][t])
+    if _is_sampled_sweep(jsonl):
+        cand_set = {(t, tuple(int(v) for v in c)) for t in range(n_tasks) for c in graph.task_logit_to_placement[t]}
+        if set(demand) != cand_set:
+            raise RuntimeError(f"{ds.name}: the demand table ({len(demand)}) and the candidate set ({len(cand_set)}) differ: "
+                               f"{len(set(demand) - cand_set)} demand keys outside the candidates, {len(cand_set - set(demand))} candidates without demand")
 
     peak: Dict[int, float] = {}
     for (t, placement), d in demand.items():
