@@ -160,3 +160,22 @@ def test_log_banner_must_show_pin_clean(gate, line):
         fh.write(line + "\n")
     with pytest.raises(SystemExit, match="log banner"):
         run(d, cm)
+
+
+def test_ckpt_arm_maps_gate_names_to_training_log():
+    assert G.ckpt_arm("ra_gnn_eng_arm1_nosplit") == "gnn_eng" and G.ckpt_arm("ra_mlp_same_arm1_nosplit") == "mlp_same"
+    assert G.ckpt_arm("uncut_arm1_twin_eng") == "uncut_arm1_twin_eng"
+
+
+def test_training_log_keys_and_merged_files(gate, tmp_path):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    md5 = json.load(open(cm))
+    log = tmp_path / "log.json"
+    log.write_text(json.dumps({k: v for k, v in md5.items() if not k.startswith(P)}))
+    ref = tmp_path / "ref.json"
+    ref.write_text(json.dumps({k: v for k, v in md5.items() if k.startswith(P)}))
+    assert run(d, f"{log},{ref}")["F1"]["label"] == "WIN"
+    ref.write_text(json.dumps({f"{T}|s1": "0" * 32}))
+    with pytest.raises(SystemExit, match="disagree"):
+        run(d, f"{log},{ref}")
