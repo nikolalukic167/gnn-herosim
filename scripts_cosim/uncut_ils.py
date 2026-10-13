@@ -415,18 +415,23 @@ def bucket_of(n: int) -> str:
     raise ValueError(f"group of {n} tasks is outside the K1 buckets")
 
 
-def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], state_id: Any) -> bool:
-    """The served plan the capture recorded (`chosen`: {"<gid>": [node id, platform id]} for every batch task) against the replayed re-decision, bit-equal, batch order
-    = gid ascending. A mismatch stops the run: nothing is read until it is understood."""
+def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], rec: Dict[str, Any], state_id: Any) -> Dict[str, Any]:
+    """The served plan the capture recorded in `<snapshots>.chosen.jsonl` (`live_audit.load_chosen`: {"chosen": [[task, node, platform]], "deferred", "arm", "plan_evals",
+    "cap_hit"}) against the replayed re-decision (`hand`, batch order = gid ascending), bit-equal. Tasks the live decision deferred are not in `chosen`; the comparison is on
+    the tasks it placed. With no deferral a mismatch stops the run (nothing is read until it is understood); in a state with deferrals the re-decision saw the whole batch,
+    so a mismatch is returned, flagged, not fatal."""
     gids = [int(r["gid"]) for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
-    ch = snap["chosen"]
-    if not isinstance(ch, dict) or {int(k) for k in ch} != set(gids):
-        raise ValueError(f"FAIL LOUD: state {state_id}: snapshot `chosen` is not a map over the batch's gids")
-    live = [[int(ch[str(g)][0]), int(ch[str(g)][1])] for g in gids]
-    if live != [[int(a), int(b)] for a, b in hand]:
-        raise RuntimeError(f"FAIL LOUD: state {state_id}: the replayed re-decision differs from the served plan; "
-                           f"{sum(a != list(map(int, b)) for a, b in zip(live, hand))} of {len(gids)} tasks differ")
-    return True
+    live = {int(t): [int(n), int(p)] for t, n, p in rec["chosen"]}
+    deferred = {int(x) for x in rec.get("deferred") or []}
+    if set(live) | deferred != set(gids) or set(live) & deferred:
+        raise ValueError(f"FAIL LOUD: state {state_id}: chosen + deferred do not partition the batch's gids")
+    mine = {g: [int(a), int(b)] for g, (a, b) in zip(gids, hand)}
+    bad = sorted(g for g in live if live[g] != mine[g])
+    out = {"match": not bad, "compared": len(live), "deferred": len(deferred), "mismatched_tasks": len(bad), "live_arm": rec.get("arm"), "live_cap_hit": rec.get("cap_hit"),
+           "live_plan_evals": rec.get("plan_evals")}
+    if bad and not deferred:
+        raise RuntimeError(f"FAIL LOUD: state {state_id}: the replayed re-decision differs from the served plan on {len(bad)} of {len(gids)} tasks")
+    return out
 
 
 def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float], replay: str) -> Dict[str, Any]:
@@ -437,7 +442,12 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     row["n_extra_captures"] = int(job.get("n_extra_captures") or 0)
     row["role"], row["parent"] = job.get("role", "first"), job.get("parent")
     row["time_bound"] = d["stopped"] == "seconds"          # the per-state --max-seconds bound, logged where it binds
-    row["chosen_match"] = check_chosen(d["snap"], d["hand"], job.get("state_id")) if d["snap"].get("chosen") is not None else None
+    from src.placement import live_audit
+
+    rec = live_audit.load_chosen(job["snapfile"]).get(int(job["trigger_task_id"])) if job.get("snapfile") else None
+    ck = check_chosen(d["snap"], d["hand"], rec, job.get("state_id")) if rec is not None and job.get("role", "first") == "first" else None
+    row["chosen_check"] = ck
+    row["chosen_match"] = None if ck is None else ck["match"]
     row["revisits"], row["evals_full"] = d["revisits"], d["evals_full"]
     row.update(state_id=job.get("state_id"), bucket=job.get("bucket") or bucket_of(d["n_batch"]), arm=arm, seed=seed,
                s_per_call_ms=1000.0 * d["search_wall"] / max(d["s_calls"], 1), n_incumbents=len(d["trajectory"]),
@@ -481,6 +491,8 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
     out = {"pooled": block(main)}
     for name, _lo, _hi in BUCKETS:
         out[name] = block([r for r in main if r["bucket"] == name])
+    out["chosen_check"] = {"match": sum(r.get("chosen_match") is True for r in firsts), "mismatch_in_deferral_states": sum(r.get("chosen_match") is False for r in firsts),
+                           "not_checked_no_sidecar": sum(r.get("chosen_match") is None for r in firsts)}
     out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
     if main:
         pooled_max = max(r["regret"] for r in main)
