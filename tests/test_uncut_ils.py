@@ -118,8 +118,8 @@ def test_make_jobs_fails_loud_on_a_missing_file(tmp_path):
 def test_first_capture_is_the_state_and_extras_are_counted(tmp_path):
     cells, inputs = _cells(tmp_path, [(7, 1.0, 12), (9, 2.0, 11), (7, 1.01, 5), (7, 1.02, 3)])
     jobs, gone = U.make_jobs([_st("a", 7), _st("b", 9)], cells, "cd_expand_k100", inputs, "x")
-    a, b = jobs
-    assert gone == [] and a["time"] == 1.0 and a["first_capture_n"] == 12 and a["n_extra_captures"] == 2 and b["n_extra_captures"] == 0
+    a, b = [j for j in jobs if j["role"] == "first"]
+    assert len(jobs) == 4 and gone == [] and a["time"] == 1.0 and a["first_capture_n"] == 12 and a["n_extra_captures"] == 2 and b["n_extra_captures"] == 0
     snap = tmp_path / "cells" / "cc40s1__g0heavy__cd_expand_k100_s0.snapshots.jsonl"
     assert U._load_snapshot({"snapfile": str(snap), "trigger_task_id": 7, "time": a["time"]})["time"] == 1.0
 
