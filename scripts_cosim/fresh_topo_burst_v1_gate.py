@@ -64,6 +64,7 @@ RULE_POLICY = {
     **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
         "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
         "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
+    "ils_oracle_exact10": "peer_greedy_network_cd",  # uncut_groups_s0_v1 ceiling arm (not a bar): batches <= R1A_ILS_MIN (10) run cd_exactS_ib0's exact path, batches above run ils_oracle_live's ILS
     "ils_oracle_live": "peer_greedy_network_cd",  # uncut_groups_s0_v1 ceiling arm (not a bar): cd_ib0, then ILS on S for batches > R1A_ILS_MIN tasks (HEROSIM_PG_ILS_*)
     "cd_ib0": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: plain CD greedy on the ib0 surrogate (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_exactS_ib0_prune": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: cd_exactS_ib0 with cost-ordered top-k pruning of over-cap batches (HEROSIM_PG_CD_EXACT_PRUNE=cost)
@@ -159,7 +160,7 @@ RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw")  # GNN_DISABLE_MESSAGE_PASSING=1; the
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
-EXACT_ALPHA = {"cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"}, "cd_exactS_a025": {"HEROSIM_PG_BATCH_ALPHA": "0.25"},
+EXACT_ALPHA = {"ils_oracle_exact10": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a0": {"HEROSIM_PG_DRAIN_ALPHA": "0"}, "cd_exactS_ib0": {"HEROSIM_PG_BATCH_ALPHA": "0"}, "cd_exactS_a05": {"HEROSIM_PG_BATCH_ALPHA": "0.5"}, "cd_exactS_a025": {"HEROSIM_PG_BATCH_ALPHA": "0.25"},
                "cd_exactS_ib0_d05": {"HEROSIM_PG_DRAIN_ALPHA": "0.5", "HEROSIM_PG_BATCH_ALPHA": "0"},
                "cd_exactS_ib0_prune": {"HEROSIM_PG_BATCH_ALPHA": "0"}}  # plan_rerank_v1 S_alpha arms; warm_surge/drain-weight arms; decision_cost_s0_v1 prune arm
 _BUNDLE = {"HEROSIM_OBS_QUEUE": "count", "HEROSIM_OBS_EXEC_SIGMA": "0.3", "HEROSIM_OBS_PARTNERS": "arrival"}
@@ -180,6 +181,7 @@ EXACT_ALPHA.update({k: {"HEROSIM_PG_BATCH_ALPHA": "0"} for k in OBS_ARMS})  # sp
 ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_ORACLE", "HEROSIM_PG_ORACLE_MAX_PLANS", "HEROSIM_PG_ORACLE_SEARCH", "HEROSIM_PG_ORACLE_SEARCH_BUDGET", "HEROSIM_ORACLE_CELL_CONFIG", "HEROSIM_ORACLE_SIM_INPUT", "HEROSIM_ORACLE_WORKERS", "HEROSIM_SNAPSHOT_FIDELITY")  # scrubbed per cell; cd_oracle sets them
 
 
+ILS_KINDS = ("ils_oracle_live", "ils_oracle_exact10")
 ILS_ENV = ("HEROSIM_PG_ILS_MIN_BATCH", "HEROSIM_PG_ILS_PER", "HEROSIM_PG_ILS_MAX_SECONDS", "HEROSIM_PG_ILS_SEED")  # uncut_groups_s0_v1 ils_oracle_live; scrubbed per cell
 
 
@@ -251,7 +253,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
     return DC_ENV, repr(k * float(w[kind][rung]))
 
 
-R1A_DIAG = (*OBS_ARMS, "cd_ib0", "ils_oracle_live", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_DIAG = (*OBS_ARMS, "cd_ib0", "ils_oracle_live", "ils_oracle_exact10", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply")  # cdxapply diagnostics, checkpoint seeds; name them in R1A_ARMS
@@ -1041,7 +1043,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_CD_EXACT_PRUNE"] = "cost"
         if kind == "cd_ib0":
             env.update(ib0_alpha(kind))
-        if kind == "ils_oracle_live":
+        if kind in ILS_KINDS:
             env.update(ib0_alpha(kind))
             env.update(HEROSIM_PG_ILS_MIN_BATCH=os.environ.get("R1A_ILS_MIN", "").strip() or "10", HEROSIM_PG_ILS_PER=os.environ.get("R1A_ILS_PER", "").strip() or "200",
                        HEROSIM_PG_ILS_MAX_SECONDS=os.environ.get("R1A_ILS_MAX_SECONDS", "").strip() or "60", HEROSIM_PG_ILS_SEED=str(seed))
@@ -1312,7 +1314,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                             f"{c.get('pg_ext_charged')} charged")
     elif out["env"].get("HEROSIM_PG_EXT_RATE") or int(c.get("pg_ext_batches") or 0):
         problems.append("a non-externality arm charged the externality")
-    ils_arm = orig_kind == "ils_oracle_live"
+    ils_arm = orig_kind in ILS_KINDS
     if ils_arm and (not out["env"].get("HEROSIM_PG_ILS_MIN_BATCH") or int(c.get("pg_ils_batches") or 0) > int(c.get("pg_batches") or 0)):
         problems.append("ILS instrument off: HEROSIM_PG_ILS_MIN_BATCH not served or more ILS batches than batches")
     if not ils_arm and (out["env"].get("HEROSIM_PG_ILS_MIN_BATCH") or int(c.get("pg_ils_batches") or 0)):

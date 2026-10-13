@@ -455,8 +455,8 @@ class _PeerGreedyCore:
         self._pg_check_ils()
 
     def _pg_check_ils(self) -> None:
-        if self.pg_ils_min_batch is not None and (self.pg_cd_exact or self.pg_cd_expansion):
-            raise RuntimeError(f"FAIL LOUD: {PG_ILS_MIN_BATCH_ENV} is the plain CD arm plus ILS; exact search / expansion are off")
+        if self.pg_ils_min_batch is not None and self.pg_cd_expansion and not self.pg_cd_exact:
+            raise RuntimeError(f"FAIL LOUD: {PG_ILS_MIN_BATCH_ENV} runs with the plain CD arm or with exact search (ils_oracle_exact10); expansion alone is off")
 
     def _pg_capture(self, task_id: int, candidate_feature_rows) -> None:
         """Append one decision. `candidate_feature_rows` are pre-formatted rows built in _pg_choose:
@@ -1884,6 +1884,8 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
         self._pg_cd_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         if self.pg_ils_min_batch is not None and len(batch_tasks) > self.pg_ils_min_batch:
             self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+            if self.pg_cd_exact:
+                return  # ils_oracle_exact10: ILS's plan stands for a batch above the threshold; the exact path serves the rest
         if not (self.pg_cd_expansion or self.pg_cd_exact):
             return
         # cd_expand: one expansion phase after the single-task passes converge, then the passes again on the new plan;
