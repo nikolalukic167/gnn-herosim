@@ -44,3 +44,28 @@ A diagnostic on the bar, not a new lineage. `ORACLE_DIAG_TERMS=1` (default off; 
 - Predictions (coordinator): w = 0 moves ib0 by at most 1 % either way, whole-run and after_360s (sparse_obs stage 1: the drain channel is worth < 1 %).
 - Labels, per rung on after_360s with Holm over w in {0, 0.5}: faster by >= 2 % -> `S-OVERPRICES-DRAIN` (a hand improvement, reported as one, the bar moves); within +-1 % -> `DRAIN-WEIGHT-NEUTRAL`; slower by >= 2 % -> `S-PRICES-DRAIN-RIGHT` (the regression coefficient is a collinearity artefact).
 - Also reported per arm: the collapse count (end - last arrival > 300 s, or mean > 5x the cd median) beside the medians, since `warm_surge` found ib0 brittle under surges.
+
+## 2026-10-13: type-aware residual of S — `RESIDUAL-IS-QUEUE / NO-PLAN-GAIN-STEADY`
+
+`scripts_cosim/oracle_terms_resid.py` (`rp/oracle-terms` aaa18505), on the logged plans of 6 cells (heavy 19406-19410, moderate 19405; moderate 19406-19410 pending, so the moderate half is one topology). Row = a logged plan p of a within-cap batch against the hand plan h; target rho = (label_p - label_h) - (S_p - S_h); features = per-task-type deltas of the S terms (queue = drain + inflight, raw stacking, cold, exec, lat, exch), totals, moved-task counts, node-count change, batch size. Held out by topology (leave-one-heavy-topology-out, and train all heavy -> moderate 19405). Pools for the regret of argmin(S + rho_hat): **A** = the hand plan + the 4 lowest-S logged plans (no label information in the pool); **B** = A + the logged random and label-top plans (optimistic: the label-best plans are in it). Gains are the myopic batch label as % of hand label seconds in the bin, not live latency.
+
+| R2 of rho, held-out heavy folds | all | t < 360 s | steady |
+|---|---|---|---|
+| type-aware | 0.49-0.63 | 0.48-0.64 | 0.26-0.47 |
+| type-agnostic | 0.45-0.57 | 0.42-0.56 | 0.33-0.45 |
+| moderate 19405 (heavy-trained) | 0.21 | 0.06 | 0.35 |
+
+| permutation importance (R2 drop, term group permuted) | queue | exec | cold | exch | raw stacking |
+|---|---|---|---|---|---|
+| steady, heavy folds | 0.68-0.87 | -0.02..0.03 | 0.05-0.16 | ~0 | ~0 |
+| steady, moderate 19405 | 0.67 | 0.01 | 0.09 | 0.00 | 0.00 |
+| t < 360 s, heavy folds | 0.35-0.52 | 0.39-0.69 | ~0.07 | 0.03-0.08 | ~0 |
+
+| gain of argmin(S + rho_hat), % of hand label s | pool A | pool B | oracle in pool A (upper bound) |
+|---|---|---|---|
+| t < 360 s, heavy (5 folds) | +6.0..+7.7 | +14..+19 | 7.8-12.9 |
+| t < 360 s, moderate 19405 | -3.6 | +3.5 | 10.5 |
+| steady, heavy (5 folds) | -0.63..+1.31, mean ~ +0.24 | -2.2..+0.5 | 1.7-7.1 |
+| steady, moderate 19405 | +0.66 | +1.09 | 2.4 |
+
+Reading. The residual is predictable (R2 far above 0.05) and, in steady state, carried by one term: queue. Correcting S with it buys within +-1 % with a fold-dependent sign, so there is no steady-state plan gain; type awareness adds nothing in steady state. The +6..+19 % in the opening is the cold-start deploy transient and is recorded as such, not as a lever. The single-term branch is tested live by the S_drain_weight probe above (drain weight scaled), not by a learned residual arm. Ruling (coordinator): no learned-residual arm, no new lineage; moderate cells fold in as a one-line update unless moderate steady pool-A gain exceeds +2 % on >= 3 topologies.
