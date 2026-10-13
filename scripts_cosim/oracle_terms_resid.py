@@ -164,7 +164,10 @@ def main():
     for k in heavy:
         res.append(evaluate([b for kk in heavy if kk != k for b in data[kk]], data[k], f"heavy: hold out {k[0]}"))
     if mod:
-        res.append(evaluate([b for kk in heavy for b in data[kk]], [b for kk in mod for b in data[kk]], "heavy -> moderate 19405"))
+        train_h = [b for kk in heavy for b in data[kk]]
+        for k in mod:
+            res.append(evaluate(train_h, data[k], f"heavy -> moderate {k[0]}"))
+        res.append(evaluate(train_h, [b for kk in mod for b in data[kk]], "heavy -> moderate pooled"))
     for r in res:
         print(json.dumps(r, default=float))
     if a.json:
