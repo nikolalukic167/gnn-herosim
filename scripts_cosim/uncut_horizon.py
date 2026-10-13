@@ -175,8 +175,8 @@ def phase2(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, An
 def run_state(job: Dict[str, Any], plans: Dict[str, Sequence[Sequence[int]]]) -> Dict[str, Any]:
     from src.placement import fidelity_replay
 
-    snap, spec, types, offered = _context(job)
     U._setup_env("cd_ib0", job)
+    snap, spec, types, offered = _context(job)
     with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
     ext = trace_extension(job, fr, snap, max(HORIZONS))
@@ -277,8 +277,8 @@ def _identity(job: Dict[str, Any], plans: Dict[str, Sequence[Sequence[int]]]) ->
     """No later group: phase 2 with the base workload. Its batch sums must equal the batch-only rows bit for bit."""
     from src.placement import fidelity_replay
 
-    snap, spec, types, offered = _context(job)
     U._setup_env("cd_ib0", job)
+    snap, spec, types, offered = _context(job)
     with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
     ext = {"wl": fr.wl, "n_base": len(fr.wl["events"]), "group_of": {}}
