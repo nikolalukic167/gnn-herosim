@@ -1,6 +1,6 @@
 """decision_cost_s0_v1 attribution read (Amendment 5): is the cdxapply win at k = 1 the GNN seed's or the expansion's?
 
-Cells (attrib dir): cdxapply_k100, cd_ib0_k100, cd_expand_k100 x 12 topologies x g0,g1 x moderate,heavy = 144. The twin-seed + expansion control does not exist in the harness (not built).
+Cells (attrib dir): cdxapply_k100, cd_ib0_k100, cd_expand_k100 x 12 topologies x g0,g1 x moderate,heavy = 144. The twin-seed + expansion arm (ra_twin_eng_cdxapply, Amendment 6) is read when --twin names its dir; labels: MP-ATTRIBUTABLE only if cdxapply is >= 2 % faster than it with Holm p < .05 at a rung.
 Step 0, a STOP on mismatch: cdxapply_k100 and cd_ib0_k100 whole-run mean latency must reproduce the grid's k = 1 cells (grid dir) to 1e-9 relative.
 Unit and statistic as in decision_cost_read.py (topology; median over windows of the paired %; median over topologies; sign count; exact Wilcoxon; negative = first arm faster).
 Metrics: whole-run mean latency; mean latency of tasks arriving after 360 s; after the 5 % dispatch point (descriptive: summary `steady_state`).
@@ -18,7 +18,8 @@ import sys
 import r1_attribution_v1_read as R
 from decision_cost_read import TOPOS, WINDOWS, RUNGS, split_kind
 
-NEW = ("ra_gnn_eng_cdxapply", "cd_ib0", "cd_expand")
+NEW = ("ra_gnn_eng_cdxapply", "cd_ib0", "cd_expand", "ra_twin_eng_cdxapply")
+TWIN = "ra_twin_eng_cdxapply"
 METRICS = ("whole_run", "after_360s", "after_p5_dispatch")
 
 
@@ -98,15 +99,19 @@ def collapse(att, grid):
     return out
 
 
-def read(att_dir, grid_dir):
+def read(att_dir, grid_dir, twin_dir=None):
     att, att_failed = load_dir(att_dir)
+    if twin_dir:
+        tw, tw_failed = load_dir(twin_dir)
+        att.update(tw)
+        att_failed += tw_failed
     grid, _ = load_dir(grid_dir)
     rep = reproduction(att, grid)
     res = {"reproduction": rep, "failed": att_failed, "cells": {arm: sum(1 for k in att if k[0] == arm) for arm in NEW}}
     if not rep["ok"]:
         res["verdict"] = "STOP: whole-run k = 1 values do not reproduce the grid"
         return res
-    tests = {m: {f"vs {ref}|{r}": contrast(att, "ra_gnn_eng_cdxapply", ref, r, m) for ref in ("cd_expand", "cd_ib0") for r in RUNGS} for m in METRICS}
+    tests = {m: {f"vs {ref}|{r}": contrast(att, "ra_gnn_eng_cdxapply", ref, r, m) for ref in (("cd_expand", "cd_ib0", TWIN) if twin_dir else ("cd_expand", "cd_ib0")) for r in RUNGS} for m in METRICS}
     for m in METRICS:
         adj = R.holm({k: c["p"] for k, c in tests[m].items()})
         for k, c in tests[m].items():
@@ -122,9 +127,20 @@ def read(att_dir, grid_dir):
             lab[r] = "GNN-SEED-WIN"
         else:
             lab[r] = "UNRESOLVED"
+    if twin_dir:
+        mp = {}
+        for r in RUNGS:
+            c = tests["whole_run"][f"vs {TWIN}|{r}"]
+            if c["median_pct"] is None:
+                mp[r] = "INCOMPLETE"
+            elif c["median_pct"] <= -2.0 and c["holm_p"] is not None and c["holm_p"] < 0.05:
+                mp[r] = "MP-ATTRIBUTABLE"
+            else:
+                mp[r] = "MP-NOT-ATTRIBUTED"
+        lab = {"seed_vs_search": lab, "mp": mp}
     res.update(tests=tests, labels=lab, collapse=collapse(att, grid),
                arm_vs_arm_cd_expand_vs_cd_ib0={m: {r: contrast(att, "cd_expand", "cd_ib0", r, m) for r in RUNGS} for m in METRICS},
-               twin_seed_control="does not exist in the harness (ra_twin_eng_cdxapply is not a registered kind); not built; MP is not assignable")
+               twin_seed_control=("ra_twin_eng_cdxapply (MP-OFF twin seed + the same expansion), built by S7, read here" if twin_dir else "not read"))
     return res
 
 
@@ -154,9 +170,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--attrib", required=True)
     ap.add_argument("--grid", required=True)
+    ap.add_argument("--twin", default=None)
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
-    r = read(a.attrib, a.grid)
+    r = read(a.attrib, a.grid, a.twin)
     if a.out:
         json.dump(r, open(a.out, "w"), indent=1)
     print_report(r)
