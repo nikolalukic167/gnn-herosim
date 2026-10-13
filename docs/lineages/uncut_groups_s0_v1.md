@@ -307,11 +307,16 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     | moderate | −2.58 % | 5/6 | −2.06 % (4/6) | +1.62, −1.18, −2.70, −7.68, −2.46, −11.74 |
     | heavy | −9.89 % | 5/6 | −7.90 % (4/6) | −0.52, −9.76, −10.01, −21.24, +36.36, −18.81 |
 
+    - Wilcoxon p (exact, n = 6): after 360 s moderate .094, heavy .44; whole-run .22 and .56. B's rule has no p clause, so "clears its line" below is a threshold reading, not a significance claim.
     - B clears its TRANSFERS line (≤ −2 % at both rungs), and its mechanism holds on the whole-run medians: moderate Δexchange −0.183 / Δqueue +0.033, heavy −0.116 / +0.014.
     - B does not fire MYOPIC-LIVE: not > 0 % at either rung, 0 collapse.
     - **The label is still PARTIAL because A fails TRANSFERS on heavy** (−4.09 %, 4/6).
   - **CEILING-TRUNCATED** in B too: > 50-task cap share 31.4 % moderate (137/437) and 36.5 % heavy (163/446).
-  - **19465 heavy is again the outlier:** B reads +36.4 %, and its lock-wait mean is 1.054 s/task against the oracle's 0.968. That is the same replica-lock signature as in A (entry below).
+  - **19465 heavy is again the outlier** (corrected per SCIENTIST's audit: the comparator is B's bar `cd_exactS_ib0`, not the oracle). B reads +36.4 % after 360 s.
+    - Against `cd_exactS_ib0`, the lock-wait mean is 1.054 vs 0.616 s/task (p95 5.57 vs 0.77). That gives Δlock +0.439 s/task against a whole-run loss of +0.425 (2.536 vs 2.111). Comms change by −0.048 and queue by −0.017.
+    - The loss appears as compute-lock wait (Δlock ≥ Δlatency, partly offset by exchange savings); the cause is unshown.
+    - Descriptive: across the 6 heavy topologies, Δlock orders B's after-360 s change with one adjacent swap (19462/19463; Spearman 0.94). A's order is perfect (Spearman 1.0; entry below).
+    - Counts: the lock-wait mean rises in 7/12 B cells (A 9/12). It falls in 19464 moderate and in 19462, 19463, 19464 and 19466 heavy. `effective_queue_share` rises in 12/12 in both contrasts, but it is a share of elapsed time and so moves with any latency rise. It is weak support.
   - **Descriptive, confounded on ≤ 10 batches:**
     - `ils_oracle_exact10` vs `cd_ib0` is −13.60 % moderate (6/6) and −11.12 % heavy (5/6) after 360 s. Exact search on ≤ 10 plus ILS on > 10 is the fastest arm measured in this node, and it is a ceiling, not a servable arm.
     - Oracle vs `cd_exactS_ib0`: +1.82 % moderate, −1.10 % heavy.
@@ -360,14 +365,15 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Its late deciles are worse (deciles 7–9 about 2.18 s against `cd_ib0`'s 1.46–1.79 s).
     - Its wall time was 8,881 s.
     - 19463 heavy (+3.62 %) also has the mechanism holding.
-  - **19465 heavy diagnosed** (descriptive, existing outputs only, no rerun; S6 at the expert's request). The loss is **replica-lock contention**, a cost the registered mechanism's queue term does not see.
+  - **19465 heavy diagnosed** (descriptive, existing outputs only, no rerun; S6 at the expert's request; wording corrected per SCIENTIST's audit). The loss appears as compute-lock wait (Δlock ≥ Δlatency, partly offset by exchange savings); the cause is unshown. It is a cost the registered mechanism's queue term does not see.
     - `lock_wait` (`scripts_cosim/fresh_topo_burst_v1_gate.py:387`) is the wait for the replica's compute lock, compute_start − io_end per task. It is the FIFO backlog on a saturated replica, and it is filed under compute time. `averageQueueTime`, the mechanism's queue term, does not include it.
     - **On 19465 heavy, the lock-wait mean rises by +0.276 s/task**, about the whole latency loss (+0.235). Its p95 is 4.55 s against 1.62. `averageComputeTime` rises by +0.222, communications fall by −0.096, and `averageQueueTime` rises by only +0.008. Execution time rises by +0.043, and starved replica-create calls are 473 against 297.
     - **Across all 12 cells:**
       - The lock-wait mean rises in 9 of 12. It falls only in 19466 moderate (−0.034), 19461 heavy (−0.024) and 19466 heavy (−0.081), which are three of the larger wins.
-      - `effective_queue_share` ((queue + lock wait) / elapsed) rises in all 12.
+      - `effective_queue_share` ((queue + lock wait) / elapsed) rises in all 12. It is a share of elapsed time, so it is weak support.
       - 19463 heavy (+3.6 %) shows the same signature, milder: lock-wait mean +0.106, p95 1.92 against 0.79.
-    - **Reading:** co-locating peer groups saves exchange but stacks tasks on fewer replicas, so they wait for the compute lock. This is a myopia of the batch objective that the whole-run "exchange vs queue" medians hide.
+      - Across the 6 heavy topologies, Δlock (−0.024, +0.042, +0.106, +0.056, +0.276, −0.081) orders the after-360 s change perfectly (Spearman 1.0). This is descriptive, n = 6.
+    - **Reading (a hypothesis, not shown):** co-locating peer groups may save exchange but stack tasks on fewer replicas, so they wait for the compute lock. That would be a myopia of the batch objective that the whole-run "exchange vs queue" medians hide.
     - **Not answerable from existing outputs:**
       - (a) the per-decile cap share and the queue/exchange split by decile, and (b) whether the late loss sits in ILS-changed batches or in greedy batches of ≤ 10. The per-batch records were in the node-local raw file, which is gone; the summaries carry totals only.
       - (c) tasks per node over time. There is no per-node series; `lock_wait` and `effective_queue_share` are the available proxies.
