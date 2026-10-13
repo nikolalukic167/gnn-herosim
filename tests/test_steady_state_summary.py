@@ -40,3 +40,12 @@ def test_task_times_file_round_trips(tmp_path):
     assert (np.diff(a[:, 0]) >= 0).all() and a[0].tolist() == [0.0, 10.0]
     assert not (tmp_path / "cell.tasks.npy.partial").exists()
     assert _gate().write_task_times([], str(tmp_path / "none.tasks.npy")) is None
+
+
+def test_summary_carries_python_env_and_fingerprint_additively():
+    """run_provenance.python_env / env_fingerprint are copied into the summary next to `code`; every earlier key keeps its source line."""
+    import pathlib
+    src = (pathlib.Path(__file__).resolve().parents[1] / "scripts_cosim" / "fresh_topo_burst_v1_gate.py").read_text()
+    assert 'out["code"] = (doc.get("run_provenance") or {}).get("code")' in src
+    assert 'out["python_env"] = (doc.get("run_provenance") or {}).get("python_env")' in src
+    assert 'out["env_fingerprint"] = (doc.get("run_provenance") or {}).get("env_fingerprint")' in src

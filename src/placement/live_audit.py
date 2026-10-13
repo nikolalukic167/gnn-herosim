@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 from src.placement import snapshot_fidelity
 from src.placement.live_snapshot_seed import _approx_comm
@@ -285,6 +285,21 @@ def _replicas_by_type_payload(
     return payload
 
 
+def _sealed_triggers(scheduler: Any) -> Optional[Set[int]]:
+    """LIVE_AUDIT_TRIGGER_IDS: a JSON list of trigger task ids; only batches led by one of them are captured. Read once per run."""
+    path = os.environ.get("LIVE_AUDIT_TRIGGER_IDS")
+    if not path:
+        return None
+    cached = getattr(scheduler, "_audit_sealed_triggers", None)
+    if cached is None or cached[0] != path:
+        ids = json.load(open(path))
+        if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids):
+            raise ValueError(f"FAIL LOUD: LIVE_AUDIT_TRIGGER_IDS={path} must hold a JSON list of task ids")
+        cached = (path, set(ids))
+        scheduler._audit_sealed_triggers = cached
+    return cached[1]
+
+
 def maybe_capture_batch_live_audit_snapshot(
     scheduler: Any,
     system_state: "SystemState",
@@ -306,12 +321,18 @@ def maybe_capture_batch_live_audit_snapshot(
     if written >= max_snapshots:
         return
 
-    stride = max(1, int(os.environ.get("LIVE_AUDIT_STRIDE", "1")))
-    if batch_tasks[0].id % stride != 0:
-        return
+    triggers = _sealed_triggers(scheduler)
+    if triggers is not None:
+        # uncut_groups_s0_v1 K1: a sealed sample of batches, named by trigger task id before the run; no size/stride filter
+        if int(batch_tasks[0].id) not in triggers:
+            return
+    else:
+        stride = max(1, int(os.environ.get("LIVE_AUDIT_STRIDE", "1")))
+        if batch_tasks[0].id % stride != 0:
+            return
 
-    if not _batch_qualifies(scheduler, system_state, batch_tasks):
-        return
+        if not _batch_qualifies(scheduler, system_state, batch_tasks):
+            return
 
     scheduler._drain_memo = {}  # one queue walk per platform per snapshot
     try:
