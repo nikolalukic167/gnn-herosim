@@ -16,6 +16,7 @@ import copy
 import logging
 import json
 import os
+import sys
 from timeit import default_timer
 from typing import Callable, Generator, List, Optional, Set, Tuple, TYPE_CHECKING, Dict, Any
 
@@ -247,6 +248,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         # say how many batches were peer-complete and how many peers the decoder could
         # not see, instead of leaving that to be inferred.
         self.batch_by_peer_group = _read_batch_by_peer_group()
+        self.whole_group = False
         self._prefix_options = None
         self.prefix_batches = 0
         self.prefix_tasks_decoded = 0
@@ -766,6 +768,19 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
     # ------------------------------------------------------------------
     # peer_affinity_v1 stage 3: prefix-conditioned serving (GNN_DECODE_MODE=masked_topo)
     # ------------------------------------------------------------------
+
+    def enable_whole_group(self) -> None:
+        """uncut_groups_s0_v1: serve each peer group as one batch (cell scheduler.batch_size = "group").
+        Late members still go to later batches after batch_timeout (the collector is unchanged); only
+        the size cap goes. The prefix decoder's 16-task guard applies to the old modes, not this one."""
+        if self._decode_mode != PREFIX_DECODE_MODE or not self.batch_by_peer_group:
+            raise ValueError(
+                "FAIL LOUD: whole-group batches need GNN_DECODE_MODE=masked_topo and GNN_BATCH_BY_PEER_GROUP=1; "
+                f"got decode mode {self._decode_mode!r}, peer-group batching {self.batch_by_peer_group}"
+            )
+        self.whole_group = True
+        self.batch_size = sys.maxsize
+        self.batch_max = sys.maxsize
 
     def _orchestrator(self):
         for node in self.nodes.items:
