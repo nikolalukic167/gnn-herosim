@@ -44,7 +44,7 @@ from src.policy.gnn.seq_decode import (
     run_decode_with_timing,
 )
 from src.policy.tabular.feature_builder import build_pyg_inference_graph
-from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot
+from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot, record_chosen
 from src.placement.physics_audit import AUDIT as _AUDIT
 from src.placement.decision_timing import log_of
 from src.placement.model import SystemState
@@ -1342,6 +1342,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             decision_cost.book(self, "sched_queue_wait_seconds", self.env.now - queued_at)
             decision_cost.book(self, "sched_queue_wait_max", self.env.now - queued_at, mx=True)
         evals_before = getattr(self, "sched_plan_evals", 0)
+        fallbacks_before = getattr(self, "pg_exact_fallbacks", None)
         system_state: SystemState = yield self.mutex.get()
         maybe_capture_batch_live_audit_snapshot(
             self, system_state, batch_tasks, self._live_audit_policy_name
@@ -1395,6 +1396,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 f"[ {self.env.now} ] GNN masked_topo: batch of {len(batch_tasks)} "
                 f"({len(decodable)} decoded, {len(deferred)} deferred) in {inference_time*1000:.2f}ms"
             )
+        if getattr(self, "_audit_pending_chosen", None) is not None:
+            # uncut_groups_s0_v1 K1(b): the served plan of a sealed batch, file I/O only
+            record_chosen(self, batch_tasks, decodable, placements,
+                          int(getattr(self, "sched_plan_evals", 0)) - int(evals_before),
+                          None if fallbacks_before is None else self.pg_exact_fallbacks > fallbacks_before)
         if cost_on:
             charge = decision_cost.rate_ms(len(decodable)) * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
             if charge > 0.0:
