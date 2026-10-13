@@ -487,6 +487,8 @@ class Task:
 
         return {
             "taskId": self.id,
+            "groupSize": getattr(self, "pgb_group_size", -1),
+            "servedBatchSize": getattr(self, "pgb_served", -1),
             "dispatchedTime": self.dispatched_time,
             "scheduledTime": self.scheduled_time,
             "arrivedTime": self.arrived_time,

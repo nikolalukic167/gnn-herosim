@@ -237,6 +237,8 @@ class ApplicationResult(TypedDict):
 @final
 class TaskResult(TypedDict):
     taskId: int
+    groupSize: int
+    servedBatchSize: int
     dispatchedTime: MomentSecond
     scheduledTime: MomentSecond
     arrivedTime: MomentSecond
