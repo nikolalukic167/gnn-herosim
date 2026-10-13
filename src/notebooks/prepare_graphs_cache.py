@@ -1159,6 +1159,16 @@ def _scheduler_adaptive_queue_norm_nonzero(
     return queue_depth_norm(queue_values.tolist(), "adaptive_nonzero", contract)
 
 
+def _is_sampled_sweep(jsonl_path: Path) -> bool:
+    """True when placements.jsonl starts with a sampling lineage's header line saying exhaustive=false."""
+    with jsonl_path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            if line.strip():
+                rec = json.loads(line)
+                return rec.get("header") is True and rec.get("exhaustive") is False
+    return False
+
+
 def build_graph(
     df_nodes: pd.DataFrame,
     df_tasks: pd.DataFrame,
@@ -1841,11 +1851,17 @@ def attach_dag_partial_state_block(
         name_by_node_id[nid] = nname
 
     demand: Dict[Tuple[int, Tuple[int, int]], float] = {}
+    sweep_pairs = [(t, placement) for combo, _rtt in sweep for t, placement in enumerate(combo)]
     for combo, _rtt in sweep:
         if len(combo) != n_tasks:
             raise RuntimeError(f"{ds.name}: sweep row has {len(combo)} tasks, "
                                f"expected {n_tasks}")
-        for t, placement in enumerate(combo):
+    if _is_sampled_sweep(jsonl):
+        # a sampled file lists a handful of plans, not every candidate; the decoder scores every candidate, so its demand
+        # table must cover the candidate set (an exhaustive file's rows already do, so those corpora are unchanged)
+        sweep_pairs += [(t, tuple(int(v) for v in c)) for t in range(n_tasks) for c in graph.task_logit_to_placement[t]]
+    if True:
+        for t, placement in sweep_pairs:
             if (t, placement) in demand:
                 continue
             pid = int(placement[1])
