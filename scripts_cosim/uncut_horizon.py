@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO))
 from scripts_cosim import uncut_ils as U  # noqa: E402
 
 HORIZONS = (1, 3, 10)
+_TRACES: Dict[str, Any] = {}
 
 
 def choose_ids(rows: Sequence[Dict[str, Any]], seed: int, n_top: int = 50, n_rand: int = 50) -> Dict[str, Any]:
@@ -41,7 +42,7 @@ def trace_extension(job: Dict[str, Any], fr: Any, snap: Dict[str, Any], n_groups
     """The workload of the replay with the next `n_groups` trace groups appended (timestamps relative to the batch's last arrival; peer pairs among them)."""
     name = json.load(open(job["cell_summary"]))["workload"]
     wl_path = Path(job["cell_config"]).parents[1] / "wl" / f"{name}.json"
-    trace = json.load(open(wl_path))
+    trace = _TRACES.get(str(wl_path)) or _TRACES.setdefault(str(wl_path), json.load(open(wl_path)))
     events = trace["events"]
     gids = [int(r["gid"]) for r in snap["fidelity"]["batch"]]
     base = max(float(events[g]["timestamp"]) for g in gids)
@@ -173,27 +174,33 @@ def phase2(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, An
 
 
 def run_state(job: Dict[str, Any], plans: Dict[str, Sequence[Sequence[int]]]) -> Dict[str, Any]:
+    """Every plan at N = 0 (the batch alone) and at each horizon N, each with its own phase 1 and phase 2: later arrivals share links with the batch, so the batch's own
+    RTT depends on how much follows it, and a smaller horizon cannot be read off a larger run."""
     from src.placement import fidelity_replay
 
     U._setup_env("cd_ib0", job)
     snap, spec, types, offered = _context(job)
     with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
-    ext = trace_extension(job, fr, snap, max(HORIZONS))
-    out: Dict[str, Any] = {"state_id": job["state_id"], "n_later": ext["n_later"], "groups": ext["groups"], "plans": {}}
+    exts = {N: trace_extension(job, fr, snap, N) for N in HORIZONS}
+    exts[0] = {"wl": fr.wl, "n_base": len(fr.wl["events"]), "group_of": {}, "n_later": 0, "groups": []}
+    out: Dict[str, Any] = {"state_id": job["state_id"], "n_later": {str(N): exts[N]["n_later"] for N in exts}, "groups": exts[max(HORIZONS)]["groups"], "plans": {}}
     for name, plan in plans.items():
         if plan is None:
             out["plans"][name] = None
             continue
-        placed = phase1(job, plan, ext)
-        r = phase2(job, plan, ext, placed)
-        out["plans"][name] = {"batch": r["batch"], "groups": r["groups"], "plan": [list(p) for p in plan]}
+        per_n = {}
+        for N in (0,) + HORIZONS:
+            placed = phase1(job, plan, exts[N]) if N else {}
+            r = phase2(job, plan, exts[N], placed)
+            per_n[str(N)] = {"batch": r["batch"], "later": sum(r["groups"]), "total": r["batch"] + sum(r["groups"]), "n_later_tasks": exts[N]["n_later"]}
+        out["plans"][name] = {"by_n": per_n, "plan": [list(p) for p in plan]}
     return out
 
 
-def summarize(rows: Sequence[Dict[str, Any]], ids: Dict[str, Any], batch_only: Dict[str, Dict[str, float]]) -> Dict[str, Any]:
-    """Per stratum and pooled: ILS's and exactS_ib0's advantage over the hand (seconds of summed RTT, hand - arm), kept fraction at each N, sign agreement with the batch-only
-    advantage, median per-state advantage against the chaos floor (median |RTT(hand) - RTT(hand one zero-dS move away)|)."""
+def summarize(rows: Sequence[Dict[str, Any]], ids: Dict[str, Any]) -> Dict[str, Any]:
+    """Per stratum and pooled, for ILS and cd_exactS_ib0 against the hand: the advantage in summed RTT seconds (hand - arm) at each N, the share of the batch-only advantage kept,
+    the share of states whose advantage has the batch-only sign, the median per-state advantage, and the chaos floor (median |total(hand) - total(hand one zero-dS move away)|)."""
     strata = {"pooled": [r["state_id"] for r in rows], "top50": ids["top"], "random50": ids["random"]}
     by = {r["state_id"]: r for r in rows}
     out: Dict[str, Any] = {}
@@ -204,17 +211,16 @@ def summarize(rows: Sequence[Dict[str, Any]], ids: Dict[str, Any], batch_only: D
         blk: Dict[str, Any] = {"n_states": len(rs)}
         for arm in ("ils", "exactS"):
             res: Dict[str, Any] = {}
+            adv0 = [r["plans"]["hand"]["by_n"]["0"]["total"] - r["plans"][arm]["by_n"]["0"]["total"] for r in rs]
             for N in (0,) + HORIZONS:
-                def total(r, plan):
-                    p = r["plans"][plan]
-                    return p["batch"] + sum(p["groups"][:N])
-                adv = [total(r, "hand") - total(r, arm) for r in rs]
-                adv0 = [r["plans"]["hand"]["batch"] - r["plans"][arm]["batch"] for r in rs]
-                chaos = [abs(total(r, "hand") - total(r, "chaos")) for r in rs if r["plans"].get("chaos")]
-                res[f"N{N}"] = {"sum_advantage_s": sum(adv), "kept_vs_batch_only": sum(adv) / sum(adv0) if sum(adv0) else None, "sign_agrees_with_batch_only": sum((a > 0) == (b > 0) for a, b in zip(adv, adv0)) / len(rs),
-                                "median_advantage_s": st.median(adv), "median_chaos_floor_s": st.median(chaos) if chaos else None, "n_chaos_states": len(chaos),
-                                "share_states_advantage_above_own_chaos": (sum(1 for r, a in zip(rs, adv) if r["plans"].get("chaos") and abs(a) > abs(total(r, "hand") - total(r, "chaos"))) /
-                                                                            max(len(chaos), 1)) if chaos else None}
+                key = str(N)
+                adv = [r["plans"]["hand"]["by_n"][key]["total"] - r["plans"][arm]["by_n"][key]["total"] for r in rs]
+                with_chaos = [r for r in rs if r["plans"].get("chaos")]
+                chaos = [abs(r["plans"]["hand"]["by_n"][key]["total"] - r["plans"]["chaos"]["by_n"][key]["total"]) for r in with_chaos]
+                res[f"N{N}"] = {"sum_advantage_s": sum(adv), "kept_vs_batch_only": sum(adv) / sum(adv0) if sum(adv0) else None,
+                                "sign_agrees_with_batch_only": sum((x > 0) == (y > 0) for x, y in zip(adv, adv0)) / len(rs), "median_advantage_s": st.median(adv),
+                                "mean_hand_total_s": st.fmean(r["plans"]["hand"]["by_n"][key]["total"] for r in rs), "median_chaos_floor_s": st.median(chaos) if chaos else None,
+                                "n_chaos_states": len(chaos)}
             blk[arm] = res
         out[sname] = blk
     return out
@@ -241,7 +247,7 @@ def main() -> int:
         return 0
     if a.cmd == "summarize":
         rows = [json.loads(l) for l in open(a.hrows) if l.strip()]
-        res = summarize(rows, json.load(open(a.ids)), {})
+        res = summarize(rows, json.load(open(a.ids)))
         print(json.dumps(res, indent=1))
         if a.json:
             Path(a.json).write_text(json.dumps(res, indent=1))
@@ -282,7 +288,7 @@ def _identity(job: Dict[str, Any], plans: Dict[str, Sequence[Sequence[int]]]) ->
     with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
         fr = fidelity_replay.FidelityReplay(spec, types, offered)
     ext = {"wl": fr.wl, "n_base": len(fr.wl["events"]), "group_of": {}}
-    return {"state_id": job["state_id"], "plans": {n: {"batch": phase2(job, p, ext, {})["batch"], "groups": []} for n, p in plans.items() if p is not None}}
+    return {"state_id": job["state_id"], "plans": {n: {"by_n": {"0": {"batch": phase2(job, p, ext, {})["batch"]}}} for n, p in plans.items() if p is not None}}
 
 
 if __name__ == "__main__":
