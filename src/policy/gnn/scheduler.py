@@ -852,6 +852,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         standalone cost and a batch whose pruned plan space exceeds 100,000 is decoded in sub-batches of at most 4 tasks, exactly as
         the corpus was built (src/placement/declared_slate.py); otherwise the whole batch over every reachable replica."""
         from src.placement import declared_slate
+        from src.placement.decision_cost import meter
+
+        meter(self, len(batch_tasks))
 
         if declared_slate.serving_slate() is None:
             return self._prefix_inference_core(batch_tasks, system_state, queue_snapshot, temporal_state)
@@ -1107,6 +1110,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.ss_batches = getattr(self, "ss_batches", 0) + 1
         self.ss_tasks = getattr(self, "ss_tasks", 0) + n
         self.ss_scored = getattr(self, "ss_scored", 0) + scored
+        from src.placement.decision_cost import meter
+
+        meter(self, scored)
         changed = sum(1 for i in range(n) if best[i] != start[i])
         self.ss_changed_batches = getattr(self, "ss_changed_batches", 0) + int(changed > 0)
         self.ss_changed_tasks = getattr(self, "ss_changed_tasks", 0) + changed
@@ -1309,6 +1315,18 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         3. Decodable tasks are enqueued at their decoded placement. A placement that is
            no longer a replica when its turn comes is an error, not a fallback.
         """
+        from src.placement import decision_cost
+
+        cost_c = decision_cost.cost_ms()
+        if cost_c > 0.0:
+            # decision_cost_s0_v1: the scheduler is one FIFO server; a batch queues behind it before it takes the state mutex
+            server = decision_cost.server_of(self)
+            server_req = server.request()
+            queued_at = self.env.now
+            yield server_req
+            decision_cost.book(self, "sched_queue_wait_seconds", self.env.now - queued_at)
+            decision_cost.book(self, "sched_queue_wait_max", self.env.now - queued_at, mx=True)
+        evals_before = getattr(self, "sched_plan_evals", 0)
         system_state: SystemState = yield self.mutex.get()
         maybe_capture_batch_live_audit_snapshot(
             self, system_state, batch_tasks, self._live_audit_policy_name
@@ -1361,6 +1379,16 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 f"[ {self.env.now} ] GNN masked_topo: batch of {len(batch_tasks)} "
                 f"({len(decodable)} decoded, {len(deferred)} deferred) in {inference_time*1000:.2f}ms"
             )
+        if cost_c > 0.0:
+            charge = cost_c * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
+            if charge > 0.0:
+                waiting = len(self.mutex.get_queue)
+                yield self.env.timeout(charge)
+                decision_cost.book(self, "sched_busy_seconds", charge)
+                decision_cost.book(self, "sched_batches_charged", 1)
+                decision_cost.book(self, "sched_mutex_blocked_lb_s", waiting * charge)
+                decision_cost.book(self, "sched_mutex_waiters_max", max(waiting, len(self.mutex.get_queue)), mx=True)
+            server.release(server_req)
         self.prefix_tasks_deferred += len(deferred)
         # Deferred tasks below may evict or drain a replica (autoscaler.evict_idle_for) before the decoded tasks are
         # enqueued; the decoded targets are off limits until their task is on the platform's queue.
