@@ -299,6 +299,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-13 — **Arm 1 disclosure: replica compute lock** (S7). Labels replay with HEROSIM_REPLICA_RELEASE=1 (checked via `_setup_env` on 3 drawn states, not on a live process); in-batch lock priced (`infrastructure.py:794`, `:1856`), later-arrival lock not (label = Σ(doneTime − scheduledTime) over the batch, `fidelity_replay.py:156`). The fresh-100 W-horizon check reports per-task lock wait (computeStartTime − ioEndTime), batch vs later arrivals, ILS- vs hand-labelled (`uncut_arm1.py check lockwait`); descriptive, not a gate.
 - 2026-10-13 — **`ils_oracle_live` read: PARTIAL + CEILING-TRUNCATED, contrast A (accepted by the expert); B-PENDING (job 869009 running)** (job 868854, pin 5109d07d, 12/12 cells, 0 failed, 0 wall-infeasible; reader `scripts_cosim/ils_oracle_read.py` at b2067c68 under the amended read 9f119675; output `/share/nikola.lukic/uncut_groups/s6_reader/read_final_A.json`, md5 00265ed9).
   - **B-PENDING (job 869009 running), not B-NOT-RUN (the expert's ruling).**
     - `ils_oracle_exact10` is built: identity passed at f8814905. Its 12 cells are running, with logs and no summaries at filing.
