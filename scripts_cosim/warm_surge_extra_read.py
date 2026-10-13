@@ -152,46 +152,6 @@ def alpha(a):
     return {"cells": out, "verdict": verdict}
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    for n in ("collapse", "alpha", "uncapped"):
-        p = sub.add_parser(n)
-        for x in ("--gate0b", "--gate0a", "--k1cd"):
-            p.add_argument(x, required=True)
-        p.add_argument("--topos", default=",".join(str(t) for t in range(19420, 19432)))
-        p.add_argument("--out")
-        if n == "uncapped":
-            p.add_argument("--uncapped", required=True)
-        elif n == "collapse":
-            p.add_argument("--uncapped")
-            p.add_argument("--table")
-        elif n == "alpha":
-            p.add_argument("--extra", required=True)
-    a = ap.parse_args()
-    o = {"collapse": collapse, "alpha": alpha, "uncapped": uncapped}[a.cmd](a)
-    if a.cmd == "uncapped":
-        for k, r in o.items():
-            f = lambda s: "-" if s["median"] is None else f"{s['median']:+6.2f} {s['wins']}/{s['n']}"
-            line = f"{k:62s} k1 {f(r['k1'])} | k2 {f(r['k2'])} Δ {f(r['delta_k2'])} moved={r['delta_k2']['moved']} | k3 {f(r['k3'])} Δ {f(r['delta_k3'])} moved={r['delta_k3']['moved']} | collapse {r['collapse']}"
-            print(line)
-    elif a.cmd == "collapse":
-        print_collapse(o)
-        if a.table:
-            write_table(o, a.table)
-    else:
-        for t, row in o["cells"].items():
-            print(t, {al: (None if v is None else (round(v["mean"], 2), round(v["tail"]), "COLLAPSE" if v["collapse"] else "ok")) for al, v in row.items()})
-        print(json.dumps(o["verdict"], indent=1, default=str))
-    if a.out:
-        json.dump(o, open(a.out, "w"), indent=1, default=str)
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-
-
 def uncapped(a):
     """moderate ×1/×2/×3: the uncapped-slate learned arms (and the g4 arms beside them) against ib0, exactS and cd; Δ(k) = pct(k) - pct(1);
     registered secondary rule: moved = |median Δ| > 1 pp and >= 9 of the topologies sign-consistent. Collapse count per arm beside each line."""
@@ -237,3 +197,44 @@ def uncapped(a):
                 row["collapse"] = n_col
                 out[f"{gname}|{ar}_vs_{ref}"] = row
     return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    for n in ("collapse", "alpha", "uncapped"):
+        p = sub.add_parser(n)
+        for x in ("--gate0b", "--gate0a", "--k1cd"):
+            p.add_argument(x, required=True)
+        p.add_argument("--topos", default=",".join(str(t) for t in range(19420, 19432)))
+        p.add_argument("--out")
+        if n == "uncapped":
+            p.add_argument("--uncapped", required=True)
+        elif n == "collapse":
+            p.add_argument("--uncapped")
+            p.add_argument("--table")
+        elif n == "alpha":
+            p.add_argument("--extra", required=True)
+    a = ap.parse_args()
+    o = {"collapse": collapse, "alpha": alpha, "uncapped": uncapped}[a.cmd](a)
+    if a.cmd == "uncapped":
+        for k, r in o.items():
+            f = lambda s: "-" if s["median"] is None else f"{s['median']:+6.2f} {s['wins']}/{s['n']}"
+            line = f"{k:62s} k1 {f(r['k1'])} | k2 {f(r['k2'])} Δ {f(r['delta_k2'])} moved={r['delta_k2']['moved']} | k3 {f(r['k3'])} Δ {f(r['delta_k3'])} moved={r['delta_k3']['moved']} | collapse {r['collapse']}"
+            print(line)
+    elif a.cmd == "collapse":
+        print_collapse(o)
+        if a.table:
+            write_table(o, a.table)
+    else:
+        for t, row in o["cells"].items():
+            print(t, {al: (None if v is None else (round(v["mean"], 2), round(v["tail"]), "COLLAPSE" if v["collapse"] else "ok")) for al, v in row.items()})
+        print(json.dumps(o["verdict"], indent=1, default=str))
+    if a.out:
+        json.dump(o, open(a.out, "w"), indent=1, default=str)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
