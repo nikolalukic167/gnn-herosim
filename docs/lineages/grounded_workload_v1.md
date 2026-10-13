@@ -1,6 +1,6 @@
 # grounded_workload_v1 — does the learned burst-seat arm beat every strategy on a workload whose group structure is measured, not assumed?
 
-**Status:** `CLOSED` (2026-09-27) — **G1 `NOT-SEPARATED`: on the grounded workload the learned arm ties CD.**
+**Status:** `CLOSED` (2026-09-27) — **G1 `NOT-SEPARATED`: on the grounded workload the learned arm ties CD.** (Cut-audit figure corrected 2026-10-13: 7.76 % of groups exceed 10, not 7.5 %; no other number changes.)
 Registered 2026-09-27; every bar below was signed before any gate datum existed (the only runs seen before
 signing were a 3,000-event smoke of three rules on one cell, disclosed below).
 
@@ -121,7 +121,7 @@ The mint caps each drawn group at `--max-size 10` (`rule.max_size` in every libr
 | tasks in groups > 20 | 23.97 % | 24.26 % | 24.14 % | 22.84 % | 24.58 % |
 | max size / mean size | 2,876 / 5.18 | 836 / 5.22 | 1,406 / 5.02 | 2,876 / 5.05 | 469 / 5.44 |
 
-About 1 group in 14 (7.5 %) exceeds 10, but those groups hold 37.5 % of the member tasks; the grounded gate above served groups of at most 10.
+About 1 group in 13 (7.76 % pooled; the table rows sum to 7.77 %, the earlier "7.5 %" was a rounding slip, corrected 2026-10-13 from the uncut rebuild, job 864527) exceeds 10, but those groups hold 37.5 % of the member tasks; the grounded gate above served groups of at most 10.
 **Caveat:** this is over the mint's draw, not over all first-level fan-outs of the trace (that needs the raw CSVs); it is a statement about the workload the gate used. Each library records the source CSV md5; the script asserts `max_size == 10` and reads the libraries only.
 
 ## Entry points
