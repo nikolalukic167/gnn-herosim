@@ -6,7 +6,7 @@
 
 --md5 holds {"<arm>|s<seed>": md5} for arm in gnn_eng, twin_eng, mlp_same (S7's training log). --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
-file gives; each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
+file gives, and no two keys may share an md5; each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
 ra_<arm>_arm1, and its md5 is checked again after the copy. wf1_moderate / wf1_heavy are symlinked from --inputs-group; the
 split is copied under its own name (pass its basename as R1A_SPLIT). <dest> must not exist. Writes <dest>/STAGE.json.
 """
@@ -44,6 +44,10 @@ def main(argv=None):
     unknown = [k for k in want if k.split("|")[0] not in ARMS]
     if unknown:
         raise SystemExit(f"FAIL LOUD: {a.md5} has keys outside {ARMS}: {unknown}")
+    dup = {m for m in want.values() if list(want.values()).count(m) > 1}
+    if dup:
+        raise SystemExit(f"FAIL LOUD: {a.md5} lists one md5 under several keys ({sorted(k for k, m in want.items() if m in dup)}); "
+                         "a copy slip would make the two-seed mean a single seed")
     for r in ("wf1_moderate", "wf1_heavy"):
         if not os.path.isdir(os.path.join(a.inputs_group, r)):
             raise SystemExit(f"FAIL LOUD: {a.inputs_group}/{r} missing")
