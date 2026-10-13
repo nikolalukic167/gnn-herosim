@@ -377,8 +377,6 @@ class _PeerGreedyCore:
             self.pg_ils_per = int(os.environ[PG_ILS_PER_ENV])
             self.pg_ils_max_seconds = float(os.environ[PG_ILS_MAX_SECONDS_ENV])
             self.pg_ils_seed = int(os.environ.get(PG_ILS_SEED_ENV, "0"))
-            if self.pg_cd_exact or self.pg_cd_expansion:
-                raise RuntimeError(f"FAIL LOUD: {PG_ILS_MIN_BATCH_ENV} is the plain CD arm plus ILS; exact search / expansion are off")
         if self.pg_cd_expansion and self._policy_label not in ("peer_greedy_network_cd", "gnn_cd_refine"):
             raise RuntimeError(
                 f"FAIL LOUD: {PG_CD_EXPANSION_ENV}=1 is defined for peer_greedy_network_cd and the CD refine of a seeded plan "
@@ -452,6 +450,11 @@ class _PeerGreedyCore:
             )
         if self.exchange_on:
             _require_peer_physics(self._policy_label)
+        self._pg_check_ils()
+
+    def _pg_check_ils(self) -> None:
+        if self.pg_ils_min_batch is not None and (self.pg_cd_exact or self.pg_cd_expansion):
+            raise RuntimeError(f"FAIL LOUD: {PG_ILS_MIN_BATCH_ENV} is the plain CD arm plus ILS; exact search / expansion are off")
 
     def _pg_capture(self, task_id: int, candidate_feature_rows) -> None:
         """Append one decision. `candidate_feature_rows` are pre-formatted rows built in _pg_choose:
