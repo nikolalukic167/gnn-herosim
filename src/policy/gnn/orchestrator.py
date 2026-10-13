@@ -25,6 +25,52 @@ if TYPE_CHECKING:
 
 from src.placement.orchestrator import Orchestrator
 
+WHOLE_GROUP = "group"  # uncut_groups_s0_v1: cell scheduler.batch_size that serves each peer group as one batch
+
+
+def apply_cfg_batch_size(scheduler, cfg_bs) -> None:
+    """The cell config's scheduler.batch_size, applied to the scheduler.
+
+    An integer must lie in the scheduler's own range ([2,4] argmax family, [1,16] masked_topo).
+    Until 2026-10-13 an out-of-range value was printed and ignored, and the run served
+    GNN_BATCH_SIZE instead (gate-tools 2026-10-13: snapshot replays of > 16-task batches served
+    4). "group" serves each peer group whole, with no size cap; it needs the peer-group path.
+    The config wins over the env var, and an exported GNN_BATCH_SIZE that disagrees fails loud:
+    the 2026-09-03 bb_core8_bw1p5/cell01 run served the config's 4 against an exported 1.
+    """
+    env_raw = os.environ.get("GNN_BATCH_SIZE")
+    if cfg_bs == WHOLE_GROUP:
+        if env_raw is not None:
+            raise ValueError(
+                f"FAIL LOUD: GNN_BATCH_SIZE={env_raw} was exported but the cell config declares "
+                f"scheduler.batch_size={WHOLE_GROUP!r}; unset the variable."
+            )
+        scheduler.enable_whole_group()
+        return
+    try:
+        n = int(cfg_bs)
+    except (TypeError, ValueError):
+        n = None
+    if n is None or isinstance(cfg_bs, bool) or (isinstance(cfg_bs, float) and not cfg_bs.is_integer()):
+        raise ValueError(f"FAIL LOUD: scheduler.batch_size must be an integer or {WHOLE_GROUP!r}, got {cfg_bs!r}")
+    cfg_bs = n
+    lo = getattr(scheduler, "batch_min", 2)
+    hi = getattr(scheduler, "batch_max", 4)
+    if cfg_bs > hi or cfg_bs < lo:
+        raise ValueError(
+            f"FAIL LOUD: the cell config declares scheduler.batch_size={cfg_bs}, outside the "
+            f"scheduler's range [{lo},{hi}]; serving GNN_BATCH_SIZE instead would cut every larger "
+            f"batch silently. Use {WHOLE_GROUP!r} for whole peer groups."
+        )
+    if env_raw is not None and int(env_raw) != cfg_bs:
+        raise ValueError(
+            f"FAIL LOUD: GNN_BATCH_SIZE={env_raw} was exported but the cell config "
+            f"declares scheduler.batch_size={cfg_bs}, which takes precedence. "
+            f"Edit the config (or unset the variable) so the served batch size "
+            f"is the one the experiment names."
+        )
+    scheduler.batch_size = cfg_bs
+
 
 class GNNOrchestrator(Orchestrator):
     """GNN Orchestrator - simplified to match knative_network structure.
@@ -70,34 +116,7 @@ class GNNOrchestrator(Orchestrator):
                 )
             self.scheduler.batch_timeout = cfg_bt
         if self.scheduler_config and "batch_size" in self.scheduler_config:
-            cfg_bs = int(self.scheduler_config["batch_size"])
-            # The range is the scheduler's own: [2,4] for the argmax family, [1,16] for
-            # the prefix-conditioned masked_topo decoder (peer_affinity_v1 stage 3).
-            lo = getattr(self.scheduler, "batch_min", 2)
-            hi = getattr(self.scheduler, "batch_max", 4)
-            if cfg_bs > hi or cfg_bs < lo:
-                print(
-                    f"[GNN Orchestrator] Ignoring infrastructure scheduler.batch_size={cfg_bs} "
-                    f"(outside GNN range [{lo},{hi}]); "
-                    f"keeping GNN_BATCH_SIZE={self.scheduler.batch_size}",
-                    flush=True,
-                )
-            else:
-                # The cell config wins over the env var. That used to happen silently: an
-                # episode run with GNN_BATCH_SIZE=1 against a config carrying batch_size=4
-                # served 4-task batches and reproduced the batch_size=4 result to the last
-                # digit (measured 2026-09-03, bb_core8_bw1p5/cell01). An explicitly
-                # exported value that disagrees with the config is a misconfigured
-                # experiment, not a preference to be overridden.
-                env_raw = os.environ.get("GNN_BATCH_SIZE")
-                if env_raw is not None and int(env_raw) != cfg_bs:
-                    raise ValueError(
-                        f"FAIL LOUD: GNN_BATCH_SIZE={env_raw} was exported but the cell config "
-                        f"declares scheduler.batch_size={cfg_bs}, which takes precedence. "
-                        f"Edit the config (or unset the variable) so the served batch size "
-                        f"is the one the experiment names."
-                    )
-                self.scheduler.batch_size = cfg_bs
+            apply_cfg_batch_size(self.scheduler, self.scheduler_config["batch_size"])
     
     def initialize_state(self) -> KnativeSystemState:
         """Initialize system state - matches knative_network."""
