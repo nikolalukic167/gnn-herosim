@@ -33,3 +33,11 @@ def test_reporting_counters_per_bucket():
     for b in ("11_50", "51_100", "101_226"):
         for k in (f"pg_ils_differs_{b}", f"pg_ils_gain_seconds_{b}", f"pg_ils_cap_hits_{b}", f"pg_ils_batches_{b}"):
             assert k in S.PEER_GREEDY_COUNTERS and f'"{k}"' in exporter
+
+
+def test_exact10_is_an_exact_arm_with_ils_above_the_threshold():
+    g = (REPO / "scripts_cosim/fresh_topo_burst_v1_gate.py").read_text()
+    assert '"ils_oracle_exact10": "peer_greedy_network_cd"' in g
+    assert '"ils_oracle_exact10": {"HEROSIM_PG_BATCH_ALPHA": "0"}' in g and 'ILS_KINDS = ("ils_oracle_live", "ils_oracle_exact10")' in g
+    src = (REPO / "src/policy/peer_greedy_network/scheduler.py").read_text()
+    assert "if self.pg_cd_exact:\n                return" in src and "expansion alone is off" in src
