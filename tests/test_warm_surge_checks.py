@@ -23,3 +23,10 @@ def test_minted_surge_passes_and_tamper_fails():
     o2["events"][0]["qos"] = "other"
     with pytest.raises(SystemExit):
         check_workload(w, o2, 10.0, 3.0, "x")
+
+
+def test_alpha_025_arm_is_wired():
+    import fresh_topo_burst_v1_gate as G
+    assert G.RULE_POLICY["cd_exactS_a025"] == "peer_greedy_network_cd"
+    assert G.EXACT_ALPHA["cd_exactS_a025"] == {"HEROSIM_PG_BATCH_ALPHA": "0.25"}
+    assert "cd_exactS_a025" in G.R1A_DIAG
