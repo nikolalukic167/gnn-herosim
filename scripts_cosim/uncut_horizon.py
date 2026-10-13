@@ -159,7 +159,13 @@ def phase1(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, An
     groups: Dict[int, float] = {}
     for b, k in ext["group_of"].items():
         groups[k] = groups.get(k, 0.0) + label(b)
-    return {"placed": placed, "batch": sum(label(b) for b in fr.batch_local), "batch_makespan": max(label(b) for b in fr.batch_local), "groups": [groups.get(k, 0.0) for k in range(1, max(ext["group_of"].values(), default=0) + 1)]}
+    def lock(ids):
+        w = [float(trs[b]["computeStartTime"]) - float(trs[b]["ioEndTime"]) for b in ids if trs[b].get("computeStartTime") is not None and trs[b].get("ioEndTime") is not None]
+        if ids and not w:
+            raise RuntimeError("FAIL LOUD: taskResults carry no computeStartTime/ioEndTime; lock wait cannot be read")
+        return {"sum": sum(w), "n": len(w), "n_tasks": len(list(ids))}
+
+    return {"lock_wait": {"batch": lock(list(fr.batch_local)), "later": lock(list(ext["group_of"]))}, "placed": placed, "batch": sum(label(b) for b in fr.batch_local), "batch_makespan": max(label(b) for b in fr.batch_local), "groups": [groups.get(k, 0.0) for k in range(1, max(ext["group_of"].values(), default=0) + 1)]}
 
 
 def phase2(job: Dict[str, Any], plan: Sequence[Sequence[int]], ext: Dict[str, Any], placed: Dict[int, List[int]]) -> Dict[str, Any]:
@@ -208,7 +214,7 @@ def run_state(job: Dict[str, Any], plans: Dict[str, Sequence[Sequence[int]]]) ->
         per_n = {}
         for key, ext in exts.items():
             r = hand0 if (key == "0" and name == "hand") else phase1(job, plan, ext)
-            per_n[key] = {"batch": r["batch"], "later": sum(r["groups"]), "total": r["batch"] + sum(r["groups"]), "n_later_tasks": ext["n_later"], "batch_makespan": r["batch_makespan"]}
+            per_n[key] = {"batch": r["batch"], "later": sum(r["groups"]), "total": r["batch"] + sum(r["groups"]), "n_later_tasks": ext["n_later"], "batch_makespan": r["batch_makespan"], "lock_wait": r["lock_wait"]}
         out["plans"][name] = {"by_n": per_n, "plan": [list(p) for p in plan]}
     return out
 
