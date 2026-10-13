@@ -97,3 +97,54 @@ Splitting each opening batch's gap into these terms is the job of S7's term logg
 1. Run `docs/lineages/ib0_confirm_v1/scripts/oracle_feats.py OUT` (stdlib only; run it on the datalab login node). It reads the 12 cell directories of `oracle_diag/` in sorted order and writes `OUT/batches.tsv` (116,608 rows) and `OUT/plans.tsv` (a 25 % plan sample, `random.Random(0)`).
 2. Run `q1.py OUT` (whole-run gain classes and quarters), `q1b.py OUT` (phase table), `q1c.py OUT` (S-rank and move-class table) and `q2.py OUT` (residual R²; needs pandas and scikit-learn) from the pipenv environment.
 3. A re-extraction with this sorted order reproduced every number above exactly.
+## Amendment 2026-10-13: S term decomposition (interim) and the registered S_drain_weight diagnostic
+
+A diagnostic on the bar, not a new lineage. `ORACLE_DIAG_TERMS=1` (default off; `rp/oracle-terms`, logging only, identity cell 19405 heavy equal to `oracle_8cc890fa` in every key but timings) writes per-plan S terms into the oracle diag. Interim read, 6 heavy cells and moderate 19405 (moderate 19406-19410 pending), in `oracle_terms_8b6f7352`:
+- 87 % (heavy) / 66 % (moderate) of the oracle's gain seconds fall before t < 360 s, the cold-start deploy transient; heavy p5 arrival is at 184-186 s, so the middle bin is empty there.
+- On 8 uniformly random logged plans per within-cap batch (unselected), S explains the label change in steady state with R2 0.98 (heavy, moderate), but not in the opening (heavy t < 360: 0.30, 0.68 with the terms re-weighted). Per-second label response: cold 0.9, exchange 1.0, **queue (drain + inflight) -0.06 heavy / -0.14 moderate, i.e. about 0**, while S charges it at weight 1. Collinearity of drain with the other terms is not excluded.
+- In steady-state batches where the oracle gains >10 %, S prefers the hand plan in 95 % of them; the term S charges against the oracle plan is queue (+0.7 s heavy, +2.4 s moderate), most visibly on cnn xavierGpu->xavierGpu node moves (drain +1.4 to +1.7 s).
+
+**Registered before data (signed by the coordinator): S_drain_weight.** Live test of whether S overprices queue drain. Arms, all `cd_exactS_ib0` with the platform's own drain weight w (in-batch stacking stays 0): w = 1 the registered ib0 (reference), w = 0.5 `cd_exactS_ib0_d05` (`HEROSIM_PG_DRAIN_ALPHA=0.5`, `HEROSIM_PG_BATCH_ALPHA=0`), w = 0 the existing `cd_exactS_a0` (`HEROSIM_PG_DRAIN_ALPHA=0`, which also zeroes the batch alpha). g0, both rungs, the 12 `ib0_confirm_selected` topologies, seed 0, at a pin carrying the steady summarizer (c81f0e88) and the name-shadow fix (e3d5e069); the reference arm is rerun at the pin (the d192081f summaries lack the after-360 s keys), and each rerun is checked against its d192081f summary. No default changes; the only code is the one arm entry (`rp/s7-drain-weight`).
+- Predictions (coordinator): w = 0 moves ib0 by at most 1 % either way, whole-run and after_360s (sparse_obs stage 1: the drain channel is worth < 1 %).
+- Labels, per rung on after_360s with Holm over w in {0, 0.5}: faster by >= 2 % -> `S-OVERPRICES-DRAIN` (a hand improvement, reported as one, the bar moves); within +-1 % -> `DRAIN-WEIGHT-NEUTRAL`; slower by >= 2 % -> `S-PRICES-DRAIN-RIGHT` (the regression coefficient is a collinearity artefact).
+- Also reported per arm: the collapse count (end - last arrival > 300 s, or mean > 5x the cd median) beside the medians, since `warm_surge` found ib0 brittle under surges.
+
+## 2026-10-13: type-aware residual of S — `RESIDUAL-IS-QUEUE / NO-PLAN-GAIN-STEADY`
+
+`scripts_cosim/oracle_terms_resid.py` (`rp/oracle-terms` aaa18505), on the logged plans of 6 cells (heavy 19406-19410, moderate 19405; moderate 19406-19410 pending, so the moderate half is one topology). Row = a logged plan p of a within-cap batch against the hand plan h; target rho = (label_p - label_h) - (S_p - S_h); features = per-task-type deltas of the S terms (queue = drain + inflight, raw stacking, cold, exec, lat, exch), totals, moved-task counts, node-count change, batch size. Held out by topology (leave-one-heavy-topology-out, and train all heavy -> moderate 19405). Pools for the regret of argmin(S + rho_hat): **A** = the hand plan + the 4 lowest-S logged plans (no label information in the pool); **B** = A + the logged random and label-top plans (optimistic: the label-best plans are in it). Gains are the myopic batch label as % of hand label seconds in the bin, not live latency.
+
+| R2 of rho, held-out heavy folds | all | t < 360 s | steady |
+|---|---|---|---|
+| type-aware | 0.49-0.63 | 0.48-0.64 | 0.26-0.47 |
+| type-agnostic | 0.45-0.57 | 0.42-0.56 | 0.33-0.45 |
+| moderate 19405 (heavy-trained) | 0.21 | 0.06 | 0.35 |
+
+| permutation importance (R2 drop, term group permuted) | queue | exec | cold | exch | raw stacking |
+|---|---|---|---|---|---|
+| steady, heavy folds | 0.68-0.87 | -0.02..0.03 | 0.05-0.16 | ~0 | ~0 |
+| steady, moderate 19405 | 0.67 | 0.01 | 0.09 | 0.00 | 0.00 |
+| t < 360 s, heavy folds | 0.35-0.52 | 0.39-0.69 | ~0.07 | 0.03-0.08 | ~0 |
+
+| gain of argmin(S + rho_hat), % of hand label s | pool A | pool B | oracle in pool A (upper bound) |
+|---|---|---|---|
+| t < 360 s, heavy (5 folds) | +6.0..+7.7 | +14..+19 | 7.8-12.9 |
+| t < 360 s, moderate 19405 | -3.6 | +3.5 | 10.5 |
+| steady, heavy (5 folds) | -0.63..+1.31, mean ~ +0.24 | -2.2..+0.5 | 1.7-7.1 |
+| steady, moderate 19405 | +0.66 | +1.09 | 2.4 |
+
+Reading. The residual is predictable (R2 far above 0.05) and, in steady state, carried by one term: queue. Correcting S with it buys within +-1 % with a fold-dependent sign, so there is no steady-state plan gain; type awareness adds nothing in steady state. The +6..+19 % in the opening is the cold-start deploy transient and is recorded as such, not as a lever. The single-term branch is tested live by the S_drain_weight probe above (drain weight scaled), not by a learned residual arm. Ruling (coordinator): no learned-residual arm, no new lineage; moderate cells fold in as a one-line update unless moderate steady pool-A gain exceeds +2 % on >= 3 topologies.
+
+## 2026-10-13: S_drain_weight read — `DRAIN-WEIGHT-NEUTRAL` (moderate), heavy inconclusive and leaning slower
+
+72 cells, jobs 864522-864524, pin 9bd1b145 (reference-physics 18161421 + the one arm), g0, 12 topologies per rung, seed 0, output `/share/nikola.lukic/ib0_confirm/drain_weight_9bd1b145`, reader `dw_read.py` there. **Identity:** the 24 weight-1 reruns (`cd_exactS_ib0`) equal their d192081f summaries in `total_rtt` exactly (max relative difference 0.0, 24/24). Paired per topology against weight 1; mean task latency, whole run (`total_rtt / num_tasks`) and `steady_state.after_360s.mean`; Holm over the two arms.
+
+| rung, statistic | w = 0.5 mean (median), faster | w = 0 mean (median), faster | Holm p (w0.5 / w0) |
+|---|---|---|---|
+| moderate whole run | -0.08 % (+0.26), 6/12 | -0.45 % (-0.41), 8/12 | 0.91 / 1.0 |
+| moderate after_360s | +0.07 % (+0.01), 6/12 | -0.88 % (-1.08), 8/12 | 0.94 / 0.59 |
+| heavy whole run | +2.19 % (+2.77), 4/12 | +1.99 % (+1.54), 4/12 | 0.13 / 0.07 |
+| heavy after_360s | +4.21 % (+5.78), 4/12 | +1.30 % (+0.12), 6/12 | 0.20 / 0.31 |
+
+Per-topology ranges are wide (moderate after_360s -4.6..+5.9 %, heavy -8.1..+16.6 %). **Collapse count** (end - last arrival > 300 s, or mean > 5x the weight-1 median): 0/12 in every arm and rung; the largest end - last arrival is 81 s; 0 request failures.
+
+Labels. Moderate: no arm is faster by >= 2 %, the means sit within +-1 % -> `DRAIN-WEIGHT-NEUTRAL`, as predicted. Heavy: no arm is faster; the point estimates are slower (w = 0.5 +4.2 % after_360s, +2.2 % whole run; w = 0 +1.3 % / +2.0 %) but no contrast survives Holm (smallest 0.07), so neither `S-PRICES-DRAIN-RIGHT` nor neutrality is established at n = 12. What it does rule out: removing or halving the drain term is not a hand improvement at either rung, so the regression coefficient of about 0 on the queue term (random logged plans) does not translate into a better S by down-weighting it; the bar `cd_exactS_ib0` does not move.
