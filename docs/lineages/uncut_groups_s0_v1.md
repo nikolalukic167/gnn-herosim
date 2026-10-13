@@ -585,6 +585,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **(c) The Arm 1 label build launched without a separate smoke.** Its registered checks run alongside: the fresh-100 split, the per-bucket ILS share, and the SPLIT / UNPLACED / > 256 counts.
   - **(d) Arm 1 training is authorised** to start on the first complete label set. The MP arm, MP-OFF twin and MLP train on the identical corpus and split (spec item 8). SCIENTIST's Arm 1 gate text is requested and will be filed before any checkpoint is gated.
   - **(e) Arm 2 code is being built.**
+  - **(f) Arm 2 training and gate settings (expert's ruling, 2026-10-13, same as Arm 1).** On sampled sweeps val `regret_masked_topo` is degenerate: an unmapped decoded plan scores the constant `worst_regret`, so `best.pt` can be an early epoch. Arm 2 is therefore gated on `-final.pt` (epoch 100, `NEAR_RTT_SAVE_FINAL=1`, `min-epochs: 100`), with val CE as the overfitting check. `NEAR_RTT_TOP_K=1` is set because `decode_topk_joint` hangs on large groups (S7, 040ef44a). Both are in `experiments/uncut_arm2_{gnn,twin}_eng.yaml` (`NEAR_RTT_TOP_K: '1'` added; the other two were already set).
   - **The expert's rulings:**
     1. **MIN_TIME: a signed amendment, not a tension.**
        - The Arm 1 label corpus departs from § 4's "MIN_TIME stays 360 s" and includes opening states (t < 360 s) at ≥ 25 % of states. SCIENTIST's spec item 3 sets ≥ 30 %.

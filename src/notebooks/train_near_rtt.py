@@ -219,6 +219,9 @@ class NearRttConfig:
     # scores in at serving, which the prefix CE never shows. 0 = off (the loss is unchanged).
     # Train batches only; val CE and checkpoint selection stay on the prefix decode.
     full_context_ce_weight: float = float(os.environ.get("NEAR_RTT_FULL_CONTEXT_CE_WEIGHT", "0") or 0)
+    # Score only the task's own edge rows in the teacher-forced loss closure (dropout still drawn over the full tensor): the same
+    # scores to float precision, not byte-equal to the full-tensor path. Train closure only; decode and serving are unchanged.
+    score_task_rows_only: bool = os.environ.get("NEAR_RTT_SCORE_TASK_ROWS_ONLY", "0") == "1"
     # cd_gap_v1 A: replace the TRAIN graphs' label set (teacher-forced path) with the plans in
     # this file (scripts_cosim/cd_gap_v1_cd_labels.py). Val/test keep the sweep label, and every
     # regret number and the checkpoint selector stay on the true sweep. Empty = the sweep label.
@@ -627,7 +630,7 @@ def loss_tied_teacher_forced_ce(
         score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor)
     else:
         teacher_anchor = None
-        score = make_partial_state_score_fn(model, data, ctx)
+        score = make_partial_state_score_fn(model, data, ctx, task_rows_only=NEAR_CFG.score_task_rows_only)
 
     memo: Dict[Tuple[Any, ...], Tensor] = {}
 

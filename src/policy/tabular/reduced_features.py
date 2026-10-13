@@ -578,6 +578,20 @@ class PartialStateContext:
         self.core_links = core_links
 
 
+def _peer_adj(ctx: "PartialStateContext") -> Dict[int, List[Tuple[int, float]]]:
+    """peer_pairs grouped by first task, in peer_pairs' own iteration order, so every sum over a task's partners keeps the
+    float order the full scan had. Cached on the context, keyed by the peer_pairs object and its size."""
+    pp = ctx.peer_pairs
+    cached = getattr(ctx, "_peer_adj_cache", None)
+    if cached is not None and cached[0] is pp and cached[1] == len(pp):
+        return cached[2]
+    adj: Dict[int, List[Tuple[int, float]]] = {}
+    for (i_, j), b in pp.items():
+        adj.setdefault(i_, []).append((j, b))
+    ctx._peer_adj_cache = (pp, len(pp), adj)
+    return adj
+
+
 def partial_state_columns(
     ctx: PartialStateContext,
     task_id: int,
@@ -622,6 +636,7 @@ def partial_state_columns(
             "parents are committed; the caller is not honoring it"
         )
 
+    _pos = {j: i for i, j in enumerate(committed)}
     couse: Dict[str, int] = {}
     for t, cand in committed.items():
         for lk in ctx.ingress_links.get((t, ctx.node_of[cand]), ()):
@@ -649,16 +664,20 @@ def partial_state_columns(
             key = tuple(cand) if isinstance(cand, list) else cand
             exch = 0.0
             node_t = ctx.node_of[cand]
-            for j, cand_j in committed.items():
-                b = ctx.peer_pairs.get((t, j))
-                if b is None or j == t:
-                    continue
+            for _, j, b in sorted((_pos[j], j, b) for j, b in _peer_adj(ctx).get(t, ()) if j in _pos and j != t):
+                cand_j = committed[j]
                 if both:
                     exch += _xchg(ctx.node_of[cand_j], node_t, b)  # t pulls from j
                 else:
                     pb, lat = ctx.node_exchange[(node_t, ctx.node_of[cand_j])]
                     exch += b * pb + (lat if pb > 0.0 else 0.0)
             committed_s[key] = committed_s.get(key, 0.0) + float(ctx.service_s[(t, key)]) + exch
+
+    _partners = []
+    for j, cand_j in committed.items():
+        b = ctx.peer_pairs.get((task_id, j))
+        if b is not None:
+            _partners.append((ctx.node_of[cand_j], b))
 
     for i, cand in enumerate(candidates):
         node = ctx.node_of[cand]
@@ -684,19 +703,16 @@ def partial_state_columns(
             mass = 0.0
             push_x = 0.0
             push_mass = 0.0
-            for j, cand_j in committed.items():
-                b = ctx.peer_pairs.get((task_id, j))
-                if b is None:
-                    continue
+            for node_j, b in _partners:
                 if both:
-                    committed_x += _xchg(ctx.node_of[cand_j], node, b)
-                    push_x += _xchg(node, ctx.node_of[cand_j], b)
+                    committed_x += _xchg(node_j, node, b)
+                    push_x += _xchg(node, node_j, b)
                 else:
-                    pb, lat = ctx.node_exchange[(node, ctx.node_of[cand_j])]
+                    pb, lat = ctx.node_exchange[(node, node_j)]
                     committed_x += b * pb + (lat if pb > 0.0 else 0.0)
             if ctx.peer_mass:
-                for (i_, j), b in ctx.peer_pairs.items():
-                    if i_ != task_id or j in committed or j == task_id:
+                for j, b in _peer_adj(ctx).get(task_id, ()):
+                    if j in committed or j == task_id:
                         continue
                     nodes_j = ctx.cand_nodes.get(j) or ()
                     if not nodes_j:
