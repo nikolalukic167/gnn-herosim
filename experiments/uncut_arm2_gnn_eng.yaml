@@ -1,0 +1,57 @@
+# uncut_arm2 -- Arm 2 of uncut_groups_s0_v1 (src/policy/gnn/arm2.py): Arm 1's recipe and corpus, plus B1 GNN_REENCODE_EVERY=auto, B2 GNN_GROUP_ANCHOR=1 with NEAR_RTT_ANCHOR_CE_WEIGHT 0.5, and K=2 random-prefix orders;
+# otherwise byte-identical to Arm 1 except lineage, W&B names and tags. Arm 1 description follows: the slate_fix_v1 gnn_eng recipe (lr 0.001, embedding = hidden = 128, ce_only + full-context CE 1.0, 100-epoch cap, patience 60,
+# min-epochs 100, peer + bipartite edge-conv), byte-identical except lineage, cache_dir, NEAR_RTT_SPLIT_ARTIFACT, NEAR_RTT_VAL_EXACT_REGRET and the W&B names. Trained on the Arm 1
+# corpus: whole-batch states over groups of 1-256 tasks, labels = exact S-optimum (<= 10 tasks, product <= 100,000 plans), else the ILS plan if its replayed batch RTT beats the hand plan
+# by r >= 0.10, else the hand plan; 30 % opening states (t < 360 s) per bucket; served slate declared_pruning_v1_uncapped. Seeds 1 and 2 via run_experiment.py --seed.
+# NEAR_RTT_VAL_EXACT_REGRET is '0': the val regret needs the RTT of every plan the decoder may pick, and a sampled dataset (placements.jsonl header exhaustive=false) lists only the label
+# plan (and the hand plan for an ILS label), so an exact regret would be undefined for any other plan. Selection then follows the recipe's existing rule on the other val metrics.
+trainer: gnn
+lineage: uncut_arm2
+cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v5
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  GNN_REENCODE_EVERY: auto
+  GNN_GROUP_ANCHOR: '1'
+  NEAR_RTT_ANCHOR_CE_WEIGHT: '0.5'
+  NEAR_RTT_RANDOM_PREFIX_K: '2'
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+wandb:
+  project: gnn-uncut-arm2
+  run_name: uncut-arm2-gnn-eng
+  tags:
+  - uncut-arm2
+  - reencode-auto
+  - group-anchor
+  - random-prefix-k2
+  - ils-r010
+  - opening30
+  - gnn-eng
