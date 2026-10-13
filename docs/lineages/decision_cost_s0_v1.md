@@ -1,13 +1,13 @@
 # decision_cost_s0_v1 — when the scheduler's decision time is charged as simulated time, which search still pays, and does the GNN's cheaper search beat `cd_exactS`?
 
-**Status:** `ACTIVE` (2026-10-13, owner S4). Interim whole-run read on the completed arms; prune incomplete; steady-state and attribution follow-ups running. Code on branch `rp/decision-cost` (follow-up pin `rp/dc-steady`).
+**Status:** `ACTIVE` (2026-10-13, owner S4) — closing when the steady-state trio lands (its k = 1 whole-run values must reproduce the grid) and the prune arm drains with its single 21600 s relaunch read or recorded `NOT-RUN`. Code on `rp/decision-cost` (follow-up pins `rp/dc-steady`).
 
-**Registered frontier verdict (interim, WHOLE-RUN ONLY): `FRONTIER-WIN-AT-k=1`, `DECISION-LINE-AMBIGUOUS`, `ATTRIBUTION-PENDING`.**
-- `cdxapply` (GNN seed + α-expansion) beats the best hand arm at k = 1 at both rungs (−3.57 % / −2.96 %, 12/12 and 11/12, Holm .002 / .024); no other learned arm wins at any k; `ra_gnn_eng_selfsearch` at k = 2 heavy is a **collapse** (util .995), not a number.
-- **Decision line, both readings, as stated:** strict (each rung's beaten hand arm must be in budget at the crossover) → **NO-GO**; permissive (largest anchor over the arms beaten) → **GO**. We do not pick the convenient reading after the data.
-- **Deployability caveat:** `cdxapply`'s own k_anchor is 1.41 (moderate) / 1.70 (heavy) at B = 10 ms, i.e. in budget at k = 1 only at the largest budget; at B = 5 ms (0.70 / 0.85) and 1 ms (0.14 / 0.17) it is out of budget. Against the best IN-BUDGET hand arm (`cd_ib0`, k_anchor 75 at B = 10) at k = 1 it is −3.00 % (11/12, p .0024) moderate and −2.96 % (11/12, p .012) heavy (Holm over the four primary tests ≈ .0096 / .037, by hand).
-- Prune is incomplete and disclosed in every table; at moderate k = 0.25 it could still beat `cd_exactS_ib0` at k = 0 by > 2 % (unknown until its cells land).
-- Whole-run includes the cold start from zero replicas; the steady-state lines (`after_360s`) from `steady_95202b74` sit beside each k = 1 number when they land.
+**Standing answer (whole-run; steady-state lines from `steady_95202b74` to be added): `NO-LEARNED-WIN-AT-ANY-k` / `SEARCH-WIN-NOT-GNN` / `EXACT-ARMS-OUT-OF-BUDGET-AT-k=1`.**
+- Charging decision time at k = 1 removes the exact arms from the frontier (`cd_exactS` +9.5 % moderate / +197 % heavy against itself at k = 0; `cd_exactS_ib0` +11.1 / +285 %; their own largest anchor k is 0.24).
+- The best in-budget hand arm at k = 1 is `cd_expand` (hand `cd` seed + α-expansion; k_anchor ≈ 14 / 12 at B = 10 ms). `cdxapply` (GNN seed + the same expansion) ties it within 1 pp on every metric (−0.21 / −0.38 % whole-run, −0.25 / −0.99 % after 360 s, Holm 1.0). The earlier −3.0 % "frontier win" was over `cd_ib0`, because `cd_expand` was not in the grid.
+- No learned arm beats the hand frontier at any k. `ra_gnn_eng_selfsearch` at k = 2 heavy is a collapse (util .995), not a number.
+- Message passing is not assignable: the twin-seed + expansion control does not exist in the harness (`ra_twin_eng_cdxapply` is not a registered kind); not built.
+- Open and disclosed until it lands: `cd_exactS_ib0_prune` is incomplete (moderate k = 0.25 could still beat `cd_exactS_ib0` at k = 0 by > 2 %); collapse counts, `cdxapply` / `cd_ib0` / `cd_expand`: 0/24 moderate, 1/24 heavy each (the same cell). Whole-run includes the cold start from zero replicas.
 
 ## Why
 
@@ -188,3 +188,14 @@ state costs 5.6–7.7 s**, so a live oracle or exact-evaluation arm pays the bui
 - **Consequence for the in-budget reading:** `cd_expand` is in budget at k = 1 (w 0.0238 / 0.0235 ms per plan, 30.1 / 37.3 plans per task → k_anchor ≈ 14 / 12 at B = 10 ms, ≈ 1.4 / 1.2 at B = 1 ms), so the best in-budget hand arm at k = 1 is `cd_expand`, not `cd_ib0`, and `cdxapply` is not ahead of it. The `cdxapply` win over the in-budget bar reported above (vs `cd_ib0`) is a win over a weaker hand arm than the harness had available when the grid was designed; `cd_expand` was not in the grid.
 - **Collapse count** (mean > 3 × the cell's `cd` mean, or end − last arrival > 120 s): `cdxapply`, `cd_ib0`, `cd_expand` each 0/24 moderate, 1/24 heavy (the same count in all three, so a property of that cell, not of the search).
 - **Missing control, disclosed:** the MP-OFF twin seed + expansion does not exist in the harness (`ra_twin_eng_cdxapply` is not a registered kind); not built; MP is not assignable. The steady-state trio (`cd_exactS_ib0`, self-search, nosplit at k = 1) is still running.
+
+2026-10-13 — **SUPERSEDED by Amendment 5 and the attribution read: the interim head as first written** (kept verbatim for the record).
+**Status:** `ACTIVE` (2026-10-13, owner S4). Interim whole-run read on the completed arms; prune incomplete; steady-state and attribution follow-ups running. Code on branch `rp/decision-cost` (follow-up pin `rp/dc-steady`).
+
+**Interim frontier verdict (WHOLE-RUN ONLY, superseded): `FRONTIER-WIN-AT-k=1`, `DECISION-LINE-AMBIGUOUS`, `ATTRIBUTION-PENDING`.**
+- `cdxapply` (GNN seed + α-expansion) beats the best hand arm at k = 1 at both rungs (−3.57 % / −2.96 %, 12/12 and 11/12, Holm .002 / .024); no other learned arm wins at any k; `ra_gnn_eng_selfsearch` at k = 2 heavy is a **collapse** (util .995), not a number.
+- **Decision line, both readings, as stated:** strict (each rung's beaten hand arm must be in budget at the crossover) → **NO-GO**; permissive (largest anchor over the arms beaten) → **GO**. We do not pick the convenient reading after the data.
+- **Deployability caveat:** `cdxapply`'s own k_anchor is 1.41 (moderate) / 1.70 (heavy) at B = 10 ms, i.e. in budget at k = 1 only at the largest budget; at B = 5 ms (0.70 / 0.85) and 1 ms (0.14 / 0.17) it is out of budget. Against the best IN-BUDGET hand arm (`cd_ib0`, k_anchor 75 at B = 10) at k = 1 it is −3.00 % (11/12, p .0024) moderate and −2.96 % (11/12, p .012) heavy (Holm over the four primary tests ≈ .0096 / .037, by hand).
+- Prune is incomplete and disclosed in every table; at moderate k = 0.25 it could still beat `cd_exactS_ib0` at k = 0 by > 2 % (unknown until its cells land).
+- Whole-run includes the cold start from zero replicas; the steady-state lines (`after_360s`) from `steady_95202b74` sit beside each k = 1 number when they land.
+
