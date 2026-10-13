@@ -124,3 +124,14 @@ def test_wn_table_flags_a_bucket_beyond_1_5x(tmp_path):
     write(tmp_path, "cd_expand", 1, "g0", "heavy", s)
     with pytest.raises(SystemExit):
         T.table(str(tmp_path), str(tmp_path / "w.json"))
+
+
+def test_wall_infeasible_is_its_own_count(tmp_path):
+    write(tmp_path, "cd_exactS", 1, "g0", "heavy", {"why": "watchdog: projected", "watchdog": {"detail": "projected: 287/3933"}}, "failed")
+    write(tmp_path, "cd_exactS", 1, "g1", "heavy", {"why": "oom"}, "failed")
+    write(tmp_path, "cd_exactS", 2, "g0", "heavy", cell(10.0))
+    cells, failed = U.load_gate(str(tmp_path))
+    w = U.wall_infeasible(failed, ["cd_exactS"], TOPOS)["cd_exactS|heavy"]
+    assert (w["wall_infeasible"], w["wall_infeasible_g0"], w["other_failed"]) == (1, 1, 1)
+    assert w["cells"][0]["detail"] == "projected: 287/3933"
+    assert U.counts(cells, failed, ["cd_exactS"], TOPOS)["cd_exactS|heavy"]["finished"] == 1
