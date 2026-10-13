@@ -443,8 +443,25 @@ class TaskPlacementGNN(nn.Module):
         plan_raw: Optional[bool] = None,
         plan_raw_sum: Optional[bool] = None,
         plan_raw_local: Optional[bool] = None,
+        reencode_every: Optional[str] = None,
+        group_anchor: Optional[bool] = None,
     ) -> None:
         super().__init__()
+        # uncut_groups_s0_v1 Arm 2 (src/policy/gnn/arm2.py). B1: committed-state inputs to the node encoding,
+        # re-encoded every m commits ("inf" = off, nothing is built). B2: the group-anchor head plus a 0/1
+        # on_anchor_node scorer column, which widens partial_state_edge_dim by one. Both are weight-visible
+        # (committed_task_enc / committed_platform_enc / anchor_head) and recorded in the sidecar.
+        from src.policy.gnn.arm2 import (
+            ANCHOR_SCALARS, COMMITTED_PLATFORM_DIM, GROUP_ANCHOR_ENV, parse_reencode_every,
+        )
+        self.reencode_every = parse_reencode_every(reencode_every)
+        self.committed_inputs = self.reencode_every != "inf"
+        self.group_anchor = _env_flag(GROUP_ANCHOR_ENV) if group_anchor is None else bool(group_anchor)
+        if self.group_anchor and int(partial_state_edge_dim) <= 0:
+            raise ValueError("FAIL LOUD: the group anchor rides the prefix scorer; it needs partial_state_edge_dim > 0")
+        if (self.group_anchor or self.committed_inputs) and plan_raw:
+            raise ValueError("FAIL LOUD: Arm 2 (re-encode / group anchor) does not combine with plan_raw")
+        partial_state_edge_dim = int(partial_state_edge_dim) + (1 if self.group_anchor else 0)
 
         self.embedding_dim = embedding_dim
         # The 4-way task-type one-hot (route_b stage 2) is appended to task_features on
@@ -468,6 +485,18 @@ class TaskPlacementGNN(nn.Module):
             out_channels=embedding_dim
         )
         self.post_gin_dropout = nn.Dropout(p=post_gin_dropout)
+        if self.committed_inputs:
+            # bias-free, so an empty committed set adds exactly zero to the embeddings.
+            self.committed_task_enc = nn.Linear(1, embedding_dim, bias=False)
+            self.committed_platform_enc = nn.Sequential(
+                nn.Linear(COMMITTED_PLATFORM_DIM, hidden_dim, bias=False), nn.ReLU(),
+                nn.Linear(hidden_dim, embedding_dim, bias=False),
+            )
+        if self.group_anchor:
+            self.anchor_head = nn.Sequential(
+                nn.Linear(2 * embedding_dim + ANCHOR_SCALARS, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout),
+                nn.Linear(hidden_dim, 1),
+            )
         # Prefix conditioning (route_b stage 2, T2): the 38 partial-state columns ride
         # in their own data.partial_state_edge_attr and are concatenated onto edge_attr
         # at scoring time. edge_attr itself is NOT widened — its 5-column width is
@@ -775,6 +804,17 @@ class TaskPlacementGNN(nn.Module):
         platform_embeddings = self.platform_encoder(platform_feats)
         if self.plan_raw_sum:
             platform_embeddings = platform_embeddings + self._committed_load(data, task_embeddings)
+        edge_keep = None
+        if self.committed_inputs:
+            # An absent state means nothing is committed (static metrics call model(data) directly).
+            flag = getattr(data, "arm2_task_committed", None)
+            pstate = getattr(data, "arm2_platform_state", None)
+            if flag is not None and pstate is not None:
+                task_embeddings = task_embeddings + self.committed_task_enc(
+                    flag.to(task_embeddings.device, dtype=task_embeddings.dtype).unsqueeze(-1))
+                platform_embeddings = platform_embeddings + self.committed_platform_enc(
+                    pstate.to(platform_embeddings.device, dtype=platform_embeddings.dtype))
+                edge_keep = getattr(data, "arm2_edge_keep", None)
 
         # Message passing. The GIN aggregates over the bipartite task<->platform edges
         # PLUS optional platform<->platform edges for platforms on the same physical node
@@ -908,11 +948,23 @@ class TaskPlacementGNN(nn.Module):
                         node_ea[:, -1] = 1.0
                         mp_edge_index = torch.cat([mp_edge_index, node_ei], dim=1)
                         ea = torch.cat([ea, node_ea], dim=0)
+                if edge_keep is not None:
+                    if self.plan_raw:
+                        raise ValueError("FAIL LOUD: the committed-state re-encode does not combine with plan_raw")
+                    keep = edge_keep.to(mp_edge_index.device)
+                    mp_edge_index = mp_edge_index[:, keep]
+                    ea = ea[keep.to(ea.device)]
                 h = x0
                 for conv in self.bip_convs:
                     h = conv(h, mp_edge_index, ea, n_tasks) if self.mp_bipartite_hetero else conv(h, mp_edge_index, ea)
                 h = self.post_gin_dropout(h)
             else:
+                if edge_keep is not None:
+                    keep = edge_keep.to(mp_edge_index.device)
+                    extra = int(mp_edge_index.size(1)) - int(keep.numel())
+                    if extra:
+                        keep = torch.cat([keep, torch.ones(extra, dtype=torch.bool, device=keep.device)])
+                    mp_edge_index = mp_edge_index[:, keep]
                 h = self.post_gin_dropout(self.gin(x0, mp_edge_index))
             x = x0 + self.mp_gate * h if self.mp_residual else h
             task_emb, platform_emb = split_task_platform_embeddings(x, n_tasks, n_platforms)

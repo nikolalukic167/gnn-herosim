@@ -357,6 +357,9 @@ def load_prefix_conditioned_gnn(
             plan_raw=plan_raw,
             plan_raw_sum=plan_raw_sum,
             plan_raw_local=plan_raw_local,
+            # uncut_groups_s0_v1 Arm 2. Explicit, never read from the environment: an absent key is "off".
+            reencode_every=str(sidecar.get("reencode_every") or "inf"),
+            group_anchor=bool(sidecar.get("group_anchor", False)),
             normalize_platform_inputs=sidecar.get("feature_dim") == 21,
         )
     model.load_state_dict(state_dict)
@@ -759,6 +762,8 @@ def decode_prefix_conditioned(
         for t in range(n_tasks)
     }
     score_fn = make_partial_state_score_fn(model, graph, ctx)
+    encode_count = getattr(score_fn, "encode_count", None)
+    arm2_close = getattr(score_fn, "close", None)
     if options.concurrency_penalty > 0.0:
         score_fn = _with_concurrency_penalty(score_fn, graph, options.concurrency_penalty)
     # serving_stability_v1 S3: per-candidate queue depth, read from the same snapshot the
@@ -800,6 +805,10 @@ def decode_prefix_conditioned(
             "masked_topo decode found no cap-feasible plan and relaxation is "
             f"{'on' if options.relax_on_stuck else 'off'} — refusing to fall back"
         )
+    if encode_count is not None:
+        graph._arm2_encodes = int(encode_count())  # the scheduler meters the re-encodes (decision_cost)
+    if arm2_close is not None:
+        arm2_close()
     passes = _self_refine_passes()
     if passes:
         if options.platform_cap > 0 or options.queue_guard_k > 0.0 or not options.allow_replica_reuse \

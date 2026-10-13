@@ -14,6 +14,7 @@ import gc
 import hashlib
 import itertools
 import json
+import math
 import os
 import random
 import sys
@@ -104,6 +105,8 @@ def lookup_dataset_id(data: Data) -> str:
 
 # Init/shuffling seed only. The canonical-parent split is seeded separately (random_state=42
 # at the split call) and must stay fixed, so varying this measures weight-init variance alone.
+from src.policy.gnn import arm2 as _arm2  # noqa: E402
+
 _TRAIN_SEED = int(os.environ.get("NEAR_RTT_TRAIN_SEED", "42"))
 random.seed(_TRAIN_SEED)
 np.random.seed(_TRAIN_SEED)
@@ -197,6 +200,12 @@ class NearRttConfig:
     # raw_plan_v2: the committed-load channel (gnn_model.TaskPlacementGNN._committed_load)
     plan_raw_sum: bool = os.environ.get("NEAR_RTT_PLAN_RAW_SUM", "0") == "1"
     plan_raw_local: bool = os.environ.get("NEAR_RTT_PLAN_RAW_LOCAL", "0") == "1"
+    # uncut_groups_s0_v1 Arm 2 (src/policy/gnn/arm2.py): B1 re-encode period ("inf" = off), B2 group anchor with its CE
+    # weight, and K extra seeded random commit orders per training state (0 = the loss is unchanged).
+    reencode_every: str = _arm2.parse_reencode_every(None)
+    group_anchor: bool = os.environ.get(_arm2.GROUP_ANCHOR_ENV, "0").strip().lower() in ("1", "true", "yes")
+    anchor_ce_weight: float = float(os.environ.get(_arm2.ANCHOR_CE_WEIGHT_ENV, "0.5") or 0.5)
+    random_prefix_k: int = int(os.environ.get(_arm2.RANDOM_PREFIX_K_ENV, "0") or 0)
     # r1_attribution_v1: which architecture is fitted. "gnn" is every arm before it (message passing on or off);
     # "mlp_same" and "set_transformer" are the graph-free arms in src/policy/gnn/arm_models.py.
     arm_kind: str = os.environ.get("NEAR_RTT_ARM", "").strip() or "gnn"
@@ -459,6 +468,11 @@ def _prefix_block_dim() -> int:
     return partial_state_feature_dim(resolve_partial_state_contract())
 
 
+def _prefix_attr_dim() -> int:
+    """Width of the scorer's prefix block: the contract's columns plus Arm 2's on_anchor_node column."""
+    return _prefix_block_dim() + (1 if NEAR_CFG.group_anchor else 0)
+
+
 def _prefix_free_prefix_block(data: Data) -> None:
     """Zero the prefix block so a plain ``model(data)`` is well-defined for arm A1.
 
@@ -467,8 +481,9 @@ def _prefix_free_prefix_block(data: Data) -> None:
     an all-zero prefix is NOT that, and nothing that gates the arm may read these.
     """
     n_edges = int(data.edge_index.size(1))
+    _arm2.clear_committed_state(data)
     data.partial_state_edge_attr = torch.zeros(
-        (n_edges, _prefix_block_dim()),
+        (n_edges, _prefix_attr_dim()),
         dtype=torch.float32,
         device=data.edge_index.device,
     )
@@ -491,17 +506,22 @@ def _masked_topo_regret_for_graph(
             for c in data.task_logit_to_placement[t]]
         for t in range(n_tasks)
     }
-    return decode_masked_topo_placement(
-        [torch.empty(0)] * n_tasks,
-        data.task_logit_to_placement,
-        n_tasks,
-        dag_parents=data.dag_parents,
-        node_caps=ctx.node_caps,
-        demands=demands,
-        score_fn=make_partial_state_score_fn(model, data, ctx),
-        allow_replica_reuse=NEAR_CFG.decode_replica_reuse,
-        relax_on_stuck=NEAR_CFG.decode_relax_on_stuck,
-    )
+    score_fn = make_partial_state_score_fn(model, data, ctx)
+    try:
+        return decode_masked_topo_placement(
+            [torch.empty(0)] * n_tasks,
+            data.task_logit_to_placement,
+            n_tasks,
+            dag_parents=data.dag_parents,
+            node_caps=ctx.node_caps,
+            demands=demands,
+            score_fn=score_fn,
+            allow_replica_reuse=NEAR_CFG.decode_replica_reuse,
+            relax_on_stuck=NEAR_CFG.decode_relax_on_stuck,
+        )
+    finally:
+        if hasattr(score_fn, "close"):
+            score_fn.close()
 
 
 def _plan_agreement_with_label(
@@ -533,8 +553,14 @@ def _plan_agreement_with_label(
     return best_agree, len(choice), exact
 
 
+# Arm 2 anchor head, per train epoch: summed CE, summed chance floor log(#candidate nodes), top-1 hits, groups.
+_ANCHOR_STATS: Dict[str, Dict[str, float]] = {
+    s: {"ce": 0.0, "floor": 0.0, "top1": 0.0, "groups": 0.0} for s in ("train", "val")}
+
+
 def loss_tied_teacher_forced_ce(
-    model: nn.Module, data: Data, device: torch.device, *, full_context_weight: float = 0.0
+    model: nn.Module, data: Data, device: torch.device, *, full_context_weight: float = 0.0,
+    random_prefix_k: int = 0,
 ) -> Tuple[Tensor, int]:
     """The §5 any-of-K marginalized CE for arm A1: ``-log Σ_k Π_t p_t^{(k)}``.
 
@@ -592,47 +618,92 @@ def loss_tied_teacher_forced_ce(
 
     n_tasks = int(data.n_tasks)
     order = topological_task_order(n_tasks, data.dag_parents)
-    score = make_partial_state_score_fn(model, data, ctx)
     placements = data.task_logit_to_placement
+    if getattr(model, "group_anchor", False):
+        # B2: the label plan's anchors (first tied plan, cache order) are what the scorer sees in training.
+        layout = _arm2.layout_for(model, data, ctx)
+        label_nodes = {t: int(placements[t][int(plans[0][t])][0]) for t in range(n_tasks)}
+        teacher_anchor = _arm2.anchor_label(layout, label_nodes)
+        score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor)
+    else:
+        teacher_anchor = None
+        score = make_partial_state_score_fn(model, data, ctx)
 
     memo: Dict[Tuple[Any, ...], Tensor] = {}
 
+    snapshot_key = getattr(score, "snapshot_key", None)
+
     def log_probs(task_idx: int, committed: Dict[int, Tuple[int, int]]) -> Tensor:
-        key = (task_idx, tuple(sorted(committed.items())))
+        # With the Arm 2 re-encode the logits also depend on the committed prefix the encode saw (insertion order).
+        key = (task_idx, tuple(sorted(committed.items())), snapshot_key(committed) if snapshot_key else None)
         cached = memo.get(key)
         if cached is None:
             cached = F.log_softmax(score(task_idx, committed), dim=-1)
             memo[key] = cached
         return cached
 
-    plan_logps: List[Tensor] = []
-    for plan in plans:
-        committed: Dict[int, Tuple[int, int]] = {}
-        logp = torch.zeros((), device=device)
-        for t in order:
-            lp = log_probs(t, committed)
-            idx = int(plan[t])
-            if idx < 0 or idx >= lp.numel():
-                raise ValueError(
-                    f"loss_tied_teacher_forced_ce: tied plan logit index {idx} out of "
-                    f"range for task {t} ({lp.numel()} candidates)"
-                )
-            logp = logp + lp[idx]
-            committed[t] = tuple(int(v) for v in placements[t][idx])
-        plan_logps.append(logp)
+    def order_loss(commit_order: Sequence[int]) -> Tensor:
+        plan_logps: List[Tensor] = []
+        for plan in plans:
+            committed: Dict[int, Tuple[int, int]] = {}
+            logp = torch.zeros((), device=device)
+            for t in commit_order:
+                lp = log_probs(t, committed)
+                idx = int(plan[t])
+                if idx < 0 or idx >= lp.numel():
+                    raise ValueError(
+                        f"loss_tied_teacher_forced_ce: tied plan logit index {idx} out of "
+                        f"range for task {t} ({lp.numel()} candidates)"
+                    )
+                logp = logp + lp[idx]
+                committed[t] = tuple(int(v) for v in placements[t][idx])
+            plan_logps.append(logp)
+        # -log Σ_k Π_t p: any tied-optimal member counts as correct (§5).
+        return -torch.logsumexp(torch.stack(plan_logps), dim=0)
 
-    # -log Σ_k Π_t p: any tied-optimal member counts as correct (§5).
-    loss = -torch.logsumexp(torch.stack(plan_logps), dim=0)
+    loss = order_loss(order)
+    if random_prefix_k > 0:
+        # Arm 2 random-prefix teacher forcing: K extra seeded random topological commit orders per state, the
+        # loss averaged over all 1 + K orders. Fixed per (seed, dataset, k), so a rerun draws the same orders.
+        extra = _arm2.random_topological_orders(
+            n_tasks, data.dag_parents, random_prefix_k, _TRAIN_SEED, str(getattr(data, "dataset_id", "")))
+        loss = (loss + sum(order_loss(o) for o in extra)) / float(1 + len(extra))
+    full_score = score
     if full_context_weight > 0.0:
+        if getattr(model, "committed_inputs", False):
+            # One shared encode (empty snapshot) for the whole full-context term, as in Arm 1: re-encoding per held-out task
+            # would build about n distinct encodes per plan in one autograd graph.
+            full_score = _arm2.make_arm2_score_fn(model, data, ctx, teacher_anchor=teacher_anchor, single_encode=True)
+        full_memo: Dict[Tuple[Any, ...], Tensor] = {}
         full_logps: List[Tensor] = []
         for plan in plans:
             full = {t: tuple(int(v) for v in placements[t][int(plan[t])]) for t in order}
             logp = torch.zeros((), device=device)
             for t in order:
-                lp = log_probs(t, {j: p for j, p in full.items() if j != t})
+                others = {j: p for j, p in full.items() if j != t}
+                fkey = (t, tuple(sorted(others.items())))
+                lp = full_memo.get(fkey)
+                if lp is None:
+                    lp = full_memo[fkey] = F.log_softmax(full_score(t, others), dim=-1)
                 logp = logp + lp[int(plan[t])]
             full_logps.append(logp)
         loss = loss + full_context_weight * -torch.logsumexp(torch.stack(full_logps), dim=0)
+    if teacher_anchor is not None and NEAR_CFG.anchor_ce_weight > 0.0:
+        logits_g = score.anchor_logits()
+        target = [layout.group_nodes[g].index(n) for g, n in enumerate(teacher_anchor)]
+        if logits_g:
+            ce = sum(F.cross_entropy(lg.unsqueeze(0), torch.tensor([tg], device=lg.device))
+                     for lg, tg in zip(logits_g, target))
+            loss = loss + NEAR_CFG.anchor_ce_weight * ce
+            stats = _ANCHOR_STATS["train" if model.training else "val"]
+            stats["ce"] += float(ce.detach())
+            stats["floor"] += sum(math.log(int(lg.numel())) for lg in logits_g)
+            stats["top1"] += sum(int(int(lg.argmax()) == tg) for lg, tg in zip(logits_g, target))
+            stats["groups"] += len(logits_g)
+    if hasattr(score, "close"):
+        score.close()
+    if hasattr(full_score, "close"):
+        full_score.close()
     return loss, n_tasks
 
 
@@ -1083,7 +1154,8 @@ def train_epoch(
                 # its own prefix inside the loss.
                 logits = None
                 loss_ce, valid_ce = loss_tied_teacher_forced_ce(
-                    model, data, DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight
+                    model, data, DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight,
+                    random_prefix_k=NEAR_CFG.random_prefix_k,
                 )
             else:
                 logits = model(data)
@@ -2116,6 +2188,8 @@ else:
         plan_raw=NEAR_CFG.plan_raw,
         plan_raw_sum=NEAR_CFG.plan_raw_sum,
         plan_raw_local=NEAR_CFG.plan_raw_local,
+        reencode_every=NEAR_CFG.reencode_every,
+        group_anchor=NEAR_CFG.group_anchor,
     ).to(DEVICE)
 if NEAR_CFG.plan_raw and not NEAR_CFG.partial_state_edges:
     raise ValueError("FAIL LOUD: NEAR_RTT_PLAN_RAW=1 rides the prefix path; set NEAR_RTT_PARTIAL_STATE_EDGES=1")
@@ -2281,6 +2355,12 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "plan_raw": NEAR_CFG.plan_raw,
                 "plan_raw_sum": NEAR_CFG.plan_raw_sum,
                 "plan_raw_local": NEAR_CFG.plan_raw_local,
+                # uncut_groups_s0_v1 Arm 2. reencode_every is a STRING ("inf"|"auto"|m); group_anchor widens the scorer
+                # block by one column. random_prefix_k and anchor_ce_weight change the train loss (provenance, not served).
+                "reencode_every": NEAR_CFG.reencode_every,
+                "group_anchor": NEAR_CFG.group_anchor,
+                "anchor_ce_weight": NEAR_CFG.anchor_ce_weight if NEAR_CFG.group_anchor else None,
+                "random_prefix_k": NEAR_CFG.random_prefix_k,
                 # r1_attribution_v1: which architecture. The graph-free arms are told apart by their parameter
                 # names too; serving refuses a sidecar and weights that disagree (arm_models.require_arm_matches_weights).
                 # The widths below are what a serving loader cannot recover from mlp_same's single input layer.
@@ -2329,7 +2409,8 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 # structure. The prefix-into-node-features variant is a §3 sensitivity
                 # row, not this arm.
                 "prefix_conditioning_scope": (
-                    "edge_scorer_only" if TEACHER_FORCED else None
+                    ("edge_scorer_plus_committed_encode" if NEAR_CFG.reencode_every != "inf" else "edge_scorer_only")
+                    if TEACHER_FORCED else None
                 ),
             },
             indent=2,
@@ -2461,6 +2542,16 @@ for epoch in range(EPOCHS):
 
     log_dict: Dict[str, float] = {}
     log_dict.update(prefix(train_metrics, "train"))
+    for _split, _st in _ANCHOR_STATS.items():
+        if NEAR_CFG.group_anchor and _st["groups"] > 0:
+            _g = _st["groups"]
+            log_dict[f"{_split}/anchor_ce"] = _st["ce"] / _g
+            log_dict[f"{_split}/anchor_ce_chance_floor"] = _st["floor"] / _g
+            log_dict[f"{_split}/anchor_top1"] = _st["top1"] / _g
+            print(f"[ARM2] epoch {epoch} {_split} anchor CE {_st['ce'] / _g:.4f} vs chance floor {_st['floor'] / _g:.4f} "
+                  f"(mean log #candidate nodes), top-1 {_st['top1'] / _g:.3f} over {int(_g)} groups", flush=True)
+            for _k in _st:
+                _st[_k] = 0.0
     log_dict.update(prefix(val_metrics, "val"))
     log_dict["lr"] = float(optimizer.param_groups[0]["lr"])
     # A TRUE max over every epoch. `best_val_acc` cannot serve this purpose: on
