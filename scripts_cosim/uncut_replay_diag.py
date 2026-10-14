@@ -200,6 +200,105 @@ def cmd_probe(a):
         print("hand", d["hand"][:3], "types", d["types"][:4], "trace", trace[:4], flush=True)
 
 
+# ---- replay stages ---------------------------------------------------------------------------------------------------------------------------
+
+SIM_INPUT = "/home/nikola.lukic/gnn-herosim/data/nofs-ids"
+
+
+def _ds_order(plan_by_gid: Sequence[Sequence[int]], trace: Sequence[int]) -> List[List[int]]:
+    """A plan in the engine's batch order (gid ascending) -> dataset order (task i has gid trace[i])."""
+    rank = {g: j for j, g in enumerate(sorted(trace))}
+    return [[int(x) for x in plan_by_gid[rank[g]]] for g in trace]
+
+
+def _batch_order(plan_ds: Sequence[Sequence[int]], trace: Sequence[int]) -> List[List[int]]:
+    order = sorted(range(len(trace)), key=lambda i: trace[i])
+    return [[int(x) for x in plan_ds[i]] for i in order]
+
+
+def cmd_replay(a):
+    sys.path.insert(0, str(REPO / "scripts_cosim"))
+    import uncut_ils as U
+
+    draw = json.load(open(a.draw))
+    dec = load_decodes(a.decode_dir)
+    res: Dict[str, Any] = {}
+    t0 = time.time()
+    for k in range(a.task, a.n_shards, a.stride):
+        for g in pickle.load(open(f"{a.shards}/g_{k:03d}.pkl", "rb")):
+            gid = str(g.dataset_id)
+            ds = dataset_dir(gid)
+            head, rows = _label_rows(ds)
+            trace = [int(x) for x in head["trace_task_ids"]]
+            n = len(trace)
+            label = [[int(v) for v in g.task_logit_to_placement[t][int(g.tied_optimal_logit_plans[ALPHA][0][t])]] for t in range(n)]
+            stored = {json.dumps([list(map(int, r["placement_plan"][str(i)])) for i in range(n)]): float(r["rtt"]) for r in rows}
+            lkey = json.dumps(label)
+            d = U.decision_pass({"dataset": ds, "sim_input": SIM_INPUT}, "cd_ib0", 0, 1, 1, None, check_arm=False)
+            hand = _ds_order(d["hand"], trace)
+            rng = random.Random(f"uncut-replay-diag:v1:rand:{gid}")
+            rand = [[int(v) for v in rng.choice(g.task_logit_to_placement[t])] for t in range(n)]
+            plans = {"label": label, "hand": hand, "rand": rand}
+            for run in RUNS:
+                dc = dec[gid][run]["decoded"]
+                if dc is not None:
+                    plans[run] = [[int(v) for v in c] for c in dc]
+            names = list(plans)
+            rt, _setup, _runs = U.replay_rtts(d["spec"], d["types"], [plans[x] for x in names])
+            r = dict(zip(names, rt))
+            res[gid] = {"n": n, "bucket": draw["meta"][gid]["bucket"] if gid in draw["meta"] else None, "label_type": draw["meta"].get(gid, {}).get("label"),
+                        "rtt": r, "plans": plans, "stored_label_rtt": stored.get(lkey), "label_in_stored_rows": lkey in stored, "stored_rows": len(stored),
+                        "hand_equals_label": hand == label, "trace": trace, "decode": {run: {k2: dec[gid][run].get(k2) for k2 in ("agree", "exact", "n_choice", "tf_hit")} for run in RUNS}}
+    json.dump(res, open(a.out, "w"))
+    print(f"replay: {len(res)} groups, {time.time() - t0:.0f} s")
+
+
+def cmd_ils(a):
+    """4 seeded ILS runs from the label plan on the ILS and hand-fallback subsamples; each run's final best replayed. Budget = evaluations (200 x n x mean candidates);
+    the 1800 s wall cap is a safety only and a run it stops is CAPPED."""
+    sys.path.insert(0, str(REPO / "scripts_cosim"))
+    import uncut_ils as U
+
+    draw = json.load(open(a.draw))
+    rep: Dict[str, Any] = {}
+    for f in sorted(Path(a.replay_dir).glob("r_*.json")):
+        rep.update(json.load(open(f)))
+    groups = sorted({g for v in draw["ils_subsample"].values() for g in v} | {g for v in draw.get("ils_topup_train", {}).values() for g in v} |
+                    {g for v in draw["fallback_subsample"].values() for g in v}, key=lambda g: (-draw["meta"][g]["n_tasks"], g))
+    mine = groups[a.task::a.stride]
+    orig = U._search_at_decision
+    out: Dict[str, Any] = {}
+    for gid in mine:
+        r0 = rep[gid]
+        ds, trace, label = dataset_dir(gid), r0["trace"], r0["plans"]["label"]
+        label_b = _batch_order(label, trace)
+
+        def wrapped(sched, batch_tasks, system_state, res, local_of, *args, **kw):
+            res2 = dict(res)
+            for i, t in enumerate(batch_tasks):
+                if int(t.id) in local_of:
+                    res2[i] = tuple(label_b[local_of[int(t.id)]])
+            return orig(sched, batch_tasks, system_state, res2, local_of, *args, **kw)
+
+        runs, bests = [], []
+        U._search_at_decision = wrapped
+        try:
+            for seed in range(4):
+                t1 = time.time()
+                d = U.decision_pass({"dataset": ds, "sim_input": SIM_INPUT}, "cd_ib0", seed, None, 200, 1800.0, check_arm=False)
+                runs.append({"seed": seed, "n_evals": d["n_evals"], "budget": d["budget"], "stopped": d["stopped"], "capped": d["stopped"] == "seconds",
+                             "search_wall": d["search_wall"], "wall": time.time() - t1, "best_S": d["best_S"], "start_S": d["start_S"],
+                             "start_is_label": [list(map(int, x)) for x in d["hand"]] == label_b})
+                bests.append(_ds_order(d["best"], trace))
+        finally:
+            U._search_at_decision = orig
+        rt, _s, _r = U.replay_rtts(d["spec"], d["types"], [label] + bests)
+        out[gid] = {"n": r0["n"], "bucket": draw["meta"][gid]["bucket"], "label_type": draw["meta"][gid]["label"], "rtt_label": rt[0], "rtt_ils": rt[1:], "runs": runs,
+                    "best_of_4": min(rt[1:]), "topup_train": any(gid in v for v in draw.get("ils_topup_train", {}).values())}
+        json.dump(out, open(a.out, "w"))
+    print(f"ils: {len(out)} groups")
+
+
 # ---- decode identity -------------------------------------------------------------------------------------------------------------------------
 
 WANDB = {"gnn_eng_s1": "run-20261014_100127-kebglex7", "gnn_eng_s2": "run-20261014_100126-kjteh12l",
@@ -263,6 +362,20 @@ def main(argv=None):
     d.add_argument("--out", required=True)
     d.add_argument("--runs", default="")
     d.add_argument("--arm", default="gnn_eng", choices=("gnn_eng", "twin_eng"))
+    rp = sub.add_parser("replay")
+    rp.add_argument("--shards", required=True)
+    rp.add_argument("--n-shards", type=int, required=True)
+    rp.add_argument("--task", type=int, required=True)
+    rp.add_argument("--stride", type=int, default=8)
+    rp.add_argument("--decode-dir", required=True)
+    rp.add_argument("--draw", required=True)
+    rp.add_argument("--out", required=True)
+    il = sub.add_parser("ils")
+    il.add_argument("--replay-dir", required=True)
+    il.add_argument("--task", type=int, required=True)
+    il.add_argument("--stride", type=int, default=8)
+    il.add_argument("--draw", required=True)
+    il.add_argument("--out", required=True)
     ide = sub.add_parser("identity")
     ide.add_argument("--decode-dir", required=True)
     ide.add_argument("--wandb-root", required=True)
@@ -272,7 +385,7 @@ def main(argv=None):
     pr.add_argument("--groups", required=True)
     pr.add_argument("--sim-input", default="/home/nikola.lukic/gnn-herosim/data/nofs-ids")
     a = ap.parse_args(argv)
-    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe, "identity": cmd_identity}[a.cmd](a) or 0
+    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe, "identity": cmd_identity, "replay": cmd_replay, "ils": cmd_ils}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":
