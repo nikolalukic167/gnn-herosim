@@ -2,7 +2,7 @@
 # rp/gnn-serve-fast: the same Arm 1b k = 1 cells (2 topologies x both rungs x seeds 1, 2, window g0) run under several flag configurations on ONE node.
 #   MODE=identity  every cell runs under the identity probe (one pickle per cell per config) -> serve_fast_compare.py, serve_fast_sim_identical.py
 #   MODE=timing    no probe; each config is run twice, in mirrored order, so node load is balanced across configs
-# CONFIGS is a space-separated list over A (all flags off) B (BUILD) C (COLUMNS) D (ROWS) E (all on). Diagnostic only: never a gate cell, never reused.
+# CONFIGS is a space-separated list over A (all flags off) B (BUILD) C (COLUMNS) D (ROWS) F (BUILD+COLUMNS) E (all on). Diagnostic only: never a gate cell, never reused.
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -27,6 +27,7 @@ for c in $CONFIGS; do
     B) export SERVEFAST_BUILD=1 ;;
     C) export SERVEFAST_COLUMNS=1 ;;
     D) export SERVEFAST_ROWS=1 ;;
+    F) export SERVEFAST_BUILD=1 SERVEFAST_COLUMNS=1 ;;
     E) export SERVEFAST_BUILD=1 SERVEFAST_COLUMNS=1 SERVEFAST_ROWS=1 ;;
     *) echo "FAIL LOUD: config $c"; exit 1 ;;
   esac
