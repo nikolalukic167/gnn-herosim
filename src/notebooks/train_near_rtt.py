@@ -282,6 +282,8 @@ CONCENTRATION_TRAINING = TRAIN_OBJECTIVE == "soft_combo_conc"
 CE_ONLY_TRAINING = TRAIN_OBJECTIVE == "ce_only"
 # route_b stage 2 arm A1: prefix conditioning implies the teacher-forced any-of-K CE.
 TEACHER_FORCED = NEAR_CFG.partial_state_edges
+# 1 restores the prefix-free and sidecar-floored val curves that _inactive_suffixes drops.
+LOG_UNSERVED_METRICS = os.environ.get("NEAR_RTT_LOG_UNSERVED_METRICS", "0") == "1"
 if TEACHER_FORCED and TRAIN_OBJECTIVE != "ce_only":
     raise ValueError(
         f"NEAR_RTT_PARTIAL_STATE_EDGES=1 registers arm A1 as CE-only, but "
@@ -2099,6 +2101,16 @@ def _inactive_suffixes() -> set:
         }
     if _TOPK_IS_EXHAUSTIVE:
         dead |= {"regret_oracle_topk"}
+    if TEACHER_FORCED and not LOG_UNSERVED_METRICS:
+        # These score an EMPTY prefix, not the served decode: they fall as the model learns
+        # to use the prefix (uncut_arm1b: task_acc_choice flat, K0 twin 0.49 -> 0.41).
+        dead |= {"acc", "task_acc", "task_acc_choice", "regret_greedy"}
+        if not NEAR_CFG.val_exact_regret:
+            # Without the full sweep an off-sidecar plan is charged the worst regret, so on
+            # large groups these track sidecar coverage, not plan quality (uncut_arm1b:
+            # 65 % of masked_topo decodes unmapped, regret ~24 s against 27.4 s worst).
+            # regret_topk picks among sidecar plans by construction, so it is never the model's.
+            dead |= {"regret_masked_topo", "regret_masked_topo_median", "regret_topk", "regret_oracle_topk"}
     return dead
 
 
@@ -2817,6 +2829,8 @@ elif TEACHER_FORCED:
     wandb.summary["checkpoint_metric"] = str(checkpoint_metric_name)
     wandb.summary["readout/decision_metrics"] = (
         "regret_masked_topo, regret_masked_topo_median, mt_task_acc_choice, mt_plan_exact, ce"
+        if NEAR_CFG.val_exact_regret or LOG_UNSERVED_METRICS
+        else "mt_task_acc_choice, mt_plan_exact, ce (regret curves not logged: sidecar-floored)"
     )
     wandb.summary["readout/prefix_free_metrics"] = "task_acc, task_acc_choice, acc, regret_greedy, regret_topk"
 elif is_phase_b_ce_init():
