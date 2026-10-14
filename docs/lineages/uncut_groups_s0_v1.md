@@ -304,6 +304,25 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **What an interim read is.** It is descriptive and labelled `INTERIM`. It runs each landed arm's k=1 cells against the frozen 869828 bar cells. A learned arm is charged a provisional w, measured on the interim venue and labelled `PROVISIONAL-W`. The provisional w sits on its own branch, never on the `rp/uncut-arm1-pin` chain, and never enters a w-only pin. Interim cells are never cited as the result and never reused by the final read.
   - **What it cannot change.** Nothing registered moves because of an interim read: arms, seeds, epochs, served checkpoint, k, families, Holm, thresholds, calibration protocol, cell set or hedge rule. Training of every arm continues to epoch 100 whatever an interim read shows. No arm is stopped, added or retrained on its basis.
   - **The final read** is the registered one, run on fresh cells after the registered calibration (the SMT, CPU-model and thread rules above). It is still one read per family, with Arm 1b's after Arm 1's. Its record entry discloses that interim looks preceded it, and on which arms.
+  - **Frozen before the first interim cell (SCIENTIST B1–B2), 2026-10-14:**
+    - gate G3 114cc0e7 (chain bf79865a,e8c87702,114cc0e7);
+    - reader, stager, `uncut_cotenancy_r.py` and `uncut_charge_share.py` at reference-physics 557d84bf;
+    - calibration artifacts: `cot_calib_v2.sbatch` md5 b46fd80f, `cot_hand_smt.sbatch` 0082b2b9, `cot_hand_steps.sh` 6ffc62b1;
+    - calibration parameters: shared load 7×8 pinned when SMT is off, 8×8 when on; node-balanced A/B; PAR=1; per-node H3 drift stop at 2 %.
+    - A reader change made after an interim look is run in the final read on both the old and the new reader, with both outputs shown.
+  - **Other post-look rules (SCIENTIST B3–B7):**
+    - **B3:** every change after the first interim look (code, gate config, calibration) is filed with the interim reads that preceded it. A change to a served checkpoint or to the serving path means the final read covers both versions, or the arm is relabelled.
+    - **B4:** a hedge choice is reversed only on a mechanical check failure (HEAD, dirty tree, split, md5, sidecar), filed with evidence, never on a metric.
+    - **B5:** every registered arm gets its final read whatever its interim showed. Family sizes and the Arm 1 → 1b sequence cannot shrink.
+    - **B6:** an arm conceived after any interim look gets no share of the program α and is labelled at best WIN-ARM-ONLY. Its registration names the interim reads its authors had seen.
+    - **B7:** interim cells use only the registered gate topologies and windows. "Fresh cells" means fresh runs of the same environments. Any other topology an interim touches is excluded from every later fresh-topology draw.
+  - **Interim reads carry no WIN/LOSS label and no Holm p.** Each reports direction, n ahead and the mean Δ, labelled `INTERIM-DESCRIPTIVE`. They are never quoted as a result.
+  - **The final read states:**
+    1. the freeze shas and time, against the sha and time of the first interim cell;
+    2. a table of every interim look (arm, date, cells, w, what was reported);
+    3. every post-look change with its sha and the reads that preceded it, or "none";
+    4. interim and final results side by side, with any sign change reported, not reconciled;
+    5. that the verdict is computed on the final cells only, by the pre-interim rule.
 - 2026-10-14 — **Calibration protocol under SMT, approved (the expert, with SCIENTIST's fixes; S6). Gate change G3 `114cc0e7`.** No w has been measured under it; nothing is frozen before the hand re-measure and q_n.
   - **G3** (`rp/uncut-arm1-pin`, child of e8c87702; the gate and `tests/test_uncut_arm1_gate_stage.py` only; the chain is now `--gate-change bf79865a,e8c87702,114cc0e7`). Every r1a cell's summary gets a `host` block: hostname, lscpu model name, Thread(s) per core, `smt/control`, `smt/active`, online CPUs, the cpuset, nproc (= the cpuset), physical cores in the cpuset (sysfs topology) and PAR. The job also prints it at start.
     - The gate fails loud if PAR exceeds the cpuset's physical cores. Every cell runs one torch/OMP thread: the gate sets `OMP_NUM_THREADS` / `MKL_NUM_THREADS` / `OPENBLAS_NUM_THREADS` = 1 per cell (`fresh_topo_burst_v1_gate.py:976-977`), serving never calls `set_num_threads`, and `python_env.torch_num_threads` records 1.
