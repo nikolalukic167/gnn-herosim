@@ -4,7 +4,8 @@
                            --inputs-group <gate_inputs_arm1/inputs_group> --split <split.json> --dest <IN root>
                            [--stem uncut-arm1] [--arms gnn_eng,twin_eng,mlp_same] [--label descriptive-smoke]
 
---md5 holds {"<arm>|s<seed>": md5} for arm in --arms (S7's training log); every --arms arm must have a key. Arm 2 is
+--md5 holds {"<arm>|s<seed>": md5} (S7's training log, which may grow arm by arm); only the --arms keys are staged, every --arms arm must
+have a key, and a key naming no known arm fails. Arm 2 is
 --arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM). --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
 file gives, no two keys may share an md5, and every contract must carry physics_env.warmth_physics == node_disk_v2 (the bar's); each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
@@ -47,9 +48,9 @@ def main(argv=None):
     if os.path.exists(a.dest):
         raise SystemExit(f"FAIL LOUD: {a.dest} exists; stage into a fresh directory")
     want = json.load(open(a.md5))
-    unknown = [k for k in want if k.split("|")[0] not in arms]
+    unknown = [k for k in want if k.split("|")[0] not in ARMS]
     if unknown:
-        raise SystemExit(f"FAIL LOUD: {a.md5} has keys outside {arms}: {unknown}")
+        raise SystemExit(f"FAIL LOUD: {a.md5} has keys outside {ARMS}: {unknown}")
     absent = [x for x in arms if not any(k.split("|")[0] == x for k in want)]
     if absent:
         raise SystemExit(f"FAIL LOUD: {a.md5} has no checkpoint for --arms {absent}")
@@ -61,7 +62,7 @@ def main(argv=None):
         if not os.path.isdir(os.path.join(a.inputs_group, r)):
             raise SystemExit(f"FAIL LOUD: {a.inputs_group}/{r} missing")
     plan = []
-    for key, m in sorted(want.items()):
+    for key, m in sorted((k, m) for k, m in want.items() if k.split("|")[0] in arms):
         arm, seed = key.split("|")
         seed = int(seed.lstrip("s"))
         src = a.src.format(arm=arm.replace("_", "-"), seed=seed)
