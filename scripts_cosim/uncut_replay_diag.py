@@ -92,7 +92,7 @@ def _load_models(names: Sequence[str]):
 
     models = {}
     for n in names:
-        m = load_gnn_model(Path(MODELS) / (RUNS[n] + ".pt"))
+        m, _device = load_gnn_model(Path(MODELS) / (RUNS[n] + ".pt"))
         m.eval()
         models[n] = m
     return models
