@@ -1,13 +1,14 @@
-"""Stage the uncut_groups_s0_v1 Arm 1 learned-gate inputs root. Checkpoints enter only through the md5 file.
+"""Stage an uncut_groups_s0_v1 learned-gate inputs root (Arm 1, Arm 2, Arm 2-K0). Checkpoints enter only through the md5 file.
 
   uncut_arm1_gate_stage.py --md5 experiments/uncut_arm1_ckpt_md5.json --src '<dir>/<name>-{arm}-seed{seed}.pt'
                            --inputs-group <gate_inputs_arm1/inputs_group> --split <split.json> --dest <IN root>
-                           [--stem uncut-arm1] [--label descriptive-smoke]
+                           [--stem uncut-arm1] [--arms gnn_eng,twin_eng,mlp_same] [--label descriptive-smoke]
 
---md5 holds {"<arm>|s<seed>": md5} for arm in gnn_eng, twin_eng, mlp_same (S7's training log). --src is a pattern with {arm}
+--md5 holds {"<arm>|s<seed>": md5} for arm in --arms (S7's training log); every --arms arm must have a key. Arm 2 is
+--arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM). --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
 file gives, no two keys may share an md5, and every contract must carry physics_env.warmth_physics == node_disk_v2 (the bar's); each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
-ra_<arm>_arm1, and its md5 is checked again after the copy. wf1_moderate / wf1_heavy are symlinked from --inputs-group; the
+ra_<arm>_arm1 (ra_<arm>_arm2 / _arm2k0 under their stems), and its md5 is checked again after the copy. wf1_moderate / wf1_heavy are symlinked from --inputs-group; the
 split is copied under its own name (pass its basename as R1A_SPLIT). <dest> must not exist. Writes <dest>/STAGE.json.
 """
 import argparse
@@ -37,14 +38,21 @@ def main(argv=None):
     ap.add_argument("--split", required=True)
     ap.add_argument("--dest", required=True)
     ap.add_argument("--stem", default="uncut-arm1")
+    ap.add_argument("--arms", default=",".join(ARMS))
     ap.add_argument("--label", default="")
     a = ap.parse_args(argv)
+    arms = tuple(a.arms.split(","))
+    if not arms or set(arms) - set(ARMS):
+        raise SystemExit(f"FAIL LOUD: --arms {a.arms} is not a subset of {ARMS}")
     if os.path.exists(a.dest):
         raise SystemExit(f"FAIL LOUD: {a.dest} exists; stage into a fresh directory")
     want = json.load(open(a.md5))
-    unknown = [k for k in want if k.split("|")[0] not in ARMS]
+    unknown = [k for k in want if k.split("|")[0] not in arms]
     if unknown:
-        raise SystemExit(f"FAIL LOUD: {a.md5} has keys outside {ARMS}: {unknown}")
+        raise SystemExit(f"FAIL LOUD: {a.md5} has keys outside {arms}: {unknown}")
+    absent = [x for x in arms if not any(k.split("|")[0] == x for k in want)]
+    if absent:
+        raise SystemExit(f"FAIL LOUD: {a.md5} has no checkpoint for --arms {absent}")
     dup = {m for m in want.values() if list(want.values()).count(m) > 1}
     if dup:
         raise SystemExit(f"FAIL LOUD: {a.md5} lists one md5 under several keys ({sorted(k for k, m in want.items() if m in dup)}); "
@@ -80,7 +88,7 @@ def main(argv=None):
             raise SystemExit(f"FAIL LOUD: {key}: the copy {pt} does not have md5 {m}")
         staged[key] = {"src": src, "md5": m, "staged": pt, "contract_md5": md5(pt[:-3] + ".contract.json")}
     out = {"label": a.label, "md5_file": os.path.abspath(a.md5), "md5_file_md5": md5(a.md5), "inputs_group": os.path.realpath(a.inputs_group),
-           "split": os.path.basename(a.split), "split_md5": md5(a.split), "stem": a.stem, "checkpoints": staged}
+           "split": os.path.basename(a.split), "split_md5": md5(a.split), "stem": a.stem, "arms": list(arms), "checkpoints": staged}
     json.dump(out, open(os.path.join(a.dest, "STAGE.json"), "w"), indent=1)
     print(json.dumps({k: v["staged"] for k, v in staged.items()}, indent=1))
     return out
