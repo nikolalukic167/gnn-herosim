@@ -300,6 +300,10 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-14 (filed 2026-10-14T16:23Z, before any diagnostic output and before 871538 measures anything) — **Hand-F estimator rule** (the expert's ruling; S6).
+  - The q_n bound and the co-tenancy hand-bias bound use the **exact felt share F** of `cd_ib0`. F comes from a per-batch (n, plan evals) dump made by an instrument-only diagnostic: one d6ae87c2 `cd_ib0` cell per rung, on a scratch branch that is never merged. Those cells are never gate cells and never reused.
+  - The dumped cells are used only if their summaries are sim-identical to their 869828 source cells, with the dump as the only difference. They fit evals(n) per bucket, and the fit is applied to the bar cells' bucket counts.
+  - **Fallback: the upper bound (UB).** UB is the bucket's largest batch × w × the bucket's plan evals. It applies if the diagnostic fails, if it is not sim-identical, or if the fit is clearly superlinear and uncertain. There is no fallback to the evals ∝ n estimate. The entry that files the result states which of the two applied.
 - 2026-10-14 — **Two charge-share checks filed (the expert's ruling after SCIENTIST; S6).** Neither changes a rule and neither reads an outcome. SCIENTIST confirmed that a learned charge share of about 0.1 % changes nothing in the calibration.
   - **The 0.1 % line** is the hand-bias bound, and only for the hand w. A learned charge share above it is not a trip.
   - **(1) Per-bucket and worst-cell share, at every interim look and at the final read.** Next to the pooled figure, the learned charge share is reported per served-batch bucket (≤ 10, 11–50, 51–100, 101–256) and in the worst cell. Large groups may carry several times the pooled share.
