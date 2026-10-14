@@ -237,6 +237,8 @@ def ckpt_md5s(spec):
         tag, _, path = item.rpartition("=")
         with open(path) as fh:
             for k, v in json.load(fh).items():
+                if k.startswith("_"):
+                    continue
                 if tag:
                     arm, _, sd = k.partition("|")
                     k = f"{arm}@{tag}|{sd}"

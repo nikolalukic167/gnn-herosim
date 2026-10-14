@@ -175,3 +175,29 @@ def test_arm1b_has_no_mlp(src):
     _set_btf(ck, True)
     with pytest.raises(SystemExit, match="Arm 1b"):
         S.main(args(t, ck, ig, md5, split) + ["--stem", "uncut-arm1b"])
+
+
+def test_md5_file_names_the_checkpoint_dir(src, tmp_path):
+    t, ck, ig, md5, split = src
+    want = json.loads(md5.read_text())
+    md5.write_text(json.dumps({**want, "_ckpt_dir": str(ck)}))
+    out = S.main(args(t, ck, ig, md5, split, dest="a")[:2] + ["--src", "{dir}/m-{arm}-seed{seed}.pt"] + args(t, ck, ig, md5, split, dest="a")[4:])
+    assert out["ckpt_dir"] == str(ck) and len(out["checkpoints"]) == 6
+    S.main(args(t, ck, ig, md5, split, dest="b"))
+    other = tmp_path / "other"
+    other.mkdir()
+    md5.write_text(json.dumps({**want, "_ckpt_dir": str(other)}))
+    with pytest.raises(SystemExit, match="not in the md5 file's _ckpt_dir"):
+        S.main(args(t, ck, ig, md5, split, dest="c"))
+    for bad, match in (({**want, "_ckpt_dir": str(tmp_path / "nope")}, "not a directory"), ({**want, "_note": "x"}, "metadata keys"), (want, "names no _ckpt_dir")):
+        md5.write_text(json.dumps(bad))
+        with pytest.raises(SystemExit, match=match):
+            S.main(args(t, ck, ig, md5, split, dest="d")[:2] + ["--src", "{dir}/m-{arm}-seed{seed}.pt"] + args(t, ck, ig, md5, split, dest="d")[4:])
+    assert not (t / "c").exists() and not (t / "d").exists()
+
+
+def test_reader_skips_md5_metadata(tmp_path):
+    import uncut_arm_gate_read as R
+    f = tmp_path / "m.json"
+    f.write_text(json.dumps({"gnn_eng|s1": "x", "_ckpt_dir": "/share/x"}))
+    assert R.ckpt_md5s(str(f)) == {"gnn_eng|s1": "x"} and R.ckpt_md5s(f"arm1b={f}") == {"gnn_eng@arm1b|s1": "x"}
