@@ -24,7 +24,7 @@ def src(tmp_path):
             (ck / f"m-{arm.replace('_', '-')}-seed{seed}.contract.json").write_text(json.dumps({"physics_env": {"warmth_physics": "node_disk_v2"}}))
             want[f"{arm}|s{seed}"] = hashlib.md5(b).hexdigest()
     md5 = tmp_path / "md5.json"
-    md5.write_text(json.dumps(want))
+    md5.write_text(json.dumps({**want, "_provenance": {k: {"job": "871420_0", "host": "h", "cpu": "AMD EPYC 9475F"} for k in want}}))
     split = tmp_path / "arm1_split.json"
     split.write_text("{}")
     return tmp_path, ck, ig, md5, split
@@ -189,7 +189,7 @@ def test_md5_file_names_the_checkpoint_dir(src, tmp_path):
     md5.write_text(json.dumps({**want, "_ckpt_dir": str(other)}))
     with pytest.raises(SystemExit, match="not in the md5 file's _ckpt_dir"):
         S.main(args(t, ck, ig, md5, split, dest="c"))
-    for bad, match in (({**want, "_ckpt_dir": str(tmp_path / "nope")}, "not a directory"), ({**want, "_note": "x"}, "metadata keys"), (want, "names no _ckpt_dir")):
+    for bad, match in (({**want, "_ckpt_dir": str(tmp_path / "nope")}, "existing directory"), ({**want, "_note": "x"}, "metadata keys"), ({k: v for k, v in want.items() if k != "_ckpt_dir"}, "names no _ckpt_dir")):
         md5.write_text(json.dumps(bad))
         with pytest.raises(SystemExit, match=match):
             S.main(args(t, ck, ig, md5, split, dest="d")[:2] + ["--src", "{dir}/m-{arm}-seed{seed}.pt"] + args(t, ck, ig, md5, split, dest="d")[4:])
@@ -201,3 +201,52 @@ def test_reader_skips_md5_metadata(tmp_path):
     f = tmp_path / "m.json"
     f.write_text(json.dumps({"gnn_eng|s1": "x", "_ckpt_dir": "/share/x"}))
     assert R.ckpt_md5s(str(f)) == {"gnn_eng|s1": "x"} and R.ckpt_md5s(f"arm1b={f}") == {"gnn_eng@arm1b|s1": "x"}
+
+
+def _prov(md5, edit):
+    d = json.loads(md5.read_text())
+    edit(d)
+    md5.write_text(json.dumps(d))
+
+
+def test_provenance_hedge_rule(src):
+    t, ck, ig, md5, split = src
+    _prov(md5, lambda d: d["_provenance"].__setitem__("twin_eng|s2", {"job": "869803_3", "host": "h", "cpu": "AMD EPYC 9335"}))
+    with pytest.raises(SystemExit, match="different jobs"):
+        S.main(args(t, ck, ig, md5, split))
+    _prov(md5, lambda d: d["_provenance"].__setitem__("twin_eng|s2", {"job": "871420_5", "host": "h2", "cpu": "AMD EPYC 9475F"}))
+    out = S.main(args(t, ck, ig, md5, split))
+    assert out["provenance"]["twin_eng|s2"]["job"] == "871420_5"
+    for bad in ({"job": "871420_5", "host": "h"}, {"job": "", "host": "h", "cpu": "c"}, None):
+        _prov(md5, lambda d: d["_provenance"].__setitem__("gnn_eng|s1", bad))
+        with pytest.raises(SystemExit, match="needs non-empty job, host and cpu"):
+            S.main(args(t, ck, ig, md5, split, dest="x"))
+    _prov(md5, lambda d: d.pop("_provenance"))
+    with pytest.raises(SystemExit, match="no _provenance"):
+        S.main(args(t, ck, ig, md5, split, dest="x"))
+    S.main(args(t, ck, ig, md5, split, dest="arm2") + ["--arms", "gnn_eng,twin_eng", "--stem", "uncut-arm2"])
+
+
+def test_s7_schema_per_arm_dirs_and_files(src, tmp_path):
+    t, ck, ig, md5, split = src
+    ck2 = tmp_path / "ck2"
+    ck2.mkdir()
+    for p in ck.glob("m-mlp-same-*"):
+        p.rename(ck2 / p.name)
+
+    def edit(d):
+        d["_ckpt_dir"] = {"gnn_eng": str(ck), "twin_eng": str(ck), "mlp_same": str(ck2)}
+        for k, e in d["_provenance"].items():
+            e.update(file=f"m-{k.split('|')[0].replace('_', '-')}-seed{k[-1]}.pt", wandb_id="w")
+    _prov(md5, edit)
+    base = ["--md5", str(md5), "--inputs-group", str(ig), "--split", str(split)]
+    out = S.main(base + ["--dest", str(t / "a")])
+    assert out["checkpoints"]["mlp_same|s1"]["src"] == str(ck2 / "m-mlp-same-seed1.pt") and len(out["checkpoints"]) == 6
+    _prov(md5, lambda d: d["_provenance"]["gnn_eng|s1"].__setitem__("file", "other.pt"))
+    with pytest.raises(SystemExit, match="missing|not the _provenance file"):
+        S.main(base + ["--dest", str(t / "b")])
+    with pytest.raises(SystemExit, match="not the _provenance file"):
+        S.main(args(t, ck, ig, md5, split, dest="c")[:2] + ["--src", "{dir}/m-{arm}-seed{seed}.pt"] + args(t, ck, ig, md5, split, dest="c")[4:])
+    _prov(md5, lambda d: d["_ckpt_dir"].pop("mlp_same"))
+    with pytest.raises(SystemExit, match="every arm"):
+        S.main(base + ["--dest", str(t / "d")])
