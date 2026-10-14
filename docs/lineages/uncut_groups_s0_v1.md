@@ -300,6 +300,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-14 — **K0 interim look runs sealed; line 869 stands** (the expert's ruling; S6). The interim amendment does not lift "K0 is not read before Arm 2's gate cells are in". K0 is staged, gets its PROVISIONAL-W and its k = 1 cells as they land. Only health is checked: cells done / failed / kills, the gate:1492 arm2 encode check, and md5s. No paired statistic or latency summary is computed, and none is sent to anyone. The result directory's file list with md5s goes into this node, and the directory is made read-only. The read opens only when Arm 2's interim cells are in, and K0 and Arm 2 are read together. The final read's disclosure table lists K0 as "run sealed on <date>, read with Arm 2". If the K0 twin fails arm2_encodes ≥ arm2_batches, S6 stops and reports the counters; the gate is not patched (G3 is frozen). Lifting 869 for interim reads is the user's call.
 - 2026-10-14 — **Stager: chained provenance (B3, after interim looks 1 and 2; S6, the expert's ruling on S5's chain-unit rule 943a53fd).** This changes no registered rule.
   - **Why.** Arm 2 and K0 seeds train as separate chains. For example, the GPU gnn seeds run as 869961 and 869963. So the one-Slurm-job check refused every Arm 2 / K0 md5 file.
   - **The change** (`uncut_arm1_gate_stage.py`, frozen at 557d84bf):
