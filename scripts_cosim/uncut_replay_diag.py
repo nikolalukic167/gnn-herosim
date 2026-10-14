@@ -81,9 +81,12 @@ def cmd_prep(a):
 # ---- decode ----------------------------------------------------------------------------------------------------------------------------------
 
 def _load_models(names: Sequence[str]):
-    for k, v in ENV.items():
+    for k, v in {**ENV, "HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "1", "HEROSIM_SCALEOUT": "kpa", "HEROSIM_WARMTH_PHYSICS": "node_disk_v2"}.items():
         os.environ[k] = v
+    from src.placement import replica_rule
     from src.executesimulation import load_gnn_model
+
+    replica_rule.set_rule("fastest_compatible")      # the Arm 1 cache's physics (checkpoint sidecar physics_env), which load_gnn_model checks
 
     models = {}
     for n in names:
