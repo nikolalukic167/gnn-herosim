@@ -449,7 +449,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - (c) determinism: two runs of three optimiser steps are bit-equal on CPU, and on CUDA with `use_deterministic_algorithms` + `CUBLAS_WORKSPACE_CONFIG`;
     - (d) the flag is in the sidecar and the serving whitelist; with the flag off the loss function is bit-equal to the function with the batched branch removed, and the mini-cache checkpoint md5 with the flag off is the Arm 1 value (c94adfff1280).
   - **Selection and logging.** `-final.pt` (epoch 100), as Arm 1. W&B tags carry the trainer flag.
-  - **Pins and numbers to be filed here:** the code sha, the test results, the one-epoch table (CPU-amd 6 and 32 threads `--exclusive`; L40S; A100), the device chosen, the job ids.
+  - **Filed numbers (2026-10-14, S5).**
+    - **Tests:** `tests/test_batched_tf.py` 21 passed, 1 skipped (CUDA) on CPU-amd (job 870009, c94b9459); gnn_eng and twin_eng both built through the trainer's own construction (SCIENTIST C1). Flag-off mini-cache checkpoint md5 c94adfff1280, the Arm 1 value (869998, C3).
+    - **One real-cache epoch, epoch-line time** (the same recipe; the val decode is serial and per-task on every device): CPU-amd 6 threads `--exclusive` 310.6 s (870005); CPU-amd 32 threads `--exclusive` 304.3 s (870006); A100-80GB 568.4 s (870008, zero "does not have a deterministic implementation" warnings; CPU log also zero); L40S not measured (870007 cancelled, GPU queue full). Arm 1 (rows-only) ran about 560-590 s/epoch on CPU-amd.
+    - **Device: CPU-amd**, one run per `--exclusive` node, 6 threads, 0 workers, pin c94b9459 (code merged to reference-physics as f6c1b85e). The GPU paths (C2) were not used; the strict CUDA determinism test (869999) is queued and gates nothing.
+    - **Runs** (array 870044, `uncut_arm1b_train.sbatch`; W&B project gnn-uncut-arm1): gnn_eng seed 1 job 870045 (kebglex7), gnn_eng seed 2 job 870046 (kjteh12l), twin_eng seed 1 job 870047 (rgnx535g), twin_eng seed 2 job 870044 (4ysjvmvz).
+    - **Serving:** at d6ae87c2 `checkpoint_mp_config` reads only its listed sidecar keys, so `batched_teacher_forced` is ignored there (read, not run).
 
 - 2026-10-14 — **Arm 1 gate pre-registered amendment: co-tenancy. The hand w stays frozen; a second, co-tenancy-charged set of learned cells; a learned win needs both verdicts** (the expert's ruling with SCIENTIST's three holes adopted, before any learned k = 1 cell; S6).
   - **Why.** w is measured wall ÷ plans. Every existing entry was measured on a shared node, never `--exclusive`. Measuring the learned arms exclusive while the hand w stays shared could only favour the learned arms.
