@@ -236,8 +236,8 @@ def test_w_pin_chain_accepts_w_only_chain(chain):
 
 
 @pytest.mark.parametrize("bad, match", [
-    ("other_file", "not only"), ("changed_key", "frozen"), ("recalibrated", "frozen"), ("foreign_key", "outside the Arm 1"),
-    ("foreign_top", "top-level"), ("source_edit", "outside the Arm 1"), ("not_chain", "not an ancestor")])
+    ("other_file", "not only"), ("changed_key", "frozen"), ("recalibrated", "frozen"), ("foreign_key", "outside the learned arms"),
+    ("foreign_top", "top-level"), ("source_edit", "outside the learned arms"), ("not_chain", "not an ancestor")])
 def test_w_pin_chain_fails_loud(chain, bad, match):
     repo, base, w1, w2 = chain
     w = w_with(w_with(W0, GT, by_bucket=True), ("ra_mlp_same_arm1_nosplit",))
@@ -422,3 +422,141 @@ def test_charge_check_k_times_frozen_w():
     with pytest.raises(SystemExit, match="served decision cost"):
         G.charge_check(("ra_gnn_eng_arm1_nosplit", 1, 19537, "g0", "moderate"), {"env": {"HEROSIM_DECISION_COST_MS": "6.0"}}, w, 1.0)
     G.charge_check(("ra_gnn_eng_arm1_nosplit", 1, 19537, "g0", "moderate"), {"env": {"HEROSIM_DECISION_COST_MS": "6.9"}}, w, 1.0)
+
+
+B1, B1T, A1 = "ra_gnn_eng_arm1b_nosplit", "ra_twin_eng_arm1b_nosplit", "ra_gnn_eng_arm1_nosplit"
+
+
+def w1b(w, x=1.2, buckets=True):
+    w = json.loads(json.dumps(w))
+    for a in ("gnn_eng", "twin_eng"):
+        src, k = f"ra_{a}_arm1_nosplit", f"ra_{a}_arm1b_nosplit"
+        w["w_ms_per_plan"][k] = {r: v * x for r, v in w["w_ms_per_plan"][src].items()}
+        if buckets and src in w["w_ms_per_plan_by_bucket"]:
+            w["w_ms_per_plan_by_bucket"][k] = {r: {b: v * x for b, v in bs.items()} for r, bs in w["w_ms_per_plan_by_bucket"][src].items()}
+        w[f"_source_{k}"] = "own le10, exclusive"
+    return w
+
+
+@pytest.mark.parametrize("x, ok", [(1.2, True), (1.5, True), (1 / 1.5, True), (1.51, False), (0.6, False)])
+def test_arm1b_w_guard(x, ok):
+    w = w1b(w_with(W0, GT, by_bucket=True), x)
+    if ok:
+        G.w_guard(w, "sha")
+    else:
+        with pytest.raises(SystemExit, match="stop"):
+            G.w_guard(w, "sha")
+
+
+def test_arm1b_w_guard_needs_arm1_and_matching_buckets():
+    w = w1b(w_with(W0, GT, by_bucket=True))
+    G.w_guard(w, "sha")
+    w["w_ms_per_plan_by_bucket"][B1]["heavy"]["le10"] *= 1.6
+    with pytest.raises(SystemExit, match="stop"):
+        G.w_guard(w, "sha")
+    with pytest.raises(SystemExit, match="buckets"):
+        G.w_guard(w1b(w_with(W0, GT, by_bucket=True), buckets=False), "sha")
+    lone = w1b(w_with(W0, GT, by_bucket=True))
+    del lone["w_ms_per_plan"]["ra_twin_eng_arm1_nosplit"]
+    with pytest.raises(SystemExit, match="without Arm 1"):
+        G.w_guard(lone, "sha")
+
+
+def test_two_gate_changes_then_w_pins_with_arm1b(gchain):
+    repo, base, gc, _, _ = gchain
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "b1", gc], check=True)
+    gc1b = commit(repo, {GATE: "x = 3\n", G.GATE_CHANGE_FILES[1]: "t = 3\n"}, "arm1b kinds")
+    w1 = commit(repo, {G.W_FILE: {**w1b(w_with(W0, GT, by_bucket=True)), "k_cotenancy": 1.4, "_source_k_cotenancy": "r"}}, "w1")
+    ws = G.w_pin_chain(str(repo), base, [w1], f"{gc},{gc1b}")
+    assert list(ws) == [base, gc, gc1b, w1] and B1 in ws[w1]["w_ms_per_plan"]
+    with pytest.raises(SystemExit, match="not a child"):
+        G.w_pin_chain(str(repo), base, [w1], gc1b)
+    bad = commit(repo, {G.W_FILE: {**w1b(w_with(W0, GT, by_bucket=True), 1.6), "k_cotenancy": 1.4, "_source_k_cotenancy": "r"}}, "w far")
+    with pytest.raises(SystemExit, match="changes frozen|stop"):
+        G.w_pin_chain(str(repo), base, [w1, bad], f"{gc},{gc1b}")
+
+
+def test_arm1b_md5_namespace(tmp_path):
+    assert G.ckpt_tag(B1) == "arm1b" and G.ckpt_tag(B1T) == "arm1b" and G.ckpt_tag(A1) == "" and G.ckpt_arm(B1) == "gnn_eng"
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    a.write_text(json.dumps({"gnn_eng|s1": "x"}))
+    b.write_text(json.dumps({"gnn_eng|s1": "y"}))
+    assert G.ckpt_md5s(f"{a},arm1b={b}") == {"gnn_eng|s1": "x", "gnn_eng@arm1b|s1": "y"}
+    with pytest.raises(SystemExit, match="disagree"):
+        G.ckpt_md5s(f"{a},{b}")
+
+
+def fill1b(d, ck, b_mean, a_mean=1.9):
+    for i, t in enumerate(TOPOS):
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                cell(d, "cd_ib0", 0, t, w, r, 2.0, busy=0.1)
+                cell(d, "cd", 0, t, w, r, 2.0, busy=0.1)
+                for sfx in ("_k100", "_kr"):
+                    for sd in (1, 2):
+                        cell(d, B1, sd, t, w, r, b_mean - 0.001 * (i + 1), ck, sfx=sfx)
+                        cell(d, B1T, sd, t, w, r, 2.0, ck, sfx=sfx)
+                        cell(d, A1, sd, t, w, r, a_mean, ck, sfx=sfx)
+
+
+def run1b(d, cm1, cm1b, after, **kw):
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", B1, "--twin", B1T, "--checkpoint-md5", f"{cm1},arm1b={cm1b}"]
+    if after:
+        args += ["--after-read", after]
+    kw.setdefault("compare", A1)
+    for k, v in kw.items():
+        args += [f"--{k}", v]
+    return G.main(args)
+
+
+@pytest.fixture
+def arm1b(tmp_path, gate):
+    d, ck, _ = gate
+    m = hashlib.md5(b"weights").hexdigest()
+    cm1, cm1b = tmp_path / "ck1.json", tmp_path / "ck1b.json"
+    cm1.write_text(json.dumps({f"{a}|s{s}": m for a in ("gnn_eng", "twin_eng") for s in (1, 2)}))
+    cm1b.write_text(json.dumps({f"{a}|s{s}": m for a in ("gnn_eng", "twin_eng") for s in (1, 2)}))
+    fill1b(d, ck, 1.8)
+
+    def after(label, primary=A1):
+        p = tmp_path / f"arm1_{len(label)}_{primary}.json"
+        p.write_text(json.dumps({"primary": primary, "combined": {"F1": label}}))
+        return str(p)
+    return d, str(cm1), str(cm1b), after
+
+
+@pytest.mark.parametrize("arm1_label, want", [("WIN", "WIN"), ("WIN-ROBUST", "WIN"), ("WIN-ARM-ONLY", "WIN-ARM-ONLY"),
+                                               ("WIN-OVER-BRITTLE-BAR", "WIN-ARM-ONLY"), ("TIES", "WIN-ARM-ONLY")])
+def test_arm1b_fixed_sequence(arm1b, arm1_label, want):
+    d, cm1, cm1b, after = arm1b
+    res = run1b(d, cm1, cm1b, after(arm1_label))
+    assert res["F2"]["holm_family"] == 4 and res["sequence"]["program_label_open"] == G.prog_win(arm1_label)
+    assert res["F1"]["label"] == want and res["cotenancy"]["F1"]["label"] == want and res["combined"]["F1"] == want
+    if want != "WIN":
+        assert "fixed sequence" in res["F1"]["why"] and res["combined"]["MP"] != "MP-ATTRIBUTED"
+
+
+def test_arm1b_direction_only_vs_arm1(arm1b):
+    d, cm1, cm1b, after = arm1b
+    res = run1b(d, cm1, cm1b, after("WIN"), compare=A1)
+    for v in (res, res["cotenancy"]):
+        dv = v["descriptive"]["direction_vs_compare"]
+        assert len(dv) == 4 and all(e["direction"] == "a faster" and e["a_faster"] == 12 for e in dv)
+        assert all("median_pct" not in e and "p_holm" not in e for e in dv)
+
+
+def test_arm1b_needs_arm1_read_first_and_its_own_md5(arm1b, tmp_path):
+    d, cm1, cm1b, after = arm1b
+    with pytest.raises(SystemExit, match="after-read"):
+        run1b(d, cm1, cm1b, "")
+    with pytest.raises(SystemExit, match="not Arm 1's gate read"):
+        run1b(d, cm1, cm1b, after("WIN", primary="ra_gnn_eng_arm2_nosplit"))
+    with pytest.raises(SystemExit, match="both verdicts"):
+        run1b(d, cm1, cm1b, after("WIN"), cotenancy="off")
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", B1, "--twin", B1T, "--checkpoint-md5", cm1, "--after-read", after("WIN"), "--compare", A1]
+    with pytest.raises(SystemExit, match="md5 does not match"):
+        G.main(args)
+    with pytest.raises(SystemExit, match="only with it"):
+        run(d, cm1, **{"after-read": after("WIN")})

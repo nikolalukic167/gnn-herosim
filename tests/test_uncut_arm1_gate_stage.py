@@ -128,3 +128,50 @@ def test_gate_knows_arm1_kinds_outside_default_grid():
         assert k in G.RA_KINDS and f"{k}_nosplit" in G.R1A_ARMS and f"{k}_nosplit" in G.R1A_NOSPLIT
     assert "ra_twin_eng_arm1" in G.RA_MP_OFF and "ra_gnn_eng_arm1" not in G.RA_MP_OFF
     assert G.split_dc("ra_mlp_same_arm1_nosplit_k100") == ("ra_mlp_same_arm1_nosplit", 1.0)
+
+
+def _set_btf(ck, value):
+    for p in ck.glob("*.contract.json"):
+        c = json.loads(p.read_text())
+        c.pop("batched_teacher_forced", None)
+        p.write_text(json.dumps(c if value == "absent" else {**c, "batched_teacher_forced": value}))
+
+
+def _gt_only(md5):
+    md5.write_text(json.dumps({k: v for k, v in json.loads(md5.read_text()).items() if not k.startswith("mlp_same")}))
+
+
+@pytest.mark.parametrize("btf", ["absent", None, False])
+def test_arm1_stems_take_unbatched_contracts_and_arm1b_refuses_them(src, btf):
+    t, ck, ig, md5, split = src
+    _set_btf(ck, btf)
+    S.main(args(t, ck, ig, md5, split, dest="in1"))
+    _gt_only(md5)
+    with pytest.raises(SystemExit, match="batched_teacher_forced"):
+        S.main(args(t, ck, ig, md5, split, dest="in1b") + ["--arms", "gnn_eng,twin_eng", "--stem", "uncut-arm1b"])
+    assert not (t / "in1b").exists()
+
+
+@pytest.mark.parametrize("btf", [True, 1, "true"])
+def test_arm1b_stem_needs_batched_true_and_other_stems_refuse_it(src, btf):
+    t, ck, ig, md5, split = src
+    _gt_only(md5)
+    _set_btf(ck, btf)
+    for stem in ("uncut-arm1", "uncut-arm2", "uncut-arm2k0"):
+        with pytest.raises(SystemExit, match="batched_teacher_forced"):
+            S.main(args(t, ck, ig, md5, split, dest="in") + ["--arms", "gnn_eng,twin_eng", "--stem", stem])
+    a1b = args(t, ck, ig, md5, split, dest="in1b") + ["--arms", "gnn_eng,twin_eng", "--stem", "uncut-arm1b"]
+    if btf is not True:
+        with pytest.raises(SystemExit, match="batched_teacher_forced"):
+            S.main(a1b)
+        return
+    out = S.main(a1b)
+    assert out["stem"] == "uncut-arm1b" and len(out["checkpoints"]) == 4
+    assert (t / "in1b" / "models" / "uncut-arm1b-twin-eng-seed2.pt").read_bytes() == b"twin_eng2"
+
+
+def test_arm1b_has_no_mlp(src):
+    t, ck, ig, md5, split = src
+    _set_btf(ck, True)
+    with pytest.raises(SystemExit, match="Arm 1b"):
+        S.main(args(t, ck, ig, md5, split) + ["--stem", "uncut-arm1b"])
