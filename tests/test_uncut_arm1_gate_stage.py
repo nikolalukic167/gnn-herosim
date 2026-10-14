@@ -83,6 +83,33 @@ def test_existing_dest_fails(src):
         S.main(args(t, ck, ig, md5, split))
 
 
+def test_arm2_stage_by_arms_and_stem(src):
+    t, ck, ig, md5, split = src
+    want = {k: v for k, v in json.loads(md5.read_text()).items() if not k.startswith("mlp_same")}
+    md5.write_text(json.dumps(want))
+    out = S.main(args(t, ck, ig, md5, split) + ["--arms", "gnn_eng,twin_eng", "--stem", "uncut-arm2k0"])
+    assert out["arms"] == ["gnn_eng", "twin_eng"] and len(out["checkpoints"]) == 4
+    assert (t / "in" / "models" / "uncut-arm2k0-twin-eng-seed2.pt").read_bytes() == b"twin_eng2"
+
+
+def test_arms_scope_fails_loud(src):
+    t, ck, ig, md5, split = src
+    with pytest.raises(SystemExit, match="keys outside"):
+        S.main(args(t, ck, ig, md5, split) + ["--arms", "gnn_eng,twin_eng"])
+    with pytest.raises(SystemExit, match="not a subset"):
+        S.main(args(t, ck, ig, md5, split) + ["--arms", "gnn_eng,raw"])
+    md5.write_text(json.dumps({k: v for k, v in json.loads(md5.read_text()).items() if not k.startswith("twin_eng")}))
+    with pytest.raises(SystemExit, match="no checkpoint for"):
+        S.main(args(t, ck, ig, md5, split))
+    assert not (t / "in").exists()
+
+
+def test_gate_arm2_stems_match_staged_names():
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    assert set(G.ARM2_KINDS) == {f"ra_{a}_arm2" for a in ("gnn_eng", "twin_eng")}
+    assert set(G.ARM2K0_KINDS) == {f"ra_{a}_arm2k0" for a in ("gnn_eng", "twin_eng")}
+
+
 def test_gate_knows_arm1_kinds_outside_default_grid():
     from scripts_cosim import fresh_topo_burst_v1_gate as G
     for k in G.ARM1_KINDS:
