@@ -5,7 +5,8 @@
                            [--stem uncut-arm1] [--arms gnn_eng,twin_eng,mlp_same] [--label descriptive-smoke]
 
 --md5 holds {"<arm>|s<seed>": md5} (S7's training log, which may grow arm by arm); only the --arms keys are staged, every --arms arm must
-have a key, and a key naming no known arm fails. Arm 2 is
+have a key, and a key naming no known arm fails. It may name its checkpoint directory as "_ckpt_dir" (e.g. a relaunch's
+/share/nikola.lukic/uncut_arm1/models_relaunch_x): --src may then use {dir}, and every resolved checkpoint must sit in that directory. Arm 2 is
 --arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM), Arm 1b
 --arms gnn_eng,twin_eng --stem uncut-arm1b with its own md5 file. --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
@@ -53,6 +54,14 @@ def main(argv=None):
     if os.path.exists(a.dest):
         raise SystemExit(f"FAIL LOUD: {a.dest} exists; stage into a fresh directory")
     want = json.load(open(a.md5))
+    meta = {k: want.pop(k) for k in [k for k in want if k.startswith("_")]}
+    if set(meta) - {"_ckpt_dir"}:
+        raise SystemExit(f"FAIL LOUD: {a.md5} has metadata keys {sorted(set(meta) - {'_ckpt_dir'})}; only _ckpt_dir is known")
+    ckpt_dir = meta.get("_ckpt_dir")
+    if ckpt_dir is not None and not (isinstance(ckpt_dir, str) and os.path.isdir(ckpt_dir)):
+        raise SystemExit(f"FAIL LOUD: {a.md5} _ckpt_dir {ckpt_dir!r} is not a directory")
+    if "{dir}" in a.src and ckpt_dir is None:
+        raise SystemExit(f"FAIL LOUD: --src uses {{dir}} but {a.md5} names no _ckpt_dir")
     unknown = [k for k in want if k.split("|")[0] not in ARMS]
     if unknown:
         raise SystemExit(f"FAIL LOUD: {a.md5} has keys outside {ARMS}: {unknown}")
@@ -70,7 +79,9 @@ def main(argv=None):
     for key, m in sorted((k, m) for k, m in want.items() if k.split("|")[0] in arms):
         arm, seed = key.split("|")
         seed = int(seed.lstrip("s"))
-        src = a.src.format(arm=arm.replace("_", "-"), seed=seed)
+        src = a.src.format(arm=arm.replace("_", "-"), seed=seed, dir=ckpt_dir)
+        if ckpt_dir is not None and os.path.dirname(os.path.realpath(src)) != os.path.realpath(ckpt_dir):
+            raise SystemExit(f"FAIL LOUD: {key}: {src} is not in the md5 file's _ckpt_dir {ckpt_dir}")
         side = src[:-3] + ".contract.json"
         for p in (src, side):
             if not os.path.isfile(p):
@@ -99,7 +110,8 @@ def main(argv=None):
             raise SystemExit(f"FAIL LOUD: {key}: the copy {pt} does not have md5 {m}")
         staged[key] = {"src": src, "md5": m, "staged": pt, "contract_md5": md5(pt[:-3] + ".contract.json")}
     out = {"label": a.label, "md5_file": os.path.abspath(a.md5), "md5_file_md5": md5(a.md5), "inputs_group": os.path.realpath(a.inputs_group),
-           "split": os.path.basename(a.split), "split_md5": md5(a.split), "stem": a.stem, "arms": list(arms), "checkpoints": staged}
+           "split": os.path.basename(a.split), "split_md5": md5(a.split), "stem": a.stem, "arms": list(arms),
+           "ckpt_dir": ckpt_dir, "checkpoints": staged}
     json.dump(out, open(os.path.join(a.dest, "STAGE.json"), "w"), indent=1)
     print(json.dumps({k: v["staged"] for k, v in staged.items()}, indent=1))
     return out
