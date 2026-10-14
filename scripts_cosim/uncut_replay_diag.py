@@ -200,6 +200,57 @@ def cmd_probe(a):
         print("hand", d["hand"][:3], "types", d["types"][:4], "trace", trace[:4], flush=True)
 
 
+# ---- decode identity -------------------------------------------------------------------------------------------------------------------------
+
+WANDB = {"gnn_eng_s1": "run-20261014_100127-kebglex7", "gnn_eng_s2": "run-20261014_100126-kjteh12l",
+         "twin_eng_s1": "run-20261014_100123-rgnx535g", "twin_eng_s2": "run-20261014_100123-4ysjvmvz"}
+
+
+def load_decodes(decode_dir: str) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for f in sorted(Path(decode_dir).glob("d_*_*.json")):
+        for gid, runs in json.load(open(f))["groups"].items():
+            out.setdefault(gid, {}).update(runs)
+    return out
+
+
+def cmd_identity(a):
+    sys.path.insert(0, str(REPO / "scripts_cosim"))
+    import read_training_curves as R
+
+    draw = json.load(open(a.draw))
+    dec = load_decodes(a.decode_dir)
+    val = draw["val"]
+    missing = [g for g in val if g not in dec]
+    if missing:
+        raise SystemExit(f"FAIL LOUD: {len(missing)} val groups have no decode, e.g. {missing[:3]}")
+    bad = 0
+    report = {}
+    for run in RUNS:
+        stem = run.rsplit("_", 1)[0]
+        ds = [dec[g][run] for g in val]
+        tot = sum(1 for d in ds if d["decoded"] is not None)
+        ex = sum(int(d.get("exact", False)) for d in ds)
+        ag, nc = sum(d.get("agree", 0) for d in ds), sum(d["n_choice"] for d in ds)
+        mine = {"mt_plan_exact": ex / max(1, tot), "mt_task_acc_choice": ag / max(1, nc), "n_decoded": tot}
+        rows, _summary, _cfg = R._read_wandb_dir(Path(a.wandb_root) / WANDB[stem])
+        vrows = [r for r in rows if "val/mt_plan_exact" in r]
+        if run.endswith("final"):
+            ref = vrows[-1]
+            ep = len(vrows)
+        else:
+            ep = min(range(len(vrows)), key=lambda i: vrows[i]["val/regret_masked_topo"]) + 1
+            ref = vrows[ep - 1]
+        logged = {"mt_plan_exact": ref["val/mt_plan_exact"], "mt_task_acc_choice": ref["val/mt_task_acc_choice"]}
+        ok = all(abs(mine[k] - logged[k]) <= 1e-9 for k in logged)
+        bad += 0 if ok else 1
+        report[run] = {"epoch": ep, "mine": mine, "logged": logged, "identical": ok}
+        print(f"{run:16s} ep {ep:3d}  plan_exact {mine['mt_plan_exact']:.6f} vs {logged['mt_plan_exact']:.6f}  task_acc_choice {mine['mt_task_acc_choice']:.6f} vs {logged['mt_task_acc_choice']:.6f}  {'IDENTICAL' if ok else 'MISMATCH'}")
+    json.dump(report, open(a.out, "w"), indent=1)
+    if bad:
+        raise SystemExit(f"DECODE IDENTITY FAILED for {bad} of {len(RUNS)} checkpoints: stop and report")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -212,11 +263,16 @@ def main(argv=None):
     d.add_argument("--out", required=True)
     d.add_argument("--runs", default="")
     d.add_argument("--arm", default="gnn_eng", choices=("gnn_eng", "twin_eng"))
+    ide = sub.add_parser("identity")
+    ide.add_argument("--decode-dir", required=True)
+    ide.add_argument("--wandb-root", required=True)
+    ide.add_argument("--draw", required=True)
+    ide.add_argument("--out", required=True)
     pr = sub.add_parser("probe")
     pr.add_argument("--groups", required=True)
     pr.add_argument("--sim-input", default="/home/nikola.lukic/gnn-herosim/data/nofs-ids")
     a = ap.parse_args(argv)
-    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe}[a.cmd](a) or 0
+    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe, "identity": cmd_identity}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":
