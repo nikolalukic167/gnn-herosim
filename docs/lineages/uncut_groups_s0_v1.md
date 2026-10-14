@@ -6,7 +6,7 @@
 - **Labels and training are gated by this node's own kills** (the expert, 2026-10-13, after S4's attribution read): labels start only after K0 and K1 are read and neither fires. If K1 fires, there are no labels, and the lineage closes on the hand read.
 - **Scope (measured on the gate windows):** the gate serves groups up to about 230 tasks (window max 135–226). 31.8–43.2 % of tasks sit in groups > 10 per window, and 1.2–3.5 % in groups > 100. The 2,876-task and other giant groups lie past the windows' first 50k tasks and are **not tested**: no outcome of this node may be quoted as covering groups in the thousands.
 - **Post-data amendments (2026-10-13, after k = 0 cells started returning):** WALL-INFEASIBLE is a third health count; K0's load question is read on `cd`; the k = 1 hand bar is `cd`, `cd_ib0` and the prune if it is wall-feasible. See [Post-data amendments](#post-data-amendments-2026-10-13-flagged-post-data). **Result:** hand expansion run to termination is wall-infeasible on uncut heavy groups (projected ~33,000 s per cell), measured before any learned arm ran.
-- **State (2026-10-14):** `ils_oracle_live` read PARTIAL + CEILING-TRUNCATED (contrasts A and B filed, SCIENTIST audit PASS). Arm 1 labels 12,000/12,000, corpus 11,073 datasets, cache check D == C on all 11,073; Arm 1 training pin 69ed8e53 (c825d517 + 6-thread / 0-worker yamls, no src change; real-cache determinism 869680 bit-equal at 6 threads; gate pin d6ae87c2, served from `-final.pt`; learned cells may run at w-only pins, pre-registered amendment of 2026-10-14); Arm 2 and its pre-registered K0 sibling train at 71325a02 (869790/869791; its only training-relevant src difference from 69ed8e53 is the `init_weights` guard for bias-free Linears, a no-op on biased ones). No learned gate cell has been read.
+- **State (2026-10-14):** `ils_oracle_live` read PARTIAL + CEILING-TRUNCATED (contrasts A and B filed, SCIENTIST audit PASS). Arm 1 labels 12,000/12,000, corpus 11,073 datasets, cache check D == C on all 11,073; Arm 1 training pin 69ed8e53 (c825d517 + 6-thread / 0-worker yamls, no src change; real-cache determinism 869680 bit-equal at 6 threads; gate pin d6ae87c2, served from `-final.pt`; learned cells may run at w-only pins, pre-registered amendment of 2026-10-14; second, co-tenancy-charged learned cell set and verdict pre-registered the same day); Arm 2 and its pre-registered K0 sibling train at 71325a02 (869790/869791; its only training-relevant src difference from 69ed8e53 is the `init_weights` guard for bias-free Linears, a no-op on biased ones). No learned gate cell has been read.
 - **Labels are ILS incumbents, not optima.** For groups above the 100,000-plan cap, label quality is bounded by the registered convergence check (ruling 3). `placements.jsonl` for those groups is a headed sample, not a sweep (F; the expert's exemption of 2026-10-13).
 
 **Why.** Every grounded and accel gate so far served Alibaba peer groups cut to at most 10 tasks. The library builder keeps only the first `--max-size 10` siblings of a fan-out (`scripts_cosim/grounded_workload_v1_extract.py:74–76`), and the served batch is capped at the cell's `batch_size` 10 (code ceiling 16).
@@ -299,6 +299,46 @@ Read at reference-physics 18161421. "Cut" is where tasks are dropped; "cap" is w
 Not checked: the feature contract for very large batches (the `partial_state_v3` block is size-free by design), the memory of a 2,876-task decode, and the per-batch time of the GNN forward at that size. These are smoke-test items.
 
 ## Record (newest first)
+
+- 2026-10-14 — **Arm 1 gate pre-registered amendment: co-tenancy. The hand w stays frozen; a second, co-tenancy-charged set of learned cells; a learned win needs both verdicts** (the expert's ruling with SCIENTIST's three holes adopted, before any learned k = 1 cell; S6).
+  - **Why.** w is measured wall ÷ plans. Every existing entry was measured on a shared node, never `--exclusive`. Measuring the learned arms exclusive while the hand w stays shared could only favour the learned arms.
+  - **Node sharing moves w, not the cell numbers.**
+    - The gate turns the frozen w into `HEROSIM_DECISION_COST_MS(_BY_BUCKET)` = k × w (`fresh_topo_burst_v1_gate.py:239-253`, file at :210).
+    - The scheduler charges `rate_ms(n) × 1e-3 × Δsched_plan_evals` and holds it as simulated time (`src/policy/gnn/scheduler.py:1424-1427`; rate `src/placement/decision_cost.py:66-69`; counter :72-75). That is the only charge site.
+    - The reader's decision share is simulated `sched_queue_wait + sched_busy`; it never reads decisionTiming or wall. 869494 showed cd_ib0 summaries sim-identical across runs except wall fields.
+    - The one wall-dependent outcome is the watchdog kill (LIMIT 14,400 s, projected), read as WALL-INFEASIBLE (`uncut_arm_gate_read.py`). Kills are reported per arm.
+  - **Co-tenancy of every existing w entry** (sacct; CPU-amd, 128-CPU nodes; no `--exclusive` anywhere: the sbatch header and every submit line; co-tenants as `sacct -a` shows them; the calibration cells also ran in parallel inside their own job):
+
+    | w entries | job | node, CPUs | co-tenants |
+    |---|---|---|---|
+    | `cd`, `cd_exactS`, `cd_exactS_ib0` scalars (id/new, 84415895) | 863704 | slurm-5, 16 | 863644_0 (64), 863750 (4) |
+    | `ra_gnn_eng_nosplit` scalar (id/new2) | 863705 | slurm-7, 16 | 863526 (64), 863706 (16), 863752 (32), 863723 (4) |
+    | `cd_ib0`, `cd_exactS_ib0_prune`, `selfsearch`, `cdxapply` scalars (calib; 16 cells, 8 parallel) | 863811 | slurm-5, 16 | 863803_2/_7/_14 (64 each, back to back), 863951_0 (18), two sf1-eval (8) |
+    | `cd_expand` (calib_expand, 95202b74) | 864515 | slurm-23, 8 | 864497_0 (64), 864518 (16) |
+    | hand by-bucket ratios (`wn_smoke`, c671281c; S5) | 864592 | slurm-21, 64 | 864143 dcg-pr (64), whole run |
+    | prune by-bucket | 864605 | slurm-24, 64 | 864580_4 (64) |
+    | learned nosplit/twin by-bucket + twin scalar (`wn_learned`, 1929fd3c) | 868608 | slurm-18, 16 | 865209_1 (64), 868611 (4) |
+
+    The typical condition is one 64-CPU job beside the calibration (most rows); the heaviest is about 116 CPUs (863705).
+  - **Rule.**
+    1. **Hand w frozen** (`cd_ib0`, `cd` and every existing key), with no bar rerun, unless check 4 fails.
+    2. **r.** `r_x` = w_shared ÷ w_exclusive per rung, pooled as Σ decisionTiming.total_s ÷ Σ sched_plan_evals over the recipe's cells. `k_cotenancy = max(1, r_hand, r_learned)` over both rungs.
+       - Exclusive: one `--exclusive` job, PAR = 1, the node otherwise empty.
+       - Shared: the same with **N = 8 training-like load processes × 8 torch threads (64 threads)**, started 30 s before the cells and killed after. This matches the table's typical co-tenant, one 64-CPU job. The load is `cot_load.py` (dense fp32 matmul loop; md5 7c13ad41) run by `cot_calib.sbatch` (md5 bfe042d5), both in `/share/nikola.lukic/uncut_groups/cotenancy/`.
+       - `r_hand`: `cd_ib0` k = 0 on the 863811 recipe (84415895, 19405/19411 g0, both rungs, seed 0). Jobs **869835** (exclusive) and **869836** (shared), output `cotenancy/cdib0_{excl,shared}`, worktree `s6_cot_84415895`. The ratio exclusive ÷ frozen is recorded too. Results go to a scratch file, never to `decision_cost_w.json`.
+       - `r_learned`: `ra_gnn_eng_arm1_nosplit` k = 0, exclusive and shared on the same rule, when its checkpoint lands and before any learned k = 1 cell.
+    3. **Learned w.** Each arm is calibrated `--exclusive`, PAR = 1, one job per arm (S4's recipe: k = 0, 19461 g0, both rungs, seed 1). The frozen learned w is that exclusive measurement. Job id and node are logged here.
+    4. **Hand-bias bound** (shown, not assumed). Per rung, each arm's total decision charge is reported as a share of its mean task latency. If `cd_ib0`'s charge × (1 − 1/r) is under 0.1 % of its mean latency, the frozen hand w stands. Otherwise S6 stops and reports; the fix would be an exclusive hand w plus a rerun of the hand k = 1 cells.
+    5. **Second verdict.** Every learned arm × seed also runs as `<arm>_kr`: the same cells, charged `k_cotenancy` × its frozen w. This doubles the learned k = 1 cells: 3 arms × 2 seeds × 96 = 576, now 1,152.
+       - The gate serves `_kr` only for the Arm 1 learned nosplit kinds. It fails loud until `k_cotenancy` ≥ 1 is in the w file (gate change **bf79865a** on `rp/uncut-arm1-pin`, a child of d6ae87c2 touching only the gate and its stage test; hand kinds and the existing k tags unchanged, tested).
+       - `k_cotenancy` (and `_source_k_cotenancy`) is frozen in the first w-only pin together with the gnn_eng + twin_eng w, and is identical at every later pin.
+    6. **Pins (amends the w-only rule).** The chain is d6ae87c2 → bf79865a → W1 (gnn_eng + twin_eng w, `k_cotenancy`) → W2 (mlp_same w). Each Wi differs from bf79865a only in `decision_cost_w.json`. Hand cells stay at d6ae87c2.
+    7. **Reader** (`--gate-change bf79865a --w-pins W1,W2 --repo <checkout> --cotenancy required`).
+       - It asserts the chain and that each learned cell served exactly k × its frozen w at its pin (k = 1, or `k_cotenancy` for `_kr`).
+       - It computes F1/F2 twice: the learned arms' k100 cells and their `_kr` cells, each against the same hand cells.
+       - **Combined label:** both program-level WIN gives the frozen label; both WIN otherwise gives WIN-ARM-ONLY; a frozen WIN alone gives WIN-NOT-COTENANCY-ROBUST (no learned win). F2 is the weaker of the two.
+    8. **Placement.** Learned k = 1 cells run on nodes without training jobs (`--exclusive`). Watchdog kills are reported per arm.
+  - **Disclosure.** At d6ae87c2 four existing tests fail without this change (`test_pull_hold.py` × 3, `test_slate_no_split.py::test_harness_serves_the_nosplit_kinds…`). bf79865a leaves the same four failing and adds none.
 
 - 2026-10-14 — **Arm 1 gate pre-registered amendment: w-only pins for the learned cells; per-arm schedule** (the expert's ruling, before any learned k = 1 cell runs; S6).
   - **Why.** The gate reads w only from `scripts_cosim/decision_cost_w.json` in the pinned worktree (`fresh_topo_burst_v1_gate.py:210`). Each learned arm's w needs its real checkpoint, so freezing it is a commit after d6ae87c2.

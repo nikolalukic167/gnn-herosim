@@ -15,13 +15,14 @@ TOPS = ",".join(map(str, TOPOS))
 P, T, M = "uncut_arm1_gnn_eng", "uncut_arm1_twin_eng", "ra_mlp_same"
 
 
-def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2", commit="pin1234abcd"):
-    name = f"cc40s{t}__{w}{r}__{arm}_k100_s{seed}"
+def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2", commit="pin1234abcd", sfx="_k100", env=None):
+    name = f"cc40s{t}__{w}{r}__{arm}{sfx}_s{seed}"
     s = {"averageElapsedTime": mean, "steady_state": {"after_360s": {"mean": mean}}, "num_tasks": 4,
          "endTime": 100.0, "arrival_end": {"last_arrival_s": 99.0}, "code": {"commit": commit, "dirty": False},
          "schedulerCounters": {"sched_queue_wait_seconds": 0.0, "sched_busy_seconds": busy}, "env": {"HEROSIM_WARMTH_PHYSICS": warmth}}
     if ckpt:
         s["env"]["GNN_MODEL_PATH"] = ckpt
+    s["env"].update(env or {})
     with open(os.path.join(d, name + ".summary.json"), "w") as fh:
         json.dump(s, fh)
     big = mean if lat_big is None else lat_big
@@ -58,6 +59,7 @@ def fill(d, ck, primary_mean, twin_mean=2.0, mlp_mean=2.0, bar_mean=2.0, primary
 
 
 def run(d, cm, **kw):
+    kw.setdefault("cotenancy", "off")
     args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", kw.pop("pin", "pin1234"),
             "--primary", P, "--twin", T, "--mlp", M, "--checkpoint-md5", cm]
     for k, v in kw.items():
@@ -282,3 +284,99 @@ def test_arm1_cell_needs_its_w_at_its_pin(gate, chain):
     cells = {("ra_mlp_same_arm1_nosplit", 1, 19537, "g0", "heavy"): {"code": {"commit": w1, "dirty": False}, "_path": "x.summary.json"}}
     with pytest.raises(SystemExit, match="no calibrated w"):
         G.asserts(cells, base, ["ra_mlp_same_arm1_nosplit"], {}, G.w_pin_chain(repo, base, [w1, w2]))
+
+
+def fill_kr(d, ck, primary_mean, twin_mean=2.0, mlp_mean=2.0):
+    for i, t in enumerate(TOPOS):
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                for sd in (1, 2):
+                    cell(d, P, sd, t, w, r, primary_mean - 0.001 * (i + 1), ck, sfx="_kr")
+                    cell(d, T, sd, t, w, r, twin_mean, ck, sfx="_kr")
+                    cell(d, M, sd, t, w, r, mlp_mean, ck, sfx="_kr")
+
+
+@pytest.mark.parametrize("kr_mean, label", [(1.8, "WIN"), (2.0, "WIN-NOT-COTENANCY-ROBUST")])
+def test_cotenancy_verdict_must_also_win(gate, kr_mean, label):
+    d, ck, cm = gate
+    fill(d, ck, 1.8, primary_big=1.6)
+    fill_kr(d, ck, kr_mean)
+    res = run(d, cm, cotenancy="required")
+    assert res["F1"]["label"] == "WIN" and res["combined"]["F1"] == label
+    assert res["cotenancy"]["F1"]["label"] == ("WIN" if kr_mean < 2 else res["cotenancy"]["F1"]["label"])
+    if label != "WIN":
+        assert res["combined"]["MP"] != "MP-ATTRIBUTED"
+
+
+def test_cotenancy_cells_required_and_learned_only(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    with pytest.raises(SystemExit, match="no co-tenancy"):
+        run(d, cm, cotenancy="required")
+    cell(d, "cd_ib0", 0, TOPOS[0], G.WINDOWS[0], G.RUNGS[0], 2.0, sfx="_kr")
+    with pytest.raises(SystemExit, match="not of a learned arm"):
+        run(d, cm, cotenancy="required")
+
+
+GATE = G.GATE_CHANGE_FILES[0]
+
+
+@pytest.fixture
+def gchain(tmp_path):
+    from pathlib import Path
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    base = commit(repo, {G.W_FILE: W0, GATE: "x = 1\n", G.GATE_CHANGE_FILES[1]: "t = 1\n", "other.py": "o = 1\n"}, "base")
+    gc = commit(repo, {GATE: "x = 2\n", G.GATE_CHANGE_FILES[1]: "t = 2\n"}, "kr tag")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, GT, by_bucket=True), "k_cotenancy": 1.3, "_source_k_cotenancy": "r"}}, "gnn+twin w, r")
+    w2 = commit(repo, {G.W_FILE: {**w_with(w_with(W0, GT, by_bucket=True), ("ra_mlp_same_arm1_nosplit",)), "k_cotenancy": 1.3,
+                                  "_source_k_cotenancy": "r"}}, "mlp w")
+    return Path(repo), base, gc, w1, w2
+
+
+def test_gate_change_chain_accepts(gchain):
+    repo, base, gc, w1, w2 = gchain
+    ws = G.w_pin_chain(str(repo), base, [w1, w2], gc)
+    assert list(ws) == [base, gc, w1, w2] and ws[w2]["k_cotenancy"] == 1.3
+
+
+@pytest.mark.parametrize("bad", ["gate_touches_other", "w_pin_touches_gate", "k_below_one", "k_changed", "gc_not_child"])
+def test_gate_change_chain_fails_loud(gchain, bad):
+    repo, base, gc, w1, w2 = gchain
+    pins, g = [w1, w2], gc
+    w2doc = json.loads(subprocess.run(["git", "-C", str(repo), "show", f"{w2}:{G.W_FILE}"], capture_output=True, text=True).stdout)
+    if bad == "gate_touches_other":
+        subprocess.run(["git", "-C", str(repo), "checkout", "-q", base], check=True)
+        g = commit(repo, {GATE: "x = 2\n", G.GATE_CHANGE_FILES[1]: "t = 2\n", "other.py": "o = 2\n"}, "bad gc")
+        pins = [commit(repo, {G.W_FILE: w2doc}, "w")]
+        match = "not exactly"
+    elif bad == "w_pin_touches_gate":
+        pins = [w1, commit(repo, {G.W_FILE: {**w2doc, "_source_ra_mlp_same_arm1_nosplit": "x"}, GATE: "x = 3\n"}, "w + gate")]
+        match = "not only"
+    elif bad == "k_below_one":
+        pins = [w1, commit(repo, {G.W_FILE: {**w2doc, "k_cotenancy": 0.9}}, "k<1")]
+        match = "frozen|k_cotenancy"
+    elif bad == "k_changed":
+        pins = [w1, commit(repo, {G.W_FILE: {**w2doc, "k_cotenancy": 1.4}}, "k changed")]
+        match = "changes or adds"
+    else:
+        subprocess.run(["git", "-C", str(repo), "checkout", "-q", gc], check=True)
+        mid = commit(repo, {"other.py": "o = 9\n"}, "between")
+        g = commit(repo, {GATE: "x = 4\n"}, "gc on top")
+        pins = [commit(repo, {G.W_FILE: w2doc}, "w")]
+        match = "not a child"
+    with pytest.raises(SystemExit, match=match):
+        G.w_pin_chain(str(repo), base, pins, g)
+
+
+def test_charge_check_k_times_frozen_w():
+    w = w_with(W0, GT, by_bucket=True)
+    key = ("ra_gnn_eng_arm1_nosplit", 1, 19537, "g0", "heavy")
+    ok = {"HEROSIM_DECISION_COST_MS_BY_BUCKET": json.dumps({"le10": 6.5 * 1.3, "11_50": 2.0 * 1.3})}
+    G.charge_check(key, {"env": ok}, w, 1.3)
+    with pytest.raises(SystemExit, match="not k = 1.0"):
+        G.charge_check(key, {"env": ok}, w, 1.0)
+    with pytest.raises(SystemExit, match="served decision cost"):
+        G.charge_check(("ra_gnn_eng_arm1_nosplit", 1, 19537, "g0", "moderate"), {"env": {"HEROSIM_DECISION_COST_MS": "6.0"}}, w, 1.0)
+    G.charge_check(("ra_gnn_eng_arm1_nosplit", 1, 19537, "g0", "moderate"), {"env": {"HEROSIM_DECISION_COST_MS": "6.9"}}, w, 1.0)
