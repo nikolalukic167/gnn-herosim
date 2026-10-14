@@ -300,6 +300,8 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-14 — **Arm 2-K0 chain record: unused successor links cancelled** (the expert's ruling; S5). The K0 twin_eng runs finished in link 1 of their chains (seed 1 job 869866, seed 2 job 869872, both COMPLETED); their successor links 869867 / 869868 and 869873 / 869874 would only have started and refused (each link starts only if the previous ended TIMEOUT), so they were cancelled unused after `squeue` / `sacct` showed each predecessor COMPLETED and each successor PENDING. The md5 file lists one link per seed. The same is done for any later chain whose link 1 completes.
+
 - 2026-10-14 — **Arm 1b pre-registered (`uncut_arm1b`): Arm 1 with a batched teacher-forced trainer that can train on a GPU. A separate arm, not a replacement for Arm 1. Filed before any Arm 1b training run** (the user's request relayed by the expert; SCIENTIST's requirements adopted as binding; S5).
   - **Why.** The Arm 1 trainer encodes once per graph, then walks the group's tasks in Python (`train_near_rtt.py:639-668`; `partial_state_edges.py:113-140, 192-203`): per step it builds the partial-state block, refills `partial_state_edge_attr` and scores 3-10 rows, about 500-1,000 tiny sequential ops per group with the full-context term, plus the backward over all of them. GPU utilisation is 10-22 %, and L40S runs 760 s/epoch against 709 s on CPU. Under teacher forcing every committed prefix is known before the walk starts, so nothing in it is sequential.
   - **What changes (the whole list; `src/policy/gnn/batched_tf.py`, flag `NEAR_RTT_BATCHED_TF=1`, default 0).**
