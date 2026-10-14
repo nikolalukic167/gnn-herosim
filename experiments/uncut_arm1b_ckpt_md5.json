@@ -1,12 +1,9 @@
 {
   "_ckpt_dir": "/home/nikola.lukic/gnn-herosim/models",
-  "_note": "Arm 1b -final checkpoints (job 870044, code c94b9459). gnn entries are added when 870044_0/1 finish.",
   "_provenance": {
-    "uncut-arm1b-twin-eng-seed1-final": {"job": "870044_2", "host": "os-cpu-slurm-16", "cpu": "CPU-amd partition node, 128 CPUs; lscpu model not captured (nodes unschedulable for a probe job)"},
-    "uncut-arm1b-twin-eng-seed2-final": {"job": "870044_3", "host": "os-cpu-slurm-17", "cpu": "CPU-amd partition node, 128 CPUs; lscpu model not captured (nodes unschedulable for a probe job)"}
+    "twin_eng|s1": {"job": "870044_2", "host": "os-cpu-slurm-16", "cpu": "lscpu model not captured", "file": "uncut-arm1b-twin-eng-seed1-final.pt"},
+    "twin_eng|s2": {"job": "870044_3", "host": "os-cpu-slurm-17", "cpu": "lscpu model not captured", "file": "uncut-arm1b-twin-eng-seed2-final.pt"}
   },
-  "uncut-arm1b-twin-eng-seed1-final.pt": "2c22db5270c05c3f6a115b6a47fdf903",
-  "uncut-arm1b-twin-eng-seed1-final.contract.json": "1c02f5655f8f0e2363395dad26b7a3d5",
-  "uncut-arm1b-twin-eng-seed2-final.pt": "9e337dd6a9c8659e082e9292102a8fe1",
-  "uncut-arm1b-twin-eng-seed2-final.contract.json": "1deb0b98cb6cbdd7ed3cee10ad50cca0"
+  "twin_eng|s1": "2c22db5270c05c3f6a115b6a47fdf903",
+  "twin_eng|s2": "9e337dd6a9c8659e082e9292102a8fe1"
 }
