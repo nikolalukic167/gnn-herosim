@@ -151,6 +151,39 @@ def cmd_decode(a):
     print(f"decode: {len(res)} groups x {len(names)} checkpoints in {time.time() - t0:.0f} s")
 
 
+# ---- probe: replay order and timing on a few groups (stored-RTT identity only; no model output) -------------------------------------------------------
+
+def _label_rows(ds: str):
+    rows = [json.loads(l) for l in open(f"{ds}/placements/placements.jsonl")]
+    head, plans = rows[0], [r for r in rows[1:] if r.get("rtt") is not None]
+    return head, plans
+
+
+def cmd_probe(a):
+    sys.path.insert(0, str(REPO / "scripts_cosim"))
+    import uncut_ils as U
+
+    for gid in a.groups.split(","):
+        ds = dataset_dir(gid)
+        head, plans = _label_rows(ds)
+        trace = [int(x) for x in head["trace_task_ids"]]
+        order = sorted(range(len(trace)), key=lambda i: trace[i])        # dataset index of each gid-ascending slot
+        t0 = time.time()
+        d = U.decision_pass({"dataset": ds, "sim_input": a.sim_input}, "cd_ib0", 0, 1, 1, None, check_arm=False)
+        t_dec = time.time() - t0
+        n = len(trace)
+        for r in plans:
+            pl = {int(k): v for k, v in r["placement_plan"].items()}
+            variants = {"dataset_order": [list(pl[i]) for i in range(n)], "gid_order": [list(pl[i]) for i in order]}
+            for name, plan in variants.items():
+                for tname, types in (("types_ds", d["types"]), ("types_gid", [d["types"][i] for i in order])):
+                    t1 = time.time()
+                    rt, setup, runs = U.replay_rtts(d["spec"], types, [plan])
+                    print(json.dumps({"group": gid, "n": n, "plan_order": name, "types": tname, "stored_rtt": r["rtt"], "replay_rtt": rt[0], "rel_err": abs(rt[0] - r["rtt"]) / max(1.0, abs(r["rtt"])),
+                                      "decision_s": t_dec, "replay_s": time.time() - t1, "hand_len": len(d["hand"]), "hand_eq_label_dsorder": [list(map(int, x)) for x in d["hand"]] == variants["dataset_order"]}))
+        print("hand", d["hand"][:3], "types", d["types"][:4], "trace", trace[:4], flush=True)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -162,8 +195,11 @@ def main(argv=None):
     d.add_argument("--shard", required=True)
     d.add_argument("--out", required=True)
     d.add_argument("--runs", default="")
+    pr = sub.add_parser("probe")
+    pr.add_argument("--groups", required=True)
+    pr.add_argument("--sim-input", default="/home/nikola.lukic/gnn-herosim/data/nofs-ids")
     a = ap.parse_args(argv)
-    return {"prep": cmd_prep, "decode": cmd_decode}[a.cmd](a) or 0
+    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":
