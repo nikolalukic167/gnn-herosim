@@ -312,12 +312,11 @@ class BatchedTeacherForced:
         self.ps = torch.from_numpy(ps)
         self.seg = np.repeat(np.arange(S_), cnt)
         self.col = np.arange(tot) - np.repeat(self.offs, cnt)
-        tgt = np.array([self.plans[k, t] for (_, k, t) in feats], dtype=np.int64)
-        self.target_row = self.offs + tgt  # the label's row in the flat row list
         self.cmax = int(cnt.max())
 
-    def state_logps(self, model: Any, data: Any, task_emb: Tensor, platform_emb: Tensor, ps: Tensor = None) -> Tensor:
-        """log p(label | state) for every distinct state, [S]. One edge-scorer call over all their rows."""
+    def state_log_softmax(self, model: Any, data: Any, task_emb: Tensor, platform_emb: Tensor, ps: Tensor = None) -> Tensor:
+        """log_softmax over each distinct state's candidates, [S, Cmax] (-inf padded). One edge-scorer call over all their rows.
+        A state is shared by every plan that reaches it; the plans differ in which candidate they pick there (``step_logps``)."""
         S = self.S
         dev = task_emb.device
         eidx = torch.as_tensor(S.edge_rows[self.row_in_R], device=dev)
@@ -333,8 +332,15 @@ class BatchedTeacherForced:
         col = torch.as_tensor(self.col, device=dev)
         pad = torch.full((len(self.counts), self.cmax), float("-inf"), device=dev, dtype=logits.dtype)
         pad = pad.index_put((seg, col), logits)
-        lp = F.log_softmax(pad, dim=-1)
-        return lp.reshape(-1)[torch.as_tensor(np.arange(len(self.counts)) * self.cmax + (self.target_row - self.offs), device=dev)]
+        return F.log_softmax(pad, dim=-1)
+
+    def step_logps(self, lp: Tensor, name: str) -> Tensor:
+        """[K, n] log p(plan_k[t] | its state) for the "prefix" or "full" states."""
+        dev = lp.device
+        sid = torch.as_tensor(self.state_of[name], device=dev)
+        if bool((sid < 0).any()):
+            raise ValueError(f"NEAR_RTT_BATCHED_TF: the {name} states were not built")
+        return lp[sid, torch.as_tensor(self.plans, device=dev)]
 
 
 def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int]], order: Sequence[int],
@@ -343,11 +349,8 @@ def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[in
     _unsupported(model, ctx)
     b = BatchedTeacherForced(data, ctx, plans, order, with_full=full_context_weight > 0.0)
     task_emb, platform_emb = model._encode(data)  # prefix-free: the partial-state block never enters the encode
-    lp = b.state_logps(model, data, task_emb, platform_emb)
-    dev = lp.device
-    pre = torch.as_tensor(b.state_of["prefix"], device=dev)
-    loss = -torch.logsumexp(lp[pre].sum(dim=1), dim=0)
+    lp = b.state_log_softmax(model, data, task_emb, platform_emb)
+    loss = -torch.logsumexp(b.step_logps(lp, "prefix").sum(dim=1), dim=0)
     if full_context_weight > 0.0:
-        full = torch.as_tensor(b.state_of["full"], device=dev)
-        loss = loss + full_context_weight * -torch.logsumexp(lp[full].sum(dim=1), dim=0)
+        loss = loss + full_context_weight * -torch.logsumexp(b.step_logps(lp, "full").sum(dim=1), dim=0)
     return loss
