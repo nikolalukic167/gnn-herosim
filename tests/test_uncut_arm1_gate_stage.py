@@ -21,7 +21,7 @@ def src(tmp_path):
         for seed in (1, 2):
             b = f"{arm}{seed}".encode()
             (ck / f"m-{arm.replace('_', '-')}-seed{seed}.pt").write_bytes(b)
-            (ck / f"m-{arm.replace('_', '-')}-seed{seed}.contract.json").write_text("{}")
+            (ck / f"m-{arm.replace('_', '-')}-seed{seed}.contract.json").write_text(json.dumps({"physics_env": {"warmth_physics": "node_disk_v2"}}))
             want[f"{arm}|s{seed}"] = hashlib.md5(b).hexdigest()
     md5 = tmp_path / "md5.json"
     md5.write_text(json.dumps(want))
@@ -65,6 +65,15 @@ def test_duplicate_md5_across_keys_fails(src):
     md5.write_text(json.dumps(want))
     with pytest.raises(SystemExit, match="several keys"):
         S.main(args(t, ck, ig, md5, split))
+
+
+@pytest.mark.parametrize("contract", [{"physics_env": {}}, {}, {"physics_env": {"warmth_physics": "platform_reuse_v1"}}])
+def test_contract_warmth_must_be_node_disk_v2(src, contract):
+    t, ck, ig, md5, split = src
+    (ck / "m-mlp-same-seed2.contract.json").write_text(json.dumps(contract))
+    with pytest.raises(SystemExit, match="warmth_physics"):
+        S.main(args(t, ck, ig, md5, split))
+    assert not (t / "in").exists()
 
 
 def test_existing_dest_fails(src):
