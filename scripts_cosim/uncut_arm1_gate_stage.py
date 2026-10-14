@@ -6,7 +6,7 @@
 
 --md5 holds {"<arm>|s<seed>": md5} for arm in gnn_eng, twin_eng, mlp_same (S7's training log). --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
-file gives, and no two keys may share an md5; each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
+file gives, no two keys may share an md5, and every contract must carry physics_env.warmth_physics == node_disk_v2 (the bar's); each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
 ra_<arm>_arm1, and its md5 is checked again after the copy. wf1_moderate / wf1_heavy are symlinked from --inputs-group; the
 split is copied under its own name (pass its basename as R1A_SPLIT). <dest> must not exist. Writes <dest>/STAGE.json.
 """
@@ -18,6 +18,7 @@ import shutil
 import sys
 
 ARMS = ("gnn_eng", "twin_eng", "mlp_same")
+WARMTH = "node_disk_v2"
 
 
 def md5(path):
@@ -62,6 +63,9 @@ def main(argv=None):
                 raise SystemExit(f"FAIL LOUD: {key}: {p} missing")
         if md5(src) != m:
             raise SystemExit(f"FAIL LOUD: {key}: {src} md5 {md5(src)} is not the training log's {m}")
+        warmth = (json.load(open(side)).get("physics_env") or {}).get("warmth_physics")
+        if warmth != WARMTH:
+            raise SystemExit(f"FAIL LOUD: {key}: {side} physics_env.warmth_physics is {warmth!r}, not the gate's {WARMTH!r}")
         plan.append((key, m, src, side, f"{a.stem}-{arm.replace('_', '-')}-seed{seed}"))
     os.makedirs(os.path.join(a.dest, "models"))
     for r in ("wf1_moderate", "wf1_heavy"):
