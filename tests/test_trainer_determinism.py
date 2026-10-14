@@ -611,3 +611,30 @@ def test_arm2_flags_on_teacher_forced_loss_is_bit_identical_on_a_peer_cache():
         return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
     _assert_state_dicts_identical(one_run(), one_run(), "Arm 2 teacher-forced CE")
+
+
+def test_arm1b_batched_teacher_forced_training_is_bit_identical_at_a_fixed_seed():
+    """uncut_groups_s0_v1 Arm 1b (NEAR_RTT_BATCHED_TF=1): three optimiser steps through the batched loss, twice, on CPU, and on CUDA
+    when available (torch.use_deterministic_algorithms + CUBLAS_WORKSPACE_CONFIG). Runs on the Arm 1 cache; skipped when absent.
+    The cases live in tests/test_batched_tf.py."""
+    sys.path.insert(0, str(REPO_ROOT / "tests"))
+    import test_batched_tf as T
+
+    if not T.CACHE.exists():
+        pytest.skip(f"no Arm 1 cache at {T.CACHE}")
+    import pickle
+
+    with open(T.CACHE, "rb") as handle:
+        graphs = [g for g in pickle.load(handle) if (getattr(g, "tied_optimal_logit_plans", {}) or {}).get(T.ALPHA)]
+    for key, value in T.ENV.items():
+        os.environ.setdefault(key, value)
+    graph = T._pick(graphs)["multi_plan"]
+    torch.set_num_threads(1)
+    a = T._three_steps(graph, torch.device("cpu"))
+    b = T._three_steps(graph, torch.device("cpu"))
+    _assert_state_dicts_identical(a, b, "batched teacher-forced loss (CPU)")
+    if torch.cuda.is_available():
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+        a = T._three_steps(graph, torch.device("cuda"))
+        b = T._three_steps(graph, torch.device("cuda"))
+        _assert_state_dicts_identical(a, b, "batched teacher-forced loss (CUDA)")
