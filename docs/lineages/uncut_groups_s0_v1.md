@@ -338,6 +338,22 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
        - It computes F1/F2 twice: the learned arms' k100 cells and their `_kr` cells, each against the same hand cells.
        - **Combined label:** both program-level WIN gives the frozen label; both WIN otherwise gives WIN-ARM-ONLY; a frozen WIN alone gives WIN-NOT-COTENANCY-ROBUST (no learned win). F2 is the weaker of the two.
     8. **Placement.** Learned k = 1 cells run on nodes without training jobs (`--exclusive`). Watchdog kills are reported per arm.
+  - **Measured so far.**
+    - **r_hand** (jobs 869835 exclusive on slurm-9 and 869836 shared on slurm-10, both 4/4 cells, 0 failed; table `cotenancy/r_hand_cdib0.json`, md5 ac8fc28b). `cd_ib0` w in ms/plan:
+
+      | rung | frozen (863811) | exclusive | shared (N = 8 × 8) | r_hand = shared ÷ exclusive | exclusive ÷ frozen |
+      |---|---|---|---|---|---|
+      | moderate | 0.01160 | 0.00808 | 0.01156 | 1.430 | 0.697 |
+      | heavy | 0.01098 | 0.00749 | 0.01099 | 1.468 | 0.682 |
+
+      - The shared condition reproduces the frozen w to within 0.4 %, so it is representative of the conditions the frozen w was measured under.
+      - All three runs are sim-identical per cell (mean latency and plans evaluated).
+      - **r_hand = 1.468.** The final r waits for r_learned.
+    - **Bar rerun 869828** (d6ae87c2, slurm-6 beside two a1-train jobs): 192/192 cells, **0 watchdog kills**, 0 failed. `cd_ib0_k100` is sim-identical to 869497 on 96/96 cells; only the wall fields and the hostname differ.
+    - **Hand-bias bound at r = 1.468** (869828 cells; total decision charge per task ÷ mean task latency):
+      - `cd_ib0`: median 0.0062 % moderate, 0.0094 % heavy; max 0.0075 % / 0.0113 %.
+      - `cd`: median 0.0061 % moderate, 0.0086 % heavy; max 0.0074 % / 0.0103 %.
+      - Charge × (1 − 1/r) is at most 0.0036 % of mean latency, under the 0.1 % line by about 28×. The frozen hand w stands at this r. It is rechecked at the final r; the line is crossed only above r ≈ 10.
   - **Disclosure.** At d6ae87c2 four existing tests fail without this change (`test_pull_hold.py` × 3, `test_slate_no_split.py::test_harness_serves_the_nosplit_kinds…`). bf79865a leaves the same four failing and adds none.
 
 - 2026-10-14 — **Arm 1 gate pre-registered amendment: w-only pins for the learned cells; per-arm schedule** (the expert's ruling, before any learned k = 1 cell runs; S6).
