@@ -174,9 +174,9 @@ def test_per_step_logps_equal_the_sequential_walk(graphs, which):
     with torch.no_grad():
         b = BatchedTeacherForced(graph, ctx, plans, order, with_full=True)
         task_emb, platform_emb = model._encode(graph)
-        lp = b.state_logps(model, graph, task_emb, platform_emb).numpy()
+        lp = b.state_log_softmax(model, graph, task_emb, platform_emb)
         seq_pre, seq_full = _sequential_logps(graph, model, ctx, plans, order, True)
-    got_pre, got_full = lp[b.state_of["prefix"]], lp[b.state_of["full"]]
+    got_pre, got_full = b.step_logps(lp, "prefix").numpy(), b.step_logps(lp, "full").numpy()
     assert np.abs(got_pre - seq_pre).max() <= 1e-5, np.abs(got_pre - seq_pre).max()
     assert np.abs(got_full - seq_full).max() <= 1e-5, np.abs(got_full - seq_full).max()
 
@@ -196,9 +196,9 @@ def test_caps_are_empty_on_the_registered_rung_and_the_capped_columns_agree(grap
     plan = graph.tied_optimal_logit_plans[ALPHA][:1]
     with torch.no_grad():
         b = BatchedTeacherForced(graph, ctx, plan, order, with_full=False)
-        lp = b.state_logps(model, graph, *model._encode(graph)).numpy()
+        lp = b.state_log_softmax(model, graph, *model._encode(graph))
         seq, _ = _sequential_logps(graph, model, ctx, plan, order, False)
-    assert np.abs(lp[b.state_of["prefix"]] - seq).max() <= 1e-5
+    assert np.abs(b.step_logps(lp, "prefix").numpy() - seq).max() <= 1e-5
 
 
 def test_feature_blocks_equal_the_sequential_blocks(graphs):
@@ -263,16 +263,16 @@ def test_causality_later_placements_do_not_reach_earlier_steps(graphs, which):
         lps = []
         for pl in (plan, pert):
             b = BatchedTeacherForced(graph, ctx, [pl], order, with_full=False)
-            lps.append(b.state_logps(model, graph, task_emb, platform_emb)[torch.as_tensor(b.state_of["prefix"][0, early])])
+            lps.append(b.step_logps(b.state_log_softmax(model, graph, task_emb, platform_emb), "prefix")[0, early])
     assert torch.equal(lps[0], lps[1]), float((lps[0] - lps[1]).abs().max())
 
     b = BatchedTeacherForced(graph, ctx, [pert], order, with_full=False)
     ps = b.ps.clone().requires_grad_(True)
     with torch.no_grad():
         task_emb, platform_emb = model._encode(graph)
-    lp = b.state_logps(model, graph, task_emb, platform_emb, ps=ps)
+    lp = b.step_logps(b.state_log_softmax(model, graph, task_emb, platform_emb, ps=ps), "prefix")
     sid = b.state_of["prefix"][0]
-    lp[torch.as_tensor(sid[early])].sum().backward()
+    lp[0, early].sum().backward()
     later_rows = np.concatenate([np.arange(b.offs[sid[t]], b.offs[sid[t]] + b.counts[sid[t]]) for t in order[s + 1:]])
     early_rows = np.concatenate([np.arange(b.offs[sid[t]], b.offs[sid[t]] + b.counts[sid[t]]) for t in early])
     assert float(ps.grad[later_rows].abs().max()) == 0.0
