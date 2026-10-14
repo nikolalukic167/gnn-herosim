@@ -2,7 +2,7 @@
 
 Ground truth is the sequential walk in train_near_rtt.loss_tied_teacher_forced_ce (Arm 1), executed from the trainer's own source
 (the trainer trains at import and cannot be imported). Runs on a real Arm 1 cache, BATCHED_TF_CACHE (default
-/share/nikola.lukic/uncut_arm1/pre/c/graphs.pkl); every test skips when it is absent. Graphs used: a typical one, the largest
+/share/nikola.lukic/uncut_arm1/cache_run/cache/graphs.pkl); every test skips when it is absent. Graphs used: a typical one, the largest
 101-256-task group, and a graph with more than one tied plan.
 
   (a) every per-step log-prob of the batched path equals the sequential one within 1e-5, dropout off, prefix and full-context states;
@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-CACHE = Path(os.environ.get("BATCHED_TF_CACHE", "/share/nikola.lukic/uncut_arm1/pre/c/graphs.pkl"))
+CACHE = Path(os.environ.get("BATCHED_TF_CACHE", "/share/nikola.lukic/uncut_arm1/cache_run/cache/graphs.pkl"))
 ENV = {"PARTIAL_STATE_CONTRACT": "partial_state_v5", "PARTIAL_STATE_LOAD_SECONDS": "1", "PARTIAL_STATE_EXCHANGE_SECONDS": "1",
        "PARTIAL_STATE_PEER_MASS": "1"}
 ALPHA = "inf"
