@@ -84,7 +84,7 @@ def _pick(graphs):
     typical = sorted(graphs, key=lambda g: int(g.n_tasks))[len(graphs) // 2]
     big = [g for g in graphs if 101 <= int(g.n_tasks) <= 256]
     assert big, "the cache has no 101-256-task group"
-    small = [g for g in graphs if 8 <= int(g.n_tasks) <= 30 and max(len(c) for c in g.task_logit_to_placement) > 1]
+    small = [g for g in graphs if 8 <= int(g.n_tasks) <= 30 and max(len(g.task_logit_to_placement[t]) for t in range(int(g.n_tasks))) > 1]
     return {"typical": typical, "group101_256": min(big, key=lambda g: int(g.n_tasks)),
             "multi_plan": _with_extra_plans(small[len(small) // 2], _order(small[len(small) // 2]))}
 
