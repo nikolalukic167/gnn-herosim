@@ -56,3 +56,26 @@ def test_arm2_arm_without_its_own_w_fails_loud_and_never_borrows_nosplit():
     for kind in (f"{GNN}_nosplit", f"{TWIN}_nosplit"):
         with pytest.raises(SystemExit, match="no calibrated w|null"):
             G.dc_cost_ms(kind, 1.0, "heavy")
+
+
+def test_arm2k0_kinds_are_their_own_gate_arms_with_k0_sidecars(tmp_path):
+    for base in ("ra_gnn_eng_arm2k0", "ra_twin_eng_arm2k0"):
+        k = base + "_nosplit"
+        assert k in G.R1A_ARMS and base in G.RA_KINDS and base in G.ARM2_ALL and base not in G.ARM2_KINDS
+        assert next((k[:-len(s)] for s in G.SUFFIXES if k.endswith(s)), k) == base
+        assert G.split_dc(f"{k}_k100") == (k, 1.0)
+        assert SC.ARM2_RANDOM_PREFIX_K[base] == 0
+    assert "ra_twin_eng_arm2k0" in G.RA_MP_OFF and "ra_gnn_eng_arm2k0" not in G.RA_MP_OFF
+    assert 'stem = os.environ.get("R1A_ARM2K0_STEM", "uncut-arm2k0")' in open(G.__file__).read()
+
+
+def test_sidecheck_takes_k0_at_random_prefix_k0_and_still_refuses_arm2_at_k0(tmp_path, monkeypatch):
+    monkeypatch.setenv("R1A_SLATE", "declared_pruning_v1_uncapped")
+    twin = dict(disable_message_passing=True, mp_bipartite_edge_conv=False, mp_bipartite_edge_attr_zero=False)
+    for arm, over in (("ra_gnn_eng_arm2k0", {}), ("ra_twin_eng_arm2k0", twin)):
+        k0, s = _sidecar(tmp_path, random_prefix_k=0, **over)
+        assert SC.check_ra(json.load(open(k0)), arm, s, "inf") == 0
+        assert SC.check_ra(json.load(open(k0)), arm.replace("arm2k0", "arm2"), s, "inf") == 1  # a K0 checkpoint served as Arm 2
+        c2, s2 = _sidecar(tmp_path, random_prefix_k=2, **over)
+        assert SC.check_ra(json.load(open(c2)), arm, s2, "inf") == 1  # an Arm 2 checkpoint served as K0
+        assert SC.check_ra(json.load(open(c2)), arm.replace("arm2k0", "arm2"), s2, "inf") == 0
