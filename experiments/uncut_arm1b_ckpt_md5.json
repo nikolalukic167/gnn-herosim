@@ -1,9 +1,13 @@
 {
   "_ckpt_dir": "/home/nikola.lukic/gnn-herosim/models",
   "_provenance": {
+    "gnn_eng|s1": {"job": "870044_0", "host": "os-cpu-slurm-8", "cpu": "AMD EPYC 9335 32-Core Processor", "file": "uncut-arm1b-gnn-eng-seed1-final.pt"},
+    "gnn_eng|s2": {"job": "870044_1", "host": "os-cpu-slurm-10", "cpu": "AMD EPYC 9335 32-Core Processor", "file": "uncut-arm1b-gnn-eng-seed2-final.pt"},
     "twin_eng|s1": {"job": "870044_2", "host": "os-cpu-slurm-16", "cpu": "lscpu model not captured", "file": "uncut-arm1b-twin-eng-seed1-final.pt"},
     "twin_eng|s2": {"job": "870044_3", "host": "os-cpu-slurm-17", "cpu": "lscpu model not captured", "file": "uncut-arm1b-twin-eng-seed2-final.pt"}
   },
+  "gnn_eng|s1": "f8b8be77761a020b1179f0853ae2f0a2",
+  "gnn_eng|s2": "95f391d1a1638f456cd3e091f01f10c6",
   "twin_eng|s1": "2c22db5270c05c3f6a115b6a47fdf903",
   "twin_eng|s2": "9e337dd6a9c8659e082e9292102a8fe1"
 }
