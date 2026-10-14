@@ -5,11 +5,16 @@ multiplicity and ids, 1c7c8682 MLP trained) and SCIENTIST's gate-reader checklis
   uncut_arm_gate_read.py --gate <OUT>[,<OUT>] --topos 19537,...,19548 --topos-sha256 H --pin P
                          --primary uncut_arm1_gnn_eng --twin uncut_arm1_twin_eng [--mlp ra_mlp_same] [--reference ra_gnn_eng_nosplit]
                          --checkpoint-md5 ckpt_md5.json[,ref_md5.json] [--suffix _k100] [--out read.json]
+                         [--repo <git checkout> --w-pins W1[,W2]]
 
 Cells: <gate>/cc40s<topo>__g<w><rung>__<arm><suffix>_s<seed>.summary.json, windows g0-g3, rungs moderate/heavy. Learned arms at seeds 1 and 2;
 the slate_fix_v1 reference at seed 1; hand arms (cd_ib0, cd) at seed 0. Beside each summary: .log, .tasks.npy, .tasks_bsz.npy and .tasks_lock.npy.
 
-Asserts (fail loud): every cell's code.commit starts with --pin and code.dirty is false, and so does its log's [CODE] banner; sha256 of the comma-joined --topos equals --topos-sha256;
+Asserts (fail loud): every cell's code.commit is --pin and code.dirty is false, and so is its log's [CODE] banner;
+w-only pins (pre-registered amendment, 2026-10-14): a learned cell may instead run at one of --w-pins, which must form an ancestry chain
+--pin -> W1 -> W2 whose every `git diff --name-only --pin..Wi` is exactly scripts_cosim/decision_cost_w.json; every key already in the w file
+is identical at the next pin (frozen once committed), every added key is an Arm 1 learned arm's (ARM1_W_KINDS, in w_ms_per_plan /
+w_ms_per_plan_by_bucket, or a top-level _source_<kind> note), and an Arm 1 learned cell's own w key exists at its pin; hand cells stay at --pin; sha256 of the comma-joined --topos equals --topos-sha256;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -41,6 +46,7 @@ import json
 import os
 import re
 import statistics as st
+import subprocess
 import sys
 
 import numpy as np
@@ -57,6 +63,8 @@ SEEDS = (1, 2)
 WIN_MED, SEED_MED, ALPHA, PROG_ALPHA = -2.0, -1.0, 0.05, 0.025
 COLLAPSE_X, TAIL_S, OPEN_T = 3.0, 120.0, 360.0
 BUCKETS = (("le10", 0, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("gt100", 101, 10 ** 9))
+W_FILE = "scripts_cosim/decision_cost_w.json"
+ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
 NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.(summary|failed)\.json$")
 
 
@@ -105,6 +113,55 @@ def log_banner(path):
     return None
 
 
+def git(repo, *args):
+    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+    if r.returncode:
+        raise SystemExit(f"FAIL LOUD: git {' '.join(args)} in {repo}: {r.stderr.strip()}")
+    return r.stdout
+
+
+def w_frozen(prev, cur, sha):
+    """Every key of `prev` identical in `cur`; every key `cur` adds belongs to an Arm 1 learned arm."""
+    for top, v in prev.items():
+        if top not in cur:
+            raise SystemExit(f"FAIL LOUD: {sha} drops {W_FILE} key {top!r}")
+        if isinstance(v, dict):
+            for k, x in v.items():
+                if json.dumps(cur[top].get(k), sort_keys=True) != json.dumps(x, sort_keys=True):
+                    raise SystemExit(f"FAIL LOUD: {sha} changes frozen {W_FILE} key {top}[{k!r}]")
+            extra = sorted(set(cur[top]) - set(v) - set(ARM1_W_KINDS))
+        else:
+            extra = [] if json.dumps(cur[top], sort_keys=True) == json.dumps(v, sort_keys=True) else [top]
+        if extra:
+            raise SystemExit(f"FAIL LOUD: {sha} changes or adds {W_FILE} keys {top}{extra} outside the Arm 1 learned arms {ARM1_W_KINDS}")
+    extra = sorted(set(cur) - set(prev) - {f"_source_{k}" for k in ARM1_W_KINDS})
+    if extra:
+        raise SystemExit(f"FAIL LOUD: {sha} adds top-level {W_FILE} keys {extra}")
+
+
+def w_pin_chain(repo, base, w_pins):
+    """{full sha: the w file at it} for --pin and the w-only pins, after the amendment's ancestry, diff and freeze checks."""
+    shas = [git(repo, "rev-parse", "--verify", p + "^{commit}").strip() for p in [base, *w_pins]]
+    for prev, cur in zip(shas, shas[1:]):
+        if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", prev, cur]).returncode:
+            raise SystemExit(f"FAIL LOUD: w-only pins are not a chain from {base}: {prev} is not an ancestor of {cur}")
+    for cur in shas[1:]:
+        names = git(repo, "diff", "--name-only", shas[0], cur).split()
+        if names != [W_FILE]:
+            raise SystemExit(f"FAIL LOUD: {cur} differs from {base} in {names}, not only {W_FILE}")
+    ws = {sha: json.loads(git(repo, "show", f"{sha}:{W_FILE}")) for sha in shas}
+    for prev, cur in zip(shas, shas[1:]):
+        w_frozen(ws[prev], ws[cur], cur)
+    return ws
+
+
+def pin_match(commit, pins):
+    """The pin a cell's commit (summary or banner, >= 7 characters) names, prefix either way; None for none."""
+    c = str(commit or "")
+    hit = [p for p in pins if len(c) >= 7 and (c.startswith(p) or p.startswith(c))]
+    return hit[0] if len(hit) == 1 else None
+
+
 def ckpt_arm(arm):
     """The training log's arm name for a gate arm: ra_gnn_eng_arm1_nosplit -> gnn_eng (S7's keys); an exact key wins."""
     arm = arm[3:] if arm.startswith("ra_") else arm
@@ -113,13 +170,20 @@ def ckpt_arm(arm):
     return arm
 
 
-def asserts(cells, pin, learned, ckpt):
+def asserts(cells, pin, learned, ckpt, w_pins=None):
+    """w_pins: {full sha: w file} from w_pin_chain, --pin's own entry included; None without --w-pins (every cell at --pin)."""
     warmth = {}
+    base = pin if w_pins is None else next(iter(w_pins))
     for key, s in cells.items():
         warmth.setdefault((s.get("env") or {}).get("HEROSIM_WARMTH_PHYSICS"), []).append(key)
         code = s.get("code") or {}
-        if not str(code.get("commit", "")).startswith(pin) or code.get("dirty") is not False:
-            raise SystemExit(f"FAIL LOUD: {key} code {code.get('commit')} dirty={code.get('dirty')} is not the gate pin {pin}")
+        allowed = list(w_pins) if (w_pins and key[0] in learned) else [base]
+        at = pin_match(code.get("commit"), allowed)
+        if at is None or code.get("dirty") is not False:
+            raise SystemExit(f"FAIL LOUD: {key} code {code.get('commit')} dirty={code.get('dirty')} is not the gate pin {pin}"
+                             + (f" or a w-only pin" if allowed != [base] else ""))
+        if w_pins and key[0] in ARM1_W_KINDS and key[0] not in w_pins[at].get("w_ms_per_plan", {}):
+            raise SystemExit(f"FAIL LOUD: {key} ran at {at}, whose {W_FILE} has no calibrated w for {key[0]}")
         bsz = s["_path"].replace(".summary.json", ".tasks_bsz.npy")
         if not os.path.exists(bsz):
             raise SystemExit(f"FAIL LOUD: {key} has no per-task batch-size sidecar {bsz}")
@@ -127,8 +191,8 @@ def asserts(cells, pin, learned, ckpt):
         if a.ndim != 2 or a.shape[1] != 5 or (a[:, 3] < 0).any() or (a[:, 4] < 0).any():
             raise SystemExit(f"FAIL LOUD: {key} per-task sidecar lacks groupSize/servedBatchSize on some task")
         banner = log_banner(s["_path"].replace(".summary.json", ".log"))
-        if banner is None or len(banner[0]) < 7 or not (banner[0].startswith(pin) or pin.startswith(banner[0])) or banner[1] != "False":
-            raise SystemExit(f"FAIL LOUD: {key} log banner {banner} is not the gate pin {pin} with dirty=False")
+        if banner is None or pin_match(banner[0], [at]) is None or banner[1] != "False":
+            raise SystemExit(f"FAIL LOUD: {key} log banner {banner} is not the cell's pin {at} with dirty=False")
         lk_path = s["_path"].replace(".summary.json", ".tasks_lock.npy")
         if not os.path.exists(lk_path):
             raise SystemExit(f"FAIL LOUD: {key} has no per-task lock-wait sidecar {lk_path}")
@@ -326,6 +390,8 @@ def main(argv=None):
     ap.add_argument("--suffix", default="_k100")
     ap.add_argument("--corpus", default="uncut_arm1, 12,000 states")
     ap.add_argument("--out")
+    ap.add_argument("--repo", default="")
+    ap.add_argument("--w-pins", default="")
     a = ap.parse_args(argv)
     print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
     if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
@@ -340,9 +406,15 @@ def main(argv=None):
                 if k in ckpt and ckpt[k] != v:
                     raise SystemExit(f"FAIL LOUD: checkpoint md5 files disagree on {k}")
                 ckpt[k] = v
-    warmth = asserts(cells, a.pin, learned, ckpt)
+    w_pins = None
+    if a.w_pins:
+        if not a.repo:
+            raise SystemExit("FAIL LOUD: --w-pins needs --repo, a git checkout holding --pin and every w-only pin")
+        w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","))
+    warmth = asserts(cells, a.pin, learned, ckpt, w_pins)
     ref_seeds = (1,)
-    res = {"filed": FILED, "pin": a.pin, "topos": topos, "warmth_physics": warmth}
+    res = {"filed": FILED, "pin": a.pin, "topos": topos, "warmth_physics": warmth,
+           "w_pins": {sha: sorted(k for k in ARM1_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
     res["health"] = {arm: health(cells, failed, arm, sd, topos) for arm, sd in
                      [(a.primary, SEEDS), (a.twin, SEEDS)] + ([(a.mlp, SEEDS)] if a.mlp else []) + ([(a.reference, ref_seeds)] if a.reference else [])
                      + [(BAR, (0,)), (CD, (0,))]}
