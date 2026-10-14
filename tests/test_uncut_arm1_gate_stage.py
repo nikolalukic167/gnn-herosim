@@ -103,3 +103,34 @@ def test_kr_serves_arm1_learned_kinds_at_the_frozen_cotenancy_k(tmp_path, monkey
     for hand in ("cd_ib0_kr", "cd_kr", "ra_gnn_eng_nosplit_kr"):
         with pytest.raises(SystemExit, match="only the Arm 1"):
             G.split_dc(hand)
+
+
+def test_gate_knows_arm1b_kinds_and_their_kr_cells(tmp_path, monkeypatch):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    assert G.ARM1B_KINDS == ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
+    for k in G.ARM1B_KINDS:
+        assert k in G.RA_KINDS and f"{k}_nosplit" in G.R1A_ARMS and f"{k}_nosplit" in G.R1A_NOSPLIT
+    assert "ra_twin_eng_arm1b" in G.RA_MP_OFF and "ra_gnn_eng_arm1b" not in G.RA_MP_OFF
+    assert G.split_dc("ra_gnn_eng_arm1b_nosplit_k100") == ("ra_gnn_eng_arm1b_nosplit", 1.0)
+    f = tmp_path / "w.json"
+    f.write_text(json.dumps({**json.load(open(G.DC_W_FILE)), "k_cotenancy": 1.5}))
+    monkeypatch.setattr(G, "DC_W_FILE", str(f))
+    assert G.split_dc("ra_twin_eng_arm1b_nosplit_kr") == ("ra_twin_eng_arm1b_nosplit", 1.5)
+    with pytest.raises(SystemExit, match="only the Arm 1"):
+        G.split_dc("ra_mlp_same_arm1b_nosplit_kr")
+
+
+@pytest.mark.parametrize("btf,arm1_ok,arm1b_ok", [("absent", True, False), (None, True, False), (False, True, False),
+                                                  (True, False, True), (1, False, False), (0, False, False), ("true", False, False)])
+def test_trainer_check_tells_arm1b_from_arm1(tmp_path, btf, arm1_ok, arm1b_ok):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    side = tmp_path / "c.contract.json"
+    side.write_text(json.dumps({} if btf == "absent" else {"batched_teacher_forced": btf}))
+    for kinds, ok in ((G.ARM1_KINDS, arm1_ok), (G.ARM1B_KINDS, arm1b_ok)):
+        for k in kinds:
+            if ok:
+                G.arm1_trainer_check(k, str(side))
+            else:
+                with pytest.raises(SystemExit, match="batched_teacher_forced"):
+                    G.arm1_trainer_check(k, str(side))
+    G.arm1_trainer_check("ra_gnn_eng", str(side))
