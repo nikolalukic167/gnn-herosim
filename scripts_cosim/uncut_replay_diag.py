@@ -82,7 +82,8 @@ def cmd_prep(a):
 
 def _load_models(names: Sequence[str]):
     for k, v in {**ENV, "HEROSIM_TRANSFER_MODEL": "pipelined", "HEROSIM_REPLICA_RELEASE": "1", "HEROSIM_SCALEOUT": "kpa", "HEROSIM_WARMTH_PHYSICS": "node_disk_v2",
-                                    "GNN_SERVE_CANDIDATE_SLATE": "declared_pruning_v1_uncapped"}.items():
+                                    "GNN_SERVE_CANDIDATE_SLATE": "declared_pruning_v1_uncapped", "GNN_DECODE_MODE": "masked_topo",
+                                    "GNN_BATCH_BY_PEER_GROUP": "1"}.items():
         os.environ[k] = v
     from src.placement import replica_rule
     from src.executesimulation import load_gnn_model
