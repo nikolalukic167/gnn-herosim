@@ -369,6 +369,15 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
       - The shared condition reproduces the frozen w to within 0.4 %, so it is representative of the conditions the frozen w was measured under.
       - All three runs are sim-identical per cell (mean latency and plans evaluated).
       - **r_hand = 1.468.** The final r waits for r_learned.
+    - **r_cd_ib0, per bucket** (19461 g0, bf79865a; 869839 exclusive on slurm-9, 869840 shared on slurm-10; 2/2 cells each, sim-identical; `scripts_cosim/uncut_cotenancy_r.py`, output `cotenancy/r_cdib0_19461.json`, md5 65d95c02). Bucket plan evals are the minimum of the two runs.
+
+      | rung | pooled r | le10 r (evals) | 11_50 r (evals) | gt50 r (evals) | rule | r |
+      |---|---|---|---|---|---|---|
+      | moderate | 1.354 | 1.413 (447,400) | 1.284 (223,098) | 1.266 (104,855) | pooled | 1.354 |
+      | heavy | 1.373 | 1.450 (603,596) | 1.292 (320,692) | 1.270 (153,796) | pooled | 1.373 |
+
+      - No eligible bucket exceeds 1.25 × pooled; the largest is le10 at 1.07× pooled. So r_cd_ib0 = 1.373.
+      - **k_cotenancy so far = max(1, 1.468, 1.373) = 1.468.** r_gnn_eng is pending.
     - **Bar rerun 869828** (d6ae87c2, slurm-6 beside two a1-train jobs): 192/192 cells, **0 watchdog kills**, 0 failed. `cd_ib0_k100` is sim-identical to 869497 on 96/96 cells; only the wall fields and the hostname differ.
     - **Hand-bias bound at r = 1.468** (869828 cells; total decision charge per task ÷ mean task latency):
       - `cd_ib0`: median 0.0062 % moderate, 0.0094 % heavy; max 0.0075 % / 0.0113 %.
