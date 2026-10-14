@@ -8,7 +8,7 @@ Three independent env flags, each default off, so with all of them off serving i
     SERVEFAST_COLUMNS=1  partial_state_columns keeps its committed-set aggregates across the steps of one decode instead of
                          rescanning the committed set at every step. The float summation order of every aggregate is preserved.
     SERVEFAST_ROWS=1     the serving score closure scores only the stepped task's edge rows (partial_state_edges._score_task_rows).
-                         Float-level, not bit-level: the matmul on fewer rows rounds differently, so its bar is decision identity.
+                         Float-level, not bit-level, and it FAILS decision identity (near-tie flips in 8/8 cells): kept, default off, never served.
 
 The names do not start with HEROSIM_ / GNN_ / NEAR_RTT_, which the r1a gate wipes from its environment.
 """
@@ -30,4 +30,5 @@ def columns_on() -> bool:
 
 
 def rows_on() -> bool:
+    # fails decision identity, near-tie flips 8/8 cells, see node (docs/lineages/uncut_groups_s0_v1.md, Record 2026-10-15): never turn it on in a served run
     return _on("SERVEFAST_ROWS")
