@@ -3,7 +3,7 @@
 **Status:** `CLOSED` (2026-10-11) — **NO-GO; live G8: HAND-SEARCH-FASTER.** Registered 2026-10-11; every bar below was
 signed before its data.
 
-> **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win. Its vs-CD numbers are on the cold-mispriced slate and not re-measured (`slate_fix_v1` running); the hand bar is now `cd_exactS_ib0`.
+> **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win. Its vs-CD numbers are on the cold-mispriced slate and not re-measured on the corrected slate; `slate_fix_v1` (CLOSED 2026-10-12, E-FASTER) retrained uncapped and still loses to the hand bar `cd_exactS_ib0` (self-search +2.6 % moderate / +5.3 % heavy, no-split +2.8 / +7.4 %).
 
 **Outcome.**
 - **Screen NO-GO as registered:** at G=8 the M2 clause fails in both conditions. M2 fails partly by construction, a

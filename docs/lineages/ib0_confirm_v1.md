@@ -2,7 +2,7 @@
 
 **Status:** `CLOSED` (2026-10-12) — `IB0-NEW-BAR` / `ORACLE-ROOM-UNDER-3 %`. Owner S4. Post-close diagnostics 2026-10-13 (S term decomposition, S_drain_weight; amendment in `ib0_confirm_v1/oracle_loss_diag.md`). Parent: `plan_rerank_v1` (`SUPERVISED-CEILING-AT-BAR`; the Phase 0 numbers below are quoted from its Record).
 
-> ⚠ **Not re-measured (2026-10-12).** The GNN seed arm here is trained and served on the cold-mispriced declared slate (`declared_pruning_v1`); `slate_fix_v1` (uncapped, corrected) is running.
+> ⚠ **Not re-measured (2026-10-12).** The GNN seed arm here is trained and served on the cold-mispriced declared slate (`declared_pruning_v1`); `slate_fix_v1` (uncapped, corrected) has since closed (2026-10-12, E-FASTER): the corrected retrain still loses to `cd_exactS_ib0`, self-search +2.6 % moderate / +5.3 % heavy, no-split +2.8 / +7.4 %.
 
 **Outcome.** Classical stage: `cd_exactS_ib0` beats `cd_exactS` **−4.73 % / −2.27 %** (moderate / heavy, 12/12) on fresh topologies — the new hand bar. The GNN seed does not clear it. Oracle stage (registered 12-cell read, job 864107): the full-coverage oracle beats `ib0` by only **−2.82 % moderate** (6/6, p .031; 0.18 pp inside the 3 % closing line) and **−1.96 % heavy** (4/6, p .31), coverage 96.0 % / 98.4 % of seen tasks. Consequence: no supervised re-ranker over the declared slate can beat the bar by more than this, so the supervised batch-label family closes; what is left is outside the slate (`slate_fix_v1`) or in decision cost (`decision_cost_s0_v1`).
 

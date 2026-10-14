@@ -3,7 +3,7 @@
 **Status:** `CLOSED` (2026-10-10) — **NOT-SEPARATED** (no WIN). Registered 2026-10-10; every bar below was signed before
 its data.
 
-> **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win. Its vs-CD numbers are on the cold-mispriced slate and not re-measured (`slate_fix_v1` running); the hand bar is now `cd_exactS_ib0`.
+> **Declared-slate caveat (resolved 2026-10-12):** the heavy deficit vs `cd_exactS` is a candidate-set handicap (`slate_bar_v1`: matched-slate, the GNN self-search wins −4.85 / −1.94 %); not an MP win. Its vs-CD numbers are on the cold-mispriced slate and not re-measured on the corrected slate; `slate_fix_v1` (CLOSED 2026-10-12, E-FASTER) retrained uncapped and still loses to the hand bar `cd_exactS_ib0` (self-search +2.6 % moderate / +5.3 % heavy, no-split +2.8 / +7.4 %).
 
 **Outcome.** Putting replicas on the fastest platform moves the GNN from behind CD to ahead of it at moderate, but not
 at heavy, so it is no registered win.
