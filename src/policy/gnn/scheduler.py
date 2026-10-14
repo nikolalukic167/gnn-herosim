@@ -1422,6 +1422,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                           None if fallbacks_before is None else self.pg_exact_fallbacks > fallbacks_before)
         if cost_on:
             charge = decision_cost.rate_ms(len(decodable)) * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
+            _dump = os.environ.get("S6_BATCH_DUMP")
+            if _dump:
+                # DIAGNOSTIC ONLY (uncut_groups_s0_v1 hand-F, scratch branch, never merged): file I/O, no simulation effect
+                with open(_dump, "a") as _fh:
+                    _fh.write(f"{len(batch_tasks)}\t{len(decodable)}\t{int(getattr(self, 'sched_plan_evals', 0)) - int(evals_before)}\t{charge!r}\n")
             if charge > 0.0:
                 waiting = len(self.mutex.get_queue)
                 yield self.env.timeout(charge)
