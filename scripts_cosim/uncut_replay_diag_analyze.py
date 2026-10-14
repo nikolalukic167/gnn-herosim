@@ -139,7 +139,12 @@ def main(argv=None):
 
             def acc(gs):
                 return sum(rep[g]["decode"][run]["agree"] for g in gs) / max(1, sum(rep[g]["decode"][run]["n_choice"] for g in gs))
+            rng = np.random.default_rng(1)
+            bt = np.array(rt)[rng.integers(0, len(rt), size=(B, len(rt)))].mean(axis=1)
+            bv_ = np.array(rv)[rng.integers(0, len(rv), size=(B, len(rv)))].mean(axis=1)
+            dd = 100 * (bv_ - bt)
             tv[f"{b}|{run}"] = {"train_regret": boot(rt), "val_regret": boot(rv), "val_minus_train_regret_pp": float(100 * (np.mean(rv) - np.mean(rt))),
+                                "val_minus_train_regret_pp_ci": [float(np.percentile(dd, 2.5)), float(np.percentile(dd, 97.5))],
                                 "train_hand_regret": boot(ht), "train_model_minus_hand": boot_pair(rt, ht), "train_acc_free": acc(gt), "val_acc_free": acc(gvv),
                                 "train_minus_val_acc_pp": float(100 * (acc(gt) - acc(gvv))), "n_train": len(gt), "n_val": len(gvv)}
     out["train_vs_val"] = tv
@@ -172,7 +177,7 @@ def main(argv=None):
                 continue
             gap_tm = t["train_model_minus_hand"]
             uf[f"{b}|{run}"] = bool(gap_tm["est"] >= 0 and abs(t["val_minus_train_regret_pp"]) < 0.5)
-            of[f"{b}|{run}"] = bool(t["val_minus_train_regret_pp"] > 1.0 and t["train_minus_val_acc_pp"] > 5.0)
+            of[f"{b}|{run}"] = bool(t["val_minus_train_regret_pp"] > 1.0 and t["val_minus_train_regret_pp_ci"][0] > 0 and t["train_minus_val_acc_pp"] > 5.0)
             gs = sel(val, None if b == "pooled" else b)
             tf = sum(rep[g]["decode"][run]["tf_hit"] for g in gs) / max(1, sum(rep[g]["decode"][run]["n_choice"] for g in gs))
             fr = sum(rep[g]["decode"][run]["agree"] for g in gs) / max(1, sum(rep[g]["decode"][run]["n_choice"] for g in gs))
@@ -225,8 +230,8 @@ def main(argv=None):
         kind, ds = g.split("/")
         with open(f"{a.corpus}/{'train' if 'train' in kind else 'heldout'}/{ds}/placements/placements.jsonl") as fh:
             hd = json.loads(fh.readline())
-        capped += int(hd.get("stopped") == "seconds")
-    cl["label_side_capped"] = {"sampled_ils_labelled": len(sampled), "label_search_stopped_by_seconds": capped}
+        capped += int(hd.get("evals_done") is not None and hd.get("eval_budget") is not None and int(hd["evals_done"]) < int(hd["eval_budget"]))
+    cl["label_side_capped"] = {"sampled_ils_labelled": len(sampled), "label_search_evals_done_below_budget": capped, "rule": "header evals_done < eval_budget (the labeller stopped on its 600 s cap)"}
     json.dump(out, open(a.out, "w"), indent=1, default=float)
     md.append("\n## Classes\n")
     md.append("```json\n" + json.dumps(cl, indent=1, default=float) + "\n```\n")
