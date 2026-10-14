@@ -20,31 +20,36 @@ an assumption to write from.
 Routes 1–3 to a positive answer — better co-sim data, a changed environment, a changed objective — are all answered;
 lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `docs/lineages/throughline.md` → "Routes 1–3".
 
-**Where the research question stands (rewritten 2026-10-12).**
+**Where the research question stands (rewritten 2026-10-14).**
 
-**The bar is `cd_exactS_ib0` (`ib0_confirm_v1`, 2026-10-12) — exact search on CD's surrogate S over the top-5 slate with the
-in-batch stacking term zeroed: −4.7 / −2.3 % vs `cd_exactS` (12/12 fresh topologies), which itself is −7 to −11 % vs CD across the
-accel gates (24 topologies −8.6 / −6.8 %, `link_bound_s0_v1` −11.1 / −8.0 %, G8 −9.2 / −7.7 %). No learned arm beats
-either, a full-coverage oracle beats `ib0` by only −2.8 / −2.0 %, and no learned win in this programme is a message-passing win.** Seat: R1.1 + WF1, warmth physics `node_disk_v2`, replicas on the fastest
-compatible platform, 160 clients × 24 servers, moderate and heavy rungs. Arm names: `CONTEXT.md` → Arms.
-> ⚠ The GNN numbers here are on the cold-mispriced declared slate and re-measured in `slate_fix_v1`/`slate_fix_v2` (CLOSED 2026-10-12/13): the deficit stands. Audit: gate-tools → "Numbers measured before a change".
-- **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 %
-  (`accel_nosplit_v1`), `gnn_selfsearch` −8.5 / −10.1 % (`selfsearch_confirm_v1`). Heavy: −1 to −4 %, under the −5 % bar.
-  `gnn_selfsearch` ties its MP-OFF twin.
-- **Against hand search** (`cd_exactS`, `cdxapply`): tie at moderate, 1.8–3.7 % slower at heavy, **but that deficit is a candidate-set
-  handicap, not a scorer deficit** (`slate_bar_v1`, 2026-10-12): the GNN is trained and served on a declared top-5 slate whose cost charges
-  no cold start on an initialized platform (the simulation does; gate-tools 2026-10-12), while `cd_exactS` may use any candidate. Restricting
-  `cd_exactS` to that slate costs it +4.9 / +5.0 %; with matched information the GNN self-search beats it −4.85 % moderate (21/24, Holm .0003)
-  / −1.94 % heavy (16/24, Holm .04). Still not an MP win (ties its twin). Retrained on the uncapped, correctly cold-priced corpus and served over the full candidate set it still loses
-  to `cd_exactS_ib0` +2.6 / +5.3 % and the heavy gap grows ~1 pp (`slate_fix_v1`, CLOSED 2026-10-12: UNCAPPED-DATA-NOT-THE-LEVER); the
-  only new signal is MP vs its twin on the no-split decode, −2.6 % heavy (12/12), significant, under every bar. The new hand bar is `cd_exactS_ib0` (`ib0_confirm_v1`, CLOSED: −4.7 / −2.3 % vs `cd_exactS`, 12/12); a full-coverage oracle beats it only −2.8 / −2.0 %, so no supervised re-ranker over the slate can clear it by more than that.
-- **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 %
-  (regret 6 %); platforms 95–99 % idle; one-step lookahead headroom 3–5 %; more servers made it easier.
-- **Closed levers:** post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links
-  (`link_bound_s0_v1`), a high-but-stable rung (`high_rho_s0_v1`), a longer horizon (`long_horizon_s0_v1`: 24 h, the GNN's deficit to cd_exactS widens, not narrows), supervised plan reranking (`plan_rerank_v1`), GNN self-search on over-cap batches only (`gnn_overcap_v1`: +0.2 / +2.5 % vs cd_exactS, HAND-FALLBACK-FASTER), GNN-ordered pruning of over-cap batches (`prune_g8_s0_v1`: pruning beats the expansion fallback −1.4 / −2.1 %, but any top-k order does; not learned, not MP). observation sparsity (`sparse_obs_s0_v1`, CLOSED 2026-10-12: hiding exact queue drain or cold seconds from the hand bar costs it nothing a per-class estimator does not recover; the bar's lead is not privileged information), better uncapped training data (`slate_fix_v1`), the deploy transient as the explanation (`slate_fix_v2`, CLOSED 2026-10-13: after 360 s self-search is +0.7 / +1.7 % behind the bar, not separated, and no-split +3.6 / +7.1 % behind; MP vs twin −0.7 / −1.2 % steady, direction only), a warm ×2/×3 surge (`warm_surge_s0_v1`, CLOSED 2026-10-13: the hand headroom does not move and the GNN falls a further 3–5 pp behind at moderate ×2; but `cd_exactS_ib0` itself collapses on 3/12 and 5/12 heavy topologies where `cd` and every learned arm stay healthy, so under a heavy surge the robust hand bar is `cd_exactS` or `cd`, and any heavy-surge % vs `ib0` needs its collapse count). Numbers in
-  their index rows.
-- **Knative under R1:** quote only the concurrency-key arm (+48 / +68 % vs CD); the queue-keyed arm herds (gate-tools,
-  2026-10-11).
+**The bar is a hand search, and no learned arm beats it at any decision-time charge.** With decisions free (k = 0) it is `cd_exactS_ib0`
+(`ib0_confirm_v1`): exact search on CD's surrogate S over the top-5 slate with the in-batch stacking term zeroed, −4.7 / −2.3 % vs `cd_exactS`
+(12/12 fresh topologies), which is itself −7 to −11 % vs CD across the accel gates. A full-coverage oracle beats `ib0` by only −2.8 / −2.0 %. Charging
+the scheduler's decision time as simulated time (`decision_cost_s0_v1`, CLOSED 2026-10-13: `NO-LEARNED-WIN-AT-ANY-k` / `SEARCH-WIN-NOT-GNN` /
+`EXACT-ARMS-OUT-OF-BUDGET-AT-k=1` / `MP-NOT-ATTRIBUTED`) takes the exact arms off the frontier at k = 1 (`cd_exactS` +9.5 % moderate / +197 % heavy
+against itself at k = 0), and the in-budget hand bar there is `cd_expand` (CD seed + α-expansion; scoped to the capped seat, groups ≤ 8 split). The GNN seed with
+the same expansion (`cdxapply`) ties it within 1 pp, and its twin-seed control matches it within 0.6 %: the search wins, the GNN does not, and message passing is
+not attributed. Seat: R1.1 + WF1, warmth physics `node_disk_v2`, replicas on the fastest compatible platform, 160 clients × 24 servers, moderate and heavy
+rungs. Arm names: `CONTEXT.md` → Arms.
+> ⚠ GNN numbers measured on the cold-mispriced declared slate were re-measured in `slate_fix_v1` / `slate_fix_v2` (CLOSED 2026-10-12/13): the deficit stands. Audit: gate-tools → "Numbers measured before a change".
+- **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 % (`accel_nosplit_v1`),
+  `gnn_selfsearch` −8.5 / −10.1 % (`selfsearch_confirm_v1`); heavy −1 to −4 %, under the −5 % bar; `gnn_selfsearch` ties its MP-OFF twin.
+- **Against hand search** (`cd_exactS`, `cd_exactS_ib0`): the heavy deficit was first a candidate-set handicap (`slate_bar_v1`: with matched information the GNN
+  self-search beats `cd_exactS` −4.85 / −1.94 %), but retrained on the uncapped, correctly cold-priced corpus and served over the full candidate set it still
+  loses to `cd_exactS_ib0` +2.6 / +5.3 % (`slate_fix_v1`). After 360 s the self-search is +0.7 / +1.7 % behind the bar, not separated, and no-split is +3.6 / +7.1 % behind (`slate_fix_v2`). The only new signal is MP vs its twin on the
+  no-split decode, −2.6 % heavy (12/12), under every bar. No learned win in this programme is a message-passing win.
+- **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 % (regret 6 %); platforms 95–99 % idle;
+  one-step lookahead headroom 3–5 %; more servers made it easier.
+- **Closed levers** (numbers in their index rows): post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links (`link_bound_s0_v1`),
+  a high-but-stable rung (`high_rho_s0_v1`), a longer horizon (`long_horizon_s0_v1`), supervised plan reranking (`plan_rerank_v1`), GNN self-search or GNN-ordered
+  pruning on over-cap batches (`gnn_overcap_v1`, `prune_g8_s0_v1`: pruning wins, but any top-k order does), observation sparsity (`sparse_obs_s0_v1`), better uncapped data
+  (`slate_fix_v1`), the deploy transient (`slate_fix_v2`), a warm ×2/×3 surge (`warm_surge_s0_v1`: `cd_exactS_ib0` itself collapses on some heavy topologies, so any
+  heavy-surge % vs `ib0` needs its collapse count).
+- **Open: the GNN served on whole, uncut Alibaba peer groups with decision time charged** (`uncut_groups_s0_v1`, `REGISTERED`; prior P(WIN) ≈ 0.03). Arm 1,
+  Arm 1b (batched trainer), Arm 2 (committed-state re-encode, group anchor, random-prefix K = 2) and its K = 0 sibling train under pre-registered bars; interim reads
+  are descriptive and the **final read has not been run**. The gate tests groups up to about 230 tasks, so no outcome may be quoted as covering groups in the thousands.
+  Arm 2's two K = 2 GNN runs train on an L40S and the twins on CPU, so every Arm 2 gnn-vs-twin line is not device-matched.
+- **Knative under R1:** quote only the concurrency-key arm (+48 / +68 % vs CD); the queue-keyed arm herds (gate-tools, 2026-10-11).
 
 **Earlier settings, still true:** on the grounded workload with one origin per group no learned arm beats CD
 (`small_batch_so_v1`) — every grounded win before 2026-10-05 is scattered-origin; message passing helps raw inputs, not
