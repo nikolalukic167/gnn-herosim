@@ -128,5 +128,5 @@ def maybe_install() -> None:
         return
     if "executesimulation.py" in cmd:
         argv = cmd.split("\0")
-        tag = os.path.basename(argv[argv.index("--config") + 1]).replace(".json", "") if "--config" in argv else str(os.getpid())
+        tag = os.path.basename(argv[argv.index("--output") + 1]).replace(".raw.json", "") if "--output" in argv else str(os.getpid())
         install(f"{out}.{tag}.pkl")
