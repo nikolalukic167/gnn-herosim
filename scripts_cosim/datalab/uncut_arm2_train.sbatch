@@ -24,6 +24,7 @@ if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
 eval "$(micromamba shell hook --shell bash)"
 micromamba activate gnn
 export HEROSIM_PY=python3 PYTHONPATH="$WT:$WT/src/notebooks" PYTHONUNBUFFERED=1 WANDB_ENTITY=nikolalukic167-tu-wien OMP_NUM_THREADS=6 MKL_NUM_THREADS=6 OPENBLAS_NUM_THREADS=6 CUDA_VISIBLE_DEVICES=""
+export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0  # the cache's physics_env (metadata.json); the trainer refuses a mismatch
 export R1A_SLATE=declared_pruning_v1_uncapped  # read by joint_burst_v2_sidecheck.py below
 HEAD=$(git rev-parse HEAD)
 echo "task $T: tag $TAG arm $ARM seed $S | HEAD $HEAD node $(hostname) job ${SLURM_JOB_ID:-}"

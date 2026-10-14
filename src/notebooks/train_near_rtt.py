@@ -2218,7 +2218,8 @@ if NEAR_CFG.mp_network_entities and (
 def init_weights(module: nn.Module) -> None:
     if isinstance(module, nn.Linear):
         nn.init.xavier_uniform_(module.weight)
-        nn.init.zeros_(module.bias)
+        if module.bias is not None:  # the Arm 2 B1 modules are bias-free
+            nn.init.zeros_(module.bias)
 
 
 model.apply(init_weights)
