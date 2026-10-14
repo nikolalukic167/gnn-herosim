@@ -178,7 +178,11 @@ def cmd_probe(a):
             for name, plan in variants.items():
                 for tname, types in (("types_ds", d["types"]), ("types_gid", [d["types"][i] for i in order])):
                     t1 = time.time()
-                    rt, setup, runs = U.replay_rtts(d["spec"], types, [plan])
+                    try:
+                        rt, setup, runs = U.replay_rtts(d["spec"], types, [plan])
+                    except Exception as e:  # noqa: BLE001 - a wrong order is expected to fail for one of the four combinations
+                        print(json.dumps({"group": gid, "plan_order": name, "types": tname, "error": str(e)[:160]}))
+                        continue
                     print(json.dumps({"group": gid, "n": n, "plan_order": name, "types": tname, "stored_rtt": r["rtt"], "replay_rtt": rt[0], "rel_err": abs(rt[0] - r["rtt"]) / max(1.0, abs(r["rtt"])),
                                       "decision_s": t_dec, "replay_s": time.time() - t1, "hand_len": len(d["hand"]), "hand_eq_label_dsorder": [list(map(int, x)) for x in d["hand"]] == variants["dataset_order"]}))
         print("hand", d["hand"][:3], "types", d["types"][:4], "trace", trace[:4], flush=True)
