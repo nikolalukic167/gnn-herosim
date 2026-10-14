@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import subprocess
 import sys
 
 import numpy as np
@@ -14,10 +15,10 @@ TOPS = ",".join(map(str, TOPOS))
 P, T, M = "uncut_arm1_gnn_eng", "uncut_arm1_twin_eng", "ra_mlp_same"
 
 
-def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2"):
+def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2", commit="pin1234abcd"):
     name = f"cc40s{t}__{w}{r}__{arm}_k100_s{seed}"
     s = {"averageElapsedTime": mean, "steady_state": {"after_360s": {"mean": mean}}, "num_tasks": 4,
-         "endTime": 100.0, "arrival_end": {"last_arrival_s": 99.0}, "code": {"commit": "pin1234", "dirty": False},
+         "endTime": 100.0, "arrival_end": {"last_arrival_s": 99.0}, "code": {"commit": commit, "dirty": False},
          "schedulerCounters": {"sched_queue_wait_seconds": 0.0, "sched_busy_seconds": busy}, "env": {"HEROSIM_WARMTH_PHYSICS": warmth}}
     if ckpt:
         s["env"]["GNN_MODEL_PATH"] = ckpt
@@ -28,7 +29,7 @@ def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth=
     np.save(os.path.join(d, name + ".tasks_bsz.npy"), np.asarray(rows, dtype=np.float64))
     np.save(os.path.join(d, name + ".tasks_lock.npy"), np.asarray([(r[0], r[1], r[1] + 0.1, 0.1) for r in rows], dtype=np.float64))
     with open(os.path.join(d, name + ".log"), "w") as fh:
-        fh.write("INFO start\n[CODE] commit=pin1234abcd branch=HEAD dirty=False diff=e3b0\n")
+        fh.write(f"INFO start\n[CODE] commit={commit[:8]} branch=HEAD dirty=False diff=e3b0\n")
 
 
 @pytest.fixture
@@ -57,7 +58,7 @@ def fill(d, ck, primary_mean, twin_mean=2.0, mlp_mean=2.0, bar_mean=2.0, primary
 
 
 def run(d, cm, **kw):
-    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", kw.pop("pin", "pin1234"),
             "--primary", P, "--twin", T, "--mlp", M, "--checkpoint-md5", cm]
     for k, v in kw.items():
         args += [f"--{k}", v]
@@ -189,3 +190,95 @@ def test_warmth_physics_must_agree_across_bar_and_learned(gate, warmth):
     cell(d, P, 1, TOPOS[0], G.WINDOWS[0], G.RUNGS[0], 2.0, ck, warmth=warmth)
     with pytest.raises(SystemExit, match="HEROSIM_WARMTH_PHYSICS"):
         run(d, cm)
+
+
+W0 = {"w_ms_per_plan": {"cd_ib0": {"heavy": 1.0}}, "w_ms_per_plan_by_bucket": {"ra_gnn_eng_nosplit": {"heavy": {"le10": 6.0}}},
+      "_source": "s", "_source_by_bucket": "b"}
+GT = ("ra_gnn_eng_arm1_nosplit", "ra_twin_eng_arm1_nosplit")
+
+
+def commit(repo, files, msg):
+    for path, body in files.items():
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(body if isinstance(body, str) else json.dumps(body, indent=1))
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", msg], check=True)
+    return subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def w_with(base, kinds, by_bucket=False):
+    w = json.loads(json.dumps(base))
+    for k in kinds:
+        w["w_ms_per_plan"][k] = {"heavy": 6.5, "moderate": 6.9}
+        if by_bucket:
+            w["w_ms_per_plan_by_bucket"][k] = {"heavy": {"le10": 6.5, "11_50": 2.0}}
+        w[f"_source_{k}"] = "own le10, single cell"
+    return w
+
+
+@pytest.fixture
+def chain(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: w_with(W0, GT, by_bucket=True)}, "gnn+twin w")
+    w2 = commit(repo, {G.W_FILE: w_with(w_with(W0, GT, by_bucket=True), ("ra_mlp_same_arm1_nosplit",))}, "mlp w")
+    return str(repo), base, w1, w2
+
+
+def test_w_pin_chain_accepts_w_only_chain(chain):
+    repo, base, w1, w2 = chain
+    ws = G.w_pin_chain(repo, base[:8], [w1[:8], w2[:8]])
+    assert list(ws) == [base, w1, w2] and "ra_mlp_same_arm1_nosplit" in ws[w2]["w_ms_per_plan"]
+
+
+@pytest.mark.parametrize("bad, match", [
+    ("other_file", "not only"), ("changed_key", "frozen"), ("recalibrated", "frozen"), ("foreign_key", "outside the Arm 1"),
+    ("foreign_top", "top-level"), ("source_edit", "outside the Arm 1"), ("not_chain", "not an ancestor")])
+def test_w_pin_chain_fails_loud(chain, bad, match):
+    repo, base, w1, w2 = chain
+    w = w_with(w_with(W0, GT, by_bucket=True), ("ra_mlp_same_arm1_nosplit",))
+    pins = [w1]
+    if bad == "other_file":
+        pins.append(commit(__import__("pathlib").Path(repo), {G.W_FILE: w, "scripts_cosim/gate.py": "x = 2\n"}, "w + code"))
+    elif bad == "changed_key":
+        w["w_ms_per_plan"]["cd_ib0"]["heavy"] = 1.1
+    elif bad == "recalibrated":
+        w["w_ms_per_plan"]["ra_gnn_eng_arm1_nosplit"]["heavy"] = 6.6
+    elif bad == "foreign_key":
+        w["w_ms_per_plan"]["cd_new"] = {"heavy": 1.0}
+    elif bad == "foreign_top":
+        w["_note"] = "n"
+    elif bad == "source_edit":
+        w["_source_by_bucket"] = "b, edited"
+    elif bad == "not_chain":
+        pins = [w2, w1]
+    if bad not in ("other_file", "not_chain"):
+        pins.append(commit(__import__("pathlib").Path(repo), {G.W_FILE: w}, bad))
+    with pytest.raises(SystemExit, match=match):
+        G.w_pin_chain(repo, base, pins)
+
+
+def test_learned_cells_at_w_pin_hand_cells_at_base(gate, chain):
+    d, ck, cm = gate
+    repo, base, w1, w2 = chain
+    learned = {P, T, M}
+    for i, t in enumerate(TOPOS):
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                for arm, sd in [("cd_ib0", 0), ("cd", 0), (P, 1), (P, 2), (T, 1), (T, 2), (M, 1), (M, 2)]:
+                    cell(d, arm, sd, t, w, r, 2.0, ck if arm in learned else None, commit=(w1 if arm in learned else base))
+    res = run(d, cm, pin=base[:8], repo=repo, **{"w-pins": f"{w1[:8]},{w2[:8]}"})
+    assert set(res["w_pins"]) == {base, w1, w2}
+    cell(d, "cd_ib0", 0, TOPOS[0], G.WINDOWS[0], G.RUNGS[0], 2.0, commit=w1)
+    with pytest.raises(SystemExit, match="is not the gate pin"):
+        run(d, cm, pin=base[:8], repo=repo, **{"w-pins": f"{w1[:8]},{w2[:8]}"})
+
+
+def test_arm1_cell_needs_its_w_at_its_pin(gate, chain):
+    d, ck, cm = gate
+    repo, base, w1, w2 = chain
+    cells = {("ra_mlp_same_arm1_nosplit", 1, 19537, "g0", "heavy"): {"code": {"commit": w1, "dirty": False}, "_path": "x.summary.json"}}
+    with pytest.raises(SystemExit, match="no calibrated w"):
+        G.asserts(cells, base, ["ra_mlp_same_arm1_nosplit"], {}, G.w_pin_chain(repo, base, [w1, w2]))
