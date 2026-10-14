@@ -34,6 +34,11 @@ F1 (Holm over 4: primary vs cd_ib0 x 2 rungs x {whole, after360}):
 F2 (Holm over 8 with the MLP, 4 without): primary vs twin (and vs MLP) x 2 x 2. MP-ATTRIBUTED only if F1 is a program-level WIN and primary vs
   twin is <= -2 % with Holm p < .025 on all four; else MP-DIRECTION (median negative on all four) or NOT-SEPARATED. MODEL-CLASS (vs MLP) the same,
   labelled separately and naming the corpus.
+Co-tenancy verdict (pre-registered 2026-10-14, --cotenancy required): every learned Arm 1 arm also runs as <arm>_kr, charged k_cotenancy x its
+  frozen w (k_cotenancy = max(1, r_hand, r_learned), frozen in decision_cost_w.json with the learned w). F1/F2 are computed again on those cells
+  against the same hand cells; a learned WIN counts only if both verdicts are WIN (combined: both program-level -> the frozen label;
+  both WIN otherwise -> WIN-ARM-ONLY; frozen WIN only -> WIN-NOT-COTENANCY-ROBUST); F2 combined = the weaker of the two. Each learned cell
+  must have served exactly k x the frozen w at its pin (k = 1, or k_cotenancy for _kr).
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
   sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
   OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (per seed cell, > 3 x cd's mean, either statistic; the arm's count is the worse seed's), tail flag
@@ -65,6 +70,10 @@ COLLAPSE_X, TAIL_S, OPEN_T = 3.0, 120.0, 360.0
 BUCKETS = (("le10", 0, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("gt100", 101, 10 ** 9))
 W_FILE = "scripts_cosim/decision_cost_w.json"
 ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
+# co-tenancy amendment (2026-10-14): the one gate-code commit between --pin and the w-only pins adds the _kr tag and its test, nothing else
+GATE_CHANGE_FILES = ("scripts_cosim/fresh_topo_burst_v1_gate.py", "tests/test_uncut_arm1_gate_stage.py")
+COT_KEYS = ("k_cotenancy", "_source_k_cotenancy")
+KR = "_kr"
 NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.(summary|failed)\.json$")
 
 
@@ -134,21 +143,35 @@ def w_frozen(prev, cur, sha):
             extra = [] if json.dumps(cur[top], sort_keys=True) == json.dumps(v, sort_keys=True) else [top]
         if extra:
             raise SystemExit(f"FAIL LOUD: {sha} changes or adds {W_FILE} keys {top}{extra} outside the Arm 1 learned arms {ARM1_W_KINDS}")
-    extra = sorted(set(cur) - set(prev) - {f"_source_{k}" for k in ARM1_W_KINDS})
+    extra = sorted(set(cur) - set(prev) - {f"_source_{k}" for k in ARM1_W_KINDS} - set(COT_KEYS))
     if extra:
         raise SystemExit(f"FAIL LOUD: {sha} adds top-level {W_FILE} keys {extra}")
+    k = cur.get("k_cotenancy")
+    if "k_cotenancy" in cur and (type(k) not in (int, float) or not k >= 1.0):
+        raise SystemExit(f"FAIL LOUD: {sha} k_cotenancy {k!r} is not a number >= 1")
 
 
-def w_pin_chain(repo, base, w_pins):
-    """{full sha: the w file at it} for --pin and the w-only pins, after the amendment's ancestry, diff and freeze checks."""
-    shas = [git(repo, "rev-parse", "--verify", p + "^{commit}").strip() for p in [base, *w_pins]]
+def w_pin_chain(repo, base, w_pins, gate_change=""):
+    """{full sha: the w file at it} for --pin, the gate-change commit (if any) and the w-only pins, after the amendments' ancestry,
+    diff and freeze checks. The gate change is a child of --pin touching exactly GATE_CHANGE_FILES; every w-only pin descends from it
+    and differs from it only in the w file."""
+    rev = lambda p: git(repo, "rev-parse", "--verify", p + "^{commit}").strip()
+    shas = [rev(base)] + ([rev(gate_change)] if gate_change else []) + [rev(p) for p in w_pins]
+    root = shas[0]
+    if gate_change:
+        root = shas[1]
+        if git(repo, "rev-parse", root + "^").strip() != shas[0]:
+            raise SystemExit(f"FAIL LOUD: the gate change {root} is not a child of {base}")
+        names = sorted(git(repo, "diff", "--name-only", shas[0], root).split())
+        if names != sorted(GATE_CHANGE_FILES):
+            raise SystemExit(f"FAIL LOUD: the gate change {root} touches {names}, not exactly {list(GATE_CHANGE_FILES)}")
     for prev, cur in zip(shas, shas[1:]):
         if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", prev, cur]).returncode:
             raise SystemExit(f"FAIL LOUD: w-only pins are not a chain from {base}: {prev} is not an ancestor of {cur}")
-    for cur in shas[1:]:
-        names = git(repo, "diff", "--name-only", shas[0], cur).split()
+    for cur in shas[shas.index(root) + 1:]:
+        names = git(repo, "diff", "--name-only", root, cur).split()
         if names != [W_FILE]:
-            raise SystemExit(f"FAIL LOUD: {cur} differs from {base} in {names}, not only {W_FILE}")
+            raise SystemExit(f"FAIL LOUD: {cur} differs from {root} in {names}, not only {W_FILE}")
     ws = {sha: json.loads(git(repo, "show", f"{sha}:{W_FILE}")) for sha in shas}
     for prev, cur in zip(shas, shas[1:]):
         w_frozen(ws[prev], ws[cur], cur)
@@ -170,8 +193,25 @@ def ckpt_arm(arm):
     return arm
 
 
-def asserts(cells, pin, learned, ckpt, w_pins=None):
-    """w_pins: {full sha: w file} from w_pin_chain, --pin's own entry included; None without --w-pins (every cell at --pin)."""
+def charge_check(key, s, w, k):
+    """The cell served k x its arm's frozen w at its pin: the by-bucket rates when the arm has them at that rung, else the scalar."""
+    env, rung = s.get("env") or {}, key[4]
+    byb = (w.get("w_ms_per_plan_by_bucket", {}).get(key[0]) or {}).get(rung)
+    close = lambda x, y: abs(float(x) - y) <= 1e-9 * max(1.0, abs(y))
+    if byb is not None:
+        got = json.loads(env.get("HEROSIM_DECISION_COST_MS_BY_BUCKET") or "null")
+        want = {b: k * float(v) for b, v in byb.items()}
+        ok = isinstance(got, dict) and set(got) == set(want) and all(close(got[b], want[b]) for b in want) and not env.get("HEROSIM_DECISION_COST_MS")
+    else:
+        got = env.get("HEROSIM_DECISION_COST_MS")
+        ok = got is not None and close(got, k * float(w["w_ms_per_plan"][key[0]][rung]))
+    if not ok:
+        raise SystemExit(f"FAIL LOUD: {key} served decision cost {got!r}, not k = {k} x its frozen w")
+
+
+def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
+    """w_pins: {full sha: w file} from w_pin_chain, --pin's own entry first; None without --w-pins (every cell at --pin).
+    kr: these are the co-tenancy cells, charged at the pin's k_cotenancy instead of 1."""
     warmth = {}
     base = pin if w_pins is None else next(iter(w_pins))
     for key, s in cells.items():
@@ -184,6 +224,11 @@ def asserts(cells, pin, learned, ckpt, w_pins=None):
                              + (f" or a w-only pin" if allowed != [base] else ""))
         if w_pins and key[0] in ARM1_W_KINDS and key[0] not in w_pins[at].get("w_ms_per_plan", {}):
             raise SystemExit(f"FAIL LOUD: {key} ran at {at}, whose {W_FILE} has no calibrated w for {key[0]}")
+        if w_pins and key[0] in ARM1_W_KINDS:
+            k = w_pins[at].get("k_cotenancy") if kr else 1.0
+            if k is None:
+                raise SystemExit(f"FAIL LOUD: {key} is a co-tenancy cell at {at}, whose {W_FILE} has no k_cotenancy")
+            charge_check(key, s, w_pins[at], float(k))
         bsz = s["_path"].replace(".summary.json", ".tasks_bsz.npy")
         if not os.path.exists(bsz):
             raise SystemExit(f"FAIL LOUD: {key} has no per-task batch-size sidecar {bsz}")
@@ -376,45 +421,10 @@ def f2_label(es, f1_program_win):
     return "NOT-SEPARATED"
 
 
-def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--gate", required=True)
-    ap.add_argument("--topos", required=True)
-    ap.add_argument("--topos-sha256", required=True)
-    ap.add_argument("--pin", required=True)
-    ap.add_argument("--primary", required=True)
-    ap.add_argument("--twin", required=True)
-    ap.add_argument("--mlp", default="")
-    ap.add_argument("--reference", default="")
-    ap.add_argument("--checkpoint-md5", required=True)
-    ap.add_argument("--suffix", default="_k100")
-    ap.add_argument("--corpus", default="uncut_arm1, 12,000 states")
-    ap.add_argument("--out")
-    ap.add_argument("--repo", default="")
-    ap.add_argument("--w-pins", default="")
-    a = ap.parse_args(argv)
-    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
-    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
-        raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
-    topos = [int(x) for x in a.topos.split(",")]
-    cells, failed = load(a.gate, a.suffix)
-    learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
-    ckpt = {}
-    for path in a.checkpoint_md5.split(","):
-        with open(path) as fh:
-            for k, v in json.load(fh).items():
-                if k in ckpt and ckpt[k] != v:
-                    raise SystemExit(f"FAIL LOUD: checkpoint md5 files disagree on {k}")
-                ckpt[k] = v
-    w_pins = None
-    if a.w_pins:
-        if not a.repo:
-            raise SystemExit("FAIL LOUD: --w-pins needs --repo, a git checkout holding --pin and every w-only pin")
-        w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","))
-    warmth = asserts(cells, a.pin, learned, ckpt, w_pins)
+def verdict(cells, failed, a, topos):
+    """F1, F2, health, decision share and the descriptive block on one cell set."""
     ref_seeds = (1,)
-    res = {"filed": FILED, "pin": a.pin, "topos": topos, "warmth_physics": warmth,
-           "w_pins": {sha: sorted(k for k in ARM1_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
+    res = {}
     res["health"] = {arm: health(cells, failed, arm, sd, topos) for arm, sd in
                      [(a.primary, SEEDS), (a.twin, SEEDS)] + ([(a.mlp, SEEDS)] if a.mlp else []) + ([(a.reference, ref_seeds)] if a.reference else [])
                      + [(BAR, (0,)), (CD, (0,))]}
@@ -435,11 +445,109 @@ def main(argv=None):
     res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
     if a.reference:
         res["descriptive"]["training_effect_vs_reference"] = four(cells, a.primary, SEEDS, a.reference, ref_seeds, topos)
+    return res
+
+
+F2_ORDER = ("ATTRIBUTED", "DIRECTION", "NOT-SEPARATED")
+
+
+def weaker(x, y):
+    """The weaker of two F2 labels (ATTRIBUTED > DIRECTION > NOT-SEPARATED), prefix and corpus kept from x."""
+    rank = lambda lab: next(i for i, t in enumerate(F2_ORDER) if t in lab)
+    return x if rank(x) >= rank(y) else x.replace(next(t for t in F2_ORDER if t in x), next(t for t in F2_ORDER if t in y))
+
+
+def prog_win(lab):
+    return lab.startswith("WIN") and "ARM-ONLY" not in lab and lab != "WIN-OVER-BRITTLE-BAR"
+
+
+def combine(main, cot, a):
+    """Pre-registered (2026-10-14): a learned win counts only if it holds under the frozen charge AND under k_cotenancy x it."""
+    m, c = main["F1"]["label"], cot["F1"]["label"]
+    if prog_win(m) and prog_win(c):
+        f1, why = m, f"both verdicts program-level WIN (frozen {m}, co-tenancy {c})"
+    elif m.startswith("WIN") and c.startswith("WIN"):
+        f1, why = "WIN-ARM-ONLY", f"both WIN, not both program-level (frozen {m}, co-tenancy {c})"
+    elif m.startswith("WIN"):
+        f1, why = "WIN-NOT-COTENANCY-ROBUST", f"frozen {m}, co-tenancy {c}: no learned win"
+    else:
+        f1, why = m, f"frozen {m} (co-tenancy {c})"
+    out = {"F1": f1, "why": why, "MP": weaker(main["F2"]["MP"], cot["F2"]["MP"])}
+    if a.mlp:
+        out["MODEL-CLASS"] = weaker(main["F2"]["MODEL-CLASS"], cot["F2"]["MODEL-CLASS"])
+    return out
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gate", required=True)
+    ap.add_argument("--topos", required=True)
+    ap.add_argument("--topos-sha256", required=True)
+    ap.add_argument("--pin", required=True)
+    ap.add_argument("--primary", required=True)
+    ap.add_argument("--twin", required=True)
+    ap.add_argument("--mlp", default="")
+    ap.add_argument("--reference", default="")
+    ap.add_argument("--checkpoint-md5", required=True)
+    ap.add_argument("--suffix", default="_k100")
+    ap.add_argument("--corpus", default="uncut_arm1, 12,000 states")
+    ap.add_argument("--out")
+    ap.add_argument("--repo", default="")
+    ap.add_argument("--w-pins", default="")
+    ap.add_argument("--gate-change", default="", help="the one gate-code commit between --pin and the w-only pins (the _kr tag)")
+    ap.add_argument("--cotenancy", choices=("required", "off"), default="required",
+                    help="required (the gate read): the learned arms' <arm>_kr cells give the second verdict; off only for smokes")
+    a = ap.parse_args(argv)
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
+    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
+        raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
+    topos = [int(x) for x in a.topos.split(",")]
+    cells, failed = load(a.gate, a.suffix)
+    learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
+    ckpt = {}
+    for path in a.checkpoint_md5.split(","):
+        with open(path) as fh:
+            for k, v in json.load(fh).items():
+                if k in ckpt and ckpt[k] != v:
+                    raise SystemExit(f"FAIL LOUD: checkpoint md5 files disagree on {k}")
+                ckpt[k] = v
+    w_pins = None
+    if a.w_pins:
+        if not a.repo:
+            raise SystemExit("FAIL LOUD: --w-pins needs --repo, a git checkout holding --pin and every w-only pin")
+        w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","), a.gate_change)
+    kr_keys = [k for k in list(cells) + list(failed) if k[0].endswith(KR)]
+    bad = sorted({k[0] for k in kr_keys if k[0][:-len(KR)] not in learned})
+    if bad:
+        raise SystemExit(f"FAIL LOUD: co-tenancy cells {bad} are not of a learned arm")
+    cells_kr = {(k[0][:-len(KR)],) + k[1:]: v for k, v in cells.items() if k[0].endswith(KR)}
+    failed_kr = {(k[0][:-len(KR)],) + k[1:]: v for k, v in failed.items() if k[0].endswith(KR)}
+    cells = {k: v for k, v in cells.items() if not k[0].endswith(KR)}
+    failed = {k: v for k, v in failed.items() if not k[0].endswith(KR)}
+    if a.cotenancy == "required" and not (cells_kr or failed_kr):
+        raise SystemExit("FAIL LOUD: no co-tenancy (_kr) cells; the pre-registered read needs both verdicts")
+    warmth = asserts(cells, a.pin, learned, ckpt, w_pins)
+    if cells_kr:
+        if asserts(cells_kr, a.pin, learned, ckpt, w_pins, kr=True) != warmth:
+            raise SystemExit("FAIL LOUD: the co-tenancy cells record another HEROSIM_WARMTH_PHYSICS")
+    cells_kr.update({k: v for k, v in cells.items() if k[0] not in learned})
+    failed_kr.update({k: v for k, v in failed.items() if k[0] not in learned})
+    res = {"filed": FILED, "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth,
+           "w_pins": {sha: sorted(k for k in ARM1_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
+    res.update(verdict(cells, failed, a, topos))
+    if a.cotenancy == "required":
+        res["cotenancy"] = verdict(cells_kr, failed_kr, a, topos)
+        res["combined"] = combine(res, res["cotenancy"], a)
+        lab, why, f2 = res["combined"]["F1"], res["combined"]["why"], res["combined"]
+    else:
+        res["cotenancy"] = "OFF (not the gate read)"
+        lab, why, f2 = res["F1"]["label"], res["F1"]["why"], res["F2"]
+    f1 = res["F1"]["tests"]
     txt = json.dumps(res, indent=1, default=str)
     if a.out:
         with open(a.out, "w") as fh:
             fh.write(txt)
-    print(f"F1 {lab} ({why}); F2 {res['F2']['MP']}" + (f"; {res['F2']['MODEL-CLASS']}" if a.mlp else ""))
+    print(f"F1 {lab} ({why}); F2 {f2['MP']}" + (f"; {f2['MODEL-CLASS']}" if a.mlp else ""))
     for e in f1:
         print(f"  F1 {e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
     for r in RUNGS:
