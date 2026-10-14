@@ -354,6 +354,27 @@ def cmd_flips(a):
     json.dump(out, open(a.out, "w"), indent=1)
 
 
+def cmd_checks(a):
+    """The gating checks only: IDENTITY (label replay = stored RTT, relative 1e-9), the hand plan's order check, and BUG (label worse than hand by > 1e-9 on an ILS-labelled group)."""
+    rep: Dict[str, Any] = {}
+    for f in sorted(Path(a.replay_dir).glob("r_*.json")):
+        rep.update(json.load(open(f)))
+    n = len(rep)
+    no_row = [g for g, r in rep.items() if not r["label_in_stored_rows"]]
+    err = {g: abs(r["rtt"]["label"] - r["stored_label_rtt"]) / max(1.0, abs(r["stored_label_rtt"])) for g, r in rep.items() if r["label_in_stored_rows"]}
+    id_fail = [g for g, e in err.items() if e > 1e-9]
+    hand_no_row = [g for g, r in rep.items() if not r["hand_in_stored_rows"] and r["label_type"] == "ils"]
+    hand_err = {g: abs(r["rtt"]["hand"] - r["stored_hand_rtt"]) / max(1.0, abs(r["stored_hand_rtt"])) for g, r in rep.items() if r.get("stored_hand_rtt") is not None}
+    hand_id_fail = [g for g, e in hand_err.items() if e > 1e-9]
+    bug = [g for g, r in rep.items() if r["label_type"] == "ils" and r["rtt"]["label"] > r["rtt"]["hand"] + 1e-9 * max(1.0, abs(r["rtt"]["hand"]))]
+    out = {"groups": n, "label_not_in_stored_rows": no_row[:20], "n_label_not_in_stored_rows": len(no_row), "identity_checked": len(err), "identity_max_rel_err": max(err.values()) if err else None,
+           "identity_fail": id_fail[:20], "n_identity_fail": len(id_fail), "ils_groups_hand_not_in_stored_rows": len(hand_no_row), "hand_identity_checked": len(hand_err),
+           "hand_identity_fail": len(hand_id_fail), "hand_identity_max_rel_err": max(hand_err.values()) if hand_err else None, "bug_label_worse_than_hand_on_ils": bug[:20], "n_bug": len(bug),
+           "ils_groups": sum(1 for r in rep.values() if r["label_type"] == "ils")}
+    json.dump(out, open(a.out, "w"), indent=1)
+    print(json.dumps(out, indent=1))
+
+
 # ---- decode identity -------------------------------------------------------------------------------------------------------------------------
 
 WANDB = {"gnn_eng_s1": "run-20261014_100127-kebglex7", "gnn_eng_s2": "run-20261014_100126-kjteh12l",
@@ -431,6 +452,9 @@ def main(argv=None):
     il.add_argument("--stride", type=int, default=8)
     il.add_argument("--draw", required=True)
     il.add_argument("--out", required=True)
+    ck = sub.add_parser("checks")
+    ck.add_argument("--replay-dir", required=True)
+    ck.add_argument("--out", required=True)
     fl = sub.add_parser("flips")
     fl.add_argument("--decode-a", required=True)
     fl.add_argument("--decode-b", required=True)
@@ -446,7 +470,7 @@ def main(argv=None):
     pr.add_argument("--groups", required=True)
     pr.add_argument("--sim-input", default="/home/nikola.lukic/gnn-herosim/data/nofs-ids")
     a = ap.parse_args(argv)
-    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe, "identity": cmd_identity, "replay": cmd_replay, "flips": cmd_flips, "ils": cmd_ils}[a.cmd](a) or 0
+    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe, "identity": cmd_identity, "replay": cmd_replay, "flips": cmd_flips, "checks": cmd_checks, "ils": cmd_ils}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":
