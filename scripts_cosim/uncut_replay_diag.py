@@ -314,6 +314,7 @@ def cmd_flips(a):
         for run in RUNS:
             if A[gid][run]["decoded"] != B[gid][run]["decoded"]:
                 flips.append((run, gid))
+    flips.sort()          # gnn_eng before twin_eng: the twin loader sets a process-wide flag
     print(f"flipped (run, group): {len(flips)}")
     models, out = {}, []
     for run, gid in flips:
