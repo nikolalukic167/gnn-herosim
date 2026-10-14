@@ -41,6 +41,7 @@ from src.placement.network_graph import (
     build_network_graph_block,
     resolve_network_graph_contract,
 )
+from src.placement import serve_fast
 from src.placement.temporal_features import temporal_remainders
 from src.placement.topology_features import build_source_feature_context
 from src.placement.warmth import (
@@ -209,6 +210,85 @@ def _node_cold_counts_by_position(platforms_info: Sequence[PlatformInfo]) -> Lis
     return cold_counts
 
 
+# --- SERVEFAST_BUILD (src/placement/serve_fast.py): run-invariant memoisation; each helper computes exactly what the inline code does ---
+
+_TARGET_CONCURRENCY_MEMO: Dict[Tuple[str, int], Tuple[Any, float]] = {}
+_NODE_EDGE_MEMO: Dict[Any, Any] = {}
+
+
+def _target_concurrency_uncached(platform_type: str, task_types_data: Optional[Mapping[str, Any]]) -> float:
+    """The inline target-concurrency block of build_inference_feature_bundle, verbatim, as a function of (platform type, priors)."""
+    baseline_concurrency = 5.0
+    target_concurrency = baseline_concurrency
+    if task_types_data:
+        supported_task_types = [
+            task_type_name
+            for task_type_name in TASK_TYPES_VOCAB
+            if platform_type in (task_types_data.get(task_type_name) or {}).get("platforms", [])
+        ]
+        min_exec_times = []
+        for task_type_name in supported_task_types:
+            task_priors = task_types_data.get(task_type_name, {})
+            exec_map = task_priors.get("executionTime", {})
+            if isinstance(exec_map, dict) and exec_map:
+                pos_exec = [float(v) for v in exec_map.values() if v is not None and float(v) > 0.0]
+                if pos_exec:
+                    min_exec_times.append(min(pos_exec))
+        if min_exec_times:
+            avg_min_exec = sum(min_exec_times) / len(min_exec_times)
+            if avg_min_exec <= 0.0:
+                avg_min_exec = 1.0
+            exec_map_this = task_types_data.get(supported_task_types[0], {}).get("executionTime", {})
+            exec_time_this = (
+                float(exec_map_this.get(platform_type, avg_min_exec))
+                if isinstance(exec_map_this, dict)
+                else float(avg_min_exec)
+            )
+            if exec_time_this > 0:
+                target_concurrency = baseline_concurrency * (avg_min_exec / exec_time_this)
+    return target_concurrency
+
+
+def _target_concurrency_memo(platform_type: str, task_types_data: Optional[Mapping[str, Any]]) -> float:
+    key = (platform_type, id(task_types_data))
+    hit = _TARGET_CONCURRENCY_MEMO.get(key)
+    if hit is not None and hit[0] is task_types_data:
+        return hit[1]
+    val = _target_concurrency_uncached(platform_type, task_types_data)
+    _TARGET_CONCURRENCY_MEMO[key] = (task_types_data, val)
+    return val
+
+
+def _shared_fate_fast(platforms_info: Sequence[PlatformInfo]) -> List[float]:
+    """_shared_fate_by_position with each platform's cold flag read once instead of once per co-located pair."""
+    node_positions: Dict[str, List[int]] = {}
+    for info in platforms_info:
+        node_positions.setdefault(str(info.node_name), []).append(int(info.position))
+    cold = [0 if info.platform.initialized.triggered else 1 for info in platforms_info]
+    shared_fate = [0.0] * len(platforms_info)
+    for info in platforms_info:
+        co_located = node_positions.get(str(info.node_name), [info.position])
+        cold_count = sum(cold[pos] for pos in co_located)
+        shared_fate[info.position] = cold_count / max(len(co_located), 1)
+    return shared_fate
+
+
+def _platform_extra_fast(system_state: "SystemState", platforms_info: Sequence[PlatformInfo]) -> np.ndarray:
+    """platform_extra_columns(replica_types_from_system_state(...)) without the per-platform frozenset and double comprehension."""
+    from src.placement.four_type_features import EXTRA_TASK_TYPES, PLATFORM_EXTRA_DIM
+
+    held: Dict[Tuple[int, int], set] = {}
+    for task_type, replicas in system_state.replicas.items():
+        for node, plat in replicas:
+            held.setdefault((int(node.id), int(plat.id)), set()).add(str(task_type))
+    empty: set = set()
+    rows = []
+    for info in platforms_info:
+        types = held.get((info.node_id, info.platform_id), empty)
+        rows.append([1.0 if t in types else 0.0 for t in EXTRA_TASK_TYPES])
+    return np.asarray(rows, dtype=np.float64).reshape(len(rows), PLATFORM_EXTRA_DIM)
+
+
 def _uses_dim22_layout(layout: str) -> bool:
     # dim25cr is a dim22 layout as far as the BUNDLE is concerned: identical task,
     # platform and edge arrays. Its three extra columns are set-relative, so they exist
@@ -359,9 +439,13 @@ def build_inference_feature_bundle(
         queue_norm = float(_divisor_override)
     _dim7_clamp = serve_dim7_clamp() if use_norm_queue else None
     _dim13_clamp = serve_dim13_clamp() if use_norm_queue else None
+    _fast_build = serve_fast.build_on()
     shared_fate_by_pos = (
-        _shared_fate_by_position(platforms_info) if use_norm_queue else None
+        (_shared_fate_fast(platforms_info) if _fast_build else _shared_fate_by_position(platforms_info))
+        if use_norm_queue
+        else None
     )
+    _disk_hit_memo: Dict[Tuple[int, str], float] = {}
     node_cold_count_by_pos = (
         _node_cold_counts_by_position(platforms_info) if use_dim24 else None
     )
@@ -403,48 +487,59 @@ def build_inference_feature_bundle(
         # Match prepare_graphs_cache.build_graph: only TASK_TYPES_VOCAB (dnn1/dnn2),
         # positive finite exec times, no max(1.0, ...) floor. Including rf/cnn from
         # task-types.json inflates target_concurrency and breaks cache↔live parity.
-        baseline_concurrency = 5.0
-        target_concurrency = baseline_concurrency
-        if task_types_data:
-            supported_task_types = [
-                task_type_name
-                for task_type_name in TASK_TYPES_VOCAB
-                if info.platform_type
-                in (task_types_data.get(task_type_name) or {}).get("platforms", [])
-            ]
-            min_exec_times = []
-            for task_type_name in supported_task_types:
-                task_priors = task_types_data.get(task_type_name, {})
-                exec_map = task_priors.get("executionTime", {})
-                if isinstance(exec_map, dict) and exec_map:
-                    pos_exec = [
-                        float(v)
-                        for v in exec_map.values()
-                        if v is not None and float(v) > 0.0
-                    ]
-                    if pos_exec:
-                        min_exec_times.append(min(pos_exec))
-            if min_exec_times:
-                avg_min_exec = sum(min_exec_times) / len(min_exec_times)
-                if avg_min_exec <= 0.0:
-                    avg_min_exec = 1.0
-                exec_map_this = task_types_data.get(supported_task_types[0], {}).get(
-                    "executionTime", {}
-                )
-                exec_time_this = (
-                    float(exec_map_this.get(info.platform_type, avg_min_exec))
-                    if isinstance(exec_map_this, dict)
-                    else float(avg_min_exec)
-                )
-                if exec_time_this > 0:
-                    target_concurrency = baseline_concurrency * (
-                        avg_min_exec / exec_time_this
+        if _fast_build:
+            target_concurrency = _target_concurrency_memo(str(info.platform_type), task_types_data)
+        else:
+            baseline_concurrency = 5.0
+            target_concurrency = baseline_concurrency
+            if task_types_data:
+                supported_task_types = [
+                    task_type_name
+                    for task_type_name in TASK_TYPES_VOCAB
+                    if info.platform_type
+                    in (task_types_data.get(task_type_name) or {}).get("platforms", [])
+                ]
+                min_exec_times = []
+                for task_type_name in supported_task_types:
+                    task_priors = task_types_data.get(task_type_name, {})
+                    exec_map = task_priors.get("executionTime", {})
+                    if isinstance(exec_map, dict) and exec_map:
+                        pos_exec = [
+                            float(v)
+                            for v in exec_map.values()
+                            if v is not None and float(v) > 0.0
+                        ]
+                        if pos_exec:
+                            min_exec_times.append(min(pos_exec))
+                if min_exec_times:
+                    avg_min_exec = sum(min_exec_times) / len(min_exec_times)
+                    if avg_min_exec <= 0.0:
+                        avg_min_exec = 1.0
+                    exec_map_this = task_types_data.get(supported_task_types[0], {}).get(
+                        "executionTime", {}
                     )
+                    exec_time_this = (
+                        float(exec_map_this.get(info.platform_type, avg_min_exec))
+                        if isinstance(exec_map_this, dict)
+                        else float(avg_min_exec)
+                    )
+                    if exec_time_this > 0:
+                        target_concurrency = baseline_concurrency * (
+                            avg_min_exec / exec_time_this
+                        )
 
         target_concurrency_raw = float(target_concurrency)
-        node_disk_hit = _platform_node_disk_hit(
-            info.node, str(info.platform_type), batch_task_types
-        )
+        if _fast_build:
+            _dk = (id(info.node), str(info.platform_type))
+            node_disk_hit = _disk_hit_memo.get(_dk)
+            if node_disk_hit is None:
+                node_disk_hit = _disk_hit_memo[_dk] = _platform_node_disk_hit(
+                    info.node, str(info.platform_type), batch_task_types
+                )
+        else:
+            node_disk_hit = _platform_node_disk_hit(
+                info.node, str(info.platform_type), batch_task_types
+            )
         if use_norm_queue:
             target_concurrency_feat = target_concurrency_raw / 20.0
             dim13_feat = apply_serve_clamp(
@@ -611,11 +706,14 @@ def build_inference_feature_bundle(
     four_task_extra = four_platform_extra = None
     if four_type_enabled():
         four_task_extra = task_extra_columns(str(t.type["name"]) for t in batch_tasks)
-        four_platform_extra = platform_extra_columns(
-            replica_types_from_system_state(
-                system_state, [(info.node_id, info.platform_id) for info in platforms_info]
+        if _fast_build:
+            four_platform_extra = _platform_extra_fast(system_state, platforms_info)
+        else:
+            four_platform_extra = platform_extra_columns(
+                replica_types_from_system_state(
+                    system_state, [(info.node_id, info.platform_id) for info in platforms_info]
+                )
             )
-        )
 
     return InferenceFeatureBundle(
         n_tasks=n_tasks,
@@ -817,7 +915,14 @@ def build_pyg_inference_graph(
         node_to_positions.setdefault(str(meta["node_name"]), []).append(
             int(meta["platform_pos"])
         )
-    data.node_edge_index = build_same_node_edge_index(node_to_positions, n_tasks)
+    if serve_fast.build_on():
+        _ne_key = (n_tasks, tuple((k, tuple(v)) for k, v in node_to_positions.items()))
+        _ne = _NODE_EDGE_MEMO.get(_ne_key)
+        if _ne is None:
+            _ne = _NODE_EDGE_MEMO[_ne_key] = build_same_node_edge_index(node_to_positions, n_tasks)
+        data.node_edge_index = _ne.clone()
+    else:
+        data.node_edge_index = build_same_node_edge_index(node_to_positions, n_tasks)
 
     # Network entities (physical nodes + core links + route edges). Default OFF: a
     # checkpoint trained on the bipartite graph must never be served these, which is the
