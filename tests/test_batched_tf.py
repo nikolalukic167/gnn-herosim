@@ -90,17 +90,51 @@ def _pick(graphs):
 
 
 def _model(graph, seed=0):
+    return _trainer_model("gnn_eng", graph, seed=seed)
+
+
+def _trainer_model(arm: str, graph, monkeypatch=None, seed: int = 0):
+    """The model exactly as the trainer builds it for `experiments/uncut_arm1b_<arm>.yaml`: the yaml's env is applied, NearRttConfig and the
+    `model = TaskPlacementGNN(...)` statement are executed from train_near_rtt.py's own source (it trains at import and cannot be imported).
+    A hand-typed constructor would let the twin differ from what trains (C1)."""
+    import typing
+
+    import yaml
+    from dataclasses import dataclass
+
+    from src.policy.gnn import arm2 as _arm2
     from src.policy.gnn.gnn_model import TaskPlacementGNN
     from src.policy.tabular.reduced_features import partial_state_feature_dim
 
-    torch.manual_seed(seed)
-    return TaskPlacementGNN(
-        task_feature_dim=int(graph.task_features.shape[1]), platform_feature_dim=int(graph.platform_features.shape[1]),
-        embedding_dim=128, hidden_dim=128, num_layers=3, dropout=0.1, post_gin_dropout=0.1,
-        normalize_platform_inputs=int(graph.platform_features.shape[1]) == 21,
-        mp_peer_edges=True, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True,
-        task_type_onehot_dim=4, partial_state_edge_dim=partial_state_feature_dim("partial_state_v5"),
-    )
+    cfg = yaml.safe_load((REPO_ROOT / f"experiments/uncut_arm1b_{arm}.yaml").read_text())
+    saved = dict(os.environ)
+    try:
+        for k in list(cfg.get("unset_env") or []) + ["GNN_DISABLE_MESSAGE_PASSING"]:
+            os.environ.pop(k, None)
+        os.environ.update({str(k): str(v) for k, v in cfg["env"].items()})
+        tree = ast.parse((REPO_ROOT / "src/notebooks/train_near_rtt.py").read_text())
+        cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "NearRttConfig")
+        ns: Dict[str, Any] = dict(os=os, dataclass=dataclass, _arm2=_arm2, typing=typing, **{n: getattr(typing, n) for n in typing.__all__})
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])), "train_near_rtt.py:NearRttConfig", "exec"), ns)
+        branch = next(n for n in tree.body if isinstance(n, ast.If) and "GRAPH_FREE_ARMS" in ast.unparse(n.test) and "arm_kind" in ast.unparse(n.test)
+                      and any("TaskPlacementGNN" in ast.unparse(x) for x in n.orelse))
+        stmt = branch.orelse[0]
+        assert isinstance(stmt, ast.Assign) and "TaskPlacementGNN" in ast.unparse(stmt)
+        args = cfg["args"]
+        ns.update(
+            NEAR_CFG=ns["NearRttConfig"](), TaskPlacementGNN=TaskPlacementGNN, DEVICE=torch.device("cpu"),
+            EMBEDDING_DIM=int(args["embedding-dim"]), HIDDEN_DIM=int(args["hidden-dim"]), NUM_GIN_LAYERS=3,
+            _task_feature_dim=int(graph.task_features.shape[1]), _platform_feature_dim=int(graph.platform_features.shape[1]),
+            _feature_dim=int(graph.platform_features.shape[1]), DAG_TASK_TYPE_ONEHOT_DIM=4,
+            _prefix_block_dim=lambda: partial_state_feature_dim(os.environ["PARTIAL_STATE_CONTRACT"]),
+        )
+        torch.manual_seed(seed)
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[stmt], type_ignores=[])), "train_near_rtt.py:model", "exec"), ns)
+        model = ns["model"]
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+    return model
 
 
 def _ctx(graph, alpha=ALPHA):
@@ -163,12 +197,13 @@ def _sequential_logps(graph, model, ctx, plans, order, with_full):
     return pre, full
 
 
+@pytest.mark.parametrize("arm", ["gnn_eng", "twin_eng"])
 @pytest.mark.parametrize("which", ["typical", "group101_256", "multi_plan"])
-def test_per_step_logps_equal_the_sequential_walk(graphs, which):
+def test_per_step_logps_equal_the_sequential_walk(graphs, which, arm):
     from src.policy.gnn.batched_tf import BatchedTeacherForced
 
     graph = _pick(graphs)[which]
-    model = _model(graph).eval()
+    model = _trainer_model(arm, graph).eval()
     ctx, order = _ctx(graph), _order(graph)
     plans = graph.tied_optimal_logit_plans[ALPHA]
     with torch.no_grad():
@@ -235,15 +270,16 @@ def test_the_encode_is_prefix_free(graphs):
     assert torch.equal(a[0], b[0]) and torch.equal(a[1], b[1])
 
 
+@pytest.mark.parametrize("arm", ["gnn_eng", "twin_eng"])
 @pytest.mark.parametrize("which", ["typical", "multi_plan", "group101_256"])
-def test_causality_later_placements_do_not_reach_earlier_steps(graphs, which):
+def test_causality_later_placements_do_not_reach_earlier_steps(graphs, which, arm):
     """(b): perturb the placements of every task after position s of the commit order. Steps <= s keep bit-equal log-probs, and the
     gradient of the steps <= s with respect to the feature rows of the later steps is exactly zero (rows are scored independently:
     no pooling, attention or normalisation across steps)."""
     from src.policy.gnn.batched_tf import BatchedTeacherForced
 
     graph = _pick(graphs)[which]
-    model = _model(graph).eval()
+    model = _trainer_model(arm, graph).eval()
     ctx, order = _ctx(graph), _order(graph)
     n = int(graph.n_tasks)
     plan = [int(v) for v in graph.tied_optimal_logit_plans[ALPHA][0]]
@@ -279,9 +315,10 @@ def test_causality_later_placements_do_not_reach_earlier_steps(graphs, which):
     assert float(ps.grad[early_rows].abs().max()) > 0.0
 
 
-def test_batched_loss_equals_the_sequential_loss_in_eval_and_differs_by_dropout_in_train(graphs):
+@pytest.mark.parametrize("arm", ["gnn_eng", "twin_eng"])
+def test_batched_loss_equals_the_sequential_loss_in_eval_and_differs_by_dropout_in_train(graphs, arm):
     graph = _pick(graphs)["multi_plan"]
-    model = _model(graph)
+    model = _trainer_model(arm, graph)
     dev = torch.device("cpu")
     seq, bat = _loss_fn(False), _loss_fn(True)
     model.eval()
@@ -363,3 +400,11 @@ def test_batched_training_is_bit_identical_on_cuda(graphs):
     a = _three_steps(graph, torch.device("cuda"))
     b = _three_steps(graph, torch.device("cuda"))
     assert all(torch.equal(a[k], b[k]) for k in a)
+
+
+def test_the_twin_is_built_without_message_passing_and_the_mp_arm_with_it(graphs):
+    """C1: the trainer's own construction gives different models for the two yamls."""
+    graph = _pick(graphs)["typical"]
+    gnn, twin = _trainer_model("gnn_eng", graph), _trainer_model("twin_eng", graph)
+    assert not gnn._disable_mp and twin._disable_mp
+    assert gnn.partial_state_edge_dim == twin.partial_state_edge_dim > 0

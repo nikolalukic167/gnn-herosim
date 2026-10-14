@@ -319,7 +319,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Leaks the batched path must not have (sequential ground truth: the teacher-forced loop in `train_near_rtt.py`).**
     - L1: a strict prefix; step t excludes t's own commit.
     - L2: every prefix-derived column is computed per prefix row (the registered rung is uncapped; the caps are asserted empty on the cache, and a capped rung is tested too if the cache has one).
-    - L3: each tied plan uses its own prefix, with no union across plans; the dedupe key is the full (task, committed set).
+    - L3: each tied plan uses its own prefix, with no union across plans; the dedupe key is the full (task, committed set). **L3 is inert in production** (K = 1 plan per state everywhere in the Arm 1 corpus: 0 of 11,073 graphs have a tie) **and is tested only on the synthetic multi-plan graph** (SCIENTIST's sentence).
     - L4: no pooling, attention or normalisation across the prefix, step or graph dimension; candidate padding is -inf before `log_softmax`.
     - L5: the encode is prefix-free, and this is asserted (`tests/test_batched_tf.py`).
   - **Tests** (`tests/test_batched_tf.py`, on real cache graphs including the smallest 101-256-task group and a real graph given 3 extra plans (the Arm 1 corpus labels one plan per state), dropout off; `tests/test_trainer_determinism.py` carries the flag):
