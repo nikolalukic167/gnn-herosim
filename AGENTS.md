@@ -46,7 +46,7 @@ rungs. Arm names: `CONTEXT.md` → Arms.
   (`slate_fix_v1`), the deploy transient (`slate_fix_v2`), a warm ×2/×3 surge (`warm_surge_s0_v1`: `cd_exactS_ib0` itself collapses on some heavy topologies, so any
   heavy-surge % vs `ib0` needs its collapse count).
 - **Open: the GNN served on whole, uncut Alibaba peer groups with decision time charged** (`uncut_groups_s0_v1`, `REGISTERED`; prior P(WIN) ≈ 0.03). Arm 1,
-  Arm 1b (batched trainer), Arm 2 (committed-state re-encode, group anchor, random-prefix K = 2) and its K = 0 sibling train under pre-registered bars; interim reads
+  Arm 1b (batched trainer), Arm 2 (committed-state re-encode, group anchor, random-prefix K = 2) and its K = 0 sibling train against the bar `cd_ib0` at k = 1 on whole groups; interim reads
   are descriptive and the **final read has not been run**. The gate tests groups up to about 230 tasks, so no outcome may be quoted as covering groups in the thousands.
   Arm 2's two K = 2 GNN runs train on an L40S and the twins on CPU, so every Arm 2 gnn-vs-twin line is not device-matched.
 - **Knative under R1:** quote only the concurrency-key arm (+48 / +68 % vs CD); the queue-keyed arm herds (gate-tools, 2026-10-11).
