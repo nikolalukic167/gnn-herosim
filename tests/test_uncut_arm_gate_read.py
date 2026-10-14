@@ -19,7 +19,8 @@ def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth=
     name = f"cc40s{t}__{w}{r}__{arm}{sfx}_s{seed}"
     s = {"averageElapsedTime": mean, "steady_state": {"after_360s": {"mean": mean}}, "num_tasks": 4,
          "endTime": 100.0, "arrival_end": {"last_arrival_s": 99.0}, "code": {"commit": commit, "dirty": False},
-         "schedulerCounters": {"sched_queue_wait_seconds": 0.0, "sched_busy_seconds": busy}, "env": {"HEROSIM_WARMTH_PHYSICS": warmth}}
+         "schedulerCounters": {"sched_queue_wait_seconds": 0.0, "sched_busy_seconds": busy}, "env": {"HEROSIM_WARMTH_PHYSICS": warmth},
+         "python_env": {"torch_num_threads": 1}, "host": {"cpu_model": "AMD EPYC 9335", "smt_control": "off", "nproc": 64}}
     if ckpt:
         s["env"]["GNN_MODEL_PATH"] = ckpt
     s["env"].update(env or {})
@@ -560,3 +561,29 @@ def test_arm1b_needs_arm1_read_first_and_its_own_md5(arm1b, tmp_path):
         G.main(args)
     with pytest.raises(SystemExit, match="only with it"):
         run(d, cm1, **{"after-read": after("WIN")})
+
+
+@pytest.mark.parametrize("bad", ["no_host", "threads"])
+def test_learned_cells_need_host_block_and_one_thread(gate, bad):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    p = os.path.join(d, f"cc40s1__g0heavy__{P}_k100_s1.summary.json")
+    s = json.load(open(p))
+    if bad == "no_host":
+        s.pop("host")
+    else:
+        s["python_env"]["torch_num_threads"] = 4
+    json.dump(s, open(p, "w"))
+    with pytest.raises(SystemExit, match="host block and 1 torch thread"):
+        run(d, cm)
+
+
+def test_hosts_reported_per_arm(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    p = os.path.join(d, "cc40s1__g0heavy__cd_ib0_k100_s0.summary.json")
+    s = json.load(open(p))
+    s.pop("host")
+    json.dump(s, open(p, "w"))
+    h = run(d, cm)["hosts"]
+    assert h[P] == {"AMD EPYC 9335 | smt off | nproc 64": 192} and h["cd_ib0"]["unrecorded | smt ? | nproc ?"] == 1
