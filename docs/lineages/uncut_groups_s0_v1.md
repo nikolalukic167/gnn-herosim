@@ -300,6 +300,16 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-14 — **Two charge-share checks filed (the expert's ruling after SCIENTIST; S6).** Neither changes a rule and neither reads an outcome. SCIENTIST confirmed that a learned charge share of about 0.1 % changes nothing in the calibration.
+  - **The 0.1 % line** is the hand-bias bound, and only for the hand w. A learned charge share above it is not a trip.
+  - **(1) Per-bucket and worst-cell share, at every interim look and at the final read.** Next to the pooled figure, the learned charge share is reported per served-batch bucket (≤ 10, 11–50, 51–100, 101–256) and in the worst cell. Large groups may carry several times the pooled share.
+    - Tool: `scripts_cosim/uncut_interim_share.py` (`rp/uncut-interim` d9fc39eb, md5 f8db1b16, 3 tests). It gives two figures:
+      - **Pooled share:** each bucket's charge (w(n) × its plan evals) over the cells' summed task latency.
+      - **Felt share:** a task served in a batch of n waits the whole batch charge, w(n) × n. Per bucket, that is summed over the bucket's tasks and divided by their summed latency (doneTime − dispatchedTime from `.tasks_bsz.npy`; this matches `averageElapsedTime` exactly).
+    - The gate's w buckets are le10, 11_50 and gt50. The 51–100 and 101–256 buckets split gt50's charged plan evals in the sidecar's proportions. This split is approximate: the sidecar holds each task's last served batch, so its count above 50 differs from the charged gt50 count in 147 of 192 look-1 cells (−1 to +373 tasks; largest relative gap 4.6 % heavy, 7.5 % moderate).
+    - Look 1 is retrofitted: its cells carry the per-bucket counts (interim-looks log, row 1).
+  - **(2) Linearity check, at the final read.** Per arm, the paired latency difference `_kr` minus frozen-w should be about (k_cotenancy − 1) × share, ≈ 0.468 × share at k = 1.468. If it is many times larger, queueing amplifies the charge. The measured number then replaces SCIENTIST's "≈ 0.05 %" estimate.
+    - It is reported against both the pooled and the felt share. Look 1 shows the felt share is about 6–7× the pooled share even at ≤ 10 (0.58 % against 0.07 % heavy), because every task in a batch waits the batch's whole charge.
 - 2026-10-14 — **Interim reads, by the user's direction; the registered final read is unchanged** (the expert, filed before any interim cell exists). The user asked for each arm's live gate to run as its checkpoints land, with interim reads, keeping the final read for the record.
   - **What an interim read is.** It is descriptive and labelled `INTERIM`. It runs each landed arm's k=1 cells against the frozen 869828 bar cells. A learned arm is charged a provisional w, measured on the interim venue and labelled `PROVISIONAL-W`. The provisional w sits on its own branch, never on the `rp/uncut-arm1-pin` chain, and never enters a w-only pin. Interim cells are never cited as the result and never reused by the final read.
   - **What it cannot change.** Nothing registered moves because of an interim read: arms, seeds, epochs, served checkpoint, k, families, Holm, thresholds, calibration protocol, cell set or hedge rule. Training of every arm continues to epoch 100 whatever an interim read shows. No arm is stopped, added or retrained on its basis.
