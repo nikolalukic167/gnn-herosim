@@ -199,6 +199,12 @@ Guards held on every run in these families: every val dataset decoded (438, 451 
 accuracies as a probe of the empty-prefix scorer, never as the run's accuracy, and expect them to fall.** For the same checkpoint (accel g4 seed 1,
 best) the two families read prefix-free task_acc 52.4 % / acc 24.4 % against served choice accuracy 73.5 % / plan-exact 62.6 %.
 
+**Exception (2026-10-14): sampled sweeps.** Without the full sweep (`NEAR_RTT_VAL_EXACT_REGRET=0`, datasets whose `placements.jsonl` header says
+`exhaustive=false`) a decoded plan absent from the sidecar is charged the constant worst regret, so `regret_masked_topo`, its median, `regret_topk` and
+`regret_oracle_topk` track sidecar coverage, not plan quality, and checkpoint selection on them can land on an early epoch. Since 301f293f the trainer does not log
+them on such teacher-forced runs (`NEAR_RTT_LOG_UNSERVED_METRICS=1` restores them). Read `mt_task_acc_choice`, `mt_plan_exact` and val `ce`, gate on `-final.pt`
+and check val `ce` for overfitting. The uncut_groups_s0_v1 Record ("the served checkpoint is `-final.pt`") owns the measurements.
+
 **Two defects in `scripts_cosim/read_training_curves.py` found by this sweep** (S6 is fixing them):
 1. **Direction of the `mt_*` accuracies.** The SELECTION block takes the minimum of `val/mt_plan_exact`, `val/mt_task_acc_choice` and
    `val/task_acc_choice` as their "peak", so it prints "peaks at epoch 0, not 96 — the selector is not optimising it" for metrics that in fact rise to
@@ -641,3 +647,19 @@ register a blocking hand control that computes the hidden quantity from the incu
 itself, with a recovered-fraction bar (0.80 was used). A weak hand guess failing is not evidence
 that learning is needed; only the strongest cheap control failing is. See the node for the
 measurements and `docs/hard-stops.md` for the direction it closed.
+
+## Threads above the cpuset's cores inflate torch time about 200× — set threads ≤ `nproc` and log it (2026-10-14)
+
+When datalab switched SMT off on every CPU-amd node, each 8-CPU job's cpuset fell to 4 physical cores under 6 torch threads, and one Arm 1 job slowed about 200×
+(py-spy: the main thread spins in libgomp inside the backward; no I/O, memory or cgroup throttling). It would have biased only the learned arms of a decision-time-charged
+gate. **Rule:** every timed or calibrated run sets torch/OMP threads ≤ the in-job `nproc` (after SMT), uses the same thread count in calibration and cells, and logs
+`nproc`, threads, cpuset, `lscpu` model and "Thread(s) per core" per run. A calibration with threads > `nproc` is void, and a change of SMT state or CPU model between
+calibration and cells is a venue change. The `uncut_groups_s0_v1` Record ("Arm 1 relaunched after datalab switched SMT off") owns the measurement and the venue rules.
+
+## A decision charge is felt by every task in the batch — report the felt share, not the per-plan share (2026-10-14)
+
+When decision time is charged as simulated time per batch, every one of the batch's `n_b` tasks waits that batch's charge `c_b`. The share of latency it costs is the
+**felt share** `Σ_batches n_b · c_b ÷ Σ_tasks latency`, not `Σ c_b ÷ Σ latency`, which understates it wherever batches are large. The per-plan figure is the **pooled** share. State which one a "charge share" is, and
+base any bound on the exact felt share. The `uncut_groups_s0_v1` Record ("Felt share: definition, hand F measured
+exactly, bounds recomputed") owns the definition and the measurements.
+
