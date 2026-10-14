@@ -38,7 +38,10 @@ RA_ARMS = {
 ARM2_ARMS = {
     "ra_gnn_eng_arm2": ("gnn", False, False, True, False),
     "ra_twin_eng_arm2": ("gnn", True, False, False, False),
+    "ra_gnn_eng_arm2k0": ("gnn", False, False, True, False),
+    "ra_twin_eng_arm2k0": ("gnn", True, False, False, False),
 }
+ARM2_RANDOM_PREFIX_K = {"ra_gnn_eng_arm2k0": 0, "ra_twin_eng_arm2k0": 0}  # Arm 2-K0; every other Arm 2 arm is K = 2
 
 
 def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
@@ -52,7 +55,7 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
         "mp_peer_edges": not graph_free, "partial_state_feature_dim": 2 if raw else 27,
     }
     if arm in ARM2_ARMS:
-        want.update(reencode_every="auto", group_anchor=True, random_prefix_k=2, anchor_ce_weight=0.5)
+        want.update(reencode_every="auto", group_anchor=True, random_prefix_k=ARM2_RANDOM_PREFIX_K.get(arm, 2), anchor_ce_weight=0.5)
     elif sc.get("group_anchor") or sc.get("reencode_every") not in (None, "inf"):
         print(f"FAIL LOUD: sidecar is an Arm 2 checkpoint (group_anchor/reencode_every), arm {arm} is not", file=sys.stderr)
         return 1
