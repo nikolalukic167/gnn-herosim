@@ -88,6 +88,13 @@ def _load_models(names: Sequence[str]):
     from src.placement import replica_rule
     from src.executesimulation import load_gnn_model
 
+    arms = {n.split("_s")[0] for n in names}
+    if len(arms) != 1:
+        raise SystemExit(f"FAIL LOUD: one process decodes one arm (the twin's GNN_DISABLE_MESSAGE_PASSING is a process-wide flag); got {sorted(arms)}")
+    if arms == {"twin_eng"}:
+        os.environ["GNN_DISABLE_MESSAGE_PASSING"] = "1"
+    else:
+        os.environ.pop("GNN_DISABLE_MESSAGE_PASSING", None)
     replica_rule.set_rule("fastest_compatible")      # the Arm 1 cache's physics (checkpoint sidecar physics_env), which load_gnn_model checks
 
     models = {}
@@ -146,7 +153,7 @@ def decode_group(model, g) -> Dict[str, Any]:
 
 def cmd_decode(a):
     shard = pickle.load(open(a.shard, "rb"))
-    names = a.runs.split(",") if a.runs else list(RUNS)
+    names = a.runs.split(",") if a.runs else [n for n in RUNS if n.startswith(a.arm)]
     models = _load_models(names)
     res: Dict[str, Any] = {}
     t0 = time.time()
@@ -204,6 +211,7 @@ def main(argv=None):
     d.add_argument("--shard", required=True)
     d.add_argument("--out", required=True)
     d.add_argument("--runs", default="")
+    d.add_argument("--arm", default="gnn_eng", choices=("gnn_eng", "twin_eng"))
     pr = sub.add_parser("probe")
     pr.add_argument("--groups", required=True)
     pr.add_argument("--sim-input", default="/home/nikola.lukic/gnn-herosim/data/nofs-ids")

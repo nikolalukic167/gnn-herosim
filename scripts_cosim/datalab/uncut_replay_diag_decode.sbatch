@@ -17,4 +17,6 @@ export DAG_PRIMARY_ALPHA_KEY=inf
 T=$(printf "%03d" "$SLURM_ARRAY_TASK_ID")
 mkdir -p $D/decode
 echo "node $(hostname) job $SLURM_JOB_ID task $T HEAD $(git rev-parse HEAD) cpu $(lscpu | grep -m1 'Model name')"
-python3 scripts_cosim/uncut_replay_diag.py decode --shard $D/shards/g_$T.pkl --out $D/decode/d_$T.json
+for ARM in gnn_eng twin_eng; do
+  python3 scripts_cosim/uncut_replay_diag.py decode --arm $ARM --shard $D/shards/g_$T.pkl --out $D/decode/d_${T}_$ARM.json
+done
