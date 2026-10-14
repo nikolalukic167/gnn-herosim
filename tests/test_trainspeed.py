@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-CACHE = Path(os.environ.get("TRAINSPEED_CACHE", "/share/nikola.lukic/uncut_arm1/pre/c/graphs.pkl"))
+CACHE = Path(os.environ.get("TRAINSPEED_CACHE", "/share/nikola.lukic/uncut_arm1/cache_run/cache/graphs.pkl"))
 ENV = {"PARTIAL_STATE_CONTRACT": "partial_state_v5", "PARTIAL_STATE_LOAD_SECONDS": "1", "PARTIAL_STATE_EXCHANGE_SECONDS": "1",
        "PARTIAL_STATE_PEER_MASS": "1"}
 
