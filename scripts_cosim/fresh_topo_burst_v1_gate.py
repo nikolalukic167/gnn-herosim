@@ -158,8 +158,12 @@ ARM2_KINDS = ("ra_gnn_eng_arm2", "ra_twin_eng_arm2")
 # checkpoints <R1A_ARM1_STEM or uncut-arm1>-{gnn-eng,twin-eng,mlp-same}-seed<N>. Served nosplit and named in R1A_ARMS (out of the default grid);
 # every check the RA arm of the same recipe gets, they get.
 ARM1_KINDS = ("ra_gnn_eng_arm1", "ra_twin_eng_arm1", "ra_mlp_same_arm1")
-RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM1_KINDS
-RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm1")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
+# uncut_groups_s0_v1 Arm 1b (pre-registered, f6c1b85e): gnn_eng and its twin on the Arm 1 corpus and split, trained with the batched
+# teacher-forced loss (NEAR_RTT_BATCHED_TF); checkpoints <R1A_ARM1B_STEM or uncut-arm1b>-{gnn-eng,twin-eng}-seed<N>, served as Arm 1's.
+# Serving ignores the sidecar's batched_teacher_forced, so the cell checks it: true for Arm 1b, absent or false for Arm 1.
+ARM1B_KINDS = ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM1_KINDS + ARM1B_KINDS
+RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm1", "ra_twin_eng_arm1b")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
@@ -227,7 +231,7 @@ def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
 
 
 # uncut_groups_s0_v1 co-tenancy verdict (pre-registered 2026-10-14): "<arm1 learned kind>_kr" serves that arm at k = the
-# decision_cost_w.json top-level "k_cotenancy" (r = max(1, r_hand, r_learned), frozen with the learned w). Arm 1 learned kinds only.
+# decision_cost_w.json top-level "k_cotenancy" (r = max(1, r_hand, r_learned), frozen with the learned w). Arm 1 and Arm 1b learned kinds only.
 DC_KR = "kr"
 
 
@@ -238,11 +242,21 @@ def cotenancy_k() -> float:
     return float(k)
 
 
+def arm1_trainer_check(base_kind: str, side: str) -> None:
+    """Arm 1b's sidecar records batched_teacher_forced true; Arm 1's has it absent or false. Other kinds are not checked."""
+    if base_kind not in ARM1_KINDS + ARM1B_KINDS:
+        return
+    btf = json.load(open(side)).get("batched_teacher_forced")
+    if (btf is not True) if base_kind in ARM1B_KINDS else (btf is not None and btf is not False):
+        raise SystemExit(f"FAIL LOUD: {side} batched_teacher_forced is {btf!r}; {base_kind} needs "
+                         + ("true (Arm 1b)" if base_kind in ARM1B_KINDS else "it absent or false (Arm 1)"))
+
+
 def split_dc(kind: str) -> Tuple[str, Optional[float]]:
     if kind.endswith("_" + DC_KR):
         base = kind[:-len(DC_KR) - 1]
-        if base not in tuple(f"{k}_nosplit" for k in ARM1_KINDS):
-            raise SystemExit(f"FAIL LOUD: _{DC_KR} serves only the Arm 1 learned kinds, not {base!r}")
+        if base not in tuple(f"{k}_nosplit" for k in ARM1_KINDS + ARM1B_KINDS):
+            raise SystemExit(f"FAIL LOUD: _{DC_KR} serves only the Arm 1 and Arm 1b learned kinds, not {base!r}")
         return base, cotenancy_k()
     for tag, k in DC_K.items():
         if kind.endswith("_" + tag):
@@ -273,7 +287,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
 
 R1A_DIAG = (*OBS_ARMS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
-               *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
+               *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS), *ARM1B_KINDS, *(f"{k}_nosplit" for k in ARM1B_KINDS))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",
             *ARM2_KINDS, *(f"{k}_nosplit" for k in ARM2_KINDS))  # cdxapply diagnostics; Arm 2 (bare kinds are never run, the _nosplit ones are the gate arms), checkpoint seeds; name them in R1A_ARMS
@@ -997,6 +1011,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = os.environ.get("R1A_ARM2_STEM", "uncut-arm2") + "-" + base_kind[3:-len("_arm2")].replace("_", "-")
         elif base_kind in ARM1_KINDS:
             stem = os.environ.get("R1A_ARM1_STEM", "uncut-arm1") + "-" + base_kind[3:-len("_arm1")].replace("_", "-")
+        elif base_kind in ARM1B_KINDS:
+            stem = os.environ.get("R1A_ARM1B_STEM", "uncut-arm1b") + "-" + base_kind[3:-len("_arm1b")].replace("_", "-")
         elif base_kind in RA_KINDS:
             stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")
         else:
@@ -1005,13 +1021,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         mroot = inputs_root if os.path.isdir(os.path.join(inputs_root, "models")) else inputs
         ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
-        check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind[:-len("_arm1")] if base_kind in ARM1_KINDS else base_kind)
+        check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind[:-len("_arm1")] if base_kind in ARM1_KINDS else base_kind[:-len("_arm1b")] if base_kind in ARM1B_KINDS else base_kind)
         split = (os.environ.get("R1A_SPLIT", "r1_attribution_v1_split.json") if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
                                   os.path.join(mroot, split), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
+        arm1_trainer_check(base_kind, side)
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
         if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "so1mpoff", "so1lfmlp", "rawmlp", "rawStwin", "lf1twin", "lf1mlp") + RA_MP_OFF:
