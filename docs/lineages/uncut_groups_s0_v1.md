@@ -338,6 +338,26 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
        - It computes F1/F2 twice: the learned arms' k100 cells and their `_kr` cells, each against the same hand cells.
        - **Combined label:** both program-level WIN gives the frozen label; both WIN otherwise gives WIN-ARM-ONLY; a frozen WIN alone gives WIN-NOT-COTENANCY-ROBUST (no learned win). F2 is the weaker of the two.
     8. **Placement.** Learned k = 1 cells run on nodes without training jobs (`--exclusive`). Watchdog kills are reported per arm.
+  - **SCIENTIST's sign-off conditions (binding, before W1).**
+    1. **Combined label.** Every F1 label the verdict can emit has an explicit strength order.
+       - Any WIN-class label is stronger than every non-WIN label.
+       - Within WIN, two axes: program-level above ARM-ONLY, and on the bar, no qualifier > ROBUST > OVER-BRITTLE-BAR.
+       - Non-WIN order: "F3 at k = 0.25 required" > MIXED > TIES > E-FASTER.
+       - The combined F1 is the weaker of the frozen and co-tenancy labels. Two WIN labels combine axis by axis and keep both qualifiers (e.g. `WIN-ARM-ONLY; OVER-BRITTLE-BAR`).
+       - `NOT-COTENANCY-ROBUST` flags a frozen-only WIN.
+       - `COTENANCY-ANOMALY` flags a co-tenancy WIN without a frozen one. It is recorded in `why` and in the JSON `flags`, and the label stays the frozen one.
+       - Tested on all 100 label pairs.
+    2. **Per-bucket r (Note A).** For each measured arm and rung, `r_b` = w_shared ÷ w_exclusive per served-batch bucket (le10 / 11_50 / gt50, `decisionTiming.by_bucket`, pooled over the recipe's cells).
+       - If any bucket with ≥ 200 plan evals in both runs has `r_b` > 1.25 × the pooled r, the arm's r at that rung is the max `r_b` over such buckets. Otherwise it is the pooled r.
+       - **k_cotenancy = max(1, 1.468, r_cd_ib0, r_gnn_eng)** over both rungs. The 1.468 is the 863811-recipe pooled value above.
+       - The 863811 recipe at 84415895 predates `by_bucket`. So `cd_ib0` is measured again on the learned arms' recipe (19461 g0, both rungs, k = 0, PAR = 1) at bf79865a: jobs **869839** (exclusive) and **869840** (shared, N = 8 × 8), output `cotenancy/cdib0_19461_{excl,shared}`.
+       - `r_gnn_eng` is measured the same way when its checkpoint lands.
+       - The hand-bias bound is rechecked at the final k_cotenancy.
+    3. **Disclosures.**
+       - r_learned is measured on gnn_eng and applied to twin_eng and mlp_same. Whatever their own r, the primary carries the full k_cotenancy, so this is conservative for the GNN claim.
+       - The load is a dense fp32 matmul (compute-bound). The GNN forward is gather/scatter (memory-bound), so it may suffer co-tenancy differently.
+       - The heaviest real co-tenancy in the table is about 116 CPUs (863705), against 64 load threads here.
+    4. **Arm 2 and K0 (Note B, registered now).** Each gets its own `_kr` second verdict on the same rules. Its `k_cotenancy` = max(Arm 1's k_cotenancy, r measured the same way on Arm 2's gnn checkpoint). The gate code (the `_kr` tag for the Arm 2 kinds) comes later, before their k = 1 cells.
   - **Measured so far.**
     - **r_hand** (jobs 869835 exclusive on slurm-9 and 869836 shared on slurm-10, both 4/4 cells, 0 failed; table `cotenancy/r_hand_cdib0.json`, md5 ac8fc28b). `cd_ib0` w in ms/plan:
 
