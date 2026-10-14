@@ -226,7 +226,24 @@ def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
     return sorted(ids) if ids else None
 
 
+# uncut_groups_s0_v1 co-tenancy verdict (pre-registered 2026-10-14): "<arm1 learned kind>_kr" serves that arm at k = the
+# decision_cost_w.json top-level "k_cotenancy" (r = max(1, r_hand, r_learned), frozen with the learned w). Arm 1 learned kinds only.
+DC_KR = "kr"
+
+
+def cotenancy_k() -> float:
+    k = json.load(open(DC_W_FILE)).get("k_cotenancy")
+    if type(k) not in (int, float) or not k >= 1.0:
+        raise SystemExit(f"FAIL LOUD: {DC_W_FILE} has no k_cotenancy >= 1 (got {k!r}); the _kr cells serve only after it is frozen")
+    return float(k)
+
+
 def split_dc(kind: str) -> Tuple[str, Optional[float]]:
+    if kind.endswith("_" + DC_KR):
+        base = kind[:-len(DC_KR) - 1]
+        if base not in tuple(f"{k}_nosplit" for k in ARM1_KINDS):
+            raise SystemExit(f"FAIL LOUD: _{DC_KR} serves only the Arm 1 learned kinds, not {base!r}")
+        return base, cotenancy_k()
     for tag, k in DC_K.items():
         if kind.endswith("_" + tag):
             return kind[:-len(tag) - 1], k

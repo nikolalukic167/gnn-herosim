@@ -80,3 +80,26 @@ def test_gate_knows_arm1_kinds_outside_default_grid():
         assert k in G.RA_KINDS and f"{k}_nosplit" in G.R1A_ARMS and f"{k}_nosplit" in G.R1A_NOSPLIT
     assert "ra_twin_eng_arm1" in G.RA_MP_OFF and "ra_gnn_eng_arm1" not in G.RA_MP_OFF
     assert G.split_dc("ra_mlp_same_arm1_nosplit_k100") == ("ra_mlp_same_arm1_nosplit", 1.0)
+
+
+def test_kr_serves_arm1_learned_kinds_at_the_frozen_cotenancy_k(tmp_path, monkeypatch):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    for tag, k in G.DC_K.items():
+        assert G.split_dc(f"cd_ib0_{tag}") == ("cd_ib0", k) and G.split_dc(f"ra_gnn_eng_arm1_nosplit_{tag}") == ("ra_gnn_eng_arm1_nosplit", k)
+    assert G.split_dc("cd_ib0") == ("cd_ib0", None)
+    w = json.load(open(G.DC_W_FILE))
+    f = tmp_path / "w.json"
+    monkeypatch.setattr(G, "DC_W_FILE", str(f))
+    for bad in (None, 0.9, True, "1.2"):
+        f.write_text(json.dumps({**w, **({} if bad is None else {"k_cotenancy": bad})}))
+        with pytest.raises(SystemExit, match="k_cotenancy"):
+            G.split_dc("ra_twin_eng_arm1_nosplit_kr")
+    w["w_ms_per_plan_by_bucket"]["ra_twin_eng_arm1_nosplit"] = {"heavy": {"le10": 2.0, "11_50": 1.0, "gt50": 1.5}}
+    f.write_text(json.dumps({**w, "k_cotenancy": 1.25}))
+    kind, k = G.split_dc("ra_twin_eng_arm1_nosplit_kr")
+    assert (kind, k) == ("ra_twin_eng_arm1_nosplit", 1.25)
+    env, val = G.dc_cost_ms(kind, k, "heavy")
+    assert env == G.DC_BUCKET_ENV and json.loads(val) == {"le10": 2.5, "11_50": 1.25, "gt50": 1.875}
+    for hand in ("cd_ib0_kr", "cd_kr", "ra_gnn_eng_nosplit_kr"):
+        with pytest.raises(SystemExit, match="only the Arm 1"):
+            G.split_dc(hand)
