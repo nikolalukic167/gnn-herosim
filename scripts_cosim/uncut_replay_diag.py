@@ -299,6 +299,61 @@ def cmd_ils(a):
     print(f"ils: {len(out)} groups")
 
 
+def cmd_flips(a):
+    """Groups whose decode differs between the 1-thread and the 6-thread decode: id, bucket, the first differing task and the logit margin between the two
+    candidates there (both decodes share every earlier commit, so the margin is the decisive one)."""
+    import torch
+    from src.policy.gnn import partial_state_edges as PSE
+
+    A, B = load_decodes(a.decode_a), load_decodes(a.decode_b)
+    draw = json.load(open(a.draw))
+    man = json.load(open(f"{a.shards}/manifest.json"))["shards"]
+    where = {g: k for k, v in man.items() for g in v}
+    flips = []
+    for gid in A:
+        for run in RUNS:
+            if A[gid][run]["decoded"] != B[gid][run]["decoded"]:
+                flips.append((run, gid))
+    print(f"flipped (run, group): {len(flips)}")
+    models, out = {}, []
+    for run, gid in flips:
+        arm = run.rsplit("_s", 1)[0]
+        if arm not in models:
+            models[arm] = _load_models([r for r in RUNS if r.startswith(arm)])
+        g = next(x for x in pickle.load(open(f"{a.shards}/{where[gid]}", "rb")) if str(x.dataset_id) == gid)
+        da, db = A[gid][run]["decoded"], B[gid][run]["decoded"]
+        t = next(i for i in range(len(da)) if da[i] != db[i])
+        seen = {}
+        orig = PSE.make_partial_state_score_fn
+
+        def spy(model, data, ctx, *args, **kw):
+            fn = orig(model, data, ctx, *args, **kw)
+
+            def wrapped(task, committed):
+                lg = fn(task, committed)
+                if task == t and "lg" not in seen:
+                    seen["lg"] = lg.detach().clone()
+                return lg
+            wrapped.close = getattr(fn, "close", lambda: None)
+            return wrapped
+        PSE.make_partial_state_score_fn = spy
+        import sys as _s
+        mod = _s.modules[__name__]
+        try:
+            decode_group(models[arm][run], g)
+        finally:
+            PSE.make_partial_state_score_fn = orig
+        cands = [tuple(int(v) for v in c) for c in g.task_logit_to_placement[t]]
+        ia, ib = cands.index(tuple(da[t])), cands.index(tuple(db[t]))
+        lg = seen["lg"]
+        top2 = torch.topk(lg, min(2, lg.numel())).values
+        out.append({"run": run, "group": gid, "bucket": draw["meta"][gid]["bucket"], "n_tasks": int(g.n_tasks), "first_differing_task": t, "n_candidates": len(cands),
+                    "logit_1thread_choice": float(lg[ia]), "logit_6thread_choice": float(lg[ib]), "margin_between_the_two": abs(float(lg[ia]) - float(lg[ib])),
+                    "top2_margin_all_candidates": float(top2[0] - top2[1]) if lg.numel() > 1 else None})
+        print(json.dumps(out[-1]))
+    json.dump(out, open(a.out, "w"), indent=1)
+
+
 # ---- decode identity -------------------------------------------------------------------------------------------------------------------------
 
 WANDB = {"gnn_eng_s1": "run-20261014_100127-kebglex7", "gnn_eng_s2": "run-20261014_100126-kjteh12l",
@@ -376,6 +431,12 @@ def main(argv=None):
     il.add_argument("--stride", type=int, default=8)
     il.add_argument("--draw", required=True)
     il.add_argument("--out", required=True)
+    fl = sub.add_parser("flips")
+    fl.add_argument("--decode-a", required=True)
+    fl.add_argument("--decode-b", required=True)
+    fl.add_argument("--shards", required=True)
+    fl.add_argument("--draw", required=True)
+    fl.add_argument("--out", required=True)
     ide = sub.add_parser("identity")
     ide.add_argument("--decode-dir", required=True)
     ide.add_argument("--wandb-root", required=True)
@@ -385,7 +446,7 @@ def main(argv=None):
     pr.add_argument("--groups", required=True)
     pr.add_argument("--sim-input", default="/home/nikola.lukic/gnn-herosim/data/nofs-ids")
     a = ap.parse_args(argv)
-    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe, "identity": cmd_identity, "replay": cmd_replay, "ils": cmd_ils}[a.cmd](a) or 0
+    return {"prep": cmd_prep, "decode": cmd_decode, "probe": cmd_probe, "identity": cmd_identity, "replay": cmd_replay, "flips": cmd_flips, "ils": cmd_ils}[a.cmd](a) or 0
 
 
 if __name__ == "__main__":
