@@ -3,7 +3,9 @@
   uncut_ckpt_md5_write.py --dir <models dir> --name uncut-arm2k0 --prov prov.json --out experiments/uncut_arm2k0_ckpt_md5.json [--seeds 1,2] [--arms gnn_eng,twin_eng] [--batched true|false]
 
 prov.json is {"<arm>|s<seed>": {"job": "870044_0", "host": "os-cpu-slurm-8", "cpu": "<lscpu Model name>"}}; every staged key needs all three, "file" is filled in
-here. Checkpoints are {dir}/{name}-{arm with - }-seed{seed}-final.pt; each needs its -final.contract.json with physics_env.warmth_physics == node_disk_v2 and
+here. A chained run (uncut_arm2_chain.sh: one training, several links) gives "links": [{"job", "host", "cpu"[, "cpu_source"]}, ...] instead, plus an optional
+"submission" label (the chain submission, e.g. "<tag>@<sha>"); the written job, host and cpu are the links' values joined by ",", "," and "; ", with "links" kept as
+an extra field. The unit of a run is the chain, not the Slurm job: the warning below fires when an arm's seeds carry different submission labels, not different job ids. Checkpoints are {dir}/{name}-{arm with - }-seed{seed}-final.pt; each needs its -final.contract.json with physics_env.warmth_physics == node_disk_v2 and
 batched_teacher_forced == --batched (default: absent or false). Prints the contract md5s (they are not in the md5 file; the stager rejects other _ keys).
 """
 import argparse
@@ -37,6 +39,15 @@ def main(argv=None):
         for seed in (int(s) for s in a.seeds.split(",")):
             key = f"{arm}|s{seed}"
             e = prov_in.get(key)
+            if isinstance(e, dict) and "links" in e:
+                links = e["links"]
+                if not (isinstance(links, list) and links):
+                    raise SystemExit(f"FAIL LOUD: {a.prov}[{key!r}].links must be a non-empty list; got {links!r}")
+                for l in links:
+                    if not (isinstance(l, dict) and all(isinstance(l.get(f), str) and l[f].strip() for f in ("job", "host", "cpu"))):
+                        raise SystemExit(f"FAIL LOUD: {a.prov}[{key!r}] link needs non-empty job, host and cpu; got {l!r}")
+                e = {"job": ",".join(l["job"] for l in links), "host": ",".join(l["host"] for l in links),
+                     "cpu": "; ".join(l["cpu"] for l in links), "links": links, "submission": prov_in[key].get("submission")}
             if not (isinstance(e, dict) and all(isinstance(e.get(f), str) and e[f].strip() for f in ("job", "host", "cpu"))):
                 raise SystemExit(f"FAIL LOUD: {a.prov}[{key!r}] needs non-empty job, host and cpu; got {e!r}")
             file = f"{a.name}-{arm.replace('_', '-')}-seed{seed}-final.pt"
@@ -53,10 +64,18 @@ def main(argv=None):
                 raise SystemExit(f"FAIL LOUD: {key}: batched_teacher_forced is {btf!r}, expected {a.batched}")
             out[key] = md5(pt)
             prov[key] = {"job": e["job"], "host": e["host"], "cpu": e["cpu"], "file": file}
+            if "links" in e:
+                prov[key]["links"] = e["links"]
+                prov[key]["submission"] = e["submission"]
             contract_md5[key] = md5(side)
     if len(set(out.values())) != len(out):
         raise SystemExit("FAIL LOUD: two keys share one md5")
     for arm in a.arms.split(","):
+        if any("links" in prov[k] for k in prov if k.split("|")[0] == arm):
+            subs = {prov[k].get("submission") for k in prov if k.split("|")[0] == arm}
+            if len(subs) > 1:
+                print(f"WARNING: {arm}'s seeds come from different submissions {sorted(map(str, subs))}", file=sys.stderr)
+            continue
         jobs = {prov[k]["job"].split("_")[0] for k in prov if k.split("|")[0] == arm}
         if len(jobs) > 1:
             print(f"WARNING: {arm}'s seeds come from different jobs {sorted(jobs)}; the stager's hedge rule will refuse this", file=sys.stderr)
