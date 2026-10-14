@@ -227,6 +227,51 @@ def test_provenance_hedge_rule(src):
     S.main(args(t, ck, ig, md5, split, dest="arm2") + ["--arms", "gnn_eng,twin_eng", "--stem", "uncut-arm2"])
 
 
+def _chain(job, sub="arm2-gpu@0123abcd", host="a-l40s-o-1", cpu="AMD EPYC 9355 32-Core Processor"):
+    links = [{"job": j, "host": host, "cpu": cpu} for j in job.split(",")]
+    e = {"job": job, "host": ",".join(l["host"] for l in links), "cpu": "; ".join(l["cpu"] for l in links), "links": links}
+    if sub is not None:
+        e["submission"] = sub
+    return e
+
+
+def test_chained_provenance_shares_a_submission_label(src):
+    t, ck, ig, md5, split = src
+    arm2 = ["--arms", "gnn_eng,twin_eng", "--stem", "uncut-arm2"]
+
+    def setp(d, g1, g2):
+        d["_provenance"]["gnn_eng|s1"], d["_provenance"]["gnn_eng|s2"] = g1, g2
+    # the GPU gnn seeds: separate chains (869961, 869963), one submission label -> staged
+    _prov(md5, lambda d: setp(d, _chain("869961,870101"), _chain("869963")))
+    out = S.main(args(t, ck, ig, md5, split, dest="ok") + arm2)
+    assert out["provenance"]["gnn_eng|s1"]["links"][1]["job"] == "870101"
+    _prov(md5, lambda d: setp(d, _chain("869961"), _chain("869963", sub="arm2-gpu@ffff0000")))
+    with pytest.raises(SystemExit, match="different submissions"):
+        S.main(args(t, ck, ig, md5, split, dest="x") + arm2)
+    _prov(md5, lambda d: setp(d, _chain("869961", sub=None), _chain("869963", sub=None)))
+    with pytest.raises(SystemExit, match="no submission label"):
+        S.main(args(t, ck, ig, md5, split, dest="x") + arm2)
+    _prov(md5, lambda d: setp(d, _chain("869961"), {"job": "869963", "host": "h", "cpu": "c"}))
+    with pytest.raises(SystemExit, match="mixes chained and single-job"):
+        S.main(args(t, ck, ig, md5, split, dest="x") + arm2)
+    bad = _chain("869961")
+    bad["links"] = [{"job": "869961", "host": "h"}]
+    _prov(md5, lambda d: setp(d, bad, _chain("869963")))
+    with pytest.raises(SystemExit, match="links must be non-empty"):
+        S.main(args(t, ck, ig, md5, split, dest="x") + arm2)
+    # single-job provenance outside Arm 1 keeps the one-job rule
+    _prov(md5, lambda d: setp(d, {"job": "869961", "host": "h", "cpu": "c"}, {"job": "869963", "host": "h", "cpu": "c"}))
+    with pytest.raises(SystemExit, match="different jobs"):
+        S.main(args(t, ck, ig, md5, split, dest="x") + arm2)
+
+
+def test_arm1_refuses_chained_provenance(src):
+    t, ck, ig, md5, split = src
+    _prov(md5, lambda d: d["_provenance"].update({"gnn_eng|s1": _chain("871420_0"), "gnn_eng|s2": _chain("871420_1")}))
+    with pytest.raises(SystemExit, match="Arm 1's hedge rule is one Slurm job per arm"):
+        S.main(args(t, ck, ig, md5, split))
+
+
 def test_s7_schema_per_arm_dirs_and_files(src, tmp_path):
     t, ck, ig, md5, split = src
     ck2 = tmp_path / "ck2"

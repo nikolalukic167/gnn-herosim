@@ -9,7 +9,9 @@ have a key, and a key naming no known arm fails (S7's schema). "_ckpt_dir" names
 (arms may come from different jobs): --src may then use {dir} (the arm's), and every resolved checkpoint must sit in it.
 "_provenance" {"<arm>|s<seed>": {"job", "host", "cpu", ["wandb_id", "file"]}} names where each checkpoint trained; required under
 --stem uncut-arm1 (the hedge rule, 4213ac4e), optional otherwise, and when present it must cover every staged key. An arm's seeds must
-name one job (array tasks 871420_0 and 871420_3 are one job; 869803 and 871420 are two). With "file", the resolved checkpoint must
+name one job (array tasks 871420_0 and 871420_3 are one job; 869803 and 871420 are two). A chained run (Arm 2 / K0, uncut_ckpt_md5_write.py)
+gives "links": [{job, host, cpu}, ...] and a "submission" label instead; its unit is the submission (ruling 943a53fd), so an arm's seeds
+must all be chained and share one label; Arm 1 (--stem uncut-arm1) refuses links. With "file", the resolved checkpoint must
 have that basename, and --src may be omitted ({dir}/{file}). Arm 2 is
 --arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM), Arm 1b
 --arms gnn_eng,twin_eng --stem uncut-arm1b with its own md5 file. --src is a pattern with {arm}
@@ -90,7 +92,27 @@ def main(argv=None):
             if not (isinstance(e, dict) and all(isinstance(e.get(f), str) and e.get(f).strip() for f in ("job", "host", "cpu"))):
                 raise SystemExit(f"FAIL LOUD: {a.md5} _provenance[{k!r}] needs non-empty job, host and cpu; got {e!r}")
         for arm in arms:
-            jobs = sorted({prov[k]["job"].split("_")[0] for k in staged_keys if k.split("|")[0] == arm})
+            keys = [k for k in staged_keys if k.split("|")[0] == arm]
+            chained = [k for k in keys if "links" in prov[k]]
+            if chained:
+                # chained runs (Arm 2 / K0, ruling 943a53fd): the unit is the submission label, not the Slurm job
+                if a.stem == "uncut-arm1":
+                    raise SystemExit(f"FAIL LOUD: {a.md5} gives {arm} chained links; Arm 1's hedge rule is one Slurm job per arm")
+                if len(chained) != len(keys):
+                    raise SystemExit(f"FAIL LOUD: {a.md5} mixes chained and single-job provenance within {arm}: {sorted(chained)} of {sorted(keys)}")
+                for k in keys:
+                    links, sub = prov[k]["links"], prov[k].get("submission")
+                    if not (isinstance(links, list) and links and all(
+                            isinstance(l, dict) and all(isinstance(l.get(f), str) and l[f].strip() for f in ("job", "host", "cpu"))
+                            for l in links)):
+                        raise SystemExit(f"FAIL LOUD: {a.md5} _provenance[{k!r}].links must be non-empty {{job, host, cpu}} entries; got {links!r}")
+                    if not (isinstance(sub, str) and sub.strip()):
+                        raise SystemExit(f"FAIL LOUD: {a.md5} _provenance[{k!r}] has links but no submission label")
+                subs = sorted({prov[k]["submission"] for k in keys})
+                if len(subs) > 1:
+                    raise SystemExit(f"FAIL LOUD: {arm}'s seeds come from different submissions {subs}; an arm's seeds share one submission label")
+                continue
+            jobs = sorted({prov[k]["job"].split("_")[0] for k in keys})
             if len(jobs) > 1:
                 raise SystemExit(f"FAIL LOUD: {arm}'s seeds come from different jobs {jobs}; the hedge rule never splits an arm's seeds")
     if "{file}" in a.src and prov is None:

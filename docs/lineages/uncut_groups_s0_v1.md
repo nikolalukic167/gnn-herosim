@@ -300,6 +300,15 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-14 — **Stager: chained provenance (B3, after interim looks 1 and 2; S6, the expert's ruling on S5's chain-unit rule 943a53fd).** This changes no registered rule.
+  - **Why.** Arm 2 and K0 seeds train as separate chains. For example, the GPU gnn seeds run as 869961 and 869963. So the one-Slurm-job check refused every Arm 2 / K0 md5 file.
+  - **The change** (`uncut_arm1_gate_stage.py`, frozen at 557d84bf):
+    - A key with `links: [{job, host, cpu}, ...]` and a `submission` label (the form `uncut_ckpt_md5_write.py` emits) is chained. Its unit is the submission.
+    - An arm's seeds must then all be chained and share one non-empty label. Every link needs a job, host and CPU.
+    - Single-job keys keep the one-job rule. A file with neither form, or with both forms inside one arm, fails loud.
+    - **Arm 1 is unchanged** (`--stem uncut-arm1`): it refuses links, because its hedge rule is one Slurm job per arm.
+    - Tests: `tests/test_uncut_arm1_gate_stage.py`, 2 new tests covering both forms.
+  - **Disclosure for every Arm 2 read.** The Arm 2 gnn runs are GPU (a-l40s-o-1, EPYC 9355 host), and the twins are CPU (EPYC 9335). So every Arm 2 gnn-vs-twin line is not device-matched, and says so.
 - 2026-10-14 — **Felt share: definition, hand F measured exactly, bounds recomputed** (the expert's rulings on SCIENTIST's follow-up; S6). Nothing here reads an outcome. 871538 has not run.
   1. **Definition.** Every "charge share" in this record means the **felt share** F = Σ_batches n_b · c_b ÷ Σ_tasks latency. Here c_b is batch b's simulated decision charge, which every one of its n_b tasks waits. Earlier per-plan figures (Σ c_b ÷ Σ latency) are relabelled **pooled**. SCIENTIST's chat-only "≈ 0.05 %" and "`_kr` is a formality" are withdrawn.
   2. **Learned F_L at every look,** per rung and task-weighted. Look 1 (1b twin): 0.853 % moderate, 1.059 % heavy (interim-looks log, row 1). Final-read linearity check: per cell, `_kr` − frozen-w is predicted at 0.468 · F_L.
