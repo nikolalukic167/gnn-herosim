@@ -6,9 +6,11 @@
 
 --md5 holds {"<arm>|s<seed>": md5} (S7's training log, which may grow arm by arm); only the --arms keys are staged, every --arms arm must
 have a key, and a key naming no known arm fails. Arm 2 is
---arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM). --src is a pattern with {arm}
+--arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM), Arm 1b
+--arms gnn_eng,twin_eng --stem uncut-arm1b with its own md5 file. --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
-file gives, no two keys may share an md5, and every contract must carry physics_env.warmth_physics == node_disk_v2 (the bar's); each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
+file gives, no two keys may share an md5, and every contract must carry physics_env.warmth_physics == node_disk_v2 (the bar's) and batched_teacher_forced true under --stem uncut-arm1b,
+absent or false under any other stem (serving ignores the key, so this is where a 1b checkpoint is told apart); each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
 ra_<arm>_arm1 (ra_<arm>_arm2 / _arm2k0 under their stems), and its md5 is checked again after the copy. wf1_moderate / wf1_heavy are symlinked from --inputs-group; the
 split is copied under its own name (pass its basename as R1A_SPLIT). <dest> must not exist. Writes <dest>/STAGE.json.
 """
@@ -21,6 +23,7 @@ import sys
 
 ARMS = ("gnn_eng", "twin_eng", "mlp_same")
 WARMTH = "node_disk_v2"
+ARM1B_STEM, ARM1B_ARMS = "uncut-arm1b", ("gnn_eng", "twin_eng")
 
 
 def md5(path):
@@ -45,6 +48,8 @@ def main(argv=None):
     arms = tuple(a.arms.split(","))
     if not arms or set(arms) - set(ARMS):
         raise SystemExit(f"FAIL LOUD: --arms {a.arms} is not a subset of {ARMS}")
+    if a.stem == ARM1B_STEM and set(arms) - set(ARM1B_ARMS):
+        raise SystemExit(f"FAIL LOUD: Arm 1b ({ARM1B_STEM}) has only {ARM1B_ARMS}, not {a.arms}")
     if os.path.exists(a.dest):
         raise SystemExit(f"FAIL LOUD: {a.dest} exists; stage into a fresh directory")
     want = json.load(open(a.md5))
@@ -72,9 +77,14 @@ def main(argv=None):
                 raise SystemExit(f"FAIL LOUD: {key}: {p} missing")
         if md5(src) != m:
             raise SystemExit(f"FAIL LOUD: {key}: {src} md5 {md5(src)} is not the training log's {m}")
-        warmth = (json.load(open(side)).get("physics_env") or {}).get("warmth_physics")
+        contract = json.load(open(side))
+        warmth = (contract.get("physics_env") or {}).get("warmth_physics")
         if warmth != WARMTH:
             raise SystemExit(f"FAIL LOUD: {key}: {side} physics_env.warmth_physics is {warmth!r}, not the gate's {WARMTH!r}")
+        btf = contract.get("batched_teacher_forced")
+        if (btf is not True) if a.stem == ARM1B_STEM else (btf is not None and btf is not False):
+            raise SystemExit(f"FAIL LOUD: {key}: {side} batched_teacher_forced is {btf!r}; --stem {a.stem} needs "
+                             + ("true (Arm 1b)" if a.stem == ARM1B_STEM else "it absent or false"))
         plan.append((key, m, src, side, f"{a.stem}-{arm.replace('_', '-')}-seed{seed}"))
     os.makedirs(os.path.join(a.dest, "models"))
     for r in ("wf1_moderate", "wf1_heavy"):

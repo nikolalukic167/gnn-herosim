@@ -40,6 +40,11 @@ Co-tenancy verdict (pre-registered 2026-10-14, --cotenancy required): every lear
   combine axis by axis, program-level and bar qualifier, keeping both qualifiers); a learned WIN counts only if both are WIN-class
   (NOT-COTENANCY-ROBUST flags a frozen-only WIN, COTENANCY-ANOMALY a co-tenancy-only one); F2 combined = the weaker of the two. Each learned cell
   must have served exactly k x the frozen w at its pin (k = 1, or k_cotenancy for _kr).
+Arm 1b (pre-registered f6c1b85e): --primary ra_gnn_eng_arm1b_nosplit --twin ra_twin_eng_arm1b_nosplit, no MLP, both verdicts, read after
+  Arm 1 with --after-read <Arm 1's read JSON> (fixed sequence: a program-level label only if Arm 1's combined F1 is program-level, else at best
+  WIN-ARM-ONLY) and --compare ra_gnn_eng_arm1_nosplit (direction only: sign, topologies ahead, unadjusted p, descriptive). Its checkpoints
+  come from its own md5 file, passed as arm1b=<path>; its w (ARM1B_W_KINDS) must sit within W_GUARD_X of Arm 1's at every pin (w_guard).
+  The gate changes are --gate-change bf79865a,<Arm 1b kinds>.
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
   sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
   OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (per seed cell, > 3 x cd's mean, either statistic; the arm's count is the worse seed's), tail flag
@@ -71,7 +76,12 @@ COLLAPSE_X, TAIL_S, OPEN_T = 3.0, 120.0, 360.0
 BUCKETS = (("le10", 0, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("gt100", 101, 10 ** 9))
 W_FILE = "scripts_cosim/decision_cost_w.json"
 ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
-# co-tenancy amendment (2026-10-14): the one gate-code commit between --pin and the w-only pins adds the _kr tag and its test, nothing else
+# Arm 1b (pre-registered f6c1b85e): its own w, each within W_GUARD_X of Arm 1's same arm (scalar and every bucket, both rungs), else stop
+ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng"))
+LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS
+W_GUARD_X = 1.5
+# co-tenancy amendment (2026-10-14) and Arm 1b: the gate-code commits between --pin and the w-only pins (bf79865a the _kr tag, then the
+# Arm 1b kinds) each touch the gate and its test, nothing else
 GATE_CHANGE_FILES = ("scripts_cosim/fresh_topo_burst_v1_gate.py", "tests/test_uncut_arm1_gate_stage.py")
 COT_KEYS = ("k_cotenancy", "_source_k_cotenancy")
 KR = "_kr"
@@ -131,7 +141,7 @@ def git(repo, *args):
 
 
 def w_frozen(prev, cur, sha):
-    """Every key of `prev` identical in `cur`; every key `cur` adds belongs to an Arm 1 learned arm."""
+    """Every key of `prev` identical in `cur`; every key `cur` adds belongs to an Arm 1 or Arm 1b learned arm."""
     for top, v in prev.items():
         if top not in cur:
             raise SystemExit(f"FAIL LOUD: {sha} drops {W_FILE} key {top!r}")
@@ -139,12 +149,12 @@ def w_frozen(prev, cur, sha):
             for k, x in v.items():
                 if json.dumps(cur[top].get(k), sort_keys=True) != json.dumps(x, sort_keys=True):
                     raise SystemExit(f"FAIL LOUD: {sha} changes frozen {W_FILE} key {top}[{k!r}]")
-            extra = sorted(set(cur[top]) - set(v) - set(ARM1_W_KINDS))
+            extra = sorted(set(cur[top]) - set(v) - set(LEARNED_W_KINDS))
         else:
             extra = [] if json.dumps(cur[top], sort_keys=True) == json.dumps(v, sort_keys=True) else [top]
         if extra:
-            raise SystemExit(f"FAIL LOUD: {sha} changes or adds {W_FILE} keys {top}{extra} outside the Arm 1 learned arms {ARM1_W_KINDS}")
-    extra = sorted(set(cur) - set(prev) - {f"_source_{k}" for k in ARM1_W_KINDS} - set(COT_KEYS))
+            raise SystemExit(f"FAIL LOUD: {sha} changes or adds {W_FILE} keys {top}{extra} outside the learned arms {LEARNED_W_KINDS}")
+    extra = sorted(set(cur) - set(prev) - {f"_source_{k}" for k in LEARNED_W_KINDS} - set(COT_KEYS))
     if extra:
         raise SystemExit(f"FAIL LOUD: {sha} adds top-level {W_FILE} keys {extra}")
     k = cur.get("k_cotenancy")
@@ -152,20 +162,39 @@ def w_frozen(prev, cur, sha):
         raise SystemExit(f"FAIL LOUD: {sha} k_cotenancy {k!r} is not a number >= 1")
 
 
+def w_guard(w, sha):
+    """Arm 1b's w (each arm, rung, and bucket where both have buckets) within W_GUARD_X of Arm 1's same arm, which must be in the same file."""
+    for b in ARM1B_W_KINDS:
+        if b not in w.get("w_ms_per_plan", {}):
+            continue
+        a = b.replace("_arm1b_", "_arm1_")
+        if a not in w.get("w_ms_per_plan", {}):
+            raise SystemExit(f"FAIL LOUD: {sha} has Arm 1b w for {b} without Arm 1's {a} to guard it against")
+        pairs = [(f"{r}", w["w_ms_per_plan"][b].get(r), w["w_ms_per_plan"][a].get(r)) for r in RUNGS]
+        bb, ab = w.get("w_ms_per_plan_by_bucket", {}).get(b) or {}, w.get("w_ms_per_plan_by_bucket", {}).get(a) or {}
+        for r in RUNGS:
+            if (r in bb) != (r in ab) or (r in bb and set(bb[r]) != set(ab[r])):
+                raise SystemExit(f"FAIL LOUD: {sha} {b} and {a} differ in their {r} buckets")
+            pairs += [(f"{r}/{k}", bb[r][k], ab[r][k]) for k in (bb.get(r) or {})]
+        for where, x, y in pairs:
+            if x is None or y is None or not (float(x) > 0 and float(y) > 0) or max(x / y, y / x) > W_GUARD_X * (1 + 1e-9):
+                raise SystemExit(f"FAIL LOUD: {sha} Arm 1b w {b}[{where}] = {x!r} is not within {W_GUARD_X}x of Arm 1's {y!r}: stop")
+
+
 def w_pin_chain(repo, base, w_pins, gate_change=""):
-    """{full sha: the w file at it} for --pin, the gate-change commit (if any) and the w-only pins, after the amendments' ancestry,
-    diff and freeze checks. The gate change is a child of --pin touching exactly GATE_CHANGE_FILES; every w-only pin descends from it
-    and differs from it only in the w file."""
+    """{full sha: the w file at it} for --pin, the gate-change commits (if any) and the w-only pins, after the amendments' ancestry,
+    diff, freeze and Arm 1b guard checks. Each gate change is a child of the one before (the first of --pin) touching exactly
+    GATE_CHANGE_FILES; every w-only pin descends from the last and differs from it only in the w file."""
     rev = lambda p: git(repo, "rev-parse", "--verify", p + "^{commit}").strip()
-    shas = [rev(base)] + ([rev(gate_change)] if gate_change else []) + [rev(p) for p in w_pins]
-    root = shas[0]
-    if gate_change:
-        root = shas[1]
-        if git(repo, "rev-parse", root + "^").strip() != shas[0]:
-            raise SystemExit(f"FAIL LOUD: the gate change {root} is not a child of {base}")
-        names = sorted(git(repo, "diff", "--name-only", shas[0], root).split())
+    changes = [rev(g) for g in gate_change.split(",") if g]
+    shas = [rev(base)] + changes + [rev(p) for p in w_pins]
+    root = shas[len(changes)]
+    for parent, g in zip(shas, changes):
+        if git(repo, "rev-parse", g + "^").strip() != parent:
+            raise SystemExit(f"FAIL LOUD: the gate change {g} is not a child of {parent}")
+        names = sorted(git(repo, "diff", "--name-only", parent, g).split())
         if names != sorted(GATE_CHANGE_FILES):
-            raise SystemExit(f"FAIL LOUD: the gate change {root} touches {names}, not exactly {list(GATE_CHANGE_FILES)}")
+            raise SystemExit(f"FAIL LOUD: the gate change {g} touches {names}, not exactly {list(GATE_CHANGE_FILES)}")
     for prev, cur in zip(shas, shas[1:]):
         if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", prev, cur]).returncode:
             raise SystemExit(f"FAIL LOUD: w-only pins are not a chain from {base}: {prev} is not an ancestor of {cur}")
@@ -176,6 +205,8 @@ def w_pin_chain(repo, base, w_pins, gate_change=""):
     ws = {sha: json.loads(git(repo, "show", f"{sha}:{W_FILE}")) for sha in shas}
     for prev, cur in zip(shas, shas[1:]):
         w_frozen(ws[prev], ws[cur], cur)
+    for sha in shas:
+        w_guard(ws[sha], sha)
     return ws
 
 
@@ -189,9 +220,30 @@ def pin_match(commit, pins):
 def ckpt_arm(arm):
     """The training log's arm name for a gate arm: ra_gnn_eng_arm1_nosplit -> gnn_eng (S7's keys); an exact key wins."""
     arm = arm[3:] if arm.startswith("ra_") else arm
-    for sfx in ("_nosplit", "_arm1"):
+    for sfx in ("_nosplit", "_arm1b", "_arm1"):
         arm = arm[: -len(sfx)] if arm.endswith(sfx) else arm
     return arm
+
+
+def ckpt_tag(arm):
+    """The md5 namespace a gate arm's checkpoint is looked up in: "arm1b" for Arm 1b (its own md5 file, passed as arm1b=<path>), else ""."""
+    return "arm1b" if arm.removesuffix("_nosplit").endswith("_arm1b") else ""
+
+
+def ckpt_md5s(spec):
+    """--checkpoint-md5: comma-separated [tag=]path; a tagged file's keys become "<arm>@<tag>|s<seed>". Files must agree on shared keys."""
+    ckpt = {}
+    for item in [x for x in spec.split(",") if x]:
+        tag, _, path = item.rpartition("=")
+        with open(path) as fh:
+            for k, v in json.load(fh).items():
+                if tag:
+                    arm, _, sd = k.partition("|")
+                    k = f"{arm}@{tag}|{sd}"
+                if k in ckpt and ckpt[k] != v:
+                    raise SystemExit(f"FAIL LOUD: checkpoint md5 files disagree on {k}")
+                ckpt[k] = v
+    return ckpt
 
 
 def charge_check(key, s, w, k):
@@ -223,9 +275,9 @@ def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
         if at is None or code.get("dirty") is not False:
             raise SystemExit(f"FAIL LOUD: {key} code {code.get('commit')} dirty={code.get('dirty')} is not the gate pin {pin}"
                              + (f" or a w-only pin" if allowed != [base] else ""))
-        if w_pins and key[0] in ARM1_W_KINDS and key[0] not in w_pins[at].get("w_ms_per_plan", {}):
+        if w_pins and key[0] in LEARNED_W_KINDS and key[0] not in w_pins[at].get("w_ms_per_plan", {}):
             raise SystemExit(f"FAIL LOUD: {key} ran at {at}, whose {W_FILE} has no calibrated w for {key[0]}")
-        if w_pins and key[0] in ARM1_W_KINDS:
+        if w_pins and key[0] in LEARNED_W_KINDS:
             k = w_pins[at].get("k_cotenancy") if kr else 1.0
             if k is None:
                 raise SystemExit(f"FAIL LOUD: {key} is a co-tenancy cell at {at}, whose {W_FILE} has no k_cotenancy")
@@ -249,7 +301,8 @@ def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
         if n_unstamped:
             raise SystemExit(f"FAIL LOUD: {key} lock-wait sidecar has {n_unstamped} unstamped task(s); never counted as 0")
         if key[0] in learned:
-            want = ckpt.get(f"{key[0]}|s{key[1]}", ckpt.get(f"{ckpt_arm(key[0])}|s{key[1]}"))
+            tag = ckpt_tag(key[0])
+            want = ckpt.get(f"{ckpt_arm(key[0])}@{tag}|s{key[1]}") if tag else ckpt.get(f"{key[0]}|s{key[1]}", ckpt.get(f"{ckpt_arm(key[0])}|s{key[1]}"))
             path = (s.get("env") or {}).get("GNN_MODEL_PATH")
             if want is None or path is None or md5(path) != want:
                 raise SystemExit(f"FAIL LOUD: {key} checkpoint {path} md5 does not match the training log ({want})")
@@ -393,7 +446,7 @@ def gap_attribution(cells, primary, topos):
     return out
 
 
-def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust):
+def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust, prog_allowed=True):
     if win_four(f1, WIN_MED, ALPHA):
         seed_ok = all(all(e["median_pct"] is not None and e["median_pct"] <= SEED_MED for e in es) for es in seeds_alone.values())
         col_ok = all(h_primary[r]["collapse_any"] <= h_bar[r]["collapse_any"] for r in RUNGS)
@@ -401,10 +454,12 @@ def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust):
             return "MIXED", f"WIN line met but seeds_alone_ok={seed_ok} collapse_ok={col_ok}"
         if not all(anchor_ok.values()):
             return "F3 at k = 0.25 required", "anchor clause: the primary's decision share is below cd_ib0's at a rung"
-        prog = win_four(f1, WIN_MED, PROG_ALPHA)
+        prog = prog_allowed and win_four(f1, WIN_MED, PROG_ALPHA)
         base = "WIN" if prog else "WIN-ARM-ONLY"
         if any(h_bar[r]["collapse_any"] > 0 for r in RUNGS):
             base = ("WIN-ROBUST" if win_four(robust, WIN_MED, PROG_ALPHA if prog else ALPHA) else "WIN-OVER-BRITTLE-BAR") + ("" if prog else " (ARM-ONLY)")
+        if not prog_allowed:
+            return base, "fixed sequence: Arm 1 did not win at program level, so this arm's best label is ARM-ONLY"
         return base, "program-level (Holm < .025 on all four)" if prog else "clears .05 but not .025: never quoted as the program result"
     sig = [e for e in f1 if e["p_holm"] < ALPHA]
     if not sig:
@@ -422,8 +477,21 @@ def f2_label(es, f1_program_win):
     return "NOT-SEPARATED"
 
 
-def verdict(cells, failed, a, topos):
-    """F1, F2, health, decision share and the descriptive block on one cell set."""
+def direction(cells, a, b, topos):
+    """Direction only (Arm 1b vs Arm 1, pre-registered): per rung x statistic the sign of the median, the topologies ahead and an
+    unadjusted sign-flip p, labelled descriptive; no magnitude is reported."""
+    out = []
+    for e in four(cells, a, SEEDS, b, SEEDS, topos):
+        m = e["median_pct"]
+        out.append({"a": a, "b": b, "rung": e["rung"], "stat": e["stat"], "n_topologies": e["n_topologies"], "a_faster": e["faster"],
+                    "direction": None if m is None else ("a faster" if m < 0 else "a slower" if m > 0 else "tie"),
+                    "p_unadjusted_descriptive": e["p"]})
+    return out
+
+
+def verdict(cells, failed, a, topos, prog_allowed=True):
+    """F1, F2, health, decision share and the descriptive block on one cell set. prog_allowed False: the fixed sequence closes the
+    program-level label (Arm 1b when Arm 1 did not win at program level)."""
     ref_seeds = (1,)
     res = {}
     res["health"] = {arm: health(cells, failed, arm, sd, topos) for arm, sd in
@@ -435,7 +503,7 @@ def verdict(cells, failed, a, topos):
     seeds_alone = {sd: four(cells, a.primary, (sd,), BAR, (0,), topos) for sd in SEEDS}
     robust = family(four(cells, a.primary, SEEDS, CD, (0,), topos))
     anchor = {r: (res["decision_share_pct"][a.primary][r] or 0) >= (res["decision_share_pct"][BAR][r] or 0) for r in RUNGS}
-    lab, why = f1_label(f1, seeds_alone, res["health"][a.primary], res["health"][BAR], anchor, robust)
+    lab, why = f1_label(f1, seeds_alone, res["health"][a.primary], res["health"][BAR], anchor, robust, prog_allowed)
     res["F1"] = {"tests": f1, "seeds_alone": seeds_alone, "vs_cd_robust": robust, "anchor_ok": anchor, "label": lab, "why": why}
     prog = prog_win(lab)
     f2 = four(cells, a.primary, SEEDS, a.twin, SEEDS, topos) + (four(cells, a.primary, SEEDS, a.mlp, SEEDS, topos) if a.mlp else [])
@@ -446,6 +514,8 @@ def verdict(cells, failed, a, topos):
     res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
     if a.reference:
         res["descriptive"]["training_effect_vs_reference"] = four(cells, a.primary, SEEDS, a.reference, ref_seeds, topos)
+    if a.compare:
+        res["descriptive"]["direction_vs_compare"] = direction(cells, a.primary, a.compare, topos)
     return res
 
 
@@ -532,7 +602,9 @@ def main(argv=None):
     ap.add_argument("--out")
     ap.add_argument("--repo", default="")
     ap.add_argument("--w-pins", default="")
-    ap.add_argument("--gate-change", default="", help="the one gate-code commit between --pin and the w-only pins (the _kr tag)")
+    ap.add_argument("--gate-change", default="", help="the gate-code commits between --pin and the w-only pins, in order (bf79865a the _kr tag, then the Arm 1b kinds)")
+    ap.add_argument("--after-read", default="", help="Arm 1b: Arm 1's gate read JSON (--out of its own read); its combined F1 opens or closes the program-level label")
+    ap.add_argument("--compare", default="", help="Arm 1b: Arm 1's primary, read direction-only against this primary")
     ap.add_argument("--cotenancy", choices=("required", "off"), default="required",
                     help="required (the gate read): the learned arms' <arm>_kr cells give the second verdict; off only for smokes")
     a = ap.parse_args(argv)
@@ -542,13 +614,20 @@ def main(argv=None):
     topos = [int(x) for x in a.topos.split(",")]
     cells, failed = load(a.gate, a.suffix)
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
-    ckpt = {}
-    for path in a.checkpoint_md5.split(","):
-        with open(path) as fh:
-            for k, v in json.load(fh).items():
-                if k in ckpt and ckpt[k] != v:
-                    raise SystemExit(f"FAIL LOUD: checkpoint md5 files disagree on {k}")
-                ckpt[k] = v
+    ckpt = ckpt_md5s(a.checkpoint_md5)
+    prog_allowed, arm1b = True, any(ckpt_tag(x) == "arm1b" for x in (a.primary, a.twin))
+    if arm1b != bool(a.after_read) or (a.compare and not arm1b):
+        raise SystemExit("FAIL LOUD: --after-read (and --compare) go with an Arm 1b read and only with it; Arm 1b is read after Arm 1")
+    if arm1b:
+        if a.cotenancy != "required" or a.mlp:
+            raise SystemExit("FAIL LOUD: Arm 1b is read under both verdicts and has no MLP arm")
+        with open(a.after_read) as fh:
+            prev = json.load(fh)
+        if prev.get("primary") != "ra_gnn_eng_arm1_nosplit" or not isinstance(prev.get("combined"), dict):
+            raise SystemExit(f"FAIL LOUD: {a.after_read} is not Arm 1's gate read under both verdicts")
+        prog_allowed = prog_win(prev["combined"]["F1"])
+        if a.compare:
+            learned.append(a.compare)
     w_pins = None
     if a.w_pins:
         if not a.repo:
@@ -570,11 +649,14 @@ def main(argv=None):
             raise SystemExit("FAIL LOUD: the co-tenancy cells record another HEROSIM_WARMTH_PHYSICS")
     cells_kr.update({k: v for k, v in cells.items() if k[0] not in learned})
     failed_kr.update({k: v for k, v in failed.items() if k[0] not in learned})
-    res = {"filed": FILED, "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth,
-           "w_pins": {sha: sorted(k for k in ARM1_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
-    res.update(verdict(cells, failed, a, topos))
+    res = {"filed": FILED, "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth, "primary": a.primary, "twin": a.twin,
+           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
+    if arm1b:
+        res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), "arm1_combined_F1": prev["combined"]["F1"],
+                           "program_label_open": prog_allowed}
+    res.update(verdict(cells, failed, a, topos, prog_allowed))
     if a.cotenancy == "required":
-        res["cotenancy"] = verdict(cells_kr, failed_kr, a, topos)
+        res["cotenancy"] = verdict(cells_kr, failed_kr, a, topos, prog_allowed)
         res["combined"] = combine(res, res["cotenancy"], a)
         lab, why, f2 = res["combined"]["F1"], res["combined"]["why"], res["combined"]
     else:
