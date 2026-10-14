@@ -3,7 +3,7 @@
 Ground truth is the sequential walk in train_near_rtt.loss_tied_teacher_forced_ce (Arm 1), executed from the trainer's own source
 (the trainer trains at import and cannot be imported). Runs on a real Arm 1 cache, BATCHED_TF_CACHE (default
 /share/nikola.lukic/uncut_arm1/cache_run/cache/graphs.pkl); every test skips when it is absent. Graphs used: a typical one, the largest
-101-256-task group, and a graph with more than one tied plan.
+101-256-task group, and a graph with more than one tied plan (the Arm 1 corpus has none, so a real graph is given extra plans).
 
   (a) every per-step log-prob of the batched path equals the sequential one within 1e-5, dropout off, prefix and full-context states;
   (b) causality: perturbing later placements leaves step <= t bit-unchanged, and the gradient of step <= t with respect to the later
@@ -54,17 +54,39 @@ def graphs():
     return [g for g in gs if (getattr(g, "tied_optimal_logit_plans", {}) or {}).get(ALPHA)]
 
 
+def _with_extra_plans(graph, order):
+    """The Arm 1 corpus labels exactly one plan per state (no ties), so a multi-plan graph is built from a real one: its label plus
+    two plans that share the label's prefix up to the middle of the commit order and differ after it (and a third that differs
+    from the start), which exercises the per-plan prefix, the dedupe and the logsumexp over plans."""
+    import copy
+
+    g = copy.copy(graph)
+    base = [int(v) for v in graph.tied_optimal_logit_plans[ALPHA][0]]
+    n = int(graph.n_tasks)
+    rng = np.random.RandomState(1)
+
+    def variant(first_changed):
+        pl = list(base)
+        for t in order[first_changed:]:
+            c = len(graph.task_logit_to_placement[t])
+            if c > 1:
+                pl[t] = int((base[t] + 1 + rng.randint(c - 1)) % c)
+        return pl
+
+    plans = [base, variant(n // 2), variant(n // 2 + 1), variant(0)]
+    g.tied_optimal_logit_plans = dict(graph.tied_optimal_logit_plans)
+    g.tied_optimal_logit_plans[ALPHA] = plans
+    assert len({tuple(p) for p in plans}) > 1
+    return g
+
+
 def _pick(graphs):
     typical = sorted(graphs, key=lambda g: int(g.n_tasks))[len(graphs) // 2]
     big = [g for g in graphs if 101 <= int(g.n_tasks) <= 256]
-    multi = [g for g in graphs if len(g.tied_optimal_logit_plans[ALPHA]) > 1 and 4 <= int(g.n_tasks) <= 40]
-    out = {"typical": typical}
-    if big:
-        out["group101_256"] = min(big, key=lambda g: int(g.n_tasks))
-    if multi:
-        out["multi_plan"] = max(multi, key=lambda g: len(g.tied_optimal_logit_plans[ALPHA]))
-    assert "group101_256" in out and "multi_plan" in out, "the cache lacks a 101-256-task group or a multi-plan graph"
-    return out
+    assert big, "the cache has no 101-256-task group"
+    small = [g for g in graphs if 8 <= int(g.n_tasks) <= 30 and max(len(c) for c in g.task_logit_to_placement) > 1]
+    return {"typical": typical, "group101_256": min(big, key=lambda g: int(g.n_tasks)),
+            "multi_plan": _with_extra_plans(small[len(small) // 2], _order(small[len(small) // 2]))}
 
 
 def _model(graph, seed=0):
