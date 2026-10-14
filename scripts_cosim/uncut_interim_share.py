@@ -12,7 +12,8 @@ above 50 by sub-bucket). The sidecar holds each task's LAST served batch, so its
 plan per served task; any other arm fails loud.
 Felt share (the large-group view): a task served in a batch of n waits the batch's whole charge, w(n) x n; per bucket, the sum of that over
 the bucket's tasks / their summed latency (doneTime - dispatchedTime), from the sidecar's last served batch. Pooled per rung, and in the
-cell with the largest felt share in any bucket.
+cell with the largest felt share in any bucket. felt_total: the same over every task, pooled per rung (the primary figure, 2026-10-14);
+felt_total_worst: the largest per-cell felt_total.
 """
 import argparse
 import glob
@@ -79,6 +80,9 @@ def main(argv=None):
             fa[f][0] += c
             fa[f][1] += l
         cf = {f: (c / l if l else None) for f, (c, l) in felt.items()}
+        ft = sum(c for c, _ in felt.values()) / sum(l for _, l in felt.values())
+        if r.get("felt_total_worst") is None or ft > r["felt_total_worst"]["felt_total"]:
+            r["felt_total_worst"] = {"cell": os.path.basename(p), "felt_total": ft}
         top = max(v for v in cf.values() if v is not None)
         if r.get("felt_worst") is None or top > r["felt_worst"]["max"]:
             r["felt_worst"] = {"cell": os.path.basename(p), "max": top, "by_bucket": cf}
@@ -94,7 +98,9 @@ def main(argv=None):
         r["share_total"] = sum(r["share_by_bucket"].values())
         r["evals_share"] = {f: e / sum(r["evals"].values()) for f, e in r["evals"].items()}
         del r["charge"]
-        r["felt_by_bucket"] = {f: (c / l if l else None) for f, (c, l) in r.pop("_felt").items()}
+        fe = r.pop("_felt")
+        r["felt_by_bucket"] = {f: (c / l if l else None) for f, (c, l) in fe.items()}
+        r["felt_total"] = sum(c for c, _ in fe.values()) / sum(l for _, l in fe.values())
     txt = json.dumps(out, indent=1)
     if a.out:
         with open(a.out, "w") as fh:
@@ -102,6 +108,7 @@ def main(argv=None):
     for rung, r in sorted(out["rungs"].items()):
         print(f"{rung}: pooled {100 * r['share_total']:.3f} %  " + "  ".join(f"{f} {100 * v:.3f} %" for f, v in r["share_by_bucket"].items())
               + f"  | worst {r['worst']['cell']} {100 * r['worst']['share_total']:.3f} %")
+        print(f"{rung} felt total {100 * r['felt_total']:.3f} % (worst cell {r['felt_total_worst']['cell']} {100 * r['felt_total_worst']['felt_total']:.3f} %)")
         print(f"{rung} felt: " + "  ".join(f"{f} {100 * v:.3f} %" for f, v in r["felt_by_bucket"].items() if v is not None)
               + f"  | worst {r['felt_worst']['cell']} " + "  ".join(f"{f} {100 * v:.3f} %" for f, v in r["felt_worst"]["by_bucket"].items() if v is not None))
     return out

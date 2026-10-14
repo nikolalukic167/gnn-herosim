@@ -39,6 +39,7 @@ def test_pooled_and_felt_shares(tmp_path, wf):
     assert abs(h["share_by_bucket"]["101_256"] - 1.5e-3 * 4 / lat) < 1e-12
     assert abs(h["felt_by_bucket"]["101_256"] - 1.5e-3 * 200 / 2.0) < 1e-12
     assert abs(h["felt_by_bucket"]["le10"] - 3.0e-3 * 1 / 2.0) < 1e-12
+    assert abs(h["felt_total"] - (6 * 3.0e-3 + 4 * 1.5e-3 * 200) / lat) < 1e-12
 
 
 def test_gt50_split_is_proportional_to_the_sidecar(tmp_path, wf):
