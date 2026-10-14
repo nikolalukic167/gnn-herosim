@@ -222,6 +222,8 @@ class NearRttConfig:
     # Score only the task's own edge rows in the teacher-forced loss closure (dropout still drawn over the full tensor): the same
     # scores to float precision, not byte-equal to the full-tensor path. Train closure only; decode and serving are unchanged.
     score_task_rows_only: bool = os.environ.get("NEAR_RTT_SCORE_TASK_ROWS_ONLY", "0") == "1"
+    # uncut_groups_s0_v1 Arm 1b: one vectorised pass builds every teacher-forced state, one call scores them (src/policy/gnn/batched_tf.py).
+    batched_tf: bool = os.environ.get("NEAR_RTT_BATCHED_TF", "0") == "1"
     # cd_gap_v1 A: replace the TRAIN graphs' label set (teacher-forced path) with the plans in
     # this file (scripts_cosim/cd_gap_v1_cd_labels.py). Val/test keep the sweep label, and every
     # regret number and the checkpoint selector stay on the true sweep. Empty = the sweep label.
@@ -622,6 +624,11 @@ def loss_tied_teacher_forced_ce(
     n_tasks = int(data.n_tasks)
     order = topological_task_order(n_tasks, data.dag_parents)
     placements = data.task_logit_to_placement
+    if NEAR_CFG.batched_tf:
+        if random_prefix_k > 0:
+            raise ValueError("NEAR_RTT_BATCHED_TF does not support random-prefix orders (Arm 2)")
+        from src.policy.gnn.batched_tf import batched_tf_loss
+        return batched_tf_loss(model, data, ctx, plans, order, full_context_weight, device), n_tasks
     if getattr(model, "group_anchor", False):
         # B2: the label plan's anchors (first tied plan, cache order) are what the scorer sees in training.
         layout = _arm2.layout_for(model, data, ctx)
@@ -2419,6 +2426,8 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "tied_max_plans": NEAR_CFG.tied_max_plans if TEACHER_FORCED else None,
                 # fullctx_refine_v1: non-zero changes the train loss (provenance, not served)
                 "full_context_ce_weight": NEAR_CFG.full_context_ce_weight if TEACHER_FORCED else None,
+                # Arm 1b: the loss is the batched teacher-forced one (same definition; independent dropout masks per scored row; float order). Provenance.
+                "batched_teacher_forced": bool(NEAR_CFG.batched_tf) if TEACHER_FORCED else None,
                 # §3 requires a draw to vary initialisation and batch order ONLY.
                 # Under NEAR_RTT_SPLIT_ARTIFACT (B6) this is {"path", "sha256"} of the
                 # shared artifact; otherwise it names the split this run actually drew.
