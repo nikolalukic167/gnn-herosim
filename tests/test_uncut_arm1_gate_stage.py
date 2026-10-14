@@ -92,10 +92,22 @@ def test_arm2_stage_by_arms_and_stem(src):
     assert (t / "in" / "models" / "uncut-arm2k0-twin-eng-seed2.pt").read_bytes() == b"twin_eng2"
 
 
+def test_arms_stage_in_turn_from_one_growing_md5_file(src):
+    t, ck, ig, md5, split = src
+    out = S.main(args(t, ck, ig, md5, split, dest="in_gt") + ["--arms", "gnn_eng,twin_eng"])
+    assert sorted(out["checkpoints"]) == ["gnn_eng|s1", "gnn_eng|s2", "twin_eng|s1", "twin_eng|s2"]
+    assert not (t / "in_gt" / "models" / "uncut-arm1-mlp-same-seed1.pt").exists()
+    out = S.main(args(t, ck, ig, md5, split, dest="in_mlp") + ["--arms", "mlp_same"])
+    assert sorted(out["checkpoints"]) == ["mlp_same|s1", "mlp_same|s2"]
+
+
 def test_arms_scope_fails_loud(src):
     t, ck, ig, md5, split = src
+    want = json.loads(md5.read_text())
+    md5.write_text(json.dumps({**want, "raw|s1": "0" * 32}))
     with pytest.raises(SystemExit, match="keys outside"):
         S.main(args(t, ck, ig, md5, split) + ["--arms", "gnn_eng,twin_eng"])
+    md5.write_text(json.dumps(want))
     with pytest.raises(SystemExit, match="not a subset"):
         S.main(args(t, ck, ig, md5, split) + ["--arms", "gnn_eng,raw"])
     md5.write_text(json.dumps({k: v for k, v in json.loads(md5.read_text()).items() if not k.startswith("twin_eng")}))
