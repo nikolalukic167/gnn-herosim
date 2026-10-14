@@ -300,6 +300,49 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-14 — **Felt share: definition, hand F measured exactly, bounds recomputed** (the expert's rulings on SCIENTIST's follow-up; S6). Nothing here reads an outcome. 871538 has not run.
+  1. **Definition.** Every "charge share" in this record means the **felt share** F = Σ_batches n_b · c_b ÷ Σ_tasks latency. Here c_b is batch b's simulated decision charge, which every one of its n_b tasks waits. Earlier per-plan figures (Σ c_b ÷ Σ latency) are relabelled **pooled**. SCIENTIST's chat-only "≈ 0.05 %" and "`_kr` is a formality" are withdrawn.
+  2. **Learned F_L at every look,** per rung and task-weighted. Look 1 (1b twin): 0.853 % moderate, 1.059 % heavy (interim-looks log, row 1). Final-read linearity check: per cell, `_kr` − frozen-w is predicted at 0.468 · F_L.
+  3. **The hand bounds use exact F** (the rule filed at 16:23Z, above).
+     - **Diagnostic.** Scratch branch `s6/diag-hand-batch-dump` 1bc4639f, never merged. It is d6ae87c2 plus a dump under `S6_BATCH_DUMP` of (batch size, decodable, plan evals, charge) per batch; it is file I/O only.
+       - Jobs 871999 (moderate) and 872000 (heavy) ran `cd_ib0_k100` on 19537 g0 on a-l40s-o-2, starting 2026-10-14T16:26:14Z. They are diagnostic only: never gate cells and never reused.
+       - **Sim-identical** to their 869828 source cells: `.tasks`, `.tasks_bsz` and `.tasks_lock` are byte-equal. Counters and the per-bucket calls and plan evals are equal. The only differing keys are `code`, `python_env`, `wallclock_s`, `decisionTiming` wall fields and `total_rtt_plus_inference` (which includes wall inference time).
+       - The dump sums to `sched_plan_evals` (855,061 / 1,181,045) and to `sched_busy_seconds` exactly.
+       - Dumps are in `/share/nikola.lukic/uncut_groups/interim/diag_hand_dump/`: `batches_moderate.tsv` md5 761dcc53, `batches_heavy.tsv` md5 25e92223.
+     - **Exact F of the two source cells:** 0.1608 % moderate, 0.2527 % heavy. Their pooled shares are 0.0071 % and 0.0112 %.
+     - **Fit.** Evals grow mildly superlinearly with the decodable batch size n: e/n is about 15 → 28 (moderate) and 20 → 37 (heavy) from n = 1 to n > 100.
+       - Per-bucket log-log fits, e ∝ n^β (`fit_evals_n.json` md5 62d75f5c; 200-draw bootstrap 95 %):
+         - le10: 1.39 [1.35, 1.42] moderate, 1.27 [1.23, 1.30] heavy;
+         - 11_50: 1.16 [1.05, 1.27] moderate, 1.19 [1.10, 1.29] heavy;
+         - gt50: 1.22 [0.75, 1.78] moderate, 0.99 [0.42, 1.39] heavy.
+       - Applied to the source cells' sidecar batch counts, the fit gives F 0.1622 % / 0.2525 % against the exact 0.1608 / 0.2527, with every bucket within 5 %.
+       - gt50's β is uncertain, but moving it across its interval moves the heavy total F by at most ±4 %.
+       - **So the fit applies, not UB.**
+     - **Hand F on the 869828 bar cells**, pooled [cell median, max]:
+
+       | arm | moderate | heavy |
+       |---|---|---|
+       | `cd_ib0` | 0.131 [0.136, 0.168] % | 0.195 [0.201, 0.257] % |
+       | `cd` | 0.134 [0.137, 0.173] % | 0.187 [0.194, 0.238] % |
+
+       - By bucket for `cd_ib0` heavy: le10 0.023, 11_50 0.075, gt50 0.097 %.
+       - `cd` uses `cd_ib0`'s fit; this is disclosed.
+       - UB for comparison: `cd_ib0` 0.268 / 0.408 %, worst cell 0.561 %.
+       - Outputs `felt_cd_ib0__evals_njson.json` md5 82ed9fba and `felt_cd__evals_njson.json` md5 4e809cb0.
+     - **q_n bound** = Σ_n F_H,n · |q_n − 1| < 0.1 % per rung, with the worst cell's Σ_n F_n · |q_n − 1| beside it. At heavy F 0.195 %, it trips only if the F-weighted mean |q − 1| exceeds about 0.51 (moderate about 0.76).
+       - The bound buckets are the gate's three charged buckets, so no task is split between buckets. The conservative larger-bucket rule applies only to the learned 51–100 / 101–256 report split.
+     - **Co-tenancy hand-bias bound on F,** F × (1 − 1/1.468): `cd_ib0` 0.062 % pooled, 0.082 % worst cell (heavy); `cd` 0.060 / 0.079 %. Both are under 0.1 %. This replaces the pooled 0.0036 %. The worst cell crosses the line at k_cotenancy ≈ 1.64 (`cd_ib0`) / 1.68 (`cd`), so it is rechecked at the final k.
+  4. **Co-tenancy r for 101–256 cannot be measured.** `decisionTiming.by_bucket` stops at gt50, and splitting it needs a G3 change, which is frozen. The gt50 r stands in for it: 1.270 / 1.266 against pooled 1.373 / 1.354, both under 1.25×. No diagnostic timing is used for r.
+  5. **K1 stands; the code facts** (`src/policy/gnn/scheduler.py:1355-1433`):
+     - `sched_queue_wait_seconds` books only a batch's wait for the scheduler server before it starts.
+     - The batch's own charge is a later `env.timeout(charge)`, booked once per batch in `sched_busy_seconds`, and its tasks are enqueued only after it. So queue wait excludes the in-batch wait, and adding F to it counts nothing twice.
+     - K1(a)'s decision share, (queue wait + busy) ÷ num_tasks ÷ mean latency, was per batch, not felt.
+     - `sched_queue_wait_seconds` is 0.000 in all 96 K1 `cd_ib0` cells and all 96 869828 `cd_ib0` cells.
+     - The K1(a) `cd_ib0` cells carry no `.tasks_bsz.npy`, so only UB is available there: 0.275 [0.348] % moderate, 0.427 [0.580] % heavy (median [max]). The hand F is far under 3 % on every estimator.
+  - **Tool change (B3),** filed with look 1 (Arm 1b twin, interim-looks log row 1) as the read that preceded it.
+    - `uncut_charge_share.py` q takes `--fit` or `--ub` (exactly one), and its bound and verdict use F. `bound_pooled` and `verdict_pooled` are kept beside them, with the worst cell and an optional `--k` hand-bias bound.
+    - The new `felt` mode reports hand F without a re-measure.
+    - Tests: `tests/test_uncut_charge_share.py`, 9 tests. One fixture in it is pooled-KEEP and felt-REFREEZE.
 - 2026-10-14 (filed 2026-10-14T16:23Z, before any diagnostic output and before 871538 measures anything) — **Hand-F estimator rule** (the expert's ruling; S6).
   - The q_n bound and the co-tenancy hand-bias bound use the **exact felt share F** of `cd_ib0`. F comes from a per-batch (n, plan evals) dump made by an instrument-only diagnostic: one d6ae87c2 `cd_ib0` cell per rung, on a scratch branch that is never merged. Those cells are never gate cells and never reused.
   - The dumped cells are used only if their summaries are sim-identical to their 869828 source cells, with the dump as the only difference. They fit evals(n) per bucket, and the fit is applied to the bar cells' bucket counts.
