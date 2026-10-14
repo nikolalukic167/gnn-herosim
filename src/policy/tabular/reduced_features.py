@@ -592,6 +592,99 @@ def _peer_adj(ctx: "PartialStateContext") -> Dict[int, List[Tuple[int, float]]]:
     return adj
 
 
+def _peer_radj(ctx: "PartialStateContext") -> Dict[int, List[Tuple[int, float]]]:
+    """peer_pairs grouped by second task: radj[j] = [(i, b) for (i, j), b in peer_pairs.items()], in peer_pairs' iteration order."""
+    pp = ctx.peer_pairs
+    cached = getattr(ctx, "_peer_radj_cache", None)
+    if cached is not None and cached[0] is pp and cached[1] == len(pp):
+        return cached[2]
+    radj: Dict[int, List[Tuple[int, float]]] = {}
+    for (i_, j), b in pp.items():
+        radj.setdefault(j, []).append((i_, b))
+    ctx._peer_radj_cache = (pp, len(pp), radj)
+    return radj
+
+
+class _IncState:
+    """SERVEFAST_COLUMNS: the committed-set aggregates of one decode, extended one commit at a time."""
+
+    __slots__ = ("keys", "vals", "pos", "occ", "load", "couse", "exch", "svc", "members", "cs", "tkey")
+
+    def __init__(self, ctx: "PartialStateContext") -> None:
+        self.keys: List[Any] = []
+        self.vals: List[Any] = []
+        self.pos: Dict[Any, int] = {}
+        self.occ: Dict[Any, List[float]] = {}
+        self.load: Dict[Any, float] = dict(ctx.base_load)
+        self.couse: Dict[str, int] = {}
+        self.exch: Dict[Any, float] = {}
+        self.svc: Dict[Any, float] = {}
+        self.members: Dict[Any, List[Any]] = {}
+        self.cs: Dict[Any, float] = {}
+        self.tkey: Dict[Any, Any] = {}
+
+
+def _incremental_aggregates(ctx: "PartialStateContext", committed: Mapping[int, Any]):
+    """(occ, load, couse, committed_s) for ``committed``, equal to the full rescan in partial_state_columns, bit for bit.
+
+    A decode commits one task per step, so ``committed`` is the previous call's dict plus its tail. Every aggregate is a left fold
+    over the commits in commit order; extending the fold by the new commits keeps each float summation order. committed_s is the
+    exception that needs care: a task's exchange seconds gain a term when a LATER partner commits, and the per-key fold
+    ((v + service) + exch) is not associative, so a key whose member changed is refolded from its members in commit order.
+    Anything that is not an extension of the cached prefix (another plan, a re-commit) rebuilds the state from scratch.
+    """
+    keys = list(committed)
+    st = getattr(ctx, "_psc_inc", None)
+    m = len(st.keys) if st is not None else -1
+    if st is None or m > len(keys) or keys[:m] != st.keys or any(committed[k] != v for k, v in zip(st.keys, st.vals)):
+        st = _IncState(ctx)
+        ctx._psc_inc = st
+        m = 0
+    use_s = ctx.contract in LOAD_SECONDS_CONTRACTS and bool(ctx.load_seconds)
+    both = ctx.both_directions
+    adj = _peer_adj(ctx) if use_s else None
+    radj = _peer_radj(ctx) if use_s else None
+    dirty: set = set()
+
+    def term(node_from: Any, node_to: Any, b: float) -> float:
+        pb, lat = ctx.node_exchange[(node_from, node_to)]
+        return b * pb + (lat if pb > 0.0 else 0.0)
+
+    for t in keys[m:]:
+        cand = committed[t]
+        node = ctx.node_of[cand]
+        k = int(ctx.task_type_index[t])
+        st.occ.setdefault(node, [0.0] * KRANK_TYPES)[k] += 1.0
+        st.load[node] = st.load.get(node, 0.0) + float(ctx.demand[(t, cand)])
+        for lk in ctx.ingress_links.get((t, node), ()):
+            st.couse[lk] = st.couse.get(lk, 0) + 1
+        if use_s:
+            key = tuple(cand) if isinstance(cand, list) else cand
+            exch = 0.0
+            for _, j, b in sorted((st.pos[j], j, b) for j, b in adj.get(t, ()) if j in st.pos and j != t):
+                node_j = ctx.node_of[committed[j]]
+                exch += term(node_j, node, b) if both else term(node, node_j, b)
+            for tp, b in radj.get(t, ()):
+                if tp in st.pos and tp != t:
+                    node_tp = ctx.node_of[committed[tp]]
+                    st.exch[tp] = st.exch[tp] + (term(node, node_tp, b) if both else term(node_tp, node, b))
+                    dirty.add(st.tkey[tp])
+            st.exch[t] = exch
+            st.svc[t] = float(ctx.service_s[(t, key)])
+            st.tkey[t] = key
+            st.members.setdefault(key, []).append(t)
+            dirty.add(key)
+        st.pos[t] = len(st.keys)
+        st.keys.append(t)
+        st.vals.append(cand)
+    for key in dirty:
+        v = 0.0
+        for t in st.members[key]:
+            v = v + st.svc[t] + st.exch[t]
+        st.cs[key] = v
+    return st.occ, st.load, st.couse, st.cs
+
+
 def partial_state_columns(
     ctx: PartialStateContext,
     task_id: int,
@@ -619,13 +712,19 @@ def partial_state_columns(
     linkrank_base = PARTIAL_STATE_BASE_DIM + krank_feature_dim(ctx.contract)
     n_rank_nodes = len(ctx.node_rank)
 
-    occ: Dict[Any, List[float]] = {}
-    load: Dict[Any, float] = dict(ctx.base_load)
-    for t, cand in committed.items():
-        node = ctx.node_of[cand]
-        k = int(ctx.task_type_index[t])
-        occ.setdefault(node, [0.0] * KRANK_TYPES)[k] += 1.0
-        load[node] = load.get(node, 0.0) + float(ctx.demand[(t, cand)])
+    from src.placement import serve_fast as _serve_fast
+
+    _inc = _serve_fast.columns_on()
+    if _inc:
+        occ, load, couse, committed_s = _incremental_aggregates(ctx, committed)
+    else:
+        occ: Dict[Any, List[float]] = {}
+        load: Dict[Any, float] = dict(ctx.base_load)
+        for t, cand in committed.items():
+            node = ctx.node_of[cand]
+            k = int(ctx.task_type_index[t])
+            occ.setdefault(node, [0.0] * KRANK_TYPES)[k] += 1.0
+            load[node] = load.get(node, 0.0) + float(ctx.demand[(t, cand)])
 
     parent_ids = list(ctx.parents.get(task_id) or ())
     missing = [p for p in parent_ids if p not in committed]
@@ -636,18 +735,20 @@ def partial_state_columns(
             "parents are committed; the caller is not honoring it"
         )
 
-    _pos = {j: i for i, j in enumerate(committed)}
-    couse: Dict[str, int] = {}
-    for t, cand in committed.items():
-        for lk in ctx.ingress_links.get((t, ctx.node_of[cand]), ()):
-            couse[lk] = couse.get(lk, 0) + 1
+    if not _inc:
+        _pos = {j: i for i, j in enumerate(committed)}
+        couse: Dict[str, int] = {}
+        for t, cand in committed.items():
+            for lk in ctx.ingress_links.get((t, ctx.node_of[cand]), ()):
+                couse[lk] = couse.get(lk, 0) + 1
 
     k_self = int(ctx.task_type_index[task_id])
     if not (0 <= k_self < KRANK_TYPES):
         raise ValueError(f"partial_state_columns: type index {k_self} out of range")
 
     load_base = linkrank_base + LINKRANK_FEATURE_DIM
-    committed_s: Dict[Any, float] = {}
+    if not _inc:
+        committed_s: Dict[Any, float] = {}
     both = ctx.both_directions
 
     def _xchg(frm, to, b):
@@ -655,7 +756,7 @@ def partial_state_columns(
         pb, lat = ctx.node_exchange[(frm, to)]
         return b * pb + (lat if pb > 0.0 else 0.0)
 
-    if ctx.contract in LOAD_SECONDS_CONTRACTS and ctx.load_seconds:
+    if not _inc and ctx.contract in LOAD_SECONDS_CONTRACTS and ctx.load_seconds:
         # a committed batch-mate's service on its replica is what the platform will charge it:
         # execution + storage I/O (service_s) plus the peer transfer it pays to every committed
         # partner on another node -- the CD greedy's `exec + comm + exch`, and the per-task charge

@@ -761,7 +761,9 @@ def decode_prefix_conditioned(
         t: [float(ctx.demand[(t, (int(c[0]), int(c[1])))]) for c in tl[t]]
         for t in range(n_tasks)
     }
-    score_fn = make_partial_state_score_fn(model, graph, ctx)
+    from src.placement import serve_fast
+
+    score_fn = make_partial_state_score_fn(model, graph, ctx, task_rows_only=serve_fast.rows_on())
     encode_count = getattr(score_fn, "encode_count", None)
     arm2_close = getattr(score_fn, "close", None)
     if options.concurrency_penalty > 0.0:
