@@ -205,15 +205,14 @@ def cmd_probe(a):
 SIM_INPUT = "/home/nikola.lukic/gnn-herosim/data/nofs-ids"
 
 
-def _ds_order(plan_by_gid: Sequence[Sequence[int]], trace: Sequence[int]) -> List[List[int]]:
-    """A plan in the engine's batch order (gid ascending) -> dataset order (task i has gid trace[i])."""
-    rank = {g: j for j, g in enumerate(sorted(trace))}
-    return [[int(x) for x in plan_by_gid[rank[g]]] for g in trace]
+def _ds_order(plan_batch: Sequence[Sequence[int]], trace: Sequence[int]) -> List[List[int]]:
+    """The engine's batch order IS the dataset order (probe 873619: the engine's hand plan equals the stored hand row index for index on groups whose trace_task_ids
+    are not sorted), so this is the identity; the check that it holds is `hand_in_stored_rows` in the replay output."""
+    return [[int(x) for x in p] for p in plan_batch]
 
 
 def _batch_order(plan_ds: Sequence[Sequence[int]], trace: Sequence[int]) -> List[List[int]]:
-    order = sorted(range(len(trace)), key=lambda i: trace[i])
-    return [[int(x) for x in plan_ds[i]] for i in order]
+    return [[int(x) for x in p] for p in plan_ds]
 
 
 def cmd_replay(a):
@@ -248,7 +247,7 @@ def cmd_replay(a):
             r = dict(zip(names, rt))
             res[gid] = {"n": n, "bucket": draw["meta"][gid]["bucket"] if gid in draw["meta"] else None, "label_type": draw["meta"].get(gid, {}).get("label"),
                         "rtt": r, "plans": plans, "stored_label_rtt": stored.get(lkey), "label_in_stored_rows": lkey in stored, "stored_rows": len(stored),
-                        "hand_equals_label": hand == label, "trace": trace, "decode": {run: {k2: dec[gid][run].get(k2) for k2 in ("agree", "exact", "n_choice", "tf_hit")} for run in RUNS}}
+                        "hand_equals_label": hand == label, "hand_in_stored_rows": json.dumps(hand) in stored, "stored_hand_rtt": stored.get(json.dumps(hand)), "trace": trace, "decode": {run: {k2: dec[gid][run].get(k2) for k2 in ("agree", "exact", "n_choice", "tf_hit")} for run in RUNS}}
     json.dump(res, open(a.out, "w"))
     print(f"replay: {len(res)} groups, {time.time() - t0:.0f} s")
 
