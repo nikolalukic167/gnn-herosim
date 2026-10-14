@@ -1760,6 +1760,31 @@ if NEAR_CFG.val_exact_regret:
 if RUNTIME_CONFIG.wandb_api_key:
     os.environ["WANDB_API_KEY"] = RUNTIME_CONFIG.wandb_api_key
 
+# NEAR_RTT_RESUME=1 (default off; off is byte-unchanged): save the whole training state at the end of every epoch to
+# models/<run name>.resume.pt and, when that file exists at start, continue from it into the same W&B run. Written for the
+# Arm 2 runs, whose 100 epochs outlast the 7-day CPU-amd limit (docs/lineages/uncut_groups_s0_v1.md item (h)).
+NEAR_RESUME = os.environ.get("NEAR_RTT_RESUME", "0") == "1"
+_resume_state: Optional[Dict[str, Any]] = None
+_resume_path: Optional[Path] = None
+_wandb_resume_kwargs: Dict[str, Any] = {}
+if NEAR_RESUME:
+    _resume_name = os.environ.get("WANDB_RUN_NAME") or os.environ.get("WANDB_NAME")
+    if not _resume_name:
+        raise RuntimeError("FAIL LOUD: NEAR_RTT_RESUME=1 needs WANDB_RUN_NAME (the state file is models/<run name>.resume.pt)")
+    _resume_path = Path("models") / f"{_resume_name}.resume.pt"
+    if _resume_path.exists():
+        _resume_state = torch.load(_resume_path, map_location="cpu", weights_only=False)
+        _want_pin = os.environ.get("NEAR_RTT_RESUME_PIN", "")
+        _fingerprint = {"epochs": int(EPOCHS), "min_epochs": int(MIN_EPOCHS), "patience": int(PATIENCE), "lr": float(LEARNING_RATE),
+                        "train_seed": int(_TRAIN_SEED), "batch_size": int(BATCH_SIZE), "cache_dir": str(CACHE_CTX.cache_dir)}
+        if _resume_state["fingerprint"] != _fingerprint or _resume_state["pin"] != _want_pin:
+            raise RuntimeError(
+                f"FAIL LOUD: {_resume_path} was written under {_resume_state['fingerprint']} pin {_resume_state['pin']!r}; "
+                f"this run is {_fingerprint} pin {_want_pin!r}. Refusing to resume."
+            )
+        _wandb_resume_kwargs = {"id": _resume_state["wandb_run_id"], "resume": "allow"}
+        print(f"[resume] continuing {_resume_name} after epoch {_resume_state['epoch']} from {_resume_path}", flush=True)
+
 wandb.init(
     project=RUNTIME_CONFIG.wandb_project,
     entity=RUNTIME_CONFIG.wandb_entity,
@@ -1826,6 +1851,7 @@ wandb.init(
         ),
     },
     tags=[t for t in os.environ.get("WANDB_TAGS", "near-rtt").split(",") if t],
+    **_wandb_resume_kwargs,
 )
 
 
@@ -2508,7 +2534,7 @@ if is_phase_b_ce_init():
 # summary as untrained/val_* (a reference line, like baseline/*), not to the history: a
 # step-less log would merge into epoch 0's row. Under fork_rng so the extra pass leaves
 # the training draw bit-identical to a run without it (tests/test_trainer_determinism.py).
-if phase_b_baseline is None:
+if phase_b_baseline is None and _resume_state is None:
     _rng_devices = [DEVICE] if DEVICE.type == "cuda" else []
     with torch.random.fork_rng(devices=_rng_devices):
         _untrained = evaluate(
@@ -2535,8 +2561,47 @@ print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 last_improvement_epoch = -1
 epochs_run = 0
 stop_reason = "epochs"
+_start_epoch = 0
 
-for epoch in range(EPOCHS):
+
+def _save_resume_state(epoch: int, stopped: bool) -> None:
+    state = {
+        "epoch": int(epoch), "stopped": bool(stopped), "stop_reason": stop_reason, "epochs_run": int(epochs_run),
+        "last_improvement_epoch": int(last_improvement_epoch), "best_val_regret": best_val_regret, "best_val_acc": best_val_acc,
+        "peak_val_acc": peak_val_acc, "peak_val_task_acc": peak_val_task_acc, "best_val_metrics": best_val_metrics,
+        "checkpoint_saved": bool(checkpoint_saved), "guard_trace": _GUARD_TRACE,
+        "model": model.state_dict(), "optimizer": optimizer.state_dict(),
+        "rng": {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state(),
+                "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None},
+        "wandb_run_id": wandb.run.id, "pin": os.environ.get("NEAR_RTT_RESUME_PIN", ""),
+        "fingerprint": {"epochs": int(EPOCHS), "min_epochs": int(MIN_EPOCHS), "patience": int(PATIENCE), "lr": float(LEARNING_RATE),
+                        "train_seed": int(_TRAIN_SEED), "batch_size": int(BATCH_SIZE), "cache_dir": str(CACHE_CTX.cache_dir)},
+    }
+    tmp = _resume_path.with_name(_resume_path.name + ".tmp")
+    torch.save(state, tmp)
+    os.replace(tmp, _resume_path)
+
+
+if _resume_state is not None:
+    model.load_state_dict(_resume_state["model"])
+    optimizer.load_state_dict(_resume_state["optimizer"])
+    random.setstate(_resume_state["rng"]["python"])
+    np.random.set_state(_resume_state["rng"]["numpy"])
+    torch.set_rng_state(_resume_state["rng"]["torch"])
+    if _resume_state["rng"]["cuda"] is not None and torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(_resume_state["rng"]["cuda"])
+    last_improvement_epoch = _resume_state["last_improvement_epoch"]
+    best_val_regret, best_val_acc = _resume_state["best_val_regret"], _resume_state["best_val_acc"]
+    peak_val_acc, peak_val_task_acc = _resume_state["peak_val_acc"], _resume_state["peak_val_task_acc"]
+    best_val_metrics = _resume_state["best_val_metrics"]
+    checkpoint_saved = _resume_state["checkpoint_saved"]
+    _GUARD_TRACE.update(_resume_state["guard_trace"])
+    epochs_run, stop_reason = _resume_state["epochs_run"], _resume_state["stop_reason"]
+    _start_epoch = EPOCHS if _resume_state["stopped"] else int(_resume_state["epoch"]) + 1
+    if not model_path.exists():
+        raise RuntimeError(f"FAIL LOUD: resuming {_resume_path} but the best checkpoint {model_path} is missing")
+
+for epoch in range(_start_epoch, EPOCHS):
     start = time.perf_counter()
     train_metrics = train_epoch(model, train_loader, optimizer, criterion, epoch)
     val_metrics = evaluate(
@@ -2637,8 +2702,12 @@ for epoch in range(EPOCHS):
     epochs_run = epoch + 1
     if (best_val_regret, best_val_acc) != _selection_before:
         last_improvement_epoch = epoch
-    if should_stop_early(epoch, last_improvement_epoch, PATIENCE, MIN_EPOCHS):
+    _stop_now = should_stop_early(epoch, last_improvement_epoch, PATIENCE, MIN_EPOCHS)
+    if _stop_now:
         stop_reason = "patience"
+    if NEAR_RESUME:
+        _save_resume_state(epoch, _stop_now)
+    if _stop_now:
         print(
             f"[early stop] epoch {epoch}: val/{checkpoint_metric_name} has not improved since "
             f"epoch {last_improvement_epoch} ({PATIENCE} epochs of patience, floor {MIN_EPOCHS}); "
