@@ -296,16 +296,58 @@ def fill_kr(d, ck, primary_mean, twin_mean=2.0, mlp_mean=2.0):
                     cell(d, M, sd, t, w, r, mlp_mean, ck, sfx="_kr")
 
 
-@pytest.mark.parametrize("kr_mean, label", [(1.8, "WIN"), (2.0, "WIN-NOT-COTENANCY-ROBUST")])
-def test_cotenancy_verdict_must_also_win(gate, kr_mean, label):
+@pytest.mark.parametrize("kr_mean", [1.8, 2.0])
+def test_cotenancy_verdict_must_also_win(gate, kr_mean):
     d, ck, cm = gate
     fill(d, ck, 1.8, primary_big=1.6)
     fill_kr(d, ck, kr_mean)
     res = run(d, cm, cotenancy="required")
-    assert res["F1"]["label"] == "WIN" and res["combined"]["F1"] == label
-    assert res["cotenancy"]["F1"]["label"] == ("WIN" if kr_mean < 2 else res["cotenancy"]["F1"]["label"])
-    if label != "WIN":
-        assert res["combined"]["MP"] != "MP-ATTRIBUTED"
+    assert res["F1"]["label"] == "WIN"
+    if kr_mean < 2:
+        assert res["combined"]["F1"] == "WIN" and res["combined"]["flags"] == []
+    else:
+        assert not res["combined"]["F1"].startswith("WIN") and res["combined"]["F1"] == res["cotenancy"]["F1"]["label"]
+        assert res["combined"]["flags"] == ["NOT-COTENANCY-ROBUST"] and res["combined"]["MP"] != "MP-ATTRIBUTED"
+
+
+def test_cotenancy_anomaly_flagged_label_unchanged(gate):
+    d, ck, cm = gate
+    fill(d, ck, 2.0, alternate=True)
+    fill_kr(d, ck, 1.8)
+    res = run(d, cm, cotenancy="required")
+    assert res["cotenancy"]["F1"]["label"].startswith("WIN") and not res["F1"]["label"].startswith("WIN")
+    assert res["combined"]["F1"] == res["F1"]["label"] and res["combined"]["flags"] == ["COTENANCY-ANOMALY"]
+    assert "COTENANCY-ANOMALY" in res["combined"]["why"]
+
+
+F1_LABELS = ["WIN", "WIN-ROBUST", "WIN-OVER-BRITTLE-BAR", "WIN-ARM-ONLY", "WIN-ROBUST (ARM-ONLY)", "WIN-OVER-BRITTLE-BAR (ARM-ONLY)",
+             "F3 at k = 0.25 required", "MIXED", "TIES", "E-FASTER"]
+WIN_AXES = {"WIN": (1, 0), "WIN-ROBUST": (1, 1), "WIN-OVER-BRITTLE-BAR": (1, 2), "WIN-ARM-ONLY": (0, 0), "WIN-ROBUST (ARM-ONLY)": (0, 1),
+            "WIN-OVER-BRITTLE-BAR (ARM-ONLY)": (0, 2), "WIN-ARM-ONLY; ROBUST": (0, 1), "WIN-ARM-ONLY; OVER-BRITTLE-BAR": (0, 2)}
+CANON = {(1, 0): "WIN", (1, 1): "WIN-ROBUST", (1, 2): "WIN-OVER-BRITTLE-BAR", (0, 0): "WIN-ARM-ONLY", (0, 1): "WIN-ARM-ONLY; ROBUST",
+         (0, 2): "WIN-ARM-ONLY; OVER-BRITTLE-BAR"}
+
+
+@pytest.mark.parametrize("x", F1_LABELS)
+@pytest.mark.parametrize("y", F1_LABELS)
+def test_weaker_f1_every_label_pair(x, y):
+    got = G.weaker_f1(x, y)
+    assert got == G.weaker_f1(y, x) or (x not in WIN_AXES and y not in WIN_AXES and x == y)
+    if x in WIN_AXES and y in WIN_AXES:
+        (px, qx), (py, qy) = WIN_AXES[x], WIN_AXES[y]
+        assert got == CANON[(min(px, py), max(qx, qy))]
+    elif x in WIN_AXES or y in WIN_AXES:
+        assert got == (y if x in WIN_AXES else x)
+    else:
+        assert got == G.NON_WIN[max(G.NON_WIN.index(x), G.NON_WIN.index(y))]
+    assert G.prog_win(got) == (got in ("WIN", "WIN-ROBUST"))
+
+
+def test_brittle_bar_qualifier_survives_arm_only():
+    assert G.weaker_f1("WIN-OVER-BRITTLE-BAR", "WIN-ARM-ONLY") == "WIN-ARM-ONLY; OVER-BRITTLE-BAR"
+    assert G.weaker_f1("WIN-ARM-ONLY; OVER-BRITTLE-BAR", "WIN") == "WIN-ARM-ONLY; OVER-BRITTLE-BAR"
+    with pytest.raises(SystemExit, match="unknown F1 label"):
+        G.weaker_f1("WIN-SOMETHING", "WIN")
 
 
 def test_cotenancy_cells_required_and_learned_only(gate):

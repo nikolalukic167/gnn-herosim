@@ -36,8 +36,9 @@ F2 (Holm over 8 with the MLP, 4 without): primary vs twin (and vs MLP) x 2 x 2. 
   labelled separately and naming the corpus.
 Co-tenancy verdict (pre-registered 2026-10-14, --cotenancy required): every learned Arm 1 arm also runs as <arm>_kr, charged k_cotenancy x its
   frozen w (k_cotenancy = max(1, r_hand, r_learned), frozen in decision_cost_w.json with the learned w). F1/F2 are computed again on those cells
-  against the same hand cells; a learned WIN counts only if both verdicts are WIN (combined: both program-level -> the frozen label;
-  both WIN otherwise -> WIN-ARM-ONLY; frozen WIN only -> WIN-NOT-COTENANCY-ROBUST); F2 combined = the weaker of the two. Each learned cell
+  against the same hand cells; the combined F1 is the weaker of the two under an explicit order over every F1 label (two WIN labels
+  combine axis by axis, program-level and bar qualifier, keeping both qualifiers); a learned WIN counts only if both are WIN-class
+  (NOT-COTENANCY-ROBUST flags a frozen-only WIN, COTENANCY-ANOMALY a co-tenancy-only one); F2 combined = the weaker of the two. Each learned cell
   must have served exactly k x the frozen w at its pin (k = 1, or k_cotenancy for _kr).
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
   sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
@@ -436,7 +437,7 @@ def verdict(cells, failed, a, topos):
     anchor = {r: (res["decision_share_pct"][a.primary][r] or 0) >= (res["decision_share_pct"][BAR][r] or 0) for r in RUNGS}
     lab, why = f1_label(f1, seeds_alone, res["health"][a.primary], res["health"][BAR], anchor, robust)
     res["F1"] = {"tests": f1, "seeds_alone": seeds_alone, "vs_cd_robust": robust, "anchor_ok": anchor, "label": lab, "why": why}
-    prog = lab.startswith("WIN") and "ARM-ONLY" not in lab and lab != "WIN-OVER-BRITTLE-BAR"
+    prog = prog_win(lab)
     f2 = four(cells, a.primary, SEEDS, a.twin, SEEDS, topos) + (four(cells, a.primary, SEEDS, a.mlp, SEEDS, topos) if a.mlp else [])
     family(f2)
     res["F2"] = {"holm_family": len(f2), "tests": f2, "MP": "MP-" + f2_label(f2[:4], prog)}
@@ -457,22 +458,59 @@ def weaker(x, y):
     return x if rank(x) >= rank(y) else x.replace(next(t for t in F2_ORDER if t in x), next(t for t in F2_ORDER if t in y))
 
 
+# Every F1 label f1_label can emit, as (program-level?, bar qualifier) for the WIN class and as a rank for the rest. Strength order (strongest first):
+# WIN-class above every non-WIN label; within WIN, program-level above ARM-ONLY and, on the bar axis, no qualifier > ROBUST > OVER-BRITTLE-BAR;
+# non-WIN: "F3 at k = 0.25 required" > MIXED > TIES > E-FASTER.
+BAR_Q = ("", "ROBUST", "OVER-BRITTLE-BAR")
+NON_WIN = ("F3 at k = 0.25 required", "MIXED", "TIES", "E-FASTER")
+
+
+def f1_parts(lab):
+    """("win", program-level, bar-qualifier index) or ("non", rank); fails loud on a label it does not know."""
+    if lab in NON_WIN:
+        return ("non", NON_WIN.index(lab))
+    if lab.startswith("WIN"):
+        q = 2 if "OVER-BRITTLE-BAR" in lab else 1 if "ROBUST" in lab else 0
+        known = {"WIN", "WIN-ARM-ONLY", "WIN-ROBUST", "WIN-OVER-BRITTLE-BAR", "WIN-ROBUST (ARM-ONLY)", "WIN-OVER-BRITTLE-BAR (ARM-ONLY)",
+                 "WIN-ARM-ONLY; ROBUST", "WIN-ARM-ONLY; OVER-BRITTLE-BAR"}
+        if lab in known:
+            return ("win", "ARM-ONLY" not in lab, q)
+    raise SystemExit(f"FAIL LOUD: unknown F1 label {lab!r}")
+
+
+def win_label(prog, q):
+    if prog:
+        return "WIN" + (f"-{BAR_Q[q]}" if q else "")
+    return "WIN-ARM-ONLY" + (f"; {BAR_Q[q]}" if q else "")
+
+
 def prog_win(lab):
-    return lab.startswith("WIN") and "ARM-ONLY" not in lab and lab != "WIN-OVER-BRITTLE-BAR"
+    p = f1_parts(lab)
+    return p[0] == "win" and p[1] and p[2] != 2
+
+
+def weaker_f1(x, y):
+    """The weaker of two F1 labels under the order above; two WIN labels combine axis by axis, keeping both qualifiers."""
+    px, py = f1_parts(x), f1_parts(y)
+    if px[0] == py[0] == "win":
+        return win_label(px[1] and py[1], max(px[2], py[2]))
+    if px[0] == "win":
+        return y
+    if py[0] == "win":
+        return x
+    return x if px[1] >= py[1] else y
 
 
 def combine(main, cot, a):
-    """Pre-registered (2026-10-14): a learned win counts only if it holds under the frozen charge AND under k_cotenancy x it."""
+    """Pre-registered (2026-10-14, amended by SCIENTIST's sign-off conditions): the combined F1 is the weaker of the frozen and the
+    co-tenancy verdicts; a learned win counts only if both are WIN-class. COTENANCY-ANOMALY flags a co-tenancy WIN without a frozen one
+    (the label stays the frozen one)."""
     m, c = main["F1"]["label"], cot["F1"]["label"]
-    if prog_win(m) and prog_win(c):
-        f1, why = m, f"both verdicts program-level WIN (frozen {m}, co-tenancy {c})"
-    elif m.startswith("WIN") and c.startswith("WIN"):
-        f1, why = "WIN-ARM-ONLY", f"both WIN, not both program-level (frozen {m}, co-tenancy {c})"
-    elif m.startswith("WIN"):
-        f1, why = "WIN-NOT-COTENANCY-ROBUST", f"frozen {m}, co-tenancy {c}: no learned win"
-    else:
-        f1, why = m, f"frozen {m} (co-tenancy {c})"
-    out = {"F1": f1, "why": why, "MP": weaker(main["F2"]["MP"], cot["F2"]["MP"])}
+    f1 = weaker_f1(m, c)
+    mw, cw = f1_parts(m)[0] == "win", f1_parts(c)[0] == "win"
+    flags = (["NOT-COTENANCY-ROBUST"] if mw and not cw else []) + (["COTENANCY-ANOMALY"] if cw and not mw else [])
+    why = f"weaker of frozen {m!r} and co-tenancy {c!r}" + (f"; {', '.join(flags)}" if flags else "")
+    out = {"F1": f1, "why": why, "flags": flags, "MP": weaker(main["F2"]["MP"], cot["F2"]["MP"])}
     if a.mlp:
         out["MODEL-CLASS"] = weaker(main["F2"]["MODEL-CLASS"], cot["F2"]["MODEL-CLASS"])
     return out
