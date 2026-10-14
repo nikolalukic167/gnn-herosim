@@ -687,6 +687,10 @@ def checkpoint_mp_config(model_path: Path) -> dict:
     # is the only path from the sidecar to run_provenance.
     if payload.get("label_objective"):
         config["label_objective"] = str(payload["label_objective"])
+    # uncut_groups_s0_v1 Arm 1b: the checkpoint was trained with the batched teacher-forced loss. Weight-invisible and
+    # serving-inert (decode is unchanged); whitelisted so a live result's provenance names the trainer flag.
+    if "batched_teacher_forced" in payload:
+        config["batched_teacher_forced"] = bool(payload["batched_teacher_forced"])
     # r1_attribution_v1: a STRING again. Absent means a message-passing GNN (every earlier checkpoint).
     if payload.get("arm_kind"):
         arm = str(payload["arm_kind"])
