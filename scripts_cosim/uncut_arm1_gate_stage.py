@@ -5,8 +5,12 @@
                            [--stem uncut-arm1] [--arms gnn_eng,twin_eng,mlp_same] [--label descriptive-smoke]
 
 --md5 holds {"<arm>|s<seed>": md5} (S7's training log, which may grow arm by arm); only the --arms keys are staged, every --arms arm must
-have a key, and a key naming no known arm fails. It may name its checkpoint directory as "_ckpt_dir" (e.g. a relaunch's
-/share/nikola.lukic/uncut_arm1/models_relaunch_x): --src may then use {dir}, and every resolved checkpoint must sit in that directory. Arm 2 is
+have a key, and a key naming no known arm fails (S7's schema). "_ckpt_dir" names the checkpoint directory, one string or {"<arm>": dir}
+(arms may come from different jobs): --src may then use {dir} (the arm's), and every resolved checkpoint must sit in it.
+"_provenance" {"<arm>|s<seed>": {"job", "host", "cpu", ["wandb_id", "file"]}} names where each checkpoint trained; required under
+--stem uncut-arm1 (the hedge rule, 4213ac4e), optional otherwise, and when present it must cover every staged key. An arm's seeds must
+name one job (array tasks 871420_0 and 871420_3 are one job; 869803 and 871420 are two). With "file", the resolved checkpoint must
+have that basename, and --src may be omitted ({dir}/{file}). Arm 2 is
 --arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM), Arm 1b
 --arms gnn_eng,twin_eng --stem uncut-arm1b with its own md5 file. --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
@@ -38,7 +42,7 @@ def md5(path):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--md5", required=True)
-    ap.add_argument("--src", required=True)
+    ap.add_argument("--src", default="{dir}/{file}")
     ap.add_argument("--inputs-group", required=True)
     ap.add_argument("--split", required=True)
     ap.add_argument("--dest", required=True)
@@ -55,12 +59,13 @@ def main(argv=None):
         raise SystemExit(f"FAIL LOUD: {a.dest} exists; stage into a fresh directory")
     want = json.load(open(a.md5))
     meta = {k: want.pop(k) for k in [k for k in want if k.startswith("_")]}
-    if set(meta) - {"_ckpt_dir"}:
-        raise SystemExit(f"FAIL LOUD: {a.md5} has metadata keys {sorted(set(meta) - {'_ckpt_dir'})}; only _ckpt_dir is known")
+    if set(meta) - {"_ckpt_dir", "_provenance"}:
+        raise SystemExit(f"FAIL LOUD: {a.md5} has metadata keys {sorted(set(meta) - {'_ckpt_dir', '_provenance'})}; only _ckpt_dir and _provenance are known")
     ckpt_dir = meta.get("_ckpt_dir")
-    if ckpt_dir is not None and not (isinstance(ckpt_dir, str) and os.path.isdir(ckpt_dir)):
-        raise SystemExit(f"FAIL LOUD: {a.md5} _ckpt_dir {ckpt_dir!r} is not a directory")
-    if "{dir}" in a.src and ckpt_dir is None:
+    dirs = None if ckpt_dir is None else {x: ckpt_dir for x in arms} if isinstance(ckpt_dir, str) else ckpt_dir if isinstance(ckpt_dir, dict) else {}
+    if dirs is not None and not all(isinstance(dirs.get(x), str) and os.path.isdir(dirs[x]) for x in arms):
+        raise SystemExit(f"FAIL LOUD: {a.md5} _ckpt_dir {ckpt_dir!r} does not name an existing directory for every arm of {arms}")
+    if "{dir}" in a.src and dirs is None:
         raise SystemExit(f"FAIL LOUD: --src uses {{dir}} but {a.md5} names no _ckpt_dir")
     unknown = [k for k in want if k.split("|")[0] not in ARMS]
     if unknown:
@@ -75,13 +80,33 @@ def main(argv=None):
     for r in ("wf1_moderate", "wf1_heavy"):
         if not os.path.isdir(os.path.join(a.inputs_group, r)):
             raise SystemExit(f"FAIL LOUD: {a.inputs_group}/{r} missing")
+    prov = meta.get("_provenance")
+    if prov is None and a.stem == "uncut-arm1":
+        raise SystemExit(f"FAIL LOUD: {a.md5} has no _provenance; Arm 1 is staged only with each checkpoint's job, host and CPU model (hedge rule)")
+    if prov is not None:
+        staged_keys = [k for k in want if k.split("|")[0] in arms]
+        for k in staged_keys:
+            e = prov.get(k) if isinstance(prov, dict) else None
+            if not (isinstance(e, dict) and all(isinstance(e.get(f), str) and e.get(f).strip() for f in ("job", "host", "cpu"))):
+                raise SystemExit(f"FAIL LOUD: {a.md5} _provenance[{k!r}] needs non-empty job, host and cpu; got {e!r}")
+        for arm in arms:
+            jobs = sorted({prov[k]["job"].split("_")[0] for k in staged_keys if k.split("|")[0] == arm})
+            if len(jobs) > 1:
+                raise SystemExit(f"FAIL LOUD: {arm}'s seeds come from different jobs {jobs}; the hedge rule never splits an arm's seeds")
+    if "{file}" in a.src and prov is None:
+        raise SystemExit(f"FAIL LOUD: --src uses {{file}} but {a.md5} has no _provenance")
     plan = []
     for key, m in sorted((k, m) for k, m in want.items() if k.split("|")[0] in arms):
         arm, seed = key.split("|")
         seed = int(seed.lstrip("s"))
-        src = a.src.format(arm=arm.replace("_", "-"), seed=seed, dir=ckpt_dir)
-        if ckpt_dir is not None and os.path.dirname(os.path.realpath(src)) != os.path.realpath(ckpt_dir):
-            raise SystemExit(f"FAIL LOUD: {key}: {src} is not in the md5 file's _ckpt_dir {ckpt_dir}")
+        file = (prov or {}).get(key, {}).get("file")
+        if "{file}" in a.src and not file:
+            raise SystemExit(f"FAIL LOUD: {key}: --src uses {{file}} but _provenance names no file")
+        src = a.src.format(arm=arm.replace("_", "-"), seed=seed, dir=None if dirs is None else dirs[arm], file=file)
+        if dirs is not None and os.path.dirname(os.path.realpath(src)) != os.path.realpath(dirs[arm]):
+            raise SystemExit(f"FAIL LOUD: {key}: {src} is not in the md5 file's _ckpt_dir {dirs[arm]}")
+        if file and os.path.basename(src) != file:
+            raise SystemExit(f"FAIL LOUD: {key}: {src} is not the _provenance file {file}")
         side = src[:-3] + ".contract.json"
         for p in (src, side):
             if not os.path.isfile(p):
@@ -111,7 +136,7 @@ def main(argv=None):
         staged[key] = {"src": src, "md5": m, "staged": pt, "contract_md5": md5(pt[:-3] + ".contract.json")}
     out = {"label": a.label, "md5_file": os.path.abspath(a.md5), "md5_file_md5": md5(a.md5), "inputs_group": os.path.realpath(a.inputs_group),
            "split": os.path.basename(a.split), "split_md5": md5(a.split), "stem": a.stem, "arms": list(arms),
-           "ckpt_dir": ckpt_dir, "checkpoints": staged}
+           "ckpt_dir": ckpt_dir, "provenance": {k: prov[k] for k in staged} if prov is not None else None, "checkpoints": staged}
     json.dump(out, open(os.path.join(a.dest, "STAGE.json"), "w"), indent=1)
     print(json.dumps({k: v["staged"] for k, v in staged.items()}, indent=1))
     return out

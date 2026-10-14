@@ -303,6 +303,9 @@ def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
         if n_unstamped:
             raise SystemExit(f"FAIL LOUD: {key} lock-wait sidecar has {n_unstamped} unstamped task(s); never counted as 0")
         if key[0] in learned:
+            h, th = s.get("host"), (s.get("python_env") or {}).get("torch_num_threads")
+            if not isinstance(h, dict) or not h.get("cpu_model") or not h.get("nproc") or th != 1:
+                raise SystemExit(f"FAIL LOUD: {key} needs the gate's host block and 1 torch thread (calibration protocol); host={h!r} threads={th!r}")
             tag = ckpt_tag(key[0])
             want = ckpt.get(f"{ckpt_arm(key[0])}@{tag}|s{key[1]}") if tag else ckpt.get(f"{key[0]}|s{key[1]}", ckpt.get(f"{ckpt_arm(key[0])}|s{key[1]}"))
             path = (s.get("env") or {}).get("GNN_MODEL_PATH")
@@ -312,6 +315,17 @@ def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
         raise SystemExit(f"FAIL LOUD: cells do not all record one HEROSIM_WARMTH_PHYSICS: "
                          f"{ {w: len(k) for w, k in warmth.items()} }, unrecorded e.g. {warmth.get(None, [])[:3]}")
     return next(iter(warmth))
+
+
+def hosts(cells):
+    """Per arm, the cells per (CPU model, SMT state, nproc) they ran on; hand cells filed before the host block count as unrecorded."""
+    out = {}
+    for key, s in cells.items():
+        h = s.get("host") or {}
+        v = f"{h.get('cpu_model', 'unrecorded')} | smt {h.get('smt_control', '?')} | nproc {h.get('nproc', '?')}"
+        out.setdefault(key[0], {}).setdefault(v, 0)
+        out[key[0]][v] += 1
+    return out
 
 
 def means(s):
@@ -656,6 +670,7 @@ def main(argv=None):
     if arm1b:
         res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), "arm1_combined_F1": prev["combined"]["F1"],
                            "program_label_open": prog_allowed}
+    res["hosts"] = hosts(cells)
     res.update(verdict(cells, failed, a, topos, prog_allowed))
     if a.cotenancy == "required":
         res["cotenancy"] = verdict(cells_kr, failed_kr, a, topos, prog_allowed)
