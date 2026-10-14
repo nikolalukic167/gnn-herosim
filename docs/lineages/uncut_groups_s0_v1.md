@@ -300,7 +300,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
-- 2026-10-15 — **Gate change G4 `69354280`: the Arm 2-K0 kinds on the pin chain (B3; the expert's ruling, option (a); S6).** No K0 cell had run and nothing was seen. It changes no existing arm, checkpoint or statistic.
+- 2026-10-14 (filed ~23:56Z) — **Gate change G4 `69354280`: the Arm 2-K0 kinds on the pin chain (B3; the expert's ruling, option (a); S6).** No K0 cell had run and nothing was seen. It changes no existing arm, checkpoint or statistic.
   - **Why.** The first K0 calibration, job 874916 at G3 `114cc0e7`, failed at its sidecheck after 1 s, before any cell ran: `sidecar random_prefix_k=0, arm ra_twin_eng_arm2 expects 2`. The K0 kinds of line 864 came in c34b17e3 (2026-10-13). That commit is in the tools freeze `557d84bf` but was never an ancestor of G3, so the frozen gate had no K0 kind. Its empty output was deleted.
   - **What.** G4 is a child of `114cc0e7` on `rp/uncut-arm1-pin` and holds only c34b17e3's K0 hunks:
     - in the gate: `ARM2K0_KINDS`, `ARM2_ALL`, the `R1A_ARM2K0_STEM` stem, and `ARM2_ALL` in both arm2 encode checks (gate:1492, now :1498);
