@@ -43,7 +43,7 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | Number | Quoted in | Measured (date, against) | Affected by | Re-measured? |
 |---|---|---|---|---|
 | "The bar is `cd_exactS` … no learned arm beats it" | AGENTS lead | 2026-10-10/11, vs CD | ib0 | Superseded by [ib0_confirm_v1](../lineages/ib0_confirm_v1.md); caveat added |
-| `gnn_eng_nosplit` −6.9 / −7.7 % vs CD | AGENTS, throughline, [accel_nosplit_v1](../lineages/accel_nosplit_v1.md) | 2026-10-11, gnn-eng g4 on `declared_pruning_v1` | Slate | NO (`slate_fix_v1` running) |
+| `gnn_eng_nosplit` −6.9 / −7.7 % vs CD | AGENTS, throughline, [accel_nosplit_v1](../lineages/accel_nosplit_v1.md) | 2026-10-11, gnn-eng g4 on `declared_pruning_v1` | Slate | NO (`slate_fix_v1` closed E-FASTER: the corrected retrain still loses to `cd_exactS_ib0`) |
 | `gnn_selfsearch` −8.5 / −10.1 % vs CD; heavy −3.1 / −3.8 %; ties MP-OFF twin | AGENTS, throughline, [selfsearch_confirm_v1](../lineages/selfsearch_confirm_v1.md) | 2026-10-11/12, same corpus and slate | Slate (twin contrast: both sides) | vs CD NO; vs `cd_exactS` matched-slate by [slate_bar_v1](../lineages/slate_bar_v1.md) |
 | gnn_eng −5.45 % / physmp −6.05 % vs CD; CD←GNN −5.03 / −3.40 % | [accel_replica_v1](../lineages/accel_replica_v1.md) | 2026-10-10 | Slate | NO |
 | G8 self-search −9.7 / −1.5 % vs CD, +0.5 / +5.5 % vs `cd_exactS` | AGENTS (closed levers), [big_groups_s0_v1](../lineages/big_groups_s0_v1.md) | 2026-10-11 | Slate; ib0 | NO |
