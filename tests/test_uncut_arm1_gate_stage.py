@@ -107,17 +107,34 @@ def test_kr_serves_arm1_learned_kinds_at_the_frozen_cotenancy_k(tmp_path, monkey
 
 def test_gate_knows_arm1b_kinds_and_their_kr_cells(tmp_path, monkeypatch):
     from scripts_cosim import fresh_topo_burst_v1_gate as G
-    assert G.ARM1B_KINDS == ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
+    assert G.ARM1B_KINDS == ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b", "ra_mlp_same_arm1b")
     for k in G.ARM1B_KINDS:
         assert k in G.RA_KINDS and f"{k}_nosplit" in G.R1A_ARMS and f"{k}_nosplit" in G.R1A_NOSPLIT
-    assert "ra_twin_eng_arm1b" in G.RA_MP_OFF and "ra_gnn_eng_arm1b" not in G.RA_MP_OFF
+    assert "ra_twin_eng_arm1b" in G.RA_MP_OFF and "ra_gnn_eng_arm1b" not in G.RA_MP_OFF and "ra_mlp_same_arm1b" not in G.RA_MP_OFF
     assert G.split_dc("ra_gnn_eng_arm1b_nosplit_k100") == ("ra_gnn_eng_arm1b_nosplit", 1.0)
     f = tmp_path / "w.json"
     f.write_text(json.dumps({**json.load(open(G.DC_W_FILE)), "k_cotenancy": 1.5}))
     monkeypatch.setattr(G, "DC_W_FILE", str(f))
     assert G.split_dc("ra_twin_eng_arm1b_nosplit_kr") == ("ra_twin_eng_arm1b_nosplit", 1.5)
-    with pytest.raises(SystemExit, match="only the Arm 1"):
-        G.split_dc("ra_mlp_same_arm1b_nosplit_kr")
+    # the MLP comparator takes the same co-tenancy cells as Arm 1's mlp_same_arm1 (both are in the allowed set)
+    assert G.split_dc("ra_mlp_same_arm1b_nosplit_kr") == ("ra_mlp_same_arm1b_nosplit", 1.5)
+    assert G.split_dc("ra_mlp_same_arm1_nosplit_kr") == ("ra_mlp_same_arm1_nosplit", 1.5)
+
+
+def test_mlp_same_arm1b_serves_as_arm1s_mlp_and_every_old_kind_routes_unchanged():
+    """Byte-identity for the kinds that existed before the amendment: the arm-kind rule gives what the old expression gave, and every
+    old kind list is unchanged apart from the one new entry."""
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    for k in ("ra_mlp_same", "ra_set_transformer", "ra_mlp_same_arm1"):  # the only kinds the old expression was applied to
+        assert G.arm_kind_of(k) == k[3:].removesuffix("_arm1"), k
+    assert G.arm_kind_of("ra_mlp_same_arm1b") == "mlp_same" == G.arm_kind_of("ra_mlp_same_arm1") == G.arm_kind_of("ra_mlp_same")
+    new = "ra_mlp_same_arm1b"
+    for seq in (G.RA_KINDS, G.R1A_NOSPLIT, G.ARM1B_KINDS):
+        assert seq.count(new) + seq.count(f"{new}_nosplit") >= 1
+    assert tuple(k for k in G.ARM1B_KINDS if k != new) == ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
+    assert tuple(k for k in G.RA_KINDS if k != new) == tuple(f"ra_{a}" for a in G.RA_ARMS) + G.ARM2_KINDS + G.ARM1_KINDS \
+        + ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
+    assert f"{new}_nosplit" in G.R1A_ARMS and f"{new}_nosplit" in G.R1A_NOSPLIT
 
 
 @pytest.mark.parametrize("btf,arm1_ok,arm1b_ok", [("absent", True, False), (None, True, False), (False, True, False),
