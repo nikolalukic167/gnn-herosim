@@ -170,11 +170,14 @@ def test_arm1b_stem_needs_batched_true_and_other_stems_refuse_it(src, btf):
     assert (t / "in1b" / "models" / "uncut-arm1b-twin-eng-seed2.pt").read_bytes() == b"twin_eng2"
 
 
-def test_arm1b_has_no_mlp(src):
+def test_arm1b_takes_the_mlp_comparator(src):
+    """Arm 1b gained mlp_same (amendment of 2026-10-15): the stager stages all three arms under the 1b stem, and still refuses an arm outside ARMS."""
     t, ck, ig, md5, split = src
     _set_btf(ck, True)
-    with pytest.raises(SystemExit, match="Arm 1b"):
-        S.main(args(t, ck, ig, md5, split) + ["--stem", "uncut-arm1b"])
+    out = S.main(args(t, ck, ig, md5, split) + ["--stem", "uncut-arm1b"])
+    assert len(out["checkpoints"]) == 6 and {k.split("|")[0] for k in out["checkpoints"]} == {"gnn_eng", "twin_eng", "mlp_same"}
+    with pytest.raises(SystemExit, match="not a subset"):
+        S.main(args(t, ck, ig, md5, split) + ["--stem", "uncut-arm1b", "--arms", "gnn_eng,set_transformer"])
 
 
 def test_md5_file_names_the_checkpoint_dir(src, tmp_path):
