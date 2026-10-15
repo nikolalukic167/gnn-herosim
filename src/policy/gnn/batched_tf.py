@@ -23,7 +23,8 @@ Everything else is the sequential definition: strict prefix per state (a task's 
 own prefix (the dedupe key is the full (task, committed set with each placement)), the encode is prefix-free (asserted), the
 loss composition is unchanged, and the same cap / base-load / peer / load-seconds / linkrank columns are produced.
 
-Supported: ``TaskPlacementGNN`` with the fc1 / dropout / fc2 EdgeScorer, ``partial_state_v5`` with load seconds. Anything else
+Supported: ``TaskPlacementGNN`` with the fc1 / dropout / fc2 EdgeScorer and ``TaskPlacementMLPSame`` (its own ``net`` on the same flat
+per-edge vector; LayerNorm is per row, so no state mixes with another), ``partial_state_v5`` with load seconds. Anything else
 (Arm 2 re-encode or group anchor, plan_raw, another contract, random-prefix orders) raises.
 """
 
@@ -43,13 +44,18 @@ from src.policy.tabular import reduced_features as rf
 _EPS = rf._PARTIAL_STATE_EPS
 
 
+def _is_mlp_same(model: Any) -> bool:
+    return getattr(model, "arm_kind", None) == "mlp_same" and isinstance(getattr(model, "net", None), torch.nn.Sequential)
+
+
 def _unsupported(model: Any, ctx: Any) -> None:
     for flag in ("plan_raw", "committed_inputs", "group_anchor"):
         if getattr(model, flag, False):
-            raise ValueError(f"NEAR_RTT_BATCHED_TF: {flag} models are not supported (Arm 1 TaskPlacementGNN only)")
-    sc = getattr(model, "edge_scorer", None)
-    if sc is None or not all(hasattr(sc, a) for a in ("fc1", "fc2", "dropout")):
-        raise ValueError("NEAR_RTT_BATCHED_TF needs the fc1 / dropout / fc2 EdgeScorer of TaskPlacementGNN")
+            raise ValueError(f"NEAR_RTT_BATCHED_TF: {flag} models are not supported (Arm 1 TaskPlacementGNN and TaskPlacementMLPSame only)")
+    if not _is_mlp_same(model):
+        sc = getattr(model, "edge_scorer", None)
+        if sc is None or not all(hasattr(sc, a) for a in ("fc1", "fc2", "dropout")):
+            raise ValueError("NEAR_RTT_BATCHED_TF needs the fc1 / dropout / fc2 EdgeScorer of TaskPlacementGNN, or TaskPlacementMLPSame")
     if not getattr(model, "partial_state_edge_dim", 0):
         raise ValueError("NEAR_RTT_BATCHED_TF is defined for the prefix-conditioned scorer (partial_state_edge_dim > 0)")
     if ctx.contract not in rf.BOTH_DIRECTION_CONTRACTS or ctx.contract not in rf.PEER_BLOCK_CONTRACTS:
@@ -327,7 +333,11 @@ class BatchedTeacherForced:
         if hasattr(data, "edge_attr") and data.edge_attr.numel() > 0:
             parts.append(data.edge_attr.to(dev)[eidx].to(task_emb.dtype))
         parts.append((self.ps if ps is None else ps).to(dev, dtype=task_emb.dtype))
-        logits = model.edge_scorer.fc2(model.edge_scorer.dropout(F.relu(model.edge_scorer.fc1(torch.cat(parts, dim=-1))))).squeeze(-1)
+        x = torch.cat(parts, dim=-1)
+        if _is_mlp_same(model):
+            logits = model.net(x).squeeze(-1)  # LayerNorm is per row: no state mixes with another
+        else:
+            logits = model.edge_scorer.fc2(model.edge_scorer.dropout(F.relu(model.edge_scorer.fc1(x)))).squeeze(-1)
         seg = torch.as_tensor(self.seg, device=dev)
         col = torch.as_tensor(self.col, device=dev)
         pad = torch.full((len(self.counts), self.cmax), float("-inf"), device=dev, dtype=logits.dtype)

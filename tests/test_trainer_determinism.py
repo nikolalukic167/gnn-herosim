@@ -630,11 +630,12 @@ def test_arm1b_batched_teacher_forced_training_is_bit_identical_at_a_fixed_seed(
         os.environ.setdefault(key, value)
     graph = T._pick(graphs)["multi_plan"]
     torch.set_num_threads(1)
-    a = T._three_steps(graph, torch.device("cpu"))
-    b = T._three_steps(graph, torch.device("cpu"))
-    _assert_state_dicts_identical(a, b, "batched teacher-forced loss (CPU)")
-    if torch.cuda.is_available():
-        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
-        a = T._three_steps(graph, torch.device("cuda"))
-        b = T._three_steps(graph, torch.device("cuda"))
-        _assert_state_dicts_identical(a, b, "batched teacher-forced loss (CUDA)")
+    for arm in T.ARMS:
+        a = T._three_steps(graph, torch.device("cpu"), arm=arm)
+        b = T._three_steps(graph, torch.device("cpu"), arm=arm)
+        _assert_state_dicts_identical(a, b, f"batched teacher-forced loss, {arm} (CPU)")
+        if torch.cuda.is_available():
+            os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+            a = T._three_steps(graph, torch.device("cuda"), arm=arm)
+            b = T._three_steps(graph, torch.device("cuda"), arm=arm)
+            _assert_state_dicts_identical(a, b, f"batched teacher-forced loss, {arm} (CUDA)")

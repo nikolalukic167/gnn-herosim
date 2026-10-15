@@ -37,6 +37,7 @@ CACHE = Path(os.environ.get("BATCHED_TF_CACHE", "/share/nikola.lukic/uncut_arm1/
 ENV = {"PARTIAL_STATE_CONTRACT": "partial_state_v5", "PARTIAL_STATE_LOAD_SECONDS": "1", "PARTIAL_STATE_EXCHANGE_SECONDS": "1",
        "PARTIAL_STATE_PEER_MASS": "1"}
 ALPHA = "inf"
+ARMS = ["gnn_eng", "twin_eng", "mlp_same"]
 
 
 @pytest.fixture(autouse=True)
@@ -118,8 +119,14 @@ def _trainer_model(arm: str, graph, monkeypatch=None, seed: int = 0):
         exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])), "train_near_rtt.py:NearRttConfig", "exec"), ns)
         branch = next(n for n in tree.body if isinstance(n, ast.If) and "GRAPH_FREE_ARMS" in ast.unparse(n.test) and "arm_kind" in ast.unparse(n.test)
                       and any("TaskPlacementGNN" in ast.unparse(x) for x in n.orelse))
-        stmt = branch.orelse[0]
-        assert isinstance(stmt, ast.Assign) and "TaskPlacementGNN" in ast.unparse(stmt)
+        if arm == "mlp_same":
+            from src.policy.gnn.arm_models import build_graph_free_arm
+            stmt = branch.body[-1]
+            assert isinstance(stmt, ast.Assign) and "build_graph_free_arm" in ast.unparse(stmt)
+            ns.update(build_graph_free_arm=build_graph_free_arm, _SET_HEADS=4, _SET_INDUCING=16)
+        else:
+            stmt = branch.orelse[0]
+            assert isinstance(stmt, ast.Assign) and "TaskPlacementGNN" in ast.unparse(stmt)
         args = cfg["args"]
         ns.update(
             NEAR_CFG=ns["NearRttConfig"](), TaskPlacementGNN=TaskPlacementGNN, DEVICE=torch.device("cpu"),
@@ -197,7 +204,7 @@ def _sequential_logps(graph, model, ctx, plans, order, with_full):
     return pre, full
 
 
-@pytest.mark.parametrize("arm", ["gnn_eng", "twin_eng"])
+@pytest.mark.parametrize("arm", ARMS)
 @pytest.mark.parametrize("which", ["typical", "group101_256", "multi_plan"])
 def test_per_step_logps_equal_the_sequential_walk(graphs, which, arm):
     from src.policy.gnn.batched_tf import BatchedTeacherForced
@@ -270,7 +277,7 @@ def test_the_encode_is_prefix_free(graphs):
     assert torch.equal(a[0], b[0]) and torch.equal(a[1], b[1])
 
 
-@pytest.mark.parametrize("arm", ["gnn_eng", "twin_eng"])
+@pytest.mark.parametrize("arm", ARMS)
 @pytest.mark.parametrize("which", ["typical", "multi_plan", "group101_256"])
 def test_causality_later_placements_do_not_reach_earlier_steps(graphs, which, arm):
     """(b): perturb the placements of every task after position s of the commit order. Steps <= s keep bit-equal log-probs, and the
@@ -315,7 +322,7 @@ def test_causality_later_placements_do_not_reach_earlier_steps(graphs, which, ar
     assert float(ps.grad[early_rows].abs().max()) > 0.0
 
 
-@pytest.mark.parametrize("arm", ["gnn_eng", "twin_eng"])
+@pytest.mark.parametrize("arm", ARMS)
 def test_batched_loss_equals_the_sequential_loss_in_eval_and_differs_by_dropout_in_train(graphs, arm):
     graph = _pick(graphs)["multi_plan"]
     model = _trainer_model(arm, graph)
@@ -338,7 +345,8 @@ def test_batched_loss_equals_the_sequential_loss_in_eval_and_differs_by_dropout_
     assert all(p.grad is None or torch.isfinite(p.grad).all() for p in model.parameters())
 
 
-def test_flag_off_leaves_the_sequential_loss_unchanged(graphs):
+@pytest.mark.parametrize("arm", ARMS)
+def test_flag_off_leaves_the_sequential_loss_unchanged(graphs, arm):
     """Arm 1 byte-unchanged: the function with the flag off is bit-equal, in train mode and the same seed, to the function with the
     batched branch removed from its source."""
     graph = _pick(graphs)["multi_plan"]
@@ -346,7 +354,7 @@ def test_flag_off_leaves_the_sequential_loss_unchanged(graphs):
     off, bare = _loss_fn(False), _loss_fn(False, strip_branch=True)
     outs = []
     for fn in (off, bare):
-        model = _model(graph).train()
+        model = _trainer_model(arm, graph).train()
         torch.manual_seed(11)
         loss, _ = fn(model, graph, dev, full_context_weight=1.0)
         loss.backward()
@@ -367,12 +375,12 @@ def test_the_flag_is_wired_only_into_the_training_loss_and_the_sidecar():
     assert '"batched_teacher_forced" in payload' in (REPO_ROOT / "src/executesimulation.py").read_text()
 
 
-def _three_steps(graph, device, deterministic=True):
+def _three_steps(graph, device, deterministic=True, arm="gnn_eng"):
     from src.policy.gnn.batched_tf import batched_tf_loss
 
     if deterministic:
         torch.use_deterministic_algorithms(True)
-    model = _model(graph, seed=3).to(device).train()
+    model = _trainer_model(arm, graph, seed=3).to(device).train()
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     ctx, order = _ctx(graph), _order(graph)
     data = graph.to(device) if hasattr(graph, "to") else graph
@@ -385,20 +393,22 @@ def _three_steps(graph, device, deterministic=True):
     return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
 
-def test_batched_training_is_bit_identical_on_cpu(graphs):
+@pytest.mark.parametrize("arm", ARMS)
+def test_batched_training_is_bit_identical_on_cpu(graphs, arm):
     graph = _pick(graphs)["multi_plan"]
     torch.set_num_threads(1)
-    a = _three_steps(graph, torch.device("cpu"))
-    b = _three_steps(graph, torch.device("cpu"))
+    a = _three_steps(graph, torch.device("cpu"), arm=arm)
+    b = _three_steps(graph, torch.device("cpu"), arm=arm)
     assert all(torch.equal(a[k], b[k]) for k in a)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA")
-def test_batched_training_is_bit_identical_on_cuda(graphs):
+@pytest.mark.parametrize("arm", ARMS)
+def test_batched_training_is_bit_identical_on_cuda(graphs, arm):
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     graph = _pick(graphs)["multi_plan"]
-    a = _three_steps(graph, torch.device("cuda"))
-    b = _three_steps(graph, torch.device("cuda"))
+    a = _three_steps(graph, torch.device("cuda"), arm=arm)
+    b = _three_steps(graph, torch.device("cuda"), arm=arm)
     assert all(torch.equal(a[k], b[k]) for k in a)
 
 
@@ -408,3 +418,25 @@ def test_the_twin_is_built_without_message_passing_and_the_mp_arm_with_it(graphs
     gnn, twin = _trainer_model("gnn_eng", graph), _trainer_model("twin_eng", graph)
     assert not gnn._disable_mp and twin._disable_mp
     assert gnn.partial_state_edge_dim == twin.partial_state_edge_dim > 0
+
+
+def test_mlp_same_is_built_graph_free_and_the_guard_still_raises_for_other_models(graphs):
+    """The batched path takes the MLP-same arm (its own net, no graph); every other unsupported model still raises."""
+    from src.policy.gnn.arm_models import ARM_SET_TRANSFORMER, build_graph_free_arm
+    from src.policy.gnn.batched_tf import _unsupported
+
+    graph = _pick(graphs)["typical"]
+    mlp = _trainer_model("mlp_same", graph)
+    assert mlp.arm_kind == "mlp_same" and mlp.partial_state_edge_dim > 0
+    _unsupported(mlp, _ctx(graph))
+    st = build_graph_free_arm(ARM_SET_TRANSFORMER, task_feature_dim=int(graph.task_features.shape[1]),
+                              platform_feature_dim=int(graph.platform_features.shape[1]), embedding_dim=128, hidden_dim=128,
+                              num_layers=3, dropout=0.1, normalize_platform_inputs=False, task_type_onehot_dim=4,
+                              partial_state_edge_dim=mlp.partial_state_edge_dim, heads=4, inducing=16)
+    with pytest.raises(ValueError, match="NEAR_RTT_BATCHED_TF"):
+        _unsupported(st, _ctx(graph))
+    for flag in ("plan_raw", "group_anchor"):
+        bad = _trainer_model("mlp_same", graph)
+        setattr(bad, flag, True)
+        with pytest.raises(ValueError, match="NEAR_RTT_BATCHED_TF"):
+            _unsupported(bad, _ctx(graph))
