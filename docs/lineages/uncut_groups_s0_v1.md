@@ -300,6 +300,17 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-15 — **Arm 2-K0 twin_eng: interim look run sealed on 2026-10-15, to be read with Arm 2** (line 869 and the K0 sealed-run ruling; S6). Only health was checked. No paired statistic or latency summary was computed or sent.
+  - **Checkpoints:** md5 file `experiments/uncut_arm2k0_ckpt_md5.json` (ca5cd2a5). s1 `1de44d93` (contract `72577c46`), s2 `6d1b03b3` (contract `7c5705e0`). Submission arm2k0@33de2b47, trained on EPYC 9335. Staged by the ca5cd2a5 stager into `interim/in_k0_twin_{calib,cells}`, both inputs groups the real ones; split md5 `cb4f540d`.
+  - **PROVISIONAL-W:** job 874993 at G4 `69354280`, on 19461 g0, both rungs, seed 1, PAR 1. It ran on a-rtx6000-o-1, EPYC 9475F, SMT on, the same node as the cells. Key `ra_twin_eng_arm2k0_nosplit` was written on `rp/uncut-interim` `34d25050` (on the G4 merge 53e6f63e): 0.372 / 0.388 ms per plan eval, moderate / heavy.
+    - **Disclosure:** w is per plan eval, and K0's plan evals include the Arm 2 re-encode evals (plan_evals = tasks + arm2_extra_evals exactly; about 7.6 evals per task in 874993). So K0's w is about 6× below 1b's. The charged time is unaffected, because the gate charges k × w(n) × the same eval count.
+  - **Cells:** job 875087 at `34d25050`, a-rtx6000-o-1, EPYC 9475F, SMT on, cpuset 12-43,108-139, PAR 28, 1 thread. 19537–19548 × g0–g3 × moderate/heavy × seeds 1, 2.
+  - **Health:**
+    - Cells: 192/192 summaries, 0 failed, 0 kills or timeouts. Every summary's code commit is `34d25050`, and every host is a-rtx6000-o-1.
+    - Calibration: 2/2 at `69354280`.
+    - The gate:1492 encode check (arm2_encodes ≥ arm2_batches > 0) passes on all 194 cells.
+    - Staged checkpoint md5s are unchanged.
+  - **Seal:** `interim/calib_k0_twin`, `interim/k1_k0_twin` and the two job logs are read-only (`chmod -R a-w`). The file list with md5s is [`uncut_groups_s0_v1/k0_twin_seal.md5`](uncut_groups_s0_v1/k0_twin_seal.md5): 972 files, md5 `dc313b0c4651f70f058f4f775b29e760`. The read opens only with Arm 2's interim cells. The gnn pair (869863/869869) will be staged and run the same way and appended under the same seal procedure.
 - 2026-10-14 (filed ~23:56Z) — **Gate change G4 `69354280`: the Arm 2-K0 kinds on the pin chain (B3; the expert's ruling, option (a); S6).** No K0 cell had run and nothing was seen. It changes no existing arm, checkpoint or statistic.
   - **Why.** The first K0 calibration, job 874916 at G3 `114cc0e7`, failed at its sidecheck after 1 s, before any cell ran: `sidecar random_prefix_k=0, arm ra_twin_eng_arm2 expects 2`. The K0 kinds of line 864 came in c34b17e3 (2026-10-13). That commit is in the tools freeze `557d84bf` but was never an ancestor of G3, so the frozen gate had no K0 kind. Its empty output was deleted.
   - **What.** G4 is a child of `114cc0e7` on `rp/uncut-arm1-pin` and holds only c34b17e3's K0 hunks:
