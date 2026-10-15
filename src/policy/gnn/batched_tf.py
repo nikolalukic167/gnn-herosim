@@ -52,6 +52,8 @@ def _unsupported(model: Any, ctx: Any) -> None:
     for flag in ("plan_raw", "committed_inputs", "group_anchor"):
         if getattr(model, flag, False):
             raise ValueError(f"NEAR_RTT_BATCHED_TF: {flag} models are not supported (Arm 1 TaskPlacementGNN and TaskPlacementMLPSame only)")
+    if getattr(model, "arm_kind", None) not in (None, "", "mlp_same"):
+        raise ValueError(f"NEAR_RTT_BATCHED_TF: arm {model.arm_kind!r} is not supported (TaskPlacementGNN and TaskPlacementMLPSame only)")
     if not _is_mlp_same(model):
         sc = getattr(model, "edge_scorer", None)
         if sc is None or not all(hasattr(sc, a) for a in ("fc1", "fc2", "dropout")):
