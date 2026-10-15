@@ -353,12 +353,19 @@ def test_flag_off_leaves_the_sequential_loss_unchanged(graphs, arm):
     dev = torch.device("cpu")
     off, bare = _loss_fn(False), _loss_fn(False, strip_branch=True)
     outs = []
-    for fn in (off, bare):
-        model = _trainer_model(arm, graph).train()
-        torch.manual_seed(11)
-        loss, _ = fn(model, graph, dev, full_context_weight=1.0)
-        loss.backward()
-        outs.append((loss.detach().clone(), [p.grad.clone() for p in model.parameters() if p.grad is not None]))
+    # Bit-equal gradients need a fixed summation order: with 6 intra-op threads the backward of the sequential loss differs run to run
+    # at the last bit even at the base commit (job 879901), so the comparison runs on one thread.
+    prev_threads = torch.get_num_threads()
+    torch.set_num_threads(1)
+    try:
+        for fn in (off, bare):
+            model = _trainer_model(arm, graph).train()
+            torch.manual_seed(11)
+            loss, _ = fn(model, graph, dev, full_context_weight=1.0)
+            loss.backward()
+            outs.append((loss.detach().clone(), [p.grad.clone() for p in model.parameters() if p.grad is not None]))
+    finally:
+        torch.set_num_threads(prev_threads)
     assert torch.equal(outs[0][0], outs[1][0])
     assert all(torch.equal(x, y) for x, y in zip(outs[0][1], outs[1][1]))
 
