@@ -40,7 +40,8 @@ Co-tenancy verdict (pre-registered 2026-10-14, --cotenancy required): every lear
   combine axis by axis, program-level and bar qualifier, keeping both qualifiers); a learned WIN counts only if both are WIN-class
   (NOT-COTENANCY-ROBUST flags a frozen-only WIN, COTENANCY-ANOMALY a co-tenancy-only one); F2 combined = the weaker of the two. Each learned cell
   must have served exactly k x the frozen w at its pin (k = 1, or k_cotenancy for _kr).
-Arm 1b (pre-registered f6c1b85e): --primary ra_gnn_eng_arm1b_nosplit --twin ra_twin_eng_arm1b_nosplit, no MLP, both verdicts, read after
+Arm 1b (pre-registered f6c1b85e; the MLP comparator added by the amendment of 2026-10-15): --primary ra_gnn_eng_arm1b_nosplit --twin ra_twin_eng_arm1b_nosplit
+  [--mlp ra_mlp_same_arm1b_nosplit: F2 is then a Holm family of 8, as Arm 1's, and its w is guarded against Arm 1's ra_mlp_same_arm1_nosplit], both verdicts, read after
   Arm 1 with --after-read <Arm 1's read JSON> (fixed sequence: a program-level label only if Arm 1's combined F1 is program-level, else at best
   WIN-ARM-ONLY) and --compare ra_gnn_eng_arm1_nosplit (direction only: sign, topologies ahead, unadjusted p, descriptive). Its checkpoints
   come from its own md5 file, passed as arm1b=<path>; its w (ARM1B_W_KINDS) must sit within W_GUARD_X of Arm 1's at every pin (w_guard).
@@ -77,7 +78,7 @@ BUCKETS = (("le10", 0, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("gt100", 10
 W_FILE = "scripts_cosim/decision_cost_w.json"
 ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
 # Arm 1b (pre-registered f6c1b85e): its own w, each within W_GUARD_X of Arm 1's same arm (scalar and every bucket, both rungs), else stop
-ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng"))
+ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
 LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS
 W_GUARD_X = 1.5
 # co-tenancy amendment (2026-10-14) and Arm 1b: the gate-code commits between --pin and the w-only pins (bf79865a the _kr tag, then the
@@ -634,9 +635,11 @@ def main(argv=None):
     prog_allowed, arm1b = True, any(ckpt_tag(x) == "arm1b" for x in (a.primary, a.twin))
     if arm1b != bool(a.after_read) or (a.compare and not arm1b):
         raise SystemExit("FAIL LOUD: --after-read (and --compare) go with an Arm 1b read and only with it; Arm 1b is read after Arm 1")
+    if a.mlp and (ckpt_tag(a.mlp) == "arm1b") != arm1b:
+        raise SystemExit("FAIL LOUD: --mlp must be the same trainer's MLP: ra_mlp_same_arm1b_nosplit for an Arm 1b read, an Arm 1 or RA MLP otherwise")
     if arm1b:
-        if a.cotenancy != "required" or a.mlp:
-            raise SystemExit("FAIL LOUD: Arm 1b is read under both verdicts and has no MLP arm")
+        if a.cotenancy != "required":
+            raise SystemExit("FAIL LOUD: Arm 1b is read under both verdicts")
         with open(a.after_read) as fh:
             prev = json.load(fh)
         if prev.get("primary") != "ra_gnn_eng_arm1_nosplit" or not isinstance(prev.get("combined"), dict):
