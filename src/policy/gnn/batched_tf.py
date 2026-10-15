@@ -355,9 +355,26 @@ class BatchedTeacherForced:
         return lp[sid, torch.as_tensor(self.plans, device=dev)]
 
 
+def regret_term(b: BatchedTeacherForced, lp: Tensor, data: Any) -> Tensor:
+    """Expected move regret of the model's own distribution, summed over the label plan's steps: sum_t sum_c p_t(c) d_t(c).
+
+    ``data.move_regret_pad`` is [n_tasks, widest candidate set] (the label's move cost in units of the label's mean per-task cost, clipped; 0 on the
+    label itself and on padding), written by ``scripts_cosim/uncut_move_regret_label.py``; ``data.move_regret_ok`` marks the groups that carry it. A
+    group without it contributes exactly 0. The label is plan 0 (the first tied plan, as the move costs were computed on it). Padding states carry
+    p = exp(-inf) = 0, so they add nothing and no NaN reaches the backward."""
+    if not bool(getattr(data, "move_regret_ok", False)):
+        return lp.new_zeros(())
+    sid = torch.as_tensor(b.state_of["prefix"][0], device=lp.device)
+    dpad = data.move_regret_pad.to(device=lp.device, dtype=lp.dtype)
+    if dpad.shape[0] != sid.shape[0] or dpad.shape[1] != lp.shape[1]:
+        raise ValueError(f"NEAR_RTT_REGRET_LAMBDA: move_regret_pad {tuple(dpad.shape)} does not match the group's states {(sid.shape[0], lp.shape[1])}")
+    return (lp[sid].exp() * dpad).sum()
+
+
 def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int]], order: Sequence[int],
-                    full_context_weight: float, device: torch.device) -> Tensor:
-    """-log sum_k prod_t p(plan_k[t] | strict prefix) + w * (-log sum_k prod_t p(plan_k[t] | all others)), batched."""
+                    full_context_weight: float, device: torch.device, regret_lambda: float = 0.0) -> Tensor:
+    """-log sum_k prod_t p(plan_k[t] | strict prefix) + w * (-log sum_k prod_t p(plan_k[t] | all others)), batched.
+    With ``regret_lambda`` > 0 (the expected move-regret lever, uncut_groups_s0_v1) it adds lambda * ``regret_term``; at 0 none of its operations run."""
     _unsupported(model, ctx)
     b = BatchedTeacherForced(data, ctx, plans, order, with_full=full_context_weight > 0.0)
     task_emb, platform_emb = model._encode(data)  # prefix-free: the partial-state block never enters the encode
@@ -365,4 +382,6 @@ def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[in
     loss = -torch.logsumexp(b.step_logps(lp, "prefix").sum(dim=1), dim=0)
     if full_context_weight > 0.0:
         loss = loss + full_context_weight * -torch.logsumexp(b.step_logps(lp, "full").sum(dim=1), dim=0)
+    if regret_lambda > 0.0:
+        loss = loss + regret_lambda * regret_term(b, lp, data)
     return loss

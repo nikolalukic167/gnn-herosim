@@ -12,6 +12,7 @@ after the model has learned to avoid obviously bad placements.
 
 import gc
 import hashlib
+import pickle
 import itertools
 import json
 import math
@@ -224,6 +225,10 @@ class NearRttConfig:
     score_task_rows_only: bool = os.environ.get("NEAR_RTT_SCORE_TASK_ROWS_ONLY", "0") == "1"
     # uncut_groups_s0_v1 Arm 1b: one vectorised pass builds every teacher-forced state, one call scores them (src/policy/gnn/batched_tf.py).
     batched_tf: bool = os.environ.get("NEAR_RTT_BATCHED_TF", "0") == "1"
+    # uncut_groups_s0_v1 expected move-regret lever: lambda x sum_t sum_c p_t(c) d_t(c) added to the batched teacher-forced loss on the groups that carry a
+    # move-regret table (scripts_cosim/uncut_move_regret_label.py). 0 = the loss is unchanged, bit for bit. Train graphs only; val CE is the unweighted CE.
+    regret_lambda: float = float(os.environ.get("NEAR_RTT_REGRET_LAMBDA", "0") or 0)
+    move_regret_path: str = os.environ.get("NEAR_RTT_MOVE_REGRET_PATH", "").strip()
     # cd_gap_v1 A: replace the TRAIN graphs' label set (teacher-forced path) with the plans in
     # this file (scripts_cosim/cd_gap_v1_cd_labels.py). Val/test keep the sweep label, and every
     # regret number and the checkpoint selector stay on the true sweep. Empty = the sweep label.
@@ -567,7 +572,7 @@ _ANCHOR_STATS: Dict[str, Dict[str, float]] = {
 
 def loss_tied_teacher_forced_ce(
     model: nn.Module, data: Data, device: torch.device, *, full_context_weight: float = 0.0,
-    random_prefix_k: int = 0,
+    random_prefix_k: int = 0, regret_lambda: float = 0.0,
 ) -> Tuple[Tensor, int]:
     """The §5 any-of-K marginalized CE for arm A1: ``-log Σ_k Π_t p_t^{(k)}``.
 
@@ -630,7 +635,9 @@ def loss_tied_teacher_forced_ce(
         if random_prefix_k > 0:
             raise ValueError("NEAR_RTT_BATCHED_TF does not support random-prefix orders (Arm 2)")
         from src.policy.gnn.batched_tf import batched_tf_loss
-        return batched_tf_loss(model, data, ctx, plans, order, full_context_weight, device), n_tasks
+        return batched_tf_loss(model, data, ctx, plans, order, full_context_weight, device, regret_lambda=regret_lambda), n_tasks
+    if regret_lambda > 0.0:
+        raise ValueError("NEAR_RTT_REGRET_LAMBDA is defined for the batched teacher-forced loss only (Arm 1b)")
     if getattr(model, "group_anchor", False):
         # B2: the label plan's anchors (first tied plan, cache order) are what the scorer sees in training.
         layout = _arm2.layout_for(model, data, ctx)
@@ -1102,6 +1109,7 @@ def move_graph_to_device(data: Data, device: torch.device) -> Data:
         "node_caps_by_alpha": getattr(data, "node_caps_by_alpha", None),
         "dag_primary_alpha_key": getattr(data, "dag_primary_alpha_key", None),
         "dag_task_type_vocab": getattr(data, "dag_task_type_vocab", None),
+        "move_regret_ok": getattr(data, "move_regret_ok", None),
     }
     data = data.to(device)
     for key, value in saved.items():
@@ -1167,7 +1175,7 @@ def train_epoch(
                 logits = None
                 loss_ce, valid_ce = loss_tied_teacher_forced_ce(
                     model, data, DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight,
-                    random_prefix_k=NEAR_CFG.random_prefix_k,
+                    random_prefix_k=NEAR_CFG.random_prefix_k, regret_lambda=NEAR_CFG.regret_lambda,
                 )
             else:
                 logits = model(data)
@@ -1742,6 +1750,40 @@ if NEAR_CFG.label_override_json:
                     "n_train_overridden": _n_over, "n_train_tied": _n_ties}
     print(f"[NEAR_RTT_LABEL_OVERRIDE_JSON] train label replaced on {_n_over} graphs "
           f"({_n_ties} any-of-k); val/test keep the sweep label")
+
+MOVE_REGRET_SOURCE: Optional[Dict[str, Any]] = None
+if NEAR_CFG.regret_lambda > 0.0:
+    if not (TEACHER_FORCED and os.environ.get("NEAR_RTT_BATCHED_TF", "0") == "1"):
+        raise RuntimeError("FAIL LOUD: NEAR_RTT_REGRET_LAMBDA needs the batched teacher-forced loss")
+    if not NEAR_CFG.move_regret_path:
+        raise RuntimeError("FAIL LOUD: NEAR_RTT_REGRET_LAMBDA > 0 needs NEAR_RTT_MOVE_REGRET_PATH (scripts_cosim/uncut_move_regret_label.py)")
+    _mr_path = Path(NEAR_CFG.move_regret_path)
+    if not _mr_path.is_absolute() and not _mr_path.is_file():
+        _mr_path = _REPO_ROOT / NEAR_CFG.move_regret_path
+    _mr_bytes = _mr_path.read_bytes()
+    _mr = pickle.loads(_mr_bytes)
+    if _mr["header"]["alpha_key"] != NEAR_CFG.dag_alpha_key:
+        raise RuntimeError(f"FAIL LOUD: move-regret table is for alpha {_mr['header']['alpha_key']!r}, the run trains at {NEAR_CFG.dag_alpha_key!r}")
+    _mr_n = 0
+    for _g, _gid in zip(train_graphs, train_ids):
+        _e = _mr["groups"].get(str(_gid))
+        if _e is None:
+            continue
+        _nt = int(_g.n_tasks)
+        _pad = torch.zeros((_nt, max(len(_g.task_logit_to_placement[_t]) for _t in range(_nt))), dtype=torch.float32)
+        if len(_e["d"]) != _nt:
+            raise RuntimeError(f"FAIL LOUD: move-regret table for {_gid} has {len(_e['d'])} tasks, the graph {_nt}")
+        for _t, _row in enumerate(_e["d"]):
+            if len(_row) != len(_g.task_logit_to_placement[_t]):
+                raise RuntimeError(f"FAIL LOUD: move-regret table for {_gid} task {_t} has {len(_row)} candidates, the graph {len(_g.task_logit_to_placement[_t])}")
+            _pad[_t, :len(_row)] = torch.tensor(_row, dtype=torch.float32)
+        _g.move_regret_pad, _g.move_regret_ok = _pad, True
+        _mr_n += 1
+    if _mr_n == 0:
+        raise RuntimeError("FAIL LOUD: the move-regret table matches no train graph")
+    MOVE_REGRET_SOURCE = {"path": str(_mr_path), "sha256": hashlib.sha256(_mr_bytes).hexdigest(), "lambda": NEAR_CFG.regret_lambda, "d_max": _mr["header"]["d_max"],
+                          "n_train_groups_with_table": _mr_n, "n_train_groups": len(train_graphs)}
+    print(f"[NEAR_RTT_REGRET_LAMBDA] lambda {NEAR_CFG.regret_lambda}: move-regret table on {_mr_n} of {len(train_graphs)} train graphs (val/test untouched)")
 
 train_dataset = GraphRttDataset(train_graphs, train_ids, DATA_OPTIMAL_RTT)
 val_dataset = GraphRttDataset(val_graphs, val_ids, DATA_OPTIMAL_RTT)
@@ -2440,6 +2482,9 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "full_context_ce_weight": NEAR_CFG.full_context_ce_weight if TEACHER_FORCED else None,
                 # Arm 1b: the loss is the batched teacher-forced one (same definition; independent dropout masks per scored row; float order). Provenance.
                 "batched_teacher_forced": bool(NEAR_CFG.batched_tf) if TEACHER_FORCED else None,
+                # Expected move-regret lever: lambda and the table's identity (provenance, not served; None when the loss is Arm 1b's).
+                "regret_lambda": NEAR_CFG.regret_lambda if (TEACHER_FORCED and NEAR_CFG.regret_lambda > 0.0) else None,
+                "move_regret": MOVE_REGRET_SOURCE,
                 # §3 requires a draw to vary initialisation and batch order ONLY.
                 # Under NEAR_RTT_SPLIT_ARTIFACT (B6) this is {"path", "sha256"} of the
                 # shared artifact; otherwise it names the split this run actually drew.
