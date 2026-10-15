@@ -2,6 +2,9 @@
 # uncut_groups_s0_v1 expected move-regret lever, wave 1: gnn_eng with lambda x expected move regret (experiments/uncut_arm3_gnn_eng_l{0p5,2p0}.yaml), CPU, 6 threads on 12 CPUs
 # (SMT is off on CPU-amd: 12 CPUs hold 6 physical cores; threads never exceed the in-job cores). Array index i: lambda = (0.5, 2.0)[i // 2], seed = i % 2 + 1.
 #   sbatch --array=0-3 --export=ALL,WT=<pinned worktree>,EXPECT_HEAD=<sha> uncut_arm3_train.sbatch
+# RESUME=1 (the safety net; uncut_arm3_chain.sh submits the links): NEAR_RTT_RESUME=1 makes the trainer save its whole state every epoch to models/<run>-seed<s>.resume.pt and continue from it,
+# into the same W&B run, if the file exists at start; a link starts only if the previous one (PREV) ended by the time limit (TIMEOUT), finished (COMPLETED: nothing to do), and stops the chain on
+# anything else. The fingerprint a resume must agree with carries lambda and the table's sha256. The wave-1 jobs submitted without RESUME=1 write no resume state.
 # SMOKE=1: one epoch of the same config (epochs, min-epochs and patience 1, run name + "-smoke", tag "smoke"), checkpoints under the smoke run name; nothing is gated.
 # Not --exclusive. --deadline keeps every wave-1 job from overlapping the hand calibration 871538 (02:00 Sat 2026-10-17).
 #SBATCH --job-name=a3-train
@@ -19,6 +22,16 @@ WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HE
 I=${SLURM_ARRAY_TASK_ID:?FAIL LOUD: submit as --array=0-3}
 TAG=$(python3 -c "import sys; print(('l0p5', 'l2p0')[int(sys.argv[1]) // 2])" "$I") || { echo "FAIL LOUD: array index $I"; exit 1; }
 S=$(( I % 2 + 1 ))
+RESUME=${RESUME:-0}
+if [[ "$RESUME" == "1" && -n "${PREV:-}" ]]; then
+  PSTATE=$(sacct -j "$PREV" -X -n -o State | awk 'NR==1{print $1}')
+  echo "previous link $PREV: $PSTATE"
+  case "$PSTATE" in
+    TIMEOUT) ;;
+    COMPLETED) echo "previous link COMPLETED: nothing to do"; exit 0 ;;
+    *) echo "FAIL LOUD: previous link $PREV ended $PSTATE, not TIMEOUT; not continuing the chain"; exit 1 ;;
+  esac
+fi
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|R1A_)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
@@ -28,6 +41,7 @@ export HEROSIM_PY=python3 PYTHONPATH="$WT:$WT/src/notebooks" PYTHONUNBUFFERED=1 
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 CUDA_VISIBLE_DEVICES=""
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
 export R1A_SLATE=declared_pruning_v1_uncapped
+[[ "$RESUME" == "1" ]] && export NEAR_RTT_RESUME=1 NEAR_RTT_RESUME_PIN="$EXPECT_HEAD"
 HEAD=$(git rev-parse HEAD)
 echo "task $I: lambda tag $TAG seed $S | HEAD $HEAD node $(hostname) job ${SLURM_JOB_ID:-} cpus $(nproc) smt $(cat /sys/devices/system/cpu/smt/control 2>/dev/null) smoke ${SMOKE:-0}"
 [[ "$HEAD" == "$EXPECT_HEAD"* ]] || { echo "FAIL LOUD: worktree HEAD $HEAD is not $EXPECT_HEAD"; exit 1; }
@@ -54,8 +68,11 @@ PY
 fi
 RUN=$(python3 -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['wandb']['run_name'])" "$CFG")
 CK=models/$RUN-seed$S
-[[ ! -e "$CK.pt" && ! -e "$CK-final.pt" ]] || { echo "FAIL LOUD: $CK exists; refusing to overwrite"; exit 1; }
-python3 -u run_experiment.py "$CFG" --seed "$S" > "logs/a3-train-$RUN-seed$S.log" 2>&1
+# a fresh start must not overwrite a checkpoint; a continuation has the trainer's own resume state next to it
+if [[ "$RESUME" == "1" && -e "$CK.resume.pt" ]]; then echo "continuing from $CK.resume.pt"; else
+  [[ ! -e "$CK.pt" && ! -e "$CK-final.pt" ]] || { echo "FAIL LOUD: $CK exists; refusing to overwrite"; exit 1; }
+fi
+python3 -u run_experiment.py "$CFG" --seed "$S" >> "logs/a3-train-$RUN-seed$S.log" 2>&1
 rc=$?
 echo "run_experiment exit $rc"
 fail=0
