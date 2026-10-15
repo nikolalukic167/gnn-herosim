@@ -426,6 +426,7 @@ def test_charge_check_k_times_frozen_w():
 
 
 B1, B1T, A1 = "ra_gnn_eng_arm1b_nosplit", "ra_twin_eng_arm1b_nosplit", "ra_gnn_eng_arm1_nosplit"
+B1M, A1M = "ra_mlp_same_arm1b_nosplit", "ra_mlp_same_arm1_nosplit"
 
 
 def w1b(w, x=1.2, buckets=True):
@@ -587,3 +588,63 @@ def test_hosts_reported_per_arm(gate):
     json.dump(s, open(p, "w"))
     h = run(d, cm)["hosts"]
     assert h[P] == {"AMD EPYC 9335 | smt off | nproc 64": 192} and h["cd_ib0"]["unrecorded | smt ? | nproc ?"] == 1
+
+
+def w1b_mlp(w, x=1.2):
+    w = w1b(w, 1.2)  # gnn and twin inside the guard; only the mlp's ratio is varied
+    w["w_ms_per_plan"][B1M] = {r: v * x for r, v in w["w_ms_per_plan"][A1M].items()}
+    if A1M in w.get("w_ms_per_plan_by_bucket", {}):
+        w["w_ms_per_plan_by_bucket"][B1M] = {r: {b: v * x for b, v in bs.items()} for r, bs in w["w_ms_per_plan_by_bucket"][A1M].items()}
+    w[f"_source_{B1M}"] = "own le10, exclusive"
+    return w
+
+
+@pytest.mark.parametrize("x, ok", [(1.2, True), (1.5, True), (1 / 1.5, True), (1.51, False), (0.6, False)])
+def test_arm1b_mlp_w_guard_is_against_arm1s_mlp(x, ok):
+    w = w1b_mlp(w_with(W0, list(GT) + [A1M], by_bucket=True), x)
+    assert B1M in G.ARM1B_W_KINDS and B1M in G.LEARNED_W_KINDS
+    if ok:
+        G.w_guard(w, "sha")
+    else:
+        with pytest.raises(SystemExit, match="stop"):
+            G.w_guard(w, "sha")
+    del w["w_ms_per_plan"][A1M]
+    with pytest.raises(SystemExit, match="without Arm 1"):
+        G.w_guard(w, "sha")
+
+
+def test_arm1b_without_an_mlp_w_is_guarded_as_before():
+    w = w1b(w_with(W0, GT, by_bucket=True))
+    assert B1M not in w["w_ms_per_plan"]
+    G.w_guard(w, "sha")
+
+
+@pytest.fixture
+def arm1b_mlp(tmp_path, gate, arm1b):
+    d, ck, _ = gate
+    _, cm1, _, after = arm1b
+    for t in TOPOS:
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                for sfx in ("_k100", "_kr"):
+                    for sd in (1, 2):
+                        cell(d, B1M, sd, t, w, r, 2.0, ck, sfx=sfx)
+    m = hashlib.md5(b"weights").hexdigest()
+    cm = tmp_path / "ck1b_mlp.json"
+    cm.write_text(json.dumps({f"{a}|s{s}": m for a in ("gnn_eng", "twin_eng", "mlp_same") for s in (1, 2)}))
+    return d, cm1, str(cm), after
+
+
+def test_arm1b_mlp_read_is_a_holm_family_of_eight(arm1b_mlp):
+    d, cm1, cm1b, after = arm1b_mlp
+    res = run1b(d, cm1, cm1b, after("WIN"), mlp=B1M)
+    assert res["F2"]["holm_family"] == 8 and "MODEL-CLASS" in res["F2"]
+    assert res["combined"]["MODEL-CLASS"].startswith("MODEL-CLASS")
+
+
+def test_arm1b_mlp_flag_is_the_same_trainers_mlp(arm1b_mlp):
+    d, cm1, cm1b, after = arm1b_mlp
+    with pytest.raises(SystemExit, match="same trainer"):
+        run1b(d, cm1, cm1b, after("WIN"), mlp=A1M)
+    with pytest.raises(SystemExit, match="same trainer"):
+        run(d, cm1, mlp=B1M)
