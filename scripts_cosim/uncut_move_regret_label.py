@@ -126,15 +126,17 @@ def label_group(gid: str, g: Any, banned: set, test_ids: set) -> Dict[str, Any]:
     n = int(g.n_tasks)
     t0 = time.time()
     r = engine_table(gid, g, ds)
-    d, unscored, undecided = [], 0, 0
+    d, unscored, undecided, n_cand, n_alt = [], 0, 0, 0, 0
     for t in range(n):
         plan_idx = int(g.tied_optimal_logit_plans[R.ALPHA][0][t])
         moves = r["moves"].get(t)
         row, u = table_row([tuple(c) for c in g.task_logit_to_placement[t]], plan_idx, moves, r["S0"], n)
         undecided += moves is None
         unscored += u
+        n_cand += len(row)
+        n_alt += len(row) - 1 if moves is not None else 0
         d.append(row)
-    return {"d": d, "S0": r["S0"], "n": n, "unscored": unscored, "undecided_tasks": undecided, "engine_evals": r["evals"], "wall": time.time() - t0, "topology": seed}
+    return {"d": d, "S0": r["S0"], "n": n, "unscored": unscored, "undecided_tasks": undecided, "candidates": n_cand, "alternatives_of_decided_tasks": n_alt, "engine_evals": r["evals"], "wall": time.time() - t0, "topology": seed}
 
 
 def train_ils_groups() -> Dict[str, str]:
@@ -170,16 +172,22 @@ def cmd_time(a):
     rows = []
     for gid in sample:
         r = label_group(gid, graphs[gid], banned, test_ids)
-        rows.append({"group": gid, "bucket": ils[gid], "n": r["n"], "wall": r["wall"], "evals": r["engine_evals"], "unscored": r["unscored"], "undecided_tasks": r["undecided_tasks"]})
+        rows.append({"group": gid, "bucket": ils[gid], "n": r["n"], "wall": r["wall"], "evals": r["engine_evals"], "unscored": r["unscored"], "undecided_tasks": r["undecided_tasks"],
+                     "candidates": r["candidates"], "alternatives_of_decided_tasks": r["alternatives_of_decided_tasks"]})
     per = {}
     for b, _, _ in BUCKETS:
         rb = [x for x in rows if x["bucket"] == b]
         total = sum(1 for g, bb in ils.items() if bb == b)
         per[b] = {"groups_in_train": total, "sampled": len(rb), "mean_wall_s": sum(x["wall"] for x in rb) / len(rb) if rb else None,
                   "projected_cpu_h": (total * sum(x["wall"] for x in rb) / len(rb) / 3600.0) if rb else 0.0}
-    out = {"ils_labelled_train_groups": len(ils), "per_bucket": per, "projected_cpu_h_total": sum(v["projected_cpu_h"] for v in per.values()), "rows": rows}
+    tot = lambda k: sum(x[k] for x in rows)
+    shares = {"unscored_share_of_alternatives": tot("unscored") / max(1, tot("alternatives_of_decided_tasks")), "undecided_share_of_tasks": tot("undecided_tasks") / max(1, tot("n")),
+              "unscored_share_of_candidates": tot("unscored") / max(1, tot("candidates")),
+              "by_bucket": {b: {"unscored_share_of_alternatives": sum(x["unscored"] for x in rows if x["bucket"] == b) / max(1, sum(x["alternatives_of_decided_tasks"] for x in rows if x["bucket"] == b)),
+                                "undecided_share_of_tasks": sum(x["undecided_tasks"] for x in rows if x["bucket"] == b) / max(1, sum(x["n"] for x in rows if x["bucket"] == b))} for b, _, _ in BUCKETS}}
+    out = {"ils_labelled_train_groups": len(ils), "per_bucket": per, "shares": shares, "projected_cpu_h_total": sum(v["projected_cpu_h"] for v in per.values()), "rows": rows}
     json.dump(out, open(a.out, "w"), indent=1)
-    print(json.dumps({k: out[k] for k in ("ils_labelled_train_groups", "per_bucket", "projected_cpu_h_total")}, indent=1))
+    print(json.dumps({k: out[k] for k in ("ils_labelled_train_groups", "per_bucket", "shares", "projected_cpu_h_total")}, indent=1))
 
 
 def cmd_label(a):
