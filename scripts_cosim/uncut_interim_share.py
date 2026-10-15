@@ -14,6 +14,10 @@ Felt share (the large-group view): a task served in a batch of n waits the batch
 the bucket's tasks / their summed latency (doneTime - dispatchedTime), from the sidecar's last served batch. Pooled per rung, and in the
 cell with the largest felt share in any bucket. felt_total: the same over every task, pooled per rung (the primary figure, 2026-10-14);
 felt_total_worst: the largest per-cell felt_total.
+--evals-per-task-from-buckets (Arm 2 / K0, which re-encode: plan evals = tasks + arm2_extra_evals): the one-plan-per-task check is off;
+pooled share is unchanged and exact (the charged bucket totals). Felt is APPROXIMATE (bucket-mean evals per task; per-batch evals not in
+sidecar): a task in a batch of n waits w(n) x n x ratio, ratio = the gate bucket's plan evals / its sidecar task count. With ratio 1 it
+equals the default.
 """
 import argparse
 import glob
@@ -28,7 +32,7 @@ FINE = (("le10", 1, 10, "le10"), ("11_50", 11, 50, "11_50"), ("51_100", 51, 100,
         ("gt256", 257, 10 ** 9, "gt50"))
 
 
-def cell(p, w):
+def cell(p, w, per_task=False):
     s = json.load(open(p))
     rung = NAME.match(os.path.basename(p)).group(3)
     arr = np.load(p[: -len(".summary.json")] + ".tasks_bsz.npy")
@@ -37,9 +41,11 @@ def cell(p, w):
         raise SystemExit(f"FAIL LOUD: {p} has {(sbs < 1).sum()} tasks without a servedBatchSize")
     n = {f: int(((sbs >= lo) & (sbs <= hi)).sum()) for f, lo, hi, _ in FINE}
     bb = s["decisionTiming"]["by_bucket"]
-    if sum(v["plan_evals"] for v in bb.values()) != int(s["decisionTiming"]["tasks"]):
+    if not per_task and sum(v["plan_evals"] for v in bb.values()) != int(s["decisionTiming"]["tasks"]):
         raise SystemExit(f"FAIL LOUD: {p}: plan evals != tasks; not a one-plan-per-task arm")
     above, e = n["51_100"] + n["101_256"] + n["gt256"], bb["gt50"]["plan_evals"]
+    side = {"le10": n["le10"], "11_50": n["11_50"], "gt50": above}
+    ratio = {g: (bb[g]["plan_evals"] / side[g] if per_task and side[g] else 1.0) for g in side}
     gap = (above - e) / e if e else 0.0
     for f in ("51_100", "101_256", "gt256"):
         n[f] = e * n[f] / above if above else 0.0
@@ -50,8 +56,8 @@ def cell(p, w):
     felt = {}
     for f, lo, hi, g in FINE:
         m = (sbs >= lo) & (sbs <= hi)
-        felt[f] = (float((rate[g] * 1e-3 * sbs[m]).sum()), float(tlat[m].sum()))
-    return rung, lat, charge, n, gap, felt
+        felt[f] = (float((rate[g] * 1e-3 * sbs[m]).sum()) * ratio[g], float(tlat[m].sum()))
+    return rung, lat, charge, n, gap, felt, ratio
 
 
 def main(argv=None):
@@ -60,6 +66,7 @@ def main(argv=None):
     ap.add_argument("--arm", required=True)
     ap.add_argument("--w-file", required=True)
     ap.add_argument("--out")
+    ap.add_argument("--evals-per-task-from-buckets", action="store_true")
     a = ap.parse_args(argv)
     base = re.sub(r"_(k\d+|kr)$", "", a.arm)
     wf = json.load(open(a.w_file))
@@ -70,11 +77,17 @@ def main(argv=None):
     if not paths:
         raise SystemExit(f"FAIL LOUD: no {a.arm} cells in {a.cells}")
     out = {"arm": a.arm, "w_file": os.path.abspath(a.w_file), "cells": a.cells, "n_cells": len(paths), "rungs": {}}
+    if a.evals_per_task_from_buckets:
+        out["felt_label"] = "approximate (bucket-mean evals per task; per-batch evals not in sidecar)"
     for p in paths:
-        rung, lat, charge, n, gap, felt = cell(p, w)
+        rung, lat, charge, n, gap, felt, ratio = cell(p, w, a.evals_per_task_from_buckets)
         r = out["rungs"].setdefault(rung, {"lat": 0.0, "charge": {f[0]: 0.0 for f in FINE}, "evals": {f[0]: 0 for f in FINE}, "worst": None,
                                              "gt50_sidecar_gap_max": 0.0})
         r["gt50_sidecar_gap_max"] = max(r["gt50_sidecar_gap_max"], abs(gap))
+        if a.evals_per_task_from_buckets:
+            rr = r.setdefault("evals_per_task_ratio", {g: [None, None] for g in ratio})
+            for g, v in ratio.items():
+                rr[g] = [v if rr[g][0] is None else min(rr[g][0], v), v if rr[g][1] is None else max(rr[g][1], v)]
         fa = r.setdefault("_felt", {f[0]: [0.0, 0.0] for f in FINE})
         for f, (c, l) in felt.items():
             fa[f][0] += c

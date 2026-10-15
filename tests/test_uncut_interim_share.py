@@ -53,3 +53,22 @@ def test_not_one_plan_per_task_fails(tmp_path, wf):
     write(tmp_path / "c", [1] * 4, evals={"le10": 9, "11_50": 0, "gt50": 0})
     with pytest.raises(SystemExit, match="one-plan-per-task"):
         S.main(["--cells", str(tmp_path / "c"), "--arm", "x_k100", "--w-file", wf])
+
+
+def test_arm2_mode_with_ratio_one_equals_default(tmp_path, wf):
+    write(tmp_path / "c", [1] * 6 + [30] * 3 + [200] * 4)
+    a = S.main(["--cells", str(tmp_path / "c"), "--arm", "x_k100", "--w-file", wf])
+    b = S.main(["--cells", str(tmp_path / "c"), "--arm", "x_k100", "--w-file", wf, "--evals-per-task-from-buckets"])
+    for k in ("share_total", "felt_total", "felt_by_bucket", "share_by_bucket"):
+        assert a["rungs"]["heavy"][k] == b["rungs"]["heavy"][k]
+    assert b["rungs"]["heavy"]["evals_per_task_ratio"]["le10"] == [1.0, 1.0] and "felt_label" in b and "felt_label" not in a
+
+
+def test_arm2_mode_scales_felt_by_bucket_ratio_and_keeps_pooled(tmp_path, wf):
+    write(tmp_path / "c", [1] * 6 + [200] * 4, evals={"le10": 42, "11_50": 0, "gt50": 32})
+    with pytest.raises(SystemExit, match="one-plan-per-task"):
+        S.main(["--cells", str(tmp_path / "c"), "--arm", "x_k100", "--w-file", wf])
+    h = S.main(["--cells", str(tmp_path / "c"), "--arm", "x_k100", "--w-file", wf, "--evals-per-task-from-buckets"])["rungs"]["heavy"]
+    assert abs(h["felt_by_bucket"]["le10"] - 3.0e-3 * 1 * 7 / 2.0) < 1e-12
+    assert abs(h["felt_by_bucket"]["101_256"] - 1.5e-3 * 200 * 8 / 2.0) < 1e-12
+    assert abs(h["share_by_bucket"]["le10"] - 3.0e-3 * 42 / 20.0) < 1e-12
