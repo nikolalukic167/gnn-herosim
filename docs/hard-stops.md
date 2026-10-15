@@ -400,3 +400,13 @@ Base rates: 82–89 % of requests have a second level, 82–84 % of first-level 
 so there is no learnable residual that a hidden-information policy could exploit.
 
 Do not revive unless the lever is something the first level does not identify (an unrevealed attribute, not a repeated template), or the sibling-set template is shown not to repeat in the target workload.
+
+## A GNN seed plus search beats a hand seed plus the same search under charged decision time at k = 1 (2026-10-13)
+
+**Closed by:** `decision_cost_s0_v1` (S4; full grid read, reader `decision_cost_read.py` incl. the `in_budget` section, job 869638, `/share/nikola.lukic/decision_cost/read_final.json`), in the capped seat (groups ≤ 8 split).
+
+**Direction:** "with the scheduler's decision time charged as simulated time at k = 1, the GNN's cheaper seed makes a search arm beat the hand arm that seeds the same search."
+
+**Measurement:** `cdxapply` (GNN seed + α-expansion) ties `cd_expand` (hand `cd` seed + the same expansion), the best in-budget hand arm at k = 1, within 1 pp on every metric: −0.21 / −0.38 % whole-run, −0.25 / −0.99 % after 360 s, Holm 1.0. The twin-seed control (`ra_twin_eng_cdxapply`) matches `cdxapply` within 0.6 % (Holm 1.0), so message passing is not attributed (`MP-NOT-ATTRIBUTED`). The earlier −3.0 % "frontier win" was over `cd_ib0`, because `cd_expand` was not in the grid. Verdict: `NO-LEARNED-WIN-AT-ANY-k` / `SEARCH-WIN-NOT-GNN`.
+
+Scope: the capped seat only. `uncut_groups_s0_v1` serves whole groups, a different seat, and this entry does not cover it. Do not claim a learned seed win at k = 1 without comparing against `cd_expand`.

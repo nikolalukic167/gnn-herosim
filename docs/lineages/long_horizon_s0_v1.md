@@ -4,7 +4,7 @@
 below was signed before its data. Placed by S6 on branch `rp/long-horizon` at the expert's instruction, with a branch-only
 index row (authorised; the expert reconciles it on reference-physics).
 
-> ⚠ **Not re-measured (2026-10-12).** The GNN arm here is trained and served on the cold-mispriced declared slate (`declared_pruning_v1`); `slate_fix_v1` (uncapped, corrected) is running.
+> ⚠ **Not re-measured (2026-10-12).** The GNN arm here is trained and served on the cold-mispriced declared slate (`declared_pruning_v1`); `slate_fix_v1` (uncapped, corrected) has since closed (2026-10-12, E-FASTER): the corrected retrain still loses to `cd_exactS_ib0`, self-search +2.6 % moderate / +5.3 % heavy, no-split +2.8 / +7.4 %.
 
 > ⚠ **Bar moved (2026-10-12).** Contrasts here are to `cd_exactS`; the hand bar is now `cd_exactS_ib0` (`ib0_confirm_v1`, −4.73 / −2.27 % vs `cd_exactS`), and they were not re-measured against it.
 
