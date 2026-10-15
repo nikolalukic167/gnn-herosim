@@ -1855,6 +1855,19 @@ if RUNTIME_CONFIG.wandb_api_key:
 # models/<run name>.resume.pt and, when that file exists at start, continue from it into the same W&B run. Written for the
 # Arm 2 runs, whose 100 epochs outlast the 7-day CPU-amd limit (docs/lineages/uncut_groups_s0_v1.md item (h)).
 NEAR_RESUME = os.environ.get("NEAR_RTT_RESUME", "0") == "1"
+
+
+def _resume_fingerprint() -> Dict[str, Any]:
+    """What a resume must agree with. The expected move-regret lever adds its lambda and the table's sha256 (only when lambda > 0, so every older run's fingerprint is unchanged)."""
+    fp = {"epochs": int(EPOCHS), "min_epochs": int(MIN_EPOCHS), "patience": int(PATIENCE), "lr": float(LEARNING_RATE),
+          "train_seed": int(_TRAIN_SEED), "batch_size": int(BATCH_SIZE), "cache_dir": str(CACHE_CTX.cache_dir)}
+    if NEAR_CFG.regret_lambda > 0.0:
+        fp["regret_lambda"] = float(NEAR_CFG.regret_lambda)
+        fp["move_regret_sha256"] = MOVE_REGRET_SOURCE["sha256"] if MOVE_REGRET_SOURCE else None
+    return fp
+
+
+_RESUME_POINTS: List[int] = []     # the epochs after which this run was resumed (one per continuation link), written to the sidecar
 _resume_state: Optional[Dict[str, Any]] = None
 _resume_path: Optional[Path] = None
 _wandb_resume_kwargs: Dict[str, Any] = {}
@@ -1866,13 +1879,14 @@ if NEAR_RESUME:
     if _resume_path.exists():
         _resume_state = torch.load(_resume_path, map_location="cpu", weights_only=False)
         _want_pin = os.environ.get("NEAR_RTT_RESUME_PIN", "")
-        _fingerprint = {"epochs": int(EPOCHS), "min_epochs": int(MIN_EPOCHS), "patience": int(PATIENCE), "lr": float(LEARNING_RATE),
-                        "train_seed": int(_TRAIN_SEED), "batch_size": int(BATCH_SIZE), "cache_dir": str(CACHE_CTX.cache_dir)}
+        _fingerprint = _resume_fingerprint()
         if _resume_state["fingerprint"] != _fingerprint or _resume_state["pin"] != _want_pin:
             raise RuntimeError(
                 f"FAIL LOUD: {_resume_path} was written under {_resume_state['fingerprint']} pin {_resume_state['pin']!r}; "
                 f"this run is {_fingerprint} pin {_want_pin!r}. Refusing to resume."
             )
+        _RESUME_POINTS.extend(int(e) for e in _resume_state.get("resume_points", []))
+        _RESUME_POINTS.append(int(_resume_state["epoch"]))
         _wandb_resume_kwargs = {"id": _resume_state["wandb_run_id"], "resume": "allow"}
         print(f"[resume] continuing {_resume_name} after epoch {_resume_state['epoch']} from {_resume_path}", flush=True)
 
@@ -2526,6 +2540,8 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "full_context_ce_weight": NEAR_CFG.full_context_ce_weight if TEACHER_FORCED else None,
                 # Arm 1b: the loss is the batched teacher-forced one (same definition; independent dropout masks per scored row; float order). Provenance.
                 "batched_teacher_forced": bool(NEAR_CFG.batched_tf) if TEACHER_FORCED else None,
+                # The epochs after which this run was continued from its resume state (empty for an uninterrupted run; None when the resume flag is off). Provenance.
+                "resume_points": list(_RESUME_POINTS) if NEAR_RESUME else None,
                 # Expected move-regret lever: lambda and the table's identity (provenance, not served; None when the loss is Arm 1b's).
                 "regret_lambda": NEAR_CFG.regret_lambda if (TEACHER_FORCED and NEAR_CFG.regret_lambda > 0.0) else None,
                 "move_regret": MOVE_REGRET_SOURCE,
@@ -2684,8 +2700,7 @@ def _save_resume_state(epoch: int, stopped: bool) -> None:
         "rng": {"python": random.getstate(), "numpy": np.random.get_state(), "torch": torch.get_rng_state(),
                 "cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None},
         "wandb_run_id": wandb.run.id, "pin": os.environ.get("NEAR_RTT_RESUME_PIN", ""),
-        "fingerprint": {"epochs": int(EPOCHS), "min_epochs": int(MIN_EPOCHS), "patience": int(PATIENCE), "lr": float(LEARNING_RATE),
-                        "train_seed": int(_TRAIN_SEED), "batch_size": int(BATCH_SIZE), "cache_dir": str(CACHE_CTX.cache_dir)},
+        "fingerprint": _resume_fingerprint(), "resume_points": list(_RESUME_POINTS),
     }
     tmp = _resume_path.with_name(_resume_path.name + ".tmp")
     torch.save(state, tmp)
