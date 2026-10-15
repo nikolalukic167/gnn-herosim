@@ -29,3 +29,10 @@ def test_label_index_wins_over_a_scored_key():
 
 def test_buckets():
     assert [L.bucket(n) for n in (1, 10, 11, 50, 51, 100, 101, 256)] == ["le10", "le10", "11_50", "11_50", "51_100", "51_100", "101_256", "101_256"]
+
+
+def test_unscored_flags_mark_exactly_the_candidates_the_engine_never_scored():
+    cands = [(0, 0), (1, 0), (2, 0), (3, 0)]
+    assert L.unscored_flags(cands, 0, {(1, 0): 1.0, (2, 0): 2.0}) == [0, 0, 0, 1]
+    assert L.unscored_flags(cands, 3, {(1, 0): 1.0}) == [1, 0, 1, 0]            # the label is never "unscored"
+    assert L.unscored_flags(cands, 0, None) == [0, 0, 0, 0]                    # an undecided task carries no flags

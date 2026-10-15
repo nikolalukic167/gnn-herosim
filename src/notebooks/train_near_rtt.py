@@ -570,6 +570,11 @@ _ANCHOR_STATS: Dict[str, Dict[str, float]] = {
     s: {"ce": 0.0, "floor": 0.0, "top1": 0.0, "groups": 0.0} for s in ("train", "val")}
 
 
+# Expected move-regret lever, per epoch: the probability mass the model puts on candidates the labeller's engine never scored (those carry d = 10 in the table, "never measured"),
+# summed over the label plan's choice steps and the steps; filled only on groups that carry a candidate-set mask (train: the move-regret table; val: the mask-only file).
+_UNSCORED_STATS: Dict[str, Dict[str, float]] = {s: {"mass": 0.0, "steps": 0} for s in ("train", "val")}
+
+
 def loss_tied_teacher_forced_ce(
     model: nn.Module, data: Data, device: torch.device, *, full_context_weight: float = 0.0,
     random_prefix_k: int = 0, regret_lambda: float = 0.0,
@@ -635,7 +640,8 @@ def loss_tied_teacher_forced_ce(
         if random_prefix_k > 0:
             raise ValueError("NEAR_RTT_BATCHED_TF does not support random-prefix orders (Arm 2)")
         from src.policy.gnn.batched_tf import batched_tf_loss
-        return batched_tf_loss(model, data, ctx, plans, order, full_context_weight, device, regret_lambda=regret_lambda), n_tasks
+        return batched_tf_loss(model, data, ctx, plans, order, full_context_weight, device, regret_lambda=regret_lambda,
+                               unscored_stats=_UNSCORED_STATS["train" if model.training else "val"]), n_tasks
     if regret_lambda > 0.0:
         raise ValueError("NEAR_RTT_REGRET_LAMBDA is defined for the batched teacher-forced loss only (Arm 1b)")
     if getattr(model, "group_anchor", False):
@@ -1110,6 +1116,7 @@ def move_graph_to_device(data: Data, device: torch.device) -> Data:
         "dag_primary_alpha_key": getattr(data, "dag_primary_alpha_key", None),
         "dag_task_type_vocab": getattr(data, "dag_task_type_vocab", None),
         "move_regret_ok": getattr(data, "move_regret_ok", None),
+        "unscored_ok": getattr(data, "unscored_ok", None),
     }
     data = data.to(device)
     for key, value in saved.items():
@@ -1782,13 +1789,41 @@ if NEAR_CFG.regret_lambda > 0.0:
             if len(_row) != len(_g.task_logit_to_placement[_t]):
                 raise RuntimeError(f"FAIL LOUD: move-regret table for {_gid} task {_t} has {len(_row)} candidates, the graph {len(_g.task_logit_to_placement[_t])}")
             _pad[_t, :len(_row)] = torch.tensor(_row, dtype=torch.float32)
+        _upad = torch.zeros_like(_pad)
+        for _t, _urow in enumerate(_e["u"]):
+            _upad[_t, :len(_urow)] = torch.tensor(_urow, dtype=torch.float32)
         _g.move_regret_pad, _g.move_regret_ok = _pad, True
+        _g.unscored_pad, _g.unscored_ok = _upad, True
         _mr_n += 1
     if _mr_n == 0:
         raise RuntimeError("FAIL LOUD: the move-regret table matches no train graph")
     MOVE_REGRET_SOURCE = {"path": str(_mr_path), "sha256": hashlib.sha256(_mr_bytes).hexdigest(), "lambda": NEAR_CFG.regret_lambda, "d_max": _mr["header"]["d_max"],
                           "n_train_groups_with_table": _mr_n, "n_train_groups": len(train_graphs)}
-    print(f"[NEAR_RTT_REGRET_LAMBDA] lambda {NEAR_CFG.regret_lambda}: move-regret table on {_mr_n} of {len(train_graphs)} train graphs (val/test untouched)")
+    print(f"[NEAR_RTT_REGRET_LAMBDA] lambda {NEAR_CFG.regret_lambda}: move-regret table on {_mr_n} of {len(train_graphs)} train graphs (val/test carry no move cost)")
+    _um_path = os.environ.get("NEAR_RTT_UNSCORED_MASK_VAL_PATH", "").strip()
+    if _um_path:
+        _um_bytes = Path(_um_path).read_bytes()
+        _um = pickle.loads(_um_bytes)
+        if not _um["header"].get("mask_only"):
+            raise RuntimeError("FAIL LOUD: NEAR_RTT_UNSCORED_MASK_VAL_PATH must be a mask-only file (no move costs for val groups)")
+        _um_val = {str(_i) for _i in val_ids}
+        _um_stray = sorted(set(_um["groups"]) - _um_val)
+        if _um_stray:
+            raise RuntimeError(f"FAIL LOUD: the val unscored-mask file has {len(_um_stray)} entries that are not val ids, e.g. {_um_stray[:3]}")
+        _um_n = 0
+        for _g, _gid in zip(val_graphs, val_ids):
+            _e = _um["groups"].get(str(_gid))
+            if _e is None:
+                continue
+            _nt = int(_g.n_tasks)
+            _upad = torch.zeros((_nt, max(len(_g.task_logit_to_placement[_t]) for _t in range(_nt))), dtype=torch.float32)
+            for _t, _urow in enumerate(_e["u"]):
+                if len(_urow) != len(_g.task_logit_to_placement[_t]):
+                    raise RuntimeError(f"FAIL LOUD: unscored mask for {_gid} task {_t} has {len(_urow)} candidates, the graph {len(_g.task_logit_to_placement[_t])}")
+                _upad[_t, :len(_urow)] = torch.tensor(_urow, dtype=torch.float32)
+            _g.unscored_pad, _g.unscored_ok = _upad, True
+            _um_n += 1
+        print(f"[NEAR_RTT_UNSCORED_MASK_VAL_PATH] candidate-set mask on {_um_n} of {len(val_graphs)} val graphs (diagnostic only)")
 
 train_dataset = GraphRttDataset(train_graphs, train_ids, DATA_OPTIMAL_RTT)
 val_dataset = GraphRttDataset(val_graphs, val_ids, DATA_OPTIMAL_RTT)
@@ -2696,6 +2731,11 @@ for epoch in range(_start_epoch, EPOCHS):
                   f"(mean log #candidate nodes), top-1 {_st['top1'] / _g:.3f} over {int(_g)} groups", flush=True)
             for _k in _st:
                 _st[_k] = 0.0
+    for _split, _us in _UNSCORED_STATS.items():
+        if _us["steps"] > 0:
+            log_dict[f"{_split}/unscored_mass"] = _us["mass"] / _us["steps"]
+            print(f"[REGRET] epoch {epoch} {_split} mean probability on never-scored candidates {_us['mass'] / _us['steps']:.4f} over {int(_us['steps'])} choice steps", flush=True)
+            _us["mass"], _us["steps"] = 0.0, 0
     log_dict.update(prefix(val_metrics, "val"))
     log_dict["lr"] = float(optimizer.param_groups[0]["lr"])
     # A TRUE max over every epoch. `best_val_acc` cannot serve this purpose: on

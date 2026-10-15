@@ -8,7 +8,7 @@ For every ILS-labelled group of the Arm 1 TRAIN split, the cost of moving each t
 
   uncut_move_regret_label.py time  --cache GRAPHS.pkl --out timing.json [--per-bucket 50]     200-group timing (stratified), projected CPU-h for the full train set
   uncut_move_regret_label.py label --cache GRAPHS.pkl --task K --stride S --out part_K.pkl     the table for groups K::S of the ILS-labelled train groups
-  uncut_move_regret_label.py merge --parts DIR --out move_regret.pkl                           one table: {"header": {...}, "groups": {dataset_id: {"d": [[per candidate, graph order] per task], ...}}}
+  uncut_move_regret_label.py merge --parts DIR --out move_regret.pkl [--which val: the candidate-set mask only, for the W&B unscored-mass diagnostic]                           one table: {"header": {...}, "groups": {dataset_id: {"d": [[per candidate, graph order] per task], ...}}}
 
 Train groups only, ILS-labelled only (placements.jsonl header `label_source == "ils"`). Asserted for every group: its id is not one of the 220 test placeholders of the Arm 1 split nor one of the
 57 `accel_replica_v1` test ids, and its topology (`generation_provenance.json` seed) is not 16226, 16251-16270 or 19537-19548. A candidate the engine never scored gets d = D_MAX
@@ -63,6 +63,13 @@ def table_row(candidates: List[Any], label_idx: int, moves: Dict[Any, float] | N
             out.append(D_MAX)
             unscored += 1
     return out, unscored
+
+
+def unscored_flags(candidates: List[Any], label_idx: int, moves: Dict[Any, float] | None) -> List[int]:
+    """1 on every candidate the engine never scored (the d = D_MAX ones); 0 on the label, on scored candidates and on every candidate of a task the engine does not decide."""
+    if moves is None:
+        return [0] * len(candidates)
+    return [0 if (i == label_idx or (int(c[0]), int(c[1])) in moves) else 1 for i, c in enumerate(candidates)]
 
 
 def engine_table(gid: str, g: Any, ds: str) -> Dict[str, Any]:
@@ -126,23 +133,25 @@ def label_group(gid: str, g: Any, banned: set, test_ids: set) -> Dict[str, Any]:
     n = int(g.n_tasks)
     t0 = time.time()
     r = engine_table(gid, g, ds)
-    d, unscored, undecided, n_cand, n_alt = [], 0, 0, 0, 0
+    d, u_all, unscored, undecided, n_cand, n_alt = [], [], 0, 0, 0, 0
     for t in range(n):
         plan_idx = int(g.tied_optimal_logit_plans[R.ALPHA][0][t])
         moves = r["moves"].get(t)
-        row, u = table_row([tuple(c) for c in g.task_logit_to_placement[t]], plan_idx, moves, r["S0"], n)
+        cands_t = [tuple(c) for c in g.task_logit_to_placement[t]]
+        row, u = table_row(cands_t, plan_idx, moves, r["S0"], n)
+        u_all.append(unscored_flags(cands_t, plan_idx, moves))
         undecided += moves is None
         unscored += u
         n_cand += len(row)
         n_alt += len(row) - 1 if moves is not None else 0
         d.append(row)
-    return {"d": d, "S0": r["S0"], "n": n, "unscored": unscored, "undecided_tasks": undecided, "candidates": n_cand, "alternatives_of_decided_tasks": n_alt, "engine_evals": r["evals"], "wall": time.time() - t0, "topology": seed}
+    return {"d": d, "u": u_all, "S0": r["S0"], "n": n, "unscored": unscored, "undecided_tasks": undecided, "candidates": n_cand, "alternatives_of_decided_tasks": n_alt, "engine_evals": r["evals"], "wall": time.time() - t0, "topology": seed}
 
 
-def train_ils_groups() -> Dict[str, str]:
+def train_ils_groups(which: str = "train") -> Dict[str, str]:
     split = json.load(open(REPO / SPLIT))
     out = {}
-    for gid in split["train"]:
+    for gid in split[which]:
         h = header(gid)
         if h.get("label_source") == "ils":
             out[gid] = bucket(int(h["n_tasks"]))
@@ -191,7 +200,7 @@ def cmd_time(a):
 
 
 def cmd_label(a):
-    ils = train_ils_groups()
+    ils = train_ils_groups(a.which)
     mine = sorted(ils)[a.task::a.stride]
     graphs = {str(g.dataset_id): g for g in _selected_graphs(a.cache, mine)}
     missing = [g for g in mine if g not in graphs]
@@ -207,16 +216,22 @@ def cmd_label(a):
 
 def cmd_merge(a):
     groups: Dict[str, Any] = {}
+    which = a.which
     for f in sorted(Path(a.parts).glob("part_*.pkl")):
         groups.update(pickle.load(open(f, "rb")))
-    ils = train_ils_groups()
+    ils = train_ils_groups(which)
     if set(groups) != set(ils):
         raise SystemExit(f"FAIL LOUD: the parts cover {len(groups)} groups, the ILS-labelled train set has {len(ils)}")
     unscored = sum(v["unscored"] for v in groups.values())
     cands = sum(len(r) for v in groups.values() for r in v["d"])
     hdr = {"alpha_key": ALPHA, "d_max": D_MAX, "split": SPLIT, "n_groups": len(groups), "unscored_candidates": unscored, "candidates": cands,
-           "undecided_tasks": sum(v["undecided_tasks"] for v in groups.values()), "by_bucket": {b: sum(1 for x in ils.values() if x == b) for b, _, _ in BUCKETS}}
-    pickle.dump({"header": hdr, "groups": {g: {"d": v["d"], "S0": v["S0"], "n": v["n"]} for g, v in groups.items()}}, open(a.out, "wb"))
+           "undecided_tasks": sum(v["undecided_tasks"] for v in groups.values()), "by_bucket": {b: sum(1 for x in ils.values() if x == b) for b, _, _ in BUCKETS}, "split": which}
+    if which == "val":
+        # the val file carries the engine's candidate-set mask ONLY (no move cost): the trainer's per-epoch unscored-mass diagnostic reads it, nothing trains on it
+        hdr["mask_only"] = True
+        pickle.dump({"header": hdr, "groups": {g: {"u": v["u"], "n": v["n"]} for g, v in groups.items()}}, open(a.out, "wb"))
+    else:
+        pickle.dump({"header": hdr, "groups": {g: {"d": v["d"], "u": v["u"], "S0": v["S0"], "n": v["n"]} for g, v in groups.items()}}, open(a.out, "wb"))
     print(json.dumps(hdr), hashlib.sha256(open(a.out, "rb").read()).hexdigest())
 
 
@@ -224,8 +239,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("time"); t.add_argument("--cache", required=True); t.add_argument("--out", required=True); t.add_argument("--per-bucket", type=int, default=50)
-    lb = sub.add_parser("label"); lb.add_argument("--cache", required=True); lb.add_argument("--task", type=int, required=True); lb.add_argument("--stride", type=int, required=True); lb.add_argument("--out", required=True)
-    m = sub.add_parser("merge"); m.add_argument("--parts", required=True); m.add_argument("--out", required=True)
+    lb = sub.add_parser("label"); lb.add_argument("--cache", required=True); lb.add_argument("--task", type=int, required=True); lb.add_argument("--stride", type=int, required=True); lb.add_argument("--out", required=True); lb.add_argument("--which", default="train", choices=("train", "val"))
+    m = sub.add_parser("merge"); m.add_argument("--parts", required=True); m.add_argument("--out", required=True); m.add_argument("--which", default="train", choices=("train", "val"))
     a = ap.parse_args(argv)
     {"time": cmd_time, "label": cmd_label, "merge": cmd_merge}[a.cmd](a)
 
