@@ -108,12 +108,14 @@ def cmd_ils(a):
 
         for run in RUNS:
             R_ = P["runs"][run]
-            model = R_["decoded"]
-            if model is None:
-                recs.append({"run": run, "decode_failed": True})
-                continue
-            plan_of[run] = model
             for fr in FRACS:
+                by_frac = "decoded_by_frac" in R_       # the label-prefix control: the model's plan depends on the forced prefix, so on the point
+                model = R_["decoded_by_frac"][str(fr)] if by_frac else R_["decoded"]
+                if model is None:
+                    recs.append({"run": run, "frac": fr, "decode_failed": True})
+                    continue
+                mkey = f"{run}@{fr}" if by_frac else run
+                plan_of[mkey] = model
                 prefix = R_["points"][str(fr)]
                 t = len(prefix)
                 frozen_idx = set(prefix)
@@ -141,7 +143,7 @@ def cmd_ils(a):
                 plan_of[key] = best
                 recs.append({"run": run, "frac": fr, "t": t, "budget": budget, "budget_unfrozen": b0, "n_evals": d["n_evals"], "stopped": d["stopped"], "capped": d["stopped"] == "seconds",
                              "search_wall": d["search_wall"], "fit_wall": FIT_A * n ** FIT_K * (n - t) / n, "wall": time.time() - t1, "start_S": d["start_S"], "best_S": d["best_S"], "n_pinned": d["n_pinned"],
-                             "start_is_model": start_ok, "prefix_kept": kept, "changed_tasks": sum(1 for k in range(n) if best[k] != model[k]), "plan_key": key})
+                             "start_is_model": start_ok, "prefix_kept": kept, "changed_tasks": sum(1 for k in range(n) if best[k] != model[k]), "plan_key": key, "model_key": mkey})
                 recs[-1]["over2x"] = recs[-1]["search_wall"] > 2 * recs[-1]["fit_wall"]
                 if recs[-1]["over2x"]:
                     print(f"OVER2X {gid} {key} n={n} search_wall={recs[-1]['search_wall']:.0f}s fit={recs[-1]['fit_wall']:.0f}s", flush=True)
@@ -184,7 +186,7 @@ def gains_of(rows: Dict[str, Any]) -> List[Dict[str, Any]]:
         for rec in r["records"]:
             if rec.get("decode_failed"):
                 continue
-            rm, rc = r["rtt"][rec["run"]], r["rtt"][rec["plan_key"]]
+            rm, rc = r["rtt"][rec.get("model_key", rec["run"])], r["rtt"][rec["plan_key"]]
             g = (rm - rc) / rm
             sb = rec["best_S"] < rec["start_S"] - 1e-9
             out.append({"group": gid, "bucket": r["bucket"], "label_type": r["label_type"], "run": rec["run"], "frac": rec["frac"], "gain": g, "s_better": sb,
