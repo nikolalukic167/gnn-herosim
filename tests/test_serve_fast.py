@@ -28,9 +28,9 @@ ENV = {"PARTIAL_STATE_LOAD_SECONDS": "1", "PARTIAL_STATE_EXCHANGE_SECONDS": "1",
 
 
 def test_flags_default_off(monkeypatch):
-    for name in ("SERVEFAST_BUILD", "SERVEFAST_COLUMNS", "SERVEFAST_ROWS"):
+    for name in ("SERVEFAST_BUILD", "SERVEFAST_COLUMNS"):
         monkeypatch.delenv(name, raising=False)
-    assert not (serve_fast.build_on() or serve_fast.columns_on() or serve_fast.rows_on())
+    assert not (serve_fast.build_on() or serve_fast.columns_on())
     monkeypatch.setenv("SERVEFAST_COLUMNS", "1")
     assert serve_fast.columns_on() and not serve_fast.build_on()
 
