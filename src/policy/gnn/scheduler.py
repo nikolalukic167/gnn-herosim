@@ -967,7 +967,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if int(diag.get("seeded_nodes", 0)):
             self.prefix_batches_load_seeded += 1
         graph = move_graph_tensors_(graph, self.device)
-        with torch.no_grad():
+        from src.placement import serve_fast
+
+        with (torch.inference_mode() if serve_fast.build_on() else torch.no_grad()):
             combo = decode_prefix_conditioned(
                 self.gnn_model, graph, self._prefix_options, stats=self.decode_stats
             )
