@@ -51,3 +51,12 @@ def test_missing_label_candidate_fails_loudly():
     sf, _ = make_scorer(0)
     with pytest.raises(RuntimeError, match="FAIL LOUD"):
         run(C.force_prefix_score_fn(sf, CANDS, [[9, 9]] * N, {0}))
+
+
+def test_plan_comparison_ignores_list_versus_tuple_and_nothing_else():
+    a = [(1, 2), (3, 4)]                       # S5's decode_group: a list of tuples
+    b = [[1, 2], [3, 4]]                       # forced_decode: a list of lists
+    assert a != b and C.same_plan(a, b)
+    assert not C.same_plan(a, [[1, 2], [3, 5]])
+    assert not C.same_plan(a, [[1, 2]])
+    assert C.same_plan(None, None) and not C.same_plan(a, None)

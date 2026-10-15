@@ -51,6 +51,15 @@ def force_prefix_score_fn(score_fn: Callable[[int, Mapping[int, Any]], Sequence[
     return wrapped
 
 
+def norm_plan(plan):
+    """A plan as a tuple of tuples of ints (S5's `decode_group` returns a list of tuples, `forced_decode` a list of lists; `[(1, 2)] != [[1, 2]]`), or None."""
+    return None if plan is None else tuple(tuple(int(v) for v in c) for c in plan)
+
+
+def same_plan(a, b) -> bool:
+    return norm_plan(a) == norm_plan(b)
+
+
 def forced_decode(model, g, label: Sequence[Sequence[int]], forced: Set[int]):
     """S5's `decode_group` decode call (the served masked_topo decode), with `forced` tasks pinned to their label placement through `force_prefix_score_fn`."""
     import torch
@@ -92,7 +101,7 @@ def cmd_points(a):
     draw = json.load(open(a.draw))
     models = R._load_models(list(RUNS))
     out: Dict[str, Any] = {}
-    bad = {"identity_t0": [], "label_all": [], "prefix_not_kept": []}
+    bad = {"identity_t0": [], "label_all": [], "prefix_not_kept": [], "free_decode": {}}
     for f in sorted(Path(a.shards).glob("g_*.pkl")):
         for g in pickle.load(open(f, "rb")):
             gid, n = str(g.dataset_id), int(g.n_tasks)
@@ -102,16 +111,17 @@ def cmd_points(a):
             for run, m in models.items():
                 s5 = R.decode_group(m, g)["decoded"]
                 free = forced_decode(m, g, label, set())
-                if free != s5:
+                bad["free_decode"].setdefault(gid, {})[run] = {"s5": s5, "unforced_wrapper": free}
+                if not same_plan(free, s5):
                     bad["identity_t0"].append((gid, run))
                 allf = forced_decode(m, g, label, set(order))
-                if allf != label:
+                if not same_plan(allf, label):
                     bad["label_all"].append((gid, run))
                 by, pts = {}, {}
                 for fr in FRACS:
                     pre = order[:prefix_len(n, fr)]
                     plan = forced_decode(m, g, label, set(pre))
-                    if plan is not None and any(plan[t] != label[t] for t in pre):
+                    if plan is not None and any(tuple(plan[t]) != tuple(label[t]) for t in pre):
                         bad["prefix_not_kept"].append((gid, run, fr))
                         plan = None
                     by[str(fr)], pts[str(fr)] = plan, pre
