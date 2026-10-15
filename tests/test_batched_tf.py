@@ -447,3 +447,127 @@ def test_mlp_same_is_built_graph_free_and_the_guard_still_raises_for_other_model
         setattr(bad, flag, True)
         with pytest.raises(ValueError, match="NEAR_RTT_BATCHED_TF"):
             _unsupported(bad, _ctx(graph))
+
+
+# ---- the expected move-regret lever (uncut_groups_s0_v1): lambda x sum_t sum_c p_t(c) d_t(c) on top of the batched teacher-forced loss -----------------------
+
+def _with_table(graph, seed=5, ok=True):
+    """A copy of `graph` carrying a synthetic move-regret table: d = 0 on the label's candidate, uniform [0, 10] elsewhere."""
+    import copy
+
+    g = copy.copy(graph)
+    n = int(graph.n_tasks)
+    plan = [int(v) for v in graph.tied_optimal_logit_plans[ALPHA][0]]
+    rng = np.random.RandomState(seed)
+    width = max(len(graph.task_logit_to_placement[t]) for t in range(n))
+    pad = torch.zeros((n, width), dtype=torch.float32)
+    for t in range(n):
+        c = len(graph.task_logit_to_placement[t])
+        row = rng.uniform(0.0, 10.0, size=c).astype(np.float32)
+        row[plan[t]] = 0.0
+        pad[t, :c] = torch.from_numpy(row)
+    g.move_regret_pad, g.move_regret_ok = pad, ok
+    return g
+
+
+def _reference_term(graph, model, ctx, order):
+    """sum_t sum_c softmax_t(c) d_t(c) from the SEQUENTIAL walk under the label's strict prefix (plan 0)."""
+    from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
+
+    score = make_partial_state_score_fn(model, graph, ctx)
+    place, plan = graph.task_logit_to_placement, [int(v) for v in graph.tied_optimal_logit_plans[ALPHA][0]]
+    committed: Dict[int, Any] = {}
+    total = 0.0
+    for t in order:
+        p = F.softmax(score(t, committed), dim=-1)
+        total += float((p * graph.move_regret_pad[t, :p.numel()]).sum())
+        committed[t] = tuple(int(v) for v in place[t][plan[t]])
+    return total
+
+
+@pytest.mark.parametrize("arm", ARMS)
+def test_the_regret_term_equals_the_sequential_expectation_and_lambda_scales_it(graphs, arm):
+    from src.policy.gnn.batched_tf import batched_tf_loss
+
+    graph = _with_table(_pick(graphs)["typical"])
+    model = _trainer_model(arm, graph).eval()
+    ctx, order = _ctx(graph), _order(graph)
+    plans = graph.tied_optimal_logit_plans[ALPHA]
+    dev = torch.device("cpu")
+    with torch.no_grad():
+        base = float(batched_tf_loss(model, graph, ctx, plans, order, 1.0, dev))
+        l1 = float(batched_tf_loss(model, graph, ctx, plans, order, 1.0, dev, regret_lambda=1.0))
+        l2 = float(batched_tf_loss(model, graph, ctx, plans, order, 1.0, dev, regret_lambda=2.0))
+    ref = _reference_term(graph, model, ctx, order)
+    assert l1 - base == pytest.approx(ref, rel=1e-4, abs=1e-4), (l1 - base, ref)
+    assert l2 - base == pytest.approx(2.0 * (l1 - base), rel=1e-6, abs=1e-5)
+    assert ref > 0.0
+
+
+@pytest.mark.parametrize("arm", ARMS)
+def test_lambda_zero_is_bit_identical_to_the_unflagged_loss_and_to_unflagged_training(graphs, arm):
+    """The flag at 0 adds no operation: the loss, the gradients and three optimiser steps are bit-equal to the Arm 1b loss, with a table attached or not."""
+    from src.policy.gnn.batched_tf import batched_tf_loss
+
+    torch.set_num_threads(1)
+    torch.use_deterministic_algorithms(True)
+    base_graph = _pick(graphs)["multi_plan"]
+    graph = _with_table(base_graph)
+    ctx, order = _ctx(graph), _order(graph)
+    plans = graph.tied_optimal_logit_plans[ALPHA]
+    dev = torch.device("cpu")
+    outs = []
+    for kw in ({}, {"regret_lambda": 0.0}):
+        model = _trainer_model(arm, graph, seed=3).train()
+        torch.manual_seed(9)
+        loss = batched_tf_loss(model, graph, ctx, plans, order, 1.0, dev, **kw)
+        loss.backward()
+        outs.append((loss.detach().clone(), [p.grad.clone() for p in model.parameters() if p.grad is not None]))
+    assert torch.equal(outs[0][0], outs[1][0]) and all(torch.equal(x, y) for x, y in zip(outs[0][1], outs[1][1]))
+
+    def steps(g, **kw):
+        model = _trainer_model(arm, g, seed=3).train()
+        opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+        torch.manual_seed(9)
+        for _ in range(3):
+            loss = batched_tf_loss(model, g, ctx, plans, order, 1.0, dev, **kw)
+            opt.zero_grad(); loss.backward(); opt.step()
+        return {k: v.detach().clone() for k, v in model.state_dict().items()}
+
+    a, b, c = steps(base_graph), steps(graph, regret_lambda=0.0), steps(graph)
+    assert all(torch.equal(a[k], b[k]) and torch.equal(a[k], c[k]) for k in a)
+
+
+@pytest.mark.parametrize("arm", ARMS)
+def test_a_group_without_a_table_adds_exactly_zero_and_a_positive_lambda_changes_the_gradient(graphs, arm):
+    from src.policy.gnn.batched_tf import batched_tf_loss
+
+    graph = _pick(graphs)["typical"]
+    ctx, order = _ctx(graph), _order(graph)
+    plans = graph.tied_optimal_logit_plans[ALPHA]
+    dev = torch.device("cpu")
+    model = _trainer_model(arm, graph).eval()
+    with torch.no_grad():
+        no_table = float(batched_tf_loss(model, graph, ctx, plans, order, 1.0, dev, regret_lambda=2.0))
+        base = float(batched_tf_loss(model, graph, ctx, plans, order, 1.0, dev))
+        flagged_off = float(batched_tf_loss(model, _with_table(graph, ok=False), ctx, plans, order, 1.0, dev, regret_lambda=2.0))
+    assert no_table == base == flagged_off
+    g = _with_table(graph)
+    grads = []
+    for lam in (0.0, 2.0):
+        m = _trainer_model(arm, g, seed=3).train()
+        torch.manual_seed(9)
+        batched_tf_loss(m, g, ctx, plans, order, 1.0, dev, regret_lambda=lam).backward()
+        assert all(torch.isfinite(p.grad).all() for p in m.parameters() if p.grad is not None)
+        grads.append(torch.cat([p.grad.flatten() for p in m.parameters() if p.grad is not None]))
+    assert not torch.equal(grads[0], grads[1])
+
+
+def test_the_lambda_flag_is_train_only_and_refused_outside_the_batched_loss(graphs):
+    src = (REPO_ROOT / "src/notebooks/train_near_rtt.py").read_text()
+    train_body = src[src.index("def train_epoch("):src.index("\ndef ", src.index("def train_epoch(") + 10)]
+    assert "regret_lambda=NEAR_CFG.regret_lambda" in train_body
+    assert src.count("regret_lambda=NEAR_CFG.regret_lambda") == 1                      # the val and test calls never pass it
+    graph = _with_table(_pick(graphs)["typical"])
+    with pytest.raises(ValueError, match="REGRET_LAMBDA"):
+        _loss_fn(False)(_trainer_model("gnn_eng", graph), graph, torch.device("cpu"), regret_lambda=0.5)
