@@ -1,0 +1,2681 @@
+{
+ "split_sha256": "613c8cbb1cf494b60a215d3fccb4d30e6cfe17943304d7078a7b8f58f6f34808",
+ "source": "docs/lineages/uncut_groups_s0_v1/replay_diag_draw.json",
+ "train": [],
+ "val": [
+  "gnn_datasets_wf1_heldout/ds_00319",
+  "gnn_datasets_wf1_heldout/ds_00686",
+  "gnn_datasets_wf1_heldout/ds_01058",
+  "gnn_datasets_wf1_heldout/ds_01415",
+  "gnn_datasets_wf1_heldout/ds_01824",
+  "gnn_datasets_wf1_heldout/ds_02129",
+  "gnn_datasets_wf1_heldout/ds_03206",
+  "gnn_datasets_wf1_heldout/ds_04134",
+  "gnn_datasets_wf1_heldout/ds_04155",
+  "gnn_datasets_wf1_heldout/ds_04420",
+  "gnn_datasets_wf1_heldout/ds_04574",
+  "gnn_datasets_wf1_heldout/ds_04703",
+  "gnn_datasets_wf1_heldout/ds_04802",
+  "gnn_datasets_wf1_heldout/ds_04813",
+  "gnn_datasets_wf1_heldout/ds_04828",
+  "gnn_datasets_wf1_heldout/ds_04843",
+  "gnn_datasets_wf1_heldout/ds_04897",
+  "gnn_datasets_wf1_heldout/ds_04924",
+  "gnn_datasets_wf1_heldout/ds_04964",
+  "gnn_datasets_wf1_heldout/ds_04965",
+  "gnn_datasets_wf1_heldout/ds_04997",
+  "gnn_datasets_wf1_heldout/ds_05053",
+  "gnn_datasets_wf1_heldout/ds_05133",
+  "gnn_datasets_wf1_heldout/ds_05228",
+  "gnn_datasets_wf1_heldout/ds_05240",
+  "gnn_datasets_wf1_heldout/ds_05266",
+  "gnn_datasets_wf1_heldout/ds_05310",
+  "gnn_datasets_wf1_heldout/ds_05312",
+  "gnn_datasets_wf1_heldout/ds_05318",
+  "gnn_datasets_wf1_heldout/ds_05377",
+  "gnn_datasets_wf1_heldout/ds_05456",
+  "gnn_datasets_wf1_heldout/ds_05483",
+  "gnn_datasets_wf1_heldout/ds_05524",
+  "gnn_datasets_wf1_heldout/ds_05570",
+  "gnn_datasets_wf1_heldout/ds_05588",
+  "gnn_datasets_wf1_heldout/ds_05616",
+  "gnn_datasets_wf1_heldout/ds_05638",
+  "gnn_datasets_wf1_heldout/ds_05697",
+  "gnn_datasets_wf1_heldout/ds_05722",
+  "gnn_datasets_wf1_heldout/ds_05725",
+  "gnn_datasets_wf1_heldout/ds_05781",
+  "gnn_datasets_wf1_heldout/ds_05828",
+  "gnn_datasets_wf1_heldout/ds_05847",
+  "gnn_datasets_wf1_heldout/ds_05922",
+  "gnn_datasets_wf1_heldout/ds_05984",
+  "gnn_datasets_wf1_heldout/ds_06006",
+  "gnn_datasets_wf1_heldout/ds_06053",
+  "gnn_datasets_wf1_heldout/ds_06083",
+  "gnn_datasets_wf1_heldout/ds_06098",
+  "gnn_datasets_wf1_heldout/ds_06103",
+  "gnn_datasets_wf1_heldout/ds_06105",
+  "gnn_datasets_wf1_heldout/ds_06109",
+  "gnn_datasets_wf1_heldout/ds_06118",
+  "gnn_datasets_wf1_heldout/ds_06119",
+  "gnn_datasets_wf1_heldout/ds_06141",
+  "gnn_datasets_wf1_heldout/ds_06154",
+  "gnn_datasets_wf1_heldout/ds_06159",
+  "gnn_datasets_wf1_heldout/ds_06180",
+  "gnn_datasets_wf1_heldout/ds_06185",
+  "gnn_datasets_wf1_heldout/ds_06192",
+  "gnn_datasets_wf1_heldout/ds_06196",
+  "gnn_datasets_wf1_heldout/ds_06209",
+  "gnn_datasets_wf1_heldout/ds_06238",
+  "gnn_datasets_wf1_heldout/ds_06242",
+  "gnn_datasets_wf1_heldout/ds_06265",
+  "gnn_datasets_wf1_heldout/ds_06267",
+  "gnn_datasets_wf1_heldout/ds_06291",
+  "gnn_datasets_wf1_heldout/ds_06292",
+  "gnn_datasets_wf1_heldout/ds_06308",
+  "gnn_datasets_wf1_heldout/ds_06337",
+  "gnn_datasets_wf1_heldout/ds_06363",
+  "gnn_datasets_wf1_heldout/ds_06375",
+  "gnn_datasets_wf1_heldout/ds_06385",
+  "gnn_datasets_wf1_heldout/ds_06389",
+  "gnn_datasets_wf1_heldout/ds_06401",
+  "gnn_datasets_wf1_heldout/ds_06419",
+  "gnn_datasets_wf1_heldout/ds_06472",
+  "gnn_datasets_wf1_heldout/ds_06475",
+  "gnn_datasets_wf1_heldout/ds_06532",
+  "gnn_datasets_wf1_heldout/ds_06577",
+  "gnn_datasets_wf1_heldout/ds_06587",
+  "gnn_datasets_wf1_heldout/ds_06617",
+  "gnn_datasets_wf1_heldout/ds_06619",
+  "gnn_datasets_wf1_heldout/ds_06620",
+  "gnn_datasets_wf1_heldout/ds_06639",
+  "gnn_datasets_wf1_heldout/ds_06661",
+  "gnn_datasets_wf1_heldout/ds_06692",
+  "gnn_datasets_wf1_heldout/ds_06693",
+  "gnn_datasets_wf1_heldout/ds_06703",
+  "gnn_datasets_wf1_heldout/ds_06753",
+  "gnn_datasets_wf1_heldout/ds_06770",
+  "gnn_datasets_wf1_heldout/ds_06786",
+  "gnn_datasets_wf1_heldout/ds_06799",
+  "gnn_datasets_wf1_heldout/ds_06803",
+  "gnn_datasets_wf1_heldout/ds_06846",
+  "gnn_datasets_wf1_heldout/ds_06863",
+  "gnn_datasets_wf1_heldout/ds_06879",
+  "gnn_datasets_wf1_heldout/ds_06892",
+  "gnn_datasets_wf1_heldout/ds_06896",
+  "gnn_datasets_wf1_heldout/ds_06905",
+  "gnn_datasets_wf1_heldout/ds_06912",
+  "gnn_datasets_wf1_heldout/ds_06923",
+  "gnn_datasets_wf1_heldout/ds_07001",
+  "gnn_datasets_wf1_heldout/ds_07013",
+  "gnn_datasets_wf1_heldout/ds_07023",
+  "gnn_datasets_wf1_heldout/ds_07096",
+  "gnn_datasets_wf1_heldout/ds_07114",
+  "gnn_datasets_wf1_heldout/ds_07151",
+  "gnn_datasets_wf1_heldout/ds_07154",
+  "gnn_datasets_wf1_heldout/ds_07196",
+  "gnn_datasets_wf1_heldout/ds_07223",
+  "gnn_datasets_wf1_heldout/ds_07263",
+  "gnn_datasets_wf1_heldout/ds_07277",
+  "gnn_datasets_wf1_heldout/ds_07284",
+  "gnn_datasets_wf1_heldout/ds_07286",
+  "gnn_datasets_wf1_heldout/ds_07300",
+  "gnn_datasets_wf1_heldout/ds_07315",
+  "gnn_datasets_wf1_heldout/ds_07317",
+  "gnn_datasets_wf1_heldout/ds_07352",
+  "gnn_datasets_wf1_heldout/ds_07402",
+  "gnn_datasets_wf1_heldout/ds_07466",
+  "gnn_datasets_wf1_heldout/ds_07486",
+  "gnn_datasets_wf1_heldout/ds_07494",
+  "gnn_datasets_wf1_heldout/ds_07513",
+  "gnn_datasets_wf1_heldout/ds_07548",
+  "gnn_datasets_wf1_heldout/ds_07552",
+  "gnn_datasets_wf1_heldout/ds_07566",
+  "gnn_datasets_wf1_heldout/ds_07573",
+  "gnn_datasets_wf1_heldout/ds_07574",
+  "gnn_datasets_wf1_heldout/ds_07575",
+  "gnn_datasets_wf1_heldout/ds_07591",
+  "gnn_datasets_wf1_heldout/ds_07592",
+  "gnn_datasets_wf1_heldout/ds_07674",
+  "gnn_datasets_wf1_heldout/ds_07685",
+  "gnn_datasets_wf1_heldout/ds_07696",
+  "gnn_datasets_wf1_heldout/ds_07709",
+  "gnn_datasets_wf1_heldout/ds_07710",
+  "gnn_datasets_wf1_heldout/ds_07722",
+  "gnn_datasets_wf1_heldout/ds_07737",
+  "gnn_datasets_wf1_heldout/ds_07777",
+  "gnn_datasets_wf1_heldout/ds_07826",
+  "gnn_datasets_wf1_heldout/ds_07832",
+  "gnn_datasets_wf1_heldout/ds_07862",
+  "gnn_datasets_wf1_heldout/ds_07876",
+  "gnn_datasets_wf1_heldout/ds_07918",
+  "gnn_datasets_wf1_heldout/ds_07930",
+  "gnn_datasets_wf1_heldout/ds_07937",
+  "gnn_datasets_wf1_heldout/ds_07949",
+  "gnn_datasets_wf1_heldout/ds_07951",
+  "gnn_datasets_wf1_heldout/ds_07952",
+  "gnn_datasets_wf1_heldout/ds_07975",
+  "gnn_datasets_wf1_heldout/ds_07981",
+  "gnn_datasets_wf1_heldout/ds_07989",
+  "gnn_datasets_wf1_heldout/ds_08006",
+  "gnn_datasets_wf1_heldout/ds_08010",
+  "gnn_datasets_wf1_heldout/ds_08019",
+  "gnn_datasets_wf1_heldout/ds_08027",
+  "gnn_datasets_wf1_heldout/ds_08030",
+  "gnn_datasets_wf1_heldout/ds_08039",
+  "gnn_datasets_wf1_heldout/ds_08108",
+  "gnn_datasets_wf1_heldout/ds_08112",
+  "gnn_datasets_wf1_heldout/ds_08116",
+  "gnn_datasets_wf1_heldout/ds_08132",
+  "gnn_datasets_wf1_heldout/ds_08138",
+  "gnn_datasets_wf1_heldout/ds_08145",
+  "gnn_datasets_wf1_heldout/ds_08149",
+  "gnn_datasets_wf1_heldout/ds_08164",
+  "gnn_datasets_wf1_heldout/ds_08166",
+  "gnn_datasets_wf1_heldout/ds_08173",
+  "gnn_datasets_wf1_heldout/ds_08178",
+  "gnn_datasets_wf1_heldout/ds_08196",
+  "gnn_datasets_wf1_heldout/ds_08207",
+  "gnn_datasets_wf1_heldout/ds_08234",
+  "gnn_datasets_wf1_heldout/ds_08241",
+  "gnn_datasets_wf1_heldout/ds_08244",
+  "gnn_datasets_wf1_heldout/ds_08245",
+  "gnn_datasets_wf1_heldout/ds_08267",
+  "gnn_datasets_wf1_heldout/ds_08274",
+  "gnn_datasets_wf1_heldout/ds_08287",
+  "gnn_datasets_wf1_heldout/ds_08289",
+  "gnn_datasets_wf1_heldout/ds_08332",
+  "gnn_datasets_wf1_heldout/ds_08377",
+  "gnn_datasets_wf1_heldout/ds_08380",
+  "gnn_datasets_wf1_heldout/ds_08431",
+  "gnn_datasets_wf1_heldout/ds_08472",
+  "gnn_datasets_wf1_heldout/ds_08502",
+  "gnn_datasets_wf1_heldout/ds_08584",
+  "gnn_datasets_wf1_heldout/ds_08644",
+  "gnn_datasets_wf1_heldout/ds_08692",
+  "gnn_datasets_wf1_heldout/ds_08781",
+  "gnn_datasets_wf1_heldout/ds_08787",
+  "gnn_datasets_wf1_heldout/ds_08790",
+  "gnn_datasets_wf1_heldout/ds_08791",
+  "gnn_datasets_wf1_heldout/ds_08792",
+  "gnn_datasets_wf1_heldout/ds_08851",
+  "gnn_datasets_wf1_heldout/ds_08860",
+  "gnn_datasets_wf1_heldout/ds_08887",
+  "gnn_datasets_wf1_heldout/ds_08915",
+  "gnn_datasets_wf1_heldout/ds_08975",
+  "gnn_datasets_wf1_heldout/ds_08985",
+  "gnn_datasets_wf1_heldout/ds_09105",
+  "gnn_datasets_wf1_heldout/ds_09114",
+  "gnn_datasets_wf1_heldout/ds_09137",
+  "gnn_datasets_wf1_heldout/ds_09167",
+  "gnn_datasets_wf1_heldout/ds_09200",
+  "gnn_datasets_wf1_heldout/ds_09215",
+  "gnn_datasets_wf1_heldout/ds_09238",
+  "gnn_datasets_wf1_heldout/ds_09333",
+  "gnn_datasets_wf1_heldout/ds_09355",
+  "gnn_datasets_wf1_heldout/ds_09404",
+  "gnn_datasets_wf1_heldout/ds_09435",
+  "gnn_datasets_wf1_heldout/ds_09508",
+  "gnn_datasets_wf1_heldout/ds_09519",
+  "gnn_datasets_wf1_heldout/ds_09530",
+  "gnn_datasets_wf1_heldout/ds_09560",
+  "gnn_datasets_wf1_heldout/ds_09579",
+  "gnn_datasets_wf1_heldout/ds_09593",
+  "gnn_datasets_wf1_heldout/ds_09607",
+  "gnn_datasets_wf1_heldout/ds_09619",
+  "gnn_datasets_wf1_heldout/ds_09628",
+  "gnn_datasets_wf1_heldout/ds_09650",
+  "gnn_datasets_wf1_heldout/ds_09659",
+  "gnn_datasets_wf1_heldout/ds_09660",
+  "gnn_datasets_wf1_heldout/ds_09681",
+  "gnn_datasets_wf1_heldout/ds_09694",
+  "gnn_datasets_wf1_heldout/ds_09849",
+  "gnn_datasets_wf1_heldout/ds_09858",
+  "gnn_datasets_wf1_heldout/ds_09859",
+  "gnn_datasets_wf1_heldout/ds_09865",
+  "gnn_datasets_wf1_heldout/ds_09883",
+  "gnn_datasets_wf1_heldout/ds_09886",
+  "gnn_datasets_wf1_heldout/ds_09902",
+  "gnn_datasets_wf1_heldout/ds_09921",
+  "gnn_datasets_wf1_heldout/ds_09948",
+  "gnn_datasets_wf1_heldout/ds_09961",
+  "gnn_datasets_wf1_heldout/ds_09965",
+  "gnn_datasets_wf1_heldout/ds_09966",
+  "gnn_datasets_wf1_heldout/ds_09974",
+  "gnn_datasets_wf1_heldout/ds_10001",
+  "gnn_datasets_wf1_heldout/ds_10021",
+  "gnn_datasets_wf1_heldout/ds_10028",
+  "gnn_datasets_wf1_heldout/ds_10038",
+  "gnn_datasets_wf1_heldout/ds_10039",
+  "gnn_datasets_wf1_heldout/ds_10062",
+  "gnn_datasets_wf1_heldout/ds_10131",
+  "gnn_datasets_wf1_heldout/ds_10134",
+  "gnn_datasets_wf1_heldout/ds_10138",
+  "gnn_datasets_wf1_heldout/ds_10162",
+  "gnn_datasets_wf1_heldout/ds_10163",
+  "gnn_datasets_wf1_heldout/ds_10200",
+  "gnn_datasets_wf1_heldout/ds_10207",
+  "gnn_datasets_wf1_heldout/ds_10230",
+  "gnn_datasets_wf1_heldout/ds_10244",
+  "gnn_datasets_wf1_heldout/ds_10250",
+  "gnn_datasets_wf1_heldout/ds_10255",
+  "gnn_datasets_wf1_heldout/ds_10265",
+  "gnn_datasets_wf1_heldout/ds_10281",
+  "gnn_datasets_wf1_heldout/ds_10293",
+  "gnn_datasets_wf1_heldout/ds_10312",
+  "gnn_datasets_wf1_heldout/ds_10367",
+  "gnn_datasets_wf1_heldout/ds_10371",
+  "gnn_datasets_wf1_heldout/ds_10373",
+  "gnn_datasets_wf1_heldout/ds_10377",
+  "gnn_datasets_wf1_heldout/ds_10398",
+  "gnn_datasets_wf1_heldout/ds_10416",
+  "gnn_datasets_wf1_heldout/ds_10420",
+  "gnn_datasets_wf1_heldout/ds_10445",
+  "gnn_datasets_wf1_heldout/ds_10448",
+  "gnn_datasets_wf1_heldout/ds_10480",
+  "gnn_datasets_wf1_heldout/ds_10503",
+  "gnn_datasets_wf1_heldout/ds_10508",
+  "gnn_datasets_wf1_heldout/ds_10528",
+  "gnn_datasets_wf1_heldout/ds_10529",
+  "gnn_datasets_wf1_heldout/ds_10539",
+  "gnn_datasets_wf1_heldout/ds_10550",
+  "gnn_datasets_wf1_heldout/ds_10555",
+  "gnn_datasets_wf1_heldout/ds_10575",
+  "gnn_datasets_wf1_heldout/ds_10589",
+  "gnn_datasets_wf1_heldout/ds_10596",
+  "gnn_datasets_wf1_heldout/ds_10643",
+  "gnn_datasets_wf1_heldout/ds_10662",
+  "gnn_datasets_wf1_heldout/ds_10676",
+  "gnn_datasets_wf1_heldout/ds_10703",
+  "gnn_datasets_wf1_heldout/ds_10715",
+  "gnn_datasets_wf1_heldout/ds_10731",
+  "gnn_datasets_wf1_heldout/ds_10737",
+  "gnn_datasets_wf1_heldout/ds_10743",
+  "gnn_datasets_wf1_heldout/ds_10747",
+  "gnn_datasets_wf1_heldout/ds_10755",
+  "gnn_datasets_wf1_heldout/ds_10805",
+  "gnn_datasets_wf1_heldout/ds_10806",
+  "gnn_datasets_wf1_heldout/ds_10834",
+  "gnn_datasets_wf1_heldout/ds_10870",
+  "gnn_datasets_wf1_heldout/ds_10882",
+  "gnn_datasets_wf1_heldout/ds_10885",
+  "gnn_datasets_wf1_heldout/ds_10898",
+  "gnn_datasets_wf1_heldout/ds_10903",
+  "gnn_datasets_wf1_heldout/ds_10911",
+  "gnn_datasets_wf1_heldout/ds_10915",
+  "gnn_datasets_wf1_heldout/ds_10918",
+  "gnn_datasets_wf1_heldout/ds_10982",
+  "gnn_datasets_wf1_heldout/ds_10997",
+  "gnn_datasets_wf1_heldout/ds_11015",
+  "gnn_datasets_wf1_heldout/ds_11074",
+  "gnn_datasets_wf1_heldout/ds_11083",
+  "gnn_datasets_wf1_heldout/ds_11111",
+  "gnn_datasets_wf1_heldout/ds_11113",
+  "gnn_datasets_wf1_heldout/ds_11178",
+  "gnn_datasets_wf1_heldout/ds_11203",
+  "gnn_datasets_wf1_heldout/ds_11208",
+  "gnn_datasets_wf1_heldout/ds_11260",
+  "gnn_datasets_wf1_heldout/ds_11318",
+  "gnn_datasets_wf1_heldout/ds_11377",
+  "gnn_datasets_wf1_heldout/ds_11403",
+  "gnn_datasets_wf1_heldout/ds_11447",
+  "gnn_datasets_wf1_heldout/ds_11451",
+  "gnn_datasets_wf1_heldout/ds_11452",
+  "gnn_datasets_wf1_heldout/ds_11492",
+  "gnn_datasets_wf1_heldout/ds_11506",
+  "gnn_datasets_wf1_heldout/ds_11511",
+  "gnn_datasets_wf1_heldout/ds_11587",
+  "gnn_datasets_wf1_heldout/ds_11598",
+  "gnn_datasets_wf1_heldout/ds_11618",
+  "gnn_datasets_wf1_heldout/ds_11641",
+  "gnn_datasets_wf1_heldout/ds_11694",
+  "gnn_datasets_wf1_heldout/ds_11711",
+  "gnn_datasets_wf1_heldout/ds_11740",
+  "gnn_datasets_wf1_heldout/ds_11757",
+  "gnn_datasets_wf1_heldout/ds_11814",
+  "gnn_datasets_wf1_heldout/ds_11819",
+  "gnn_datasets_wf1_heldout/ds_11833",
+  "gnn_datasets_wf1_heldout/ds_11864",
+  "gnn_datasets_wf1_heldout/ds_11900",
+  "gnn_datasets_wf1_heldout/ds_11982"
+ ],
+ "meta": {
+  "gnn_datasets_wf1_heldout/ds_00319": {
+   "n_tasks": 7,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.6483623639726995,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#795"
+  },
+  "gnn_datasets_wf1_heldout/ds_00686": {
+   "n_tasks": 6,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.9067499002295677,
+   "state_id": "C2/cc40s16230__g2heavy__cd_ib0_s0#4335"
+  },
+  "gnn_datasets_wf1_heldout/ds_01058": {
+   "n_tasks": 9,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.3994062798041337,
+   "state_id": "C3/cc40s16240__g3heavy__cd_ib0_s0#2653"
+  },
+  "gnn_datasets_wf1_heldout/ds_01415": {
+   "n_tasks": 5,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.2595275949122774,
+   "state_id": "A/cc40s16220__g1moderate__cd_ib0_s0#411"
+  },
+  "gnn_datasets_wf1_heldout/ds_01824": {
+   "n_tasks": 7,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.5299186302617813,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#8854"
+  },
+  "gnn_datasets_wf1_heldout/ds_02129": {
+   "n_tasks": 6,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.9582523222089437,
+   "state_id": "A/cc40s16230__g1moderate__cd_ib0_s0#20260"
+  },
+  "gnn_datasets_wf1_heldout/ds_03206": {
+   "n_tasks": 6,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.270659487133679,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#15231"
+  },
+  "gnn_datasets_wf1_heldout/ds_04134": {
+   "n_tasks": 5,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.6976732685563181,
+   "state_id": "A/cc40s16240__g2heavy__cd_ib0_s0#19879"
+  },
+  "gnn_datasets_wf1_heldout/ds_04155": {
+   "n_tasks": 8,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.7314857097443579,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#15228"
+  },
+  "gnn_datasets_wf1_heldout/ds_04420": {
+   "n_tasks": 8,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.6503759670318625,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#2967"
+  },
+  "gnn_datasets_wf1_heldout/ds_04574": {
+   "n_tasks": 7,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.5762670718757323,
+   "state_id": "A/cc40s16230__g0moderate__cd_ib0_s0#15798"
+  },
+  "gnn_datasets_wf1_heldout/ds_04703": {
+   "n_tasks": 6,
+   "bucket": "le10",
+   "label": "ils",
+   "r": 0.3743805456330931,
+   "state_id": "A/cc40s16210__g1heavy__cd_ib0_s0#28585"
+  },
+  "gnn_datasets_wf1_heldout/ds_04802": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5717762050085531,
+   "state_id": "B/cc40s16230__g3moderate__cd_ib0_s0#1547"
+  },
+  "gnn_datasets_wf1_heldout/ds_04813": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3718004478263453,
+   "state_id": "C3/cc40s16230__g1moderate__cd_ib0_s0#1050"
+  },
+  "gnn_datasets_wf1_heldout/ds_04828": {
+   "n_tasks": 24,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4531879786522422,
+   "state_id": "A/cc40s16210__g0heavy__cd_ib0_s0#1778"
+  },
+  "gnn_datasets_wf1_heldout/ds_04843": {
+   "n_tasks": 28,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6938811732700185,
+   "state_id": "C3/cc40s16240__g2heavy__cd_ib0_s0#3931"
+  },
+  "gnn_datasets_wf1_heldout/ds_04897": {
+   "n_tasks": 19,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.1848686058420379,
+   "state_id": "C1/cc40s16240__g0heavy__cd_ib0_s0#96"
+  },
+  "gnn_datasets_wf1_heldout/ds_04924": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.29851338737406025,
+   "state_id": "C1/cc40s16230__g2heavy__cd_ib0_s0#480"
+  },
+  "gnn_datasets_wf1_heldout/ds_04964": {
+   "n_tasks": 23,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5169087932656813,
+   "state_id": "C1/cc40s16230__g2heavy__cd_ib0_s0#652"
+  },
+  "gnn_datasets_wf1_heldout/ds_04965": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.31896274306922023,
+   "state_id": "C3/cc40s16250__g3heavy__cd_ib0_s0#611"
+  },
+  "gnn_datasets_wf1_heldout/ds_04997": {
+   "n_tasks": 34,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7622321601372872,
+   "state_id": "C2/cc40s16210__g0heavy__cd_ib0_s0#623"
+  },
+  "gnn_datasets_wf1_heldout/ds_05053": {
+   "n_tasks": 23,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.22161951208737457,
+   "state_id": "C2/cc40s16230__g2heavy__cd_ib0_s0#1596"
+  },
+  "gnn_datasets_wf1_heldout/ds_05133": {
+   "n_tasks": 38,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6604941759559524,
+   "state_id": "A/cc40s16230__g0heavy__cd_ib0_s0#1567"
+  },
+  "gnn_datasets_wf1_heldout/ds_05228": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.14306377870648587,
+   "state_id": "C2/cc40s16210__g0heavy__cd_ib0_s0#483"
+  },
+  "gnn_datasets_wf1_heldout/ds_05240": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.18195832382340926,
+   "state_id": "C1/cc40s16240__g1heavy__cd_ib0_s0#725"
+  },
+  "gnn_datasets_wf1_heldout/ds_05266": {
+   "n_tasks": 19,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.35579553533404434,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#3019"
+  },
+  "gnn_datasets_wf1_heldout/ds_05310": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.35785309714372227,
+   "state_id": "C3/cc40s16240__g3heavy__cd_ib0_s0#2594"
+  },
+  "gnn_datasets_wf1_heldout/ds_05312": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.23154208916364888,
+   "state_id": "C3/cc40s16220__g1heavy__cd_ib0_s0#2122"
+  },
+  "gnn_datasets_wf1_heldout/ds_05318": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3781313945237655,
+   "state_id": "C2/cc40s16230__g2moderate__cd_ib0_s0#1373"
+  },
+  "gnn_datasets_wf1_heldout/ds_05377": {
+   "n_tasks": 29,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.45159260874155815,
+   "state_id": "B/cc40s16240__g3moderate__cd_ib0_s0#1145"
+  },
+  "gnn_datasets_wf1_heldout/ds_05456": {
+   "n_tasks": 44,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.42041303104438005,
+   "state_id": "A/cc40s16230__g0heavy__cd_ib0_s0#2694"
+  },
+  "gnn_datasets_wf1_heldout/ds_05483": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8907589481845811,
+   "state_id": "C1/cc40s16220__g2heavy__cd_ib0_s0#1140"
+  },
+  "gnn_datasets_wf1_heldout/ds_05524": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4823645724569258,
+   "state_id": "B/cc40s16220__g1moderate__cd_ib0_s0#796"
+  },
+  "gnn_datasets_wf1_heldout/ds_05570": {
+   "n_tasks": 28,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3581222348092802,
+   "state_id": "C2/cc40s16230__g2moderate__cd_ib0_s0#697"
+  },
+  "gnn_datasets_wf1_heldout/ds_05588": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8956683692517368,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#4108"
+  },
+  "gnn_datasets_wf1_heldout/ds_05616": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.36884857091510764,
+   "state_id": "C1/cc40s16240__g2moderate__cd_ib0_s0#1985"
+  },
+  "gnn_datasets_wf1_heldout/ds_05638": {
+   "n_tasks": 38,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.35546903175724665,
+   "state_id": "A/cc40s16220__g0heavy__cd_ib0_s0#1567"
+  },
+  "gnn_datasets_wf1_heldout/ds_05697": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3520101326408076,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#836"
+  },
+  "gnn_datasets_wf1_heldout/ds_05722": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7840413517647679,
+   "state_id": "C3/cc40s16210__g2moderate__cd_ib0_s0#1284"
+  },
+  "gnn_datasets_wf1_heldout/ds_05725": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.43429390397100465,
+   "state_id": "C2/cc40s16230__g3moderate__cd_ib0_s0#697"
+  },
+  "gnn_datasets_wf1_heldout/ds_05781": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.1582081293492434,
+   "state_id": "B/cc40s16230__g2moderate__cd_ib0_s0#2234"
+  },
+  "gnn_datasets_wf1_heldout/ds_05828": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.27778607210024747,
+   "state_id": "C1/cc40s16240__g2heavy__cd_ib0_s0#2579"
+  },
+  "gnn_datasets_wf1_heldout/ds_05847": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.40649336192480917,
+   "state_id": "B/cc40s16230__g1moderate__cd_ib0_s0#779"
+  },
+  "gnn_datasets_wf1_heldout/ds_05922": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5214000205969399,
+   "state_id": "C2/cc40s16210__g0heavy__cd_ib0_s0#744"
+  },
+  "gnn_datasets_wf1_heldout/ds_05984": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.1037994709604681,
+   "state_id": "B/cc40s16240__g1heavy__cd_ib0_s0#2953"
+  },
+  "gnn_datasets_wf1_heldout/ds_06006": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.1430476391450953,
+   "state_id": "C1/cc40s16230__g2heavy__cd_ib0_s0#940"
+  },
+  "gnn_datasets_wf1_heldout/ds_06053": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.32287919873766596,
+   "state_id": "C2/cc40s16210__g3heavy__cd_ib0_s0#3096"
+  },
+  "gnn_datasets_wf1_heldout/ds_06083": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5208869114996416,
+   "state_id": "A/cc40s16210__g1heavy__cd_ib0_s0#3486"
+  },
+  "gnn_datasets_wf1_heldout/ds_06098": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.426257140167155,
+   "state_id": "A/cc40s16240__g2heavy__cd_ib0_s0#1936"
+  },
+  "gnn_datasets_wf1_heldout/ds_06103": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.10327656942055301,
+   "state_id": "C1/cc40s16230__g3heavy__cd_ib0_s0#996"
+  },
+  "gnn_datasets_wf1_heldout/ds_06105": {
+   "n_tasks": 17,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7286807777814921,
+   "state_id": "A/cc40s16250__g0heavy__cd_ib0_s0#1519"
+  },
+  "gnn_datasets_wf1_heldout/ds_06109": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.10508192779654263,
+   "state_id": "C2/cc40s16220__g1heavy__cd_ib0_s0#4055"
+  },
+  "gnn_datasets_wf1_heldout/ds_06118": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6468120523175158,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#1236"
+  },
+  "gnn_datasets_wf1_heldout/ds_06119": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.23551232792312635,
+   "state_id": "C2/cc40s16230__g1heavy__cd_ib0_s0#1784"
+  },
+  "gnn_datasets_wf1_heldout/ds_06141": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.2102866533714212,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#1975"
+  },
+  "gnn_datasets_wf1_heldout/ds_06154": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.9010122548576441,
+   "state_id": "A/cc40s16210__g2heavy__cd_ib0_s0#2520"
+  },
+  "gnn_datasets_wf1_heldout/ds_06159": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8342908042492587,
+   "state_id": "C3/cc40s16230__g1heavy__cd_ib0_s0#3995"
+  },
+  "gnn_datasets_wf1_heldout/ds_06180": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7072932408519009,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#3535"
+  },
+  "gnn_datasets_wf1_heldout/ds_06185": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4249685803978989,
+   "state_id": "A/cc40s16250__g3moderate__cd_ib0_s0#43553"
+  },
+  "gnn_datasets_wf1_heldout/ds_06192": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4838282578057343,
+   "state_id": "A/cc40s16230__g3heavy__cd_ib0_s0#32063"
+  },
+  "gnn_datasets_wf1_heldout/ds_06196": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8882643990308742,
+   "state_id": "A/cc40s16250__g2moderate__cd_ib0_s0#22251"
+  },
+  "gnn_datasets_wf1_heldout/ds_06209": {
+   "n_tasks": 17,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.22629241403102,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#22910"
+  },
+  "gnn_datasets_wf1_heldout/ds_06238": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6383533202988964,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#29794"
+  },
+  "gnn_datasets_wf1_heldout/ds_06242": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.588409415306949,
+   "state_id": "A/cc40s16210__g3moderate__cd_ib0_s0#19188"
+  },
+  "gnn_datasets_wf1_heldout/ds_06265": {
+   "n_tasks": 21,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.2371113757587589,
+   "state_id": "A/cc40s16250__g2heavy__cd_ib0_s0#46087"
+  },
+  "gnn_datasets_wf1_heldout/ds_06267": {
+   "n_tasks": 42,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4295113645865662,
+   "state_id": "A/cc40s16240__g3heavy__cd_ib0_s0#19703"
+  },
+  "gnn_datasets_wf1_heldout/ds_06291": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4545691131189014,
+   "state_id": "A/cc40s16240__g3heavy__cd_ib0_s0#29165"
+  },
+  "gnn_datasets_wf1_heldout/ds_06292": {
+   "n_tasks": 41,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.36471292937760996,
+   "state_id": "A/cc40s16210__g2heavy__cd_ib0_s0#23573"
+  },
+  "gnn_datasets_wf1_heldout/ds_06308": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7654940009682717,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#41464"
+  },
+  "gnn_datasets_wf1_heldout/ds_06337": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5156884208335664,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#19164"
+  },
+  "gnn_datasets_wf1_heldout/ds_06363": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.47892837477844685,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#10845"
+  },
+  "gnn_datasets_wf1_heldout/ds_06375": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.48952984396279586,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#40435"
+  },
+  "gnn_datasets_wf1_heldout/ds_06385": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5948801312920652,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#9911"
+  },
+  "gnn_datasets_wf1_heldout/ds_06389": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.438703553781885,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#21087"
+  },
+  "gnn_datasets_wf1_heldout/ds_06401": {
+   "n_tasks": 22,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7336772565761529,
+   "state_id": "A/cc40s16230__g1moderate__cd_ib0_s0#40119"
+  },
+  "gnn_datasets_wf1_heldout/ds_06419": {
+   "n_tasks": 28,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.19695973941807543,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#4009"
+  },
+  "gnn_datasets_wf1_heldout/ds_06472": {
+   "n_tasks": 31,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3217242319619396,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#13579"
+  },
+  "gnn_datasets_wf1_heldout/ds_06475": {
+   "n_tasks": 21,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8747717655714454,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#2553"
+  },
+  "gnn_datasets_wf1_heldout/ds_06532": {
+   "n_tasks": 22,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.28917756558587776,
+   "state_id": "A/cc40s16250__g1moderate__cd_ib0_s0#29577"
+  },
+  "gnn_datasets_wf1_heldout/ds_06577": {
+   "n_tasks": 34,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.11660474534090223,
+   "state_id": "A/cc40s16210__g2heavy__cd_ib0_s0#20332"
+  },
+  "gnn_datasets_wf1_heldout/ds_06587": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.42908874439500466,
+   "state_id": "A/cc40s16230__g0moderate__cd_ib0_s0#34519"
+  },
+  "gnn_datasets_wf1_heldout/ds_06617": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.458939535435864,
+   "state_id": "A/cc40s16240__g3heavy__cd_ib0_s0#27769"
+  },
+  "gnn_datasets_wf1_heldout/ds_06619": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.35465749967874377,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#1812"
+  },
+  "gnn_datasets_wf1_heldout/ds_06620": {
+   "n_tasks": 23,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5015059841487952,
+   "state_id": "A/cc40s16220__g2heavy__cd_ib0_s0#17602"
+  },
+  "gnn_datasets_wf1_heldout/ds_06639": {
+   "n_tasks": 21,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.9059855447464991,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#30326"
+  },
+  "gnn_datasets_wf1_heldout/ds_06661": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.20294246622149711,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#48205"
+  },
+  "gnn_datasets_wf1_heldout/ds_06692": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.562820565037304,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#4961"
+  },
+  "gnn_datasets_wf1_heldout/ds_06693": {
+   "n_tasks": 22,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7948093076154279,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#34481"
+  },
+  "gnn_datasets_wf1_heldout/ds_06703": {
+   "n_tasks": 43,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.10693855596620416,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#29025"
+  },
+  "gnn_datasets_wf1_heldout/ds_06753": {
+   "n_tasks": 50,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.12330795353938324,
+   "state_id": "A/cc40s16250__g2moderate__cd_ib0_s0#31661"
+  },
+  "gnn_datasets_wf1_heldout/ds_06770": {
+   "n_tasks": 24,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.387563433540026,
+   "state_id": "A/cc40s16240__g3moderate__cd_ib0_s0#33305"
+  },
+  "gnn_datasets_wf1_heldout/ds_06786": {
+   "n_tasks": 30,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.20238696384518842,
+   "state_id": "A/cc40s16220__g0heavy__cd_ib0_s0#42462"
+  },
+  "gnn_datasets_wf1_heldout/ds_06799": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.570602158977739,
+   "state_id": "A/cc40s16250__g1moderate__cd_ib0_s0#12566"
+  },
+  "gnn_datasets_wf1_heldout/ds_06803": {
+   "n_tasks": 24,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6431137812625289,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#31792"
+  },
+  "gnn_datasets_wf1_heldout/ds_06846": {
+   "n_tasks": 25,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.23246727175956594,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#35622"
+  },
+  "gnn_datasets_wf1_heldout/ds_06863": {
+   "n_tasks": 28,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5594734764781547,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#48932"
+  },
+  "gnn_datasets_wf1_heldout/ds_06879": {
+   "n_tasks": 33,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.2969458738115018,
+   "state_id": "A/cc40s16250__g0moderate__cd_ib0_s0#48525"
+  },
+  "gnn_datasets_wf1_heldout/ds_06892": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3068586291929944,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#43216"
+  },
+  "gnn_datasets_wf1_heldout/ds_06896": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3913618013843659,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#16088"
+  },
+  "gnn_datasets_wf1_heldout/ds_06905": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6135083739153301,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#43931"
+  },
+  "gnn_datasets_wf1_heldout/ds_06912": {
+   "n_tasks": 31,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.78909036302543,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#28289"
+  },
+  "gnn_datasets_wf1_heldout/ds_06923": {
+   "n_tasks": 49,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.1580132302611052,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#12151"
+  },
+  "gnn_datasets_wf1_heldout/ds_07001": {
+   "n_tasks": 22,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4876488414454361,
+   "state_id": "A/cc40s16220__g1moderate__cd_ib0_s0#27082"
+  },
+  "gnn_datasets_wf1_heldout/ds_07013": {
+   "n_tasks": 38,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.13922415524631715,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#21351"
+  },
+  "gnn_datasets_wf1_heldout/ds_07023": {
+   "n_tasks": 36,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.523303513515126,
+   "state_id": "A/cc40s16230__g1moderate__cd_ib0_s0#49512"
+  },
+  "gnn_datasets_wf1_heldout/ds_07096": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.20132067656636085,
+   "state_id": "A/cc40s16250__g3moderate__cd_ib0_s0#11201"
+  },
+  "gnn_datasets_wf1_heldout/ds_07114": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.2933876230945833,
+   "state_id": "A/cc40s16220__g2heavy__cd_ib0_s0#31926"
+  },
+  "gnn_datasets_wf1_heldout/ds_07151": {
+   "n_tasks": 23,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.9147807760517689,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#42237"
+  },
+  "gnn_datasets_wf1_heldout/ds_07154": {
+   "n_tasks": 35,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.30774362650831233,
+   "state_id": "A/cc40s16250__g1moderate__cd_ib0_s0#30128"
+  },
+  "gnn_datasets_wf1_heldout/ds_07196": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4958929292526577,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#12988"
+  },
+  "gnn_datasets_wf1_heldout/ds_07223": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.10880474090661293,
+   "state_id": "A/cc40s16220__g3moderate__cd_ib0_s0#36683"
+  },
+  "gnn_datasets_wf1_heldout/ds_07263": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.45075563463789114,
+   "state_id": "A/cc40s16240__g2heavy__cd_ib0_s0#36012"
+  },
+  "gnn_datasets_wf1_heldout/ds_07277": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3730006977516702,
+   "state_id": "A/cc40s16220__g2heavy__cd_ib0_s0#19543"
+  },
+  "gnn_datasets_wf1_heldout/ds_07284": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7215429421340992,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#45345"
+  },
+  "gnn_datasets_wf1_heldout/ds_07286": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7216740871113011,
+   "state_id": "A/cc40s16250__g3moderate__cd_ib0_s0#48434"
+  },
+  "gnn_datasets_wf1_heldout/ds_07300": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8910820754020645,
+   "state_id": "A/cc40s16240__g3moderate__cd_ib0_s0#30485"
+  },
+  "gnn_datasets_wf1_heldout/ds_07315": {
+   "n_tasks": 39,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.10894486157848896,
+   "state_id": "A/cc40s16250__g2heavy__cd_ib0_s0#9444"
+  },
+  "gnn_datasets_wf1_heldout/ds_07317": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.39844298114587856,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#7142"
+  },
+  "gnn_datasets_wf1_heldout/ds_07352": {
+   "n_tasks": 25,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4086026741468106,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#28547"
+  },
+  "gnn_datasets_wf1_heldout/ds_07402": {
+   "n_tasks": 37,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7446840652605338,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#31996"
+  },
+  "gnn_datasets_wf1_heldout/ds_07466": {
+   "n_tasks": 27,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7521738485312012,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#26196"
+  },
+  "gnn_datasets_wf1_heldout/ds_07486": {
+   "n_tasks": 34,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5729466966013371,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#41178"
+  },
+  "gnn_datasets_wf1_heldout/ds_07494": {
+   "n_tasks": 36,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.506998241066471,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#29120"
+  },
+  "gnn_datasets_wf1_heldout/ds_07513": {
+   "n_tasks": 36,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.20676774754989916,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#49759"
+  },
+  "gnn_datasets_wf1_heldout/ds_07548": {
+   "n_tasks": 31,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7707657671385953,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#10311"
+  },
+  "gnn_datasets_wf1_heldout/ds_07552": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6662047004040927,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#47356"
+  },
+  "gnn_datasets_wf1_heldout/ds_07566": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7591436209801771,
+   "state_id": "A/cc40s16230__g3moderate__cd_ib0_s0#20203"
+  },
+  "gnn_datasets_wf1_heldout/ds_07573": {
+   "n_tasks": 23,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4207672324151174,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#22915"
+  },
+  "gnn_datasets_wf1_heldout/ds_07574": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.1866951689491176,
+   "state_id": "A/cc40s16240__g3moderate__cd_ib0_s0#27817"
+  },
+  "gnn_datasets_wf1_heldout/ds_07575": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.11533342965610882,
+   "state_id": "A/cc40s16240__g2heavy__cd_ib0_s0#40435"
+  },
+  "gnn_datasets_wf1_heldout/ds_07591": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.28809315942317165,
+   "state_id": "A/cc40s16250__g2heavy__cd_ib0_s0#11149"
+  },
+  "gnn_datasets_wf1_heldout/ds_07592": {
+   "n_tasks": 31,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4742541386644113,
+   "state_id": "A/cc40s16220__g3heavy__cd_ib0_s0#23630"
+  },
+  "gnn_datasets_wf1_heldout/ds_07674": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.17527429900366492,
+   "state_id": "A/cc40s16240__g2heavy__cd_ib0_s0#19350"
+  },
+  "gnn_datasets_wf1_heldout/ds_07685": {
+   "n_tasks": 21,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3408221945106315,
+   "state_id": "A/cc40s16250__g0heavy__cd_ib0_s0#49018"
+  },
+  "gnn_datasets_wf1_heldout/ds_07696": {
+   "n_tasks": 34,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3553905661747731,
+   "state_id": "A/cc40s16230__g0moderate__cd_ib0_s0#23914"
+  },
+  "gnn_datasets_wf1_heldout/ds_07709": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3264581219723143,
+   "state_id": "A/cc40s16220__g0heavy__cd_ib0_s0#34655"
+  },
+  "gnn_datasets_wf1_heldout/ds_07710": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.14178159193516235,
+   "state_id": "A/cc40s16240__g3moderate__cd_ib0_s0#2170"
+  },
+  "gnn_datasets_wf1_heldout/ds_07722": {
+   "n_tasks": 47,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.895144307667603,
+   "state_id": "A/cc40s16220__g1moderate__cd_ib0_s0#6778"
+  },
+  "gnn_datasets_wf1_heldout/ds_07737": {
+   "n_tasks": 19,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6138570445201726,
+   "state_id": "A/cc40s16210__g3heavy__cd_ib0_s0#31120"
+  },
+  "gnn_datasets_wf1_heldout/ds_07777": {
+   "n_tasks": 43,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5199777961543567,
+   "state_id": "A/cc40s16240__g1heavy__cd_ib0_s0#19204"
+  },
+  "gnn_datasets_wf1_heldout/ds_07826": {
+   "n_tasks": 44,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.25549596964168164,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#37454"
+  },
+  "gnn_datasets_wf1_heldout/ds_07832": {
+   "n_tasks": 34,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8252347580917623,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#8071"
+  },
+  "gnn_datasets_wf1_heldout/ds_07862": {
+   "n_tasks": 19,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4973770292024344,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#38155"
+  },
+  "gnn_datasets_wf1_heldout/ds_07876": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.10174711898593819,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#32127"
+  },
+  "gnn_datasets_wf1_heldout/ds_07918": {
+   "n_tasks": 25,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6786190766559839,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#14302"
+  },
+  "gnn_datasets_wf1_heldout/ds_07930": {
+   "n_tasks": 26,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3437844311486761,
+   "state_id": "A/cc40s16240__g1heavy__cd_ib0_s0#49862"
+  },
+  "gnn_datasets_wf1_heldout/ds_07937": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5648861398912036,
+   "state_id": "A/cc40s16250__g3moderate__cd_ib0_s0#24508"
+  },
+  "gnn_datasets_wf1_heldout/ds_07949": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4446524055070771,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#21250"
+  },
+  "gnn_datasets_wf1_heldout/ds_07951": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.14532491493807217,
+   "state_id": "A/cc40s16240__g2heavy__cd_ib0_s0#26223"
+  },
+  "gnn_datasets_wf1_heldout/ds_07952": {
+   "n_tasks": 38,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3979687546429153,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#34208"
+  },
+  "gnn_datasets_wf1_heldout/ds_07975": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.870126935570165,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#38389"
+  },
+  "gnn_datasets_wf1_heldout/ds_07981": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5816404702750392,
+   "state_id": "A/cc40s16210__g1heavy__cd_ib0_s0#46561"
+  },
+  "gnn_datasets_wf1_heldout/ds_07989": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3406126364166053,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#20946"
+  },
+  "gnn_datasets_wf1_heldout/ds_08006": {
+   "n_tasks": 22,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.40790910041503264,
+   "state_id": "A/cc40s16210__g3moderate__cd_ib0_s0#31222"
+  },
+  "gnn_datasets_wf1_heldout/ds_08010": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7956371234437521,
+   "state_id": "A/cc40s16230__g3heavy__cd_ib0_s0#15425"
+  },
+  "gnn_datasets_wf1_heldout/ds_08019": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7051013450856081,
+   "state_id": "A/cc40s16210__g0heavy__cd_ib0_s0#38731"
+  },
+  "gnn_datasets_wf1_heldout/ds_08027": {
+   "n_tasks": 31,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6211683111822924,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#2114"
+  },
+  "gnn_datasets_wf1_heldout/ds_08030": {
+   "n_tasks": 34,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8565046168858359,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#37617"
+  },
+  "gnn_datasets_wf1_heldout/ds_08039": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.9546237000561741,
+   "state_id": "A/cc40s16230__g0heavy__cd_ib0_s0#40684"
+  },
+  "gnn_datasets_wf1_heldout/ds_08108": {
+   "n_tasks": 44,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3747888103525257,
+   "state_id": "A/cc40s16210__g0heavy__cd_ib0_s0#37454"
+  },
+  "gnn_datasets_wf1_heldout/ds_08112": {
+   "n_tasks": 24,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4716517307882567,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#31792"
+  },
+  "gnn_datasets_wf1_heldout/ds_08116": {
+   "n_tasks": 21,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4355903474540574,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#7022"
+  },
+  "gnn_datasets_wf1_heldout/ds_08132": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5631142635406624,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#16320"
+  },
+  "gnn_datasets_wf1_heldout/ds_08138": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7072991907958236,
+   "state_id": "A/cc40s16250__g2moderate__cd_ib0_s0#15052"
+  },
+  "gnn_datasets_wf1_heldout/ds_08145": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8458203395812369,
+   "state_id": "A/cc40s16250__g2heavy__cd_ib0_s0#42360"
+  },
+  "gnn_datasets_wf1_heldout/ds_08149": {
+   "n_tasks": 40,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.2503399446934127,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#41888"
+  },
+  "gnn_datasets_wf1_heldout/ds_08164": {
+   "n_tasks": 37,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.40925047909767454,
+   "state_id": "A/cc40s16250__g2moderate__cd_ib0_s0#25557"
+  },
+  "gnn_datasets_wf1_heldout/ds_08166": {
+   "n_tasks": 25,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6809758123731926,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#38182"
+  },
+  "gnn_datasets_wf1_heldout/ds_08173": {
+   "n_tasks": 49,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.2807710126444046,
+   "state_id": "A/cc40s16210__g3moderate__cd_ib0_s0#18099"
+  },
+  "gnn_datasets_wf1_heldout/ds_08178": {
+   "n_tasks": 49,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6698416387952468,
+   "state_id": "A/cc40s16210__g0heavy__cd_ib0_s0#22804"
+  },
+  "gnn_datasets_wf1_heldout/ds_08196": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.2660431077488357,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#34531"
+  },
+  "gnn_datasets_wf1_heldout/ds_08207": {
+   "n_tasks": 48,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.44446097018856084,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#9551"
+  },
+  "gnn_datasets_wf1_heldout/ds_08234": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.187502914759711,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#5753"
+  },
+  "gnn_datasets_wf1_heldout/ds_08241": {
+   "n_tasks": 34,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3397785734071992,
+   "state_id": "A/cc40s16220__g1heavy__cd_ib0_s0#33194"
+  },
+  "gnn_datasets_wf1_heldout/ds_08244": {
+   "n_tasks": 20,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.280683919225473,
+   "state_id": "A/cc40s16250__g1moderate__cd_ib0_s0#33574"
+  },
+  "gnn_datasets_wf1_heldout/ds_08245": {
+   "n_tasks": 25,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.4258170361573653,
+   "state_id": "A/cc40s16230__g1heavy__cd_ib0_s0#4483"
+  },
+  "gnn_datasets_wf1_heldout/ds_08267": {
+   "n_tasks": 25,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5816451001267529,
+   "state_id": "A/cc40s16210__g1heavy__cd_ib0_s0#17305"
+  },
+  "gnn_datasets_wf1_heldout/ds_08274": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.340342340463075,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#42336"
+  },
+  "gnn_datasets_wf1_heldout/ds_08287": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.13492968726732257,
+   "state_id": "A/cc40s16250__g3moderate__cd_ib0_s0#6840"
+  },
+  "gnn_datasets_wf1_heldout/ds_08289": {
+   "n_tasks": 18,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5337914635673423,
+   "state_id": "A/cc40s16240__g2heavy__cd_ib0_s0#39674"
+  },
+  "gnn_datasets_wf1_heldout/ds_08332": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.25909148775378066,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#13038"
+  },
+  "gnn_datasets_wf1_heldout/ds_08377": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5053833685465886,
+   "state_id": "A/cc40s16220__g2heavy__cd_ib0_s0#44928"
+  },
+  "gnn_datasets_wf1_heldout/ds_08380": {
+   "n_tasks": 16,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5622643157075861,
+   "state_id": "A/cc40s16250__g0heavy__cd_ib0_s0#46165"
+  },
+  "gnn_datasets_wf1_heldout/ds_08431": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.38585266187953826,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#18446"
+  },
+  "gnn_datasets_wf1_heldout/ds_08472": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7525696978443541,
+   "state_id": "A/cc40s16220__g3moderate__cd_ib0_s0#35405"
+  },
+  "gnn_datasets_wf1_heldout/ds_08502": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8701773345921079,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#22050"
+  },
+  "gnn_datasets_wf1_heldout/ds_08584": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.1259977886719455,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#33943"
+  },
+  "gnn_datasets_wf1_heldout/ds_08644": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.322559420859284,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#32673"
+  },
+  "gnn_datasets_wf1_heldout/ds_08692": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8491913660791308,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#41224"
+  },
+  "gnn_datasets_wf1_heldout/ds_08781": {
+   "n_tasks": 13,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.22584550108531615,
+   "state_id": "A/cc40s16250__g2heavy__cd_ib0_s0#40175"
+  },
+  "gnn_datasets_wf1_heldout/ds_08787": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.5097052279507711,
+   "state_id": "A/cc40s16230__g3heavy__cd_ib0_s0#27515"
+  },
+  "gnn_datasets_wf1_heldout/ds_08790": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.26510706722428495,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#24155"
+  },
+  "gnn_datasets_wf1_heldout/ds_08791": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.13927808358381516,
+   "state_id": "A/cc40s16250__g2heavy__cd_ib0_s0#23765"
+  },
+  "gnn_datasets_wf1_heldout/ds_08792": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6115674954142805,
+   "state_id": "A/cc40s16240__g3heavy__cd_ib0_s0#8556"
+  },
+  "gnn_datasets_wf1_heldout/ds_08851": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.42339697093837486,
+   "state_id": "A/cc40s16230__g1moderate__cd_ib0_s0#18197"
+  },
+  "gnn_datasets_wf1_heldout/ds_08860": {
+   "n_tasks": 24,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.15317870403537037,
+   "state_id": "A/cc40s16220__g2heavy__cd_ib0_s0#10264"
+  },
+  "gnn_datasets_wf1_heldout/ds_08887": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6119445679556429,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#12864"
+  },
+  "gnn_datasets_wf1_heldout/ds_08915": {
+   "n_tasks": 19,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.7305816398336961,
+   "state_id": "A/cc40s16210__g3heavy__cd_ib0_s0#5281"
+  },
+  "gnn_datasets_wf1_heldout/ds_08975": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.31825653789259517,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#41257"
+  },
+  "gnn_datasets_wf1_heldout/ds_08985": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3508974069075733,
+   "state_id": "A/cc40s16250__g1moderate__cd_ib0_s0#26637"
+  },
+  "gnn_datasets_wf1_heldout/ds_09105": {
+   "n_tasks": 45,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.14054408582122532,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#10471"
+  },
+  "gnn_datasets_wf1_heldout/ds_09114": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.27501165561906166,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#17545"
+  },
+  "gnn_datasets_wf1_heldout/ds_09137": {
+   "n_tasks": 23,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.3043189447472918,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#48999"
+  },
+  "gnn_datasets_wf1_heldout/ds_09167": {
+   "n_tasks": 14,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.23001151688431917,
+   "state_id": "A/cc40s16250__g1moderate__cd_ib0_s0#11367"
+  },
+  "gnn_datasets_wf1_heldout/ds_09200": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.6082154151480827,
+   "state_id": "A/cc40s16230__g0moderate__cd_ib0_s0#22697"
+  },
+  "gnn_datasets_wf1_heldout/ds_09215": {
+   "n_tasks": 15,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.45011972496214914,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#46989"
+  },
+  "gnn_datasets_wf1_heldout/ds_09238": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.15649040183737367,
+   "state_id": "A/cc40s16250__g0moderate__cd_ib0_s0#8409"
+  },
+  "gnn_datasets_wf1_heldout/ds_09333": {
+   "n_tasks": 12,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8450668418323646,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#43811"
+  },
+  "gnn_datasets_wf1_heldout/ds_09355": {
+   "n_tasks": 11,
+   "bucket": "11_50",
+   "label": "ils",
+   "r": 0.8179183321734325,
+   "state_id": "A/cc40s16210__g3moderate__cd_ib0_s0#43638"
+  },
+  "gnn_datasets_wf1_heldout/ds_09404": {
+   "n_tasks": 69,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.49951034228767555,
+   "state_id": "C1/cc40s16210__g3heavy__cd_ib0_s0#797"
+  },
+  "gnn_datasets_wf1_heldout/ds_09435": {
+   "n_tasks": 61,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1816083722922604,
+   "state_id": "C1/cc40s16210__g1heavy__cd_ib0_s0#559"
+  },
+  "gnn_datasets_wf1_heldout/ds_09508": {
+   "n_tasks": 51,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.13076248430091345,
+   "state_id": "C1/cc40s16250__g1heavy__cd_ib0_s0#2014"
+  },
+  "gnn_datasets_wf1_heldout/ds_09519": {
+   "n_tasks": 57,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.10992900180529482,
+   "state_id": "B/cc40s16210__g0moderate__cd_ib0_s0#267"
+  },
+  "gnn_datasets_wf1_heldout/ds_09530": {
+   "n_tasks": 89,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.25859470903185167,
+   "state_id": "B/cc40s16210__g1moderate__cd_ib0_s0#185"
+  },
+  "gnn_datasets_wf1_heldout/ds_09560": {
+   "n_tasks": 71,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5523528484476283,
+   "state_id": "B/cc40s16240__g3moderate__cd_ib0_s0#1790"
+  },
+  "gnn_datasets_wf1_heldout/ds_09579": {
+   "n_tasks": 61,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.14712429055298584,
+   "state_id": "B/cc40s16250__g3moderate__cd_ib0_s0#2116"
+  },
+  "gnn_datasets_wf1_heldout/ds_09593": {
+   "n_tasks": 89,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.4674455168335065,
+   "state_id": "C2/cc40s16210__g0heavy__cd_ib0_s0#853"
+  },
+  "gnn_datasets_wf1_heldout/ds_09607": {
+   "n_tasks": 58,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5127704368828766,
+   "state_id": "C3/cc40s16210__g1heavy__cd_ib0_s0#964"
+  },
+  "gnn_datasets_wf1_heldout/ds_09619": {
+   "n_tasks": 62,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.3716589167766245,
+   "state_id": "B/cc40s16230__g2heavy__cd_ib0_s0#3022"
+  },
+  "gnn_datasets_wf1_heldout/ds_09628": {
+   "n_tasks": 76,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.25703695438171925,
+   "state_id": "C3/cc40s16250__g3heavy__cd_ib0_s0#3541"
+  },
+  "gnn_datasets_wf1_heldout/ds_09650": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.48442536801118763,
+   "state_id": "B/cc40s16240__g3heavy__cd_ib0_s0#1084"
+  },
+  "gnn_datasets_wf1_heldout/ds_09659": {
+   "n_tasks": 79,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1830463151908261,
+   "state_id": "C1/cc40s16220__g0heavy__cd_ib0_s0#807"
+  },
+  "gnn_datasets_wf1_heldout/ds_09660": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.309788093464859,
+   "state_id": "B/cc40s16250__g3moderate__cd_ib0_s0#1084"
+  },
+  "gnn_datasets_wf1_heldout/ds_09681": {
+   "n_tasks": 56,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6639104283237132,
+   "state_id": "A/cc40s16210__g3heavy__cd_ib0_s0#852"
+  },
+  "gnn_datasets_wf1_heldout/ds_09694": {
+   "n_tasks": 62,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.29921950474721914,
+   "state_id": "B/cc40s16240__g2heavy__cd_ib0_s0#3022"
+  },
+  "gnn_datasets_wf1_heldout/ds_09849": {
+   "n_tasks": 55,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.21694130588589697,
+   "state_id": "B/cc40s16210__g2heavy__cd_ib0_s0#4155"
+  },
+  "gnn_datasets_wf1_heldout/ds_09858": {
+   "n_tasks": 57,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.2520911058626507,
+   "state_id": "C2/cc40s16240__g0moderate__cd_ib0_s0#94"
+  },
+  "gnn_datasets_wf1_heldout/ds_09859": {
+   "n_tasks": 79,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.17336879032979902,
+   "state_id": "B/cc40s16230__g2heavy__cd_ib0_s0#3755"
+  },
+  "gnn_datasets_wf1_heldout/ds_09865": {
+   "n_tasks": 79,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5403811521958147,
+   "state_id": "C3/cc40s16230__g3heavy__cd_ib0_s0#3075"
+  },
+  "gnn_datasets_wf1_heldout/ds_09883": {
+   "n_tasks": 51,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6737664453930097,
+   "state_id": "C1/cc40s16220__g1heavy__cd_ib0_s0#2014"
+  },
+  "gnn_datasets_wf1_heldout/ds_09886": {
+   "n_tasks": 58,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.22381565368441997,
+   "state_id": "A/cc40s16220__g1heavy__cd_ib0_s0#2089"
+  },
+  "gnn_datasets_wf1_heldout/ds_09902": {
+   "n_tasks": 61,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.8015873758375277,
+   "state_id": "B/cc40s16230__g3heavy__cd_ib0_s0#2116"
+  },
+  "gnn_datasets_wf1_heldout/ds_09921": {
+   "n_tasks": 56,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6260076165371754,
+   "state_id": "A/cc40s16250__g3moderate__cd_ib0_s0#852"
+  },
+  "gnn_datasets_wf1_heldout/ds_09948": {
+   "n_tasks": 54,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1894973002729943,
+   "state_id": "C2/cc40s16210__g3moderate__cd_ib0_s0#1823"
+  },
+  "gnn_datasets_wf1_heldout/ds_09961": {
+   "n_tasks": 52,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.7253346230366435,
+   "state_id": "B/cc40s16230__g3heavy__cd_ib0_s0#3429"
+  },
+  "gnn_datasets_wf1_heldout/ds_09965": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1187518750771819,
+   "state_id": "A/cc40s16230__g0heavy__cd_ib0_s0#4155"
+  },
+  "gnn_datasets_wf1_heldout/ds_09966": {
+   "n_tasks": 64,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5461972958047867,
+   "state_id": "B/cc40s16240__g2heavy__cd_ib0_s0#3395"
+  },
+  "gnn_datasets_wf1_heldout/ds_09974": {
+   "n_tasks": 51,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.42069444087486163,
+   "state_id": "C1/cc40s16240__g1heavy__cd_ib0_s0#2014"
+  },
+  "gnn_datasets_wf1_heldout/ds_10001": {
+   "n_tasks": 56,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.8732939758313341,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#15876"
+  },
+  "gnn_datasets_wf1_heldout/ds_10021": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.42887982583358264,
+   "state_id": "A/cc40s16230__g3moderate__cd_ib0_s0#7100"
+  },
+  "gnn_datasets_wf1_heldout/ds_10028": {
+   "n_tasks": 87,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5201113842445023,
+   "state_id": "A/cc40s16220__g2heavy__cd_ib0_s0#15454"
+  },
+  "gnn_datasets_wf1_heldout/ds_10038": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.152620570077047,
+   "state_id": "A/cc40s16210__g3moderate__cd_ib0_s0#15470"
+  },
+  "gnn_datasets_wf1_heldout/ds_10039": {
+   "n_tasks": 98,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6598114026515238,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#24574"
+  },
+  "gnn_datasets_wf1_heldout/ds_10062": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5872467265276056,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#23882"
+  },
+  "gnn_datasets_wf1_heldout/ds_10131": {
+   "n_tasks": 58,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.8818305258888148,
+   "state_id": "A/cc40s16240__g1moderate__cd_ib0_s0#2089"
+  },
+  "gnn_datasets_wf1_heldout/ds_10134": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.7097286813244074,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#15470"
+  },
+  "gnn_datasets_wf1_heldout/ds_10138": {
+   "n_tasks": 78,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5129719505069362,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#46499"
+  },
+  "gnn_datasets_wf1_heldout/ds_10162": {
+   "n_tasks": 59,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.32364036382701294,
+   "state_id": "A/cc40s16220__g3heavy__cd_ib0_s0#33738"
+  },
+  "gnn_datasets_wf1_heldout/ds_10163": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.7619050319360752,
+   "state_id": "A/cc40s16230__g0heavy__cd_ib0_s0#15274"
+  },
+  "gnn_datasets_wf1_heldout/ds_10200": {
+   "n_tasks": 54,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.48548174685601947,
+   "state_id": "A/cc40s16220__g1moderate__cd_ib0_s0#19396"
+  },
+  "gnn_datasets_wf1_heldout/ds_10207": {
+   "n_tasks": 52,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.7585167634706851,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#12882"
+  },
+  "gnn_datasets_wf1_heldout/ds_10230": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6539355572636876,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#15274"
+  },
+  "gnn_datasets_wf1_heldout/ds_10244": {
+   "n_tasks": 64,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.16621902885499185,
+   "state_id": "A/cc40s16230__g0heavy__cd_ib0_s0#17200"
+  },
+  "gnn_datasets_wf1_heldout/ds_10250": {
+   "n_tasks": 98,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1037144166877747,
+   "state_id": "A/cc40s16220__g1moderate__cd_ib0_s0#10986"
+  },
+  "gnn_datasets_wf1_heldout/ds_10255": {
+   "n_tasks": 95,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.49873519545832734,
+   "state_id": "A/cc40s16250__g2moderate__cd_ib0_s0#21441"
+  },
+  "gnn_datasets_wf1_heldout/ds_10265": {
+   "n_tasks": 87,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.14248669428404998,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#15454"
+  },
+  "gnn_datasets_wf1_heldout/ds_10281": {
+   "n_tasks": 70,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.18931188712069819,
+   "state_id": "A/cc40s16210__g1heavy__cd_ib0_s0#9079"
+  },
+  "gnn_datasets_wf1_heldout/ds_10293": {
+   "n_tasks": 61,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.4820530121453817,
+   "state_id": "A/cc40s16210__g0heavy__cd_ib0_s0#40533"
+  },
+  "gnn_datasets_wf1_heldout/ds_10312": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.4272477007877813,
+   "state_id": "A/cc40s16250__g3moderate__cd_ib0_s0#43495"
+  },
+  "gnn_datasets_wf1_heldout/ds_10367": {
+   "n_tasks": 77,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.35989140617192306,
+   "state_id": "A/cc40s16230__g2moderate__cd_ib0_s0#39588"
+  },
+  "gnn_datasets_wf1_heldout/ds_10371": {
+   "n_tasks": 94,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.29965698994669476,
+   "state_id": "A/cc40s16240__g1heavy__cd_ib0_s0#11205"
+  },
+  "gnn_datasets_wf1_heldout/ds_10373": {
+   "n_tasks": 51,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.23982281603354139,
+   "state_id": "A/cc40s16240__g1heavy__cd_ib0_s0#14620"
+  },
+  "gnn_datasets_wf1_heldout/ds_10377": {
+   "n_tasks": 62,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.31527579404537087,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#36578"
+  },
+  "gnn_datasets_wf1_heldout/ds_10398": {
+   "n_tasks": 77,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.9358708127691975,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#48140"
+  },
+  "gnn_datasets_wf1_heldout/ds_10416": {
+   "n_tasks": 89,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.38500347803234114,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#16163"
+  },
+  "gnn_datasets_wf1_heldout/ds_10420": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6036674317652486,
+   "state_id": "A/cc40s16210__g2moderate__cd_ib0_s0#27760"
+  },
+  "gnn_datasets_wf1_heldout/ds_10445": {
+   "n_tasks": 58,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.12708090866784902,
+   "state_id": "A/cc40s16240__g1moderate__cd_ib0_s0#8314"
+  },
+  "gnn_datasets_wf1_heldout/ds_10448": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6688682399557561,
+   "state_id": "A/cc40s16250__g2moderate__cd_ib0_s0#38478"
+  },
+  "gnn_datasets_wf1_heldout/ds_10480": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.22935409947884927,
+   "state_id": "A/cc40s16210__g2heavy__cd_ib0_s0#22677"
+  },
+  "gnn_datasets_wf1_heldout/ds_10503": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.2748112961397871,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#44965"
+  },
+  "gnn_datasets_wf1_heldout/ds_10508": {
+   "n_tasks": 60,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.10170273665937717,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#3487"
+  },
+  "gnn_datasets_wf1_heldout/ds_10528": {
+   "n_tasks": 57,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1441941582663305,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#14618"
+  },
+  "gnn_datasets_wf1_heldout/ds_10529": {
+   "n_tasks": 51,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.3241482033962395,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#8522"
+  },
+  "gnn_datasets_wf1_heldout/ds_10539": {
+   "n_tasks": 95,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.39536079414916464,
+   "state_id": "A/cc40s16240__g1moderate__cd_ib0_s0#35225"
+  },
+  "gnn_datasets_wf1_heldout/ds_10550": {
+   "n_tasks": 57,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6868121546230853,
+   "state_id": "A/cc40s16220__g3heavy__cd_ib0_s0#10183"
+  },
+  "gnn_datasets_wf1_heldout/ds_10555": {
+   "n_tasks": 56,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.13389024328808818,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#24351"
+  },
+  "gnn_datasets_wf1_heldout/ds_10575": {
+   "n_tasks": 91,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.2980384064467192,
+   "state_id": "A/cc40s16220__g2moderate__cd_ib0_s0#36566"
+  },
+  "gnn_datasets_wf1_heldout/ds_10589": {
+   "n_tasks": 74,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1473757935824677,
+   "state_id": "A/cc40s16240__g1moderate__cd_ib0_s0#43602"
+  },
+  "gnn_datasets_wf1_heldout/ds_10596": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.29188004668824197,
+   "state_id": "A/cc40s16210__g1heavy__cd_ib0_s0#48740"
+  },
+  "gnn_datasets_wf1_heldout/ds_10643": {
+   "n_tasks": 52,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.6819356556407461,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#23485"
+  },
+  "gnn_datasets_wf1_heldout/ds_10662": {
+   "n_tasks": 56,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.17892243117068116,
+   "state_id": "A/cc40s16230__g1heavy__cd_ib0_s0#15876"
+  },
+  "gnn_datasets_wf1_heldout/ds_10676": {
+   "n_tasks": 75,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.28211375806292466,
+   "state_id": "A/cc40s16230__g1moderate__cd_ib0_s0#39055"
+  },
+  "gnn_datasets_wf1_heldout/ds_10703": {
+   "n_tasks": 92,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.3677911095788754,
+   "state_id": "A/cc40s16230__g3heavy__cd_ib0_s0#5779"
+  },
+  "gnn_datasets_wf1_heldout/ds_10715": {
+   "n_tasks": 82,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.27406978268225307,
+   "state_id": "A/cc40s16240__g1moderate__cd_ib0_s0#39472"
+  },
+  "gnn_datasets_wf1_heldout/ds_10731": {
+   "n_tasks": 77,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.7688960382490776,
+   "state_id": "A/cc40s16230__g1heavy__cd_ib0_s0#31336"
+  },
+  "gnn_datasets_wf1_heldout/ds_10737": {
+   "n_tasks": 91,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.41914879032563906,
+   "state_id": "A/cc40s16240__g2moderate__cd_ib0_s0#36566"
+  },
+  "gnn_datasets_wf1_heldout/ds_10743": {
+   "n_tasks": 90,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.21032083873078716,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#7225"
+  },
+  "gnn_datasets_wf1_heldout/ds_10747": {
+   "n_tasks": 69,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.18417043591163543,
+   "state_id": "A/cc40s16240__g1heavy__cd_ib0_s0#35372"
+  },
+  "gnn_datasets_wf1_heldout/ds_10755": {
+   "n_tasks": 57,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.41147688577025027,
+   "state_id": "A/cc40s16230__g3heavy__cd_ib0_s0#10183"
+  },
+  "gnn_datasets_wf1_heldout/ds_10805": {
+   "n_tasks": 52,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.8184376392814036,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#29854"
+  },
+  "gnn_datasets_wf1_heldout/ds_10806": {
+   "n_tasks": 75,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.2991872150954688,
+   "state_id": "A/cc40s16210__g3heavy__cd_ib0_s0#12421"
+  },
+  "gnn_datasets_wf1_heldout/ds_10834": {
+   "n_tasks": 68,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.672896171708284,
+   "state_id": "A/cc40s16240__g3moderate__cd_ib0_s0#18947"
+  },
+  "gnn_datasets_wf1_heldout/ds_10870": {
+   "n_tasks": 74,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.22935017219400025,
+   "state_id": "A/cc40s16240__g3heavy__cd_ib0_s0#12988"
+  },
+  "gnn_datasets_wf1_heldout/ds_10882": {
+   "n_tasks": 94,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.41231907672719154,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#42504"
+  },
+  "gnn_datasets_wf1_heldout/ds_10885": {
+   "n_tasks": 56,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.32518768867267206,
+   "state_id": "A/cc40s16240__g0moderate__cd_ib0_s0#24351"
+  },
+  "gnn_datasets_wf1_heldout/ds_10898": {
+   "n_tasks": 75,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5862569421798165,
+   "state_id": "A/cc40s16240__g1moderate__cd_ib0_s0#39055"
+  },
+  "gnn_datasets_wf1_heldout/ds_10903": {
+   "n_tasks": 82,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.14630186672553774,
+   "state_id": "A/cc40s16220__g3moderate__cd_ib0_s0#6122"
+  },
+  "gnn_datasets_wf1_heldout/ds_10911": {
+   "n_tasks": 95,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.10433483356687447,
+   "state_id": "A/cc40s16240__g3heavy__cd_ib0_s0#44876"
+  },
+  "gnn_datasets_wf1_heldout/ds_10915": {
+   "n_tasks": 77,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1926088799928469,
+   "state_id": "A/cc40s16220__g1moderate__cd_ib0_s0#48140"
+  },
+  "gnn_datasets_wf1_heldout/ds_10918": {
+   "n_tasks": 63,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.49327242198082466,
+   "state_id": "A/cc40s16210__g3heavy__cd_ib0_s0#32337"
+  },
+  "gnn_datasets_wf1_heldout/ds_10982": {
+   "n_tasks": 55,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.26824147234562107,
+   "state_id": "A/cc40s16240__g1heavy__cd_ib0_s0#4149"
+  },
+  "gnn_datasets_wf1_heldout/ds_10997": {
+   "n_tasks": 55,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.2640418683312008,
+   "state_id": "A/cc40s16210__g1heavy__cd_ib0_s0#4149"
+  },
+  "gnn_datasets_wf1_heldout/ds_11015": {
+   "n_tasks": 55,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.44085924697297707,
+   "state_id": "A/cc40s16230__g1moderate__cd_ib0_s0#47484"
+  },
+  "gnn_datasets_wf1_heldout/ds_11074": {
+   "n_tasks": 62,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.5414203665235175,
+   "state_id": "A/cc40s16250__g1heavy__cd_ib0_s0#39219"
+  },
+  "gnn_datasets_wf1_heldout/ds_11083": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.257699014080064,
+   "state_id": "A/cc40s16230__g2heavy__cd_ib0_s0#30892"
+  },
+  "gnn_datasets_wf1_heldout/ds_11111": {
+   "n_tasks": 68,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.23080882504783137,
+   "state_id": "A/cc40s16240__g3heavy__cd_ib0_s0#18947"
+  },
+  "gnn_datasets_wf1_heldout/ds_11113": {
+   "n_tasks": 53,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.3451405534450961,
+   "state_id": "A/cc40s16220__g2heavy__cd_ib0_s0#30892"
+  },
+  "gnn_datasets_wf1_heldout/ds_11178": {
+   "n_tasks": 54,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.3609042720088871,
+   "state_id": "A/cc40s16240__g0heavy__cd_ib0_s0#8038"
+  },
+  "gnn_datasets_wf1_heldout/ds_11203": {
+   "n_tasks": 64,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.21395422797895264,
+   "state_id": "A/cc40s16240__g3moderate__cd_ib0_s0#17330"
+  },
+  "gnn_datasets_wf1_heldout/ds_11208": {
+   "n_tasks": 51,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.7539932449929667,
+   "state_id": "A/cc40s16210__g0heavy__cd_ib0_s0#8522"
+  },
+  "gnn_datasets_wf1_heldout/ds_11260": {
+   "n_tasks": 58,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.1481162164187518,
+   "state_id": "A/cc40s16250__g0moderate__cd_ib0_s0#32091"
+  },
+  "gnn_datasets_wf1_heldout/ds_11318": {
+   "n_tasks": 51,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.15048559378442955,
+   "state_id": "A/cc40s16230__g1moderate__cd_ib0_s0#14620"
+  },
+  "gnn_datasets_wf1_heldout/ds_11377": {
+   "n_tasks": 55,
+   "bucket": "51_100",
+   "label": "ils",
+   "r": 0.3199012892463809,
+   "state_id": "A/cc40s16220__g3heavy__cd_ib0_s0#13531"
+  },
+  "gnn_datasets_wf1_heldout/ds_11403": {
+   "n_tasks": 156,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.3925855378496749,
+   "state_id": "B/cc40s16230__g1heavy__cd_ib0_s0#2174"
+  },
+  "gnn_datasets_wf1_heldout/ds_11447": {
+   "n_tasks": 140,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.25611822069489276,
+   "state_id": "B/cc40s16210__g0moderate__cd_ib0_s0#1712"
+  },
+  "gnn_datasets_wf1_heldout/ds_11451": {
+   "n_tasks": 140,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.23248866332442994,
+   "state_id": "B/cc40s16230__g0heavy__cd_ib0_s0#1712"
+  },
+  "gnn_datasets_wf1_heldout/ds_11452": {
+   "n_tasks": 140,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.1671548047424182,
+   "state_id": "B/cc40s16240__g2heavy__cd_ib0_s0#1402"
+  },
+  "gnn_datasets_wf1_heldout/ds_11492": {
+   "n_tasks": 156,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.43068488860543397,
+   "state_id": "B/cc40s16250__g1heavy__cd_ib0_s0#2174"
+  },
+  "gnn_datasets_wf1_heldout/ds_11506": {
+   "n_tasks": 234,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.6671378804761527,
+   "state_id": "C1/cc40s16230__g3heavy__cd_ib0_s0#1814"
+  },
+  "gnn_datasets_wf1_heldout/ds_11511": {
+   "n_tasks": 234,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.14351916710681936,
+   "state_id": "C1/cc40s16220__g3moderate__cd_ib0_s0#1814"
+  },
+  "gnn_datasets_wf1_heldout/ds_11587": {
+   "n_tasks": 105,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.23497113525577226,
+   "state_id": "A/cc40s16210__g3moderate__cd_ib0_s0#44042"
+  },
+  "gnn_datasets_wf1_heldout/ds_11598": {
+   "n_tasks": 125,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.38673459349431993,
+   "state_id": "A/cc40s16220__g0heavy__cd_ib0_s0#48747"
+  },
+  "gnn_datasets_wf1_heldout/ds_11618": {
+   "n_tasks": 231,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.3129204683093634,
+   "state_id": "A/cc40s16240__g1heavy__cd_ib0_s0#43676"
+  },
+  "gnn_datasets_wf1_heldout/ds_11641": {
+   "n_tasks": 147,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.16114983321004503,
+   "state_id": "A/cc40s16230__g0moderate__cd_ib0_s0#27155"
+  },
+  "gnn_datasets_wf1_heldout/ds_11694": {
+   "n_tasks": 109,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.7441964636797231,
+   "state_id": "A/cc40s16230__g0heavy__cd_ib0_s0#18849"
+  },
+  "gnn_datasets_wf1_heldout/ds_11711": {
+   "n_tasks": 181,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.5583372530345122,
+   "state_id": "A/cc40s16210__g1moderate__cd_ib0_s0#5684"
+  },
+  "gnn_datasets_wf1_heldout/ds_11740": {
+   "n_tasks": 183,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.26219306263267933,
+   "state_id": "A/cc40s16250__g3heavy__cd_ib0_s0#36708"
+  },
+  "gnn_datasets_wf1_heldout/ds_11757": {
+   "n_tasks": 147,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.3162309197358193,
+   "state_id": "A/cc40s16220__g0moderate__cd_ib0_s0#27155"
+  },
+  "gnn_datasets_wf1_heldout/ds_11814": {
+   "n_tasks": 105,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.2087609519882832,
+   "state_id": "A/cc40s16240__g3moderate__cd_ib0_s0#44042"
+  },
+  "gnn_datasets_wf1_heldout/ds_11819": {
+   "n_tasks": 197,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.5206959160338005,
+   "state_id": "A/cc40s16220__g1heavy__cd_ib0_s0#46058"
+  },
+  "gnn_datasets_wf1_heldout/ds_11833": {
+   "n_tasks": 197,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.1190986355052916,
+   "state_id": "A/cc40s16220__g1moderate__cd_ib0_s0#46058"
+  },
+  "gnn_datasets_wf1_heldout/ds_11864": {
+   "n_tasks": 109,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.511419468688164,
+   "state_id": "A/cc40s16210__g0heavy__cd_ib0_s0#18849"
+  },
+  "gnn_datasets_wf1_heldout/ds_11900": {
+   "n_tasks": 102,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.2012777254283983,
+   "state_id": "A/cc40s16250__g2heavy__cd_ib0_s0#34751"
+  },
+  "gnn_datasets_wf1_heldout/ds_11982": {
+   "n_tasks": 109,
+   "bucket": "101_256",
+   "label": "ils",
+   "r": 0.3155852603175985,
+   "state_id": "A/cc40s16210__g0moderate__cd_ib0_s0#18849"
+  }
+ }
+}
