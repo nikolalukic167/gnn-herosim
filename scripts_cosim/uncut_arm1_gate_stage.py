@@ -14,7 +14,7 @@ gives "links": [{job, host, cpu}, ...] and a "submission" label instead; its uni
 must all be chained and share one label; Arm 1 (--stem uncut-arm1) refuses links. With "file", the resolved checkpoint must
 have that basename, and --src may be omitted ({dir}/{file}). Arm 2 is
 --arms gnn_eng,twin_eng --stem uncut-arm2, Arm 2-K0 the same with --stem uncut-arm2k0 (the gate's R1A_ARM2_STEM / R1A_ARM2K0_STEM), Arm 1b
---arms gnn_eng,twin_eng --stem uncut-arm1b with its own md5 file. --src is a pattern with {arm}
+--arms gnn_eng,twin_eng,mlp_same --stem uncut-arm1b with its own md5 file. --src is a pattern with {arm}
 (gnn-eng, twin-eng, mlp-same) and {seed}. Every listed checkpoint must exist with its .contract.json beside it and the md5 the
 file gives, no two keys may share an md5, and every contract must carry physics_env.warmth_physics == node_disk_v2 (the bar's) and batched_teacher_forced true under --stem uncut-arm1b,
 absent or false under any other stem (serving ignores the key, so this is where a 1b checkpoint is told apart); each is copied to <dest>/models/<stem>-{arm}-seed{seed}.pt (+ .contract.json), the name the gate serves for
@@ -30,7 +30,7 @@ import sys
 
 ARMS = ("gnn_eng", "twin_eng", "mlp_same")
 WARMTH = "node_disk_v2"
-ARM1B_STEM, ARM1B_ARMS = "uncut-arm1b", ("gnn_eng", "twin_eng")
+ARM1B_STEM, ARM1B_ARMS = "uncut-arm1b", ("gnn_eng", "twin_eng", "mlp_same")
 
 
 def md5(path):
