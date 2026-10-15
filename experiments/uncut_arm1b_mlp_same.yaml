@@ -1,0 +1,50 @@
+# uncut_arm1b -- Arm 1b of uncut_groups_s0_v1 (mlp_same, added by the amendment of 2026-10-15): Arm 1's MLP-same recipe and corpus (experiments/uncut_arm1_mlp_same.yaml) with the BATCHED
+# teacher-forced loss (NEAR_RTT_BATCHED_TF=1, src/policy/gnn/batched_tf.py, which scores the distinct-state rows through the MLP's own net in one call) in place of the per-task Python walk.
+# Same: lr 0.001, embedding = hidden = 128, ce_only + full-context CE 1.0, 100 epochs, patience 60, min-epochs 100, cache, split 613c8cbb, NEAR_RTT_TOP_K 1, VAL_EXACT_REGRET 0, -final.pt, the val decode.
+# NEAR_RTT_SCORE_TASK_ROWS_ONLY is not set (mlp_same has no edge_scorer; the batched path does not use it). Seeds 1 and 2 via run_experiment.py --seed. Device: set by the one-epoch timing filed in the node.
+trainer: gnn
+lineage: uncut_arm1b
+cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v5
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_ARM: mlp_same
+  NEAR_RTT_BATCHED_TF: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-arm1b-mlp-same
+  tags:
+  - uncut-arm1b
+  - batched-tf
+  - ils-r010
+  - opening30
+  - mlp-same
