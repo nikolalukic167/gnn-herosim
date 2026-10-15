@@ -1,0 +1,19 @@
+{
+  "_ckpt_dir": "/share/nikola.lukic/uncut_arm1/models_relaunch_x",
+  "_provenance": {
+    "twin_eng|s1": {
+      "job": "871420_2",
+      "host": "a-rtx6000-o-2",
+      "cpu": "AMD EPYC 9475F 48-Core Processor (srun --overlap lscpu on co-running array task 871420_0 on the same node, 2026-10-15T04:33:06Z)",
+      "file": "uncut-arm1-twin-eng-seed1-final.pt"
+    },
+    "twin_eng|s2": {
+      "job": "871420_3",
+      "host": "a-rtx6000-o-2",
+      "cpu": "AMD EPYC 9475F 48-Core Processor (srun --overlap lscpu on co-running array task 871420_0 on the same node, 2026-10-15T04:33:06Z)",
+      "file": "uncut-arm1-twin-eng-seed2-final.pt"
+    }
+  },
+  "twin_eng|s1": "a357802f315cceb5b0cff41fb34e4aa2",
+  "twin_eng|s2": "f4367ebeedb6e8f6eae816cef7f1c65d"
+}
