@@ -571,3 +571,11 @@ def test_the_lambda_flag_is_train_only_and_refused_outside_the_batched_loss(grap
     graph = _with_table(_pick(graphs)["typical"])
     with pytest.raises(ValueError, match="REGRET_LAMBDA"):
         _loss_fn(False)(_trainer_model("gnn_eng", graph), graph, torch.device("cpu"), regret_lambda=0.5)
+
+
+def test_the_trainer_refuses_a_table_for_a_non_train_group_and_logs_the_coverage_to_wandb():
+    src = (REPO_ROOT / "src/notebooks/train_near_rtt.py").read_text()
+    assert "match no train graph" in src and "val or test ids" in src
+    wb = src[src.index("wandb.init("):src.index("wandb.init(") + 6000]
+    for key in ("move_regret_train_groups_with_table", "move_regret_train_groups_without_table", "move_regret_sha256", "regret_lambda"):
+        assert f'"{key}"' in wb, key

@@ -1764,6 +1764,11 @@ if NEAR_CFG.regret_lambda > 0.0:
     _mr = pickle.loads(_mr_bytes)
     if _mr["header"]["alpha_key"] != NEAR_CFG.dag_alpha_key:
         raise RuntimeError(f"FAIL LOUD: move-regret table is for alpha {_mr['header']['alpha_key']!r}, the run trains at {NEAR_CFG.dag_alpha_key!r}")
+    _mr_train = {str(_i) for _i in train_ids}
+    _mr_stray = sorted(set(_mr["groups"]) - _mr_train)
+    if _mr_stray:
+        _mr_heldout = sorted(set(_mr_stray) & ({str(_i) for _i in val_ids} | {str(_i) for _i in test_ids}))
+        raise RuntimeError(f"FAIL LOUD: the move-regret table has {len(_mr_stray)} entries that match no train graph ({len(_mr_heldout)} of them val or test ids), e.g. {_mr_stray[:3]}")
     _mr_n = 0
     for _g, _gid in zip(train_graphs, train_ids):
         _e = _mr["groups"].get(str(_gid))
@@ -1895,6 +1900,10 @@ wandb.init(
             )
         ),
         "val_exact_regret": bool(NEAR_CFG.val_exact_regret),
+        "regret_lambda": float(NEAR_CFG.regret_lambda),
+        "move_regret_train_groups_with_table": int(MOVE_REGRET_SOURCE["n_train_groups_with_table"]) if MOVE_REGRET_SOURCE else 0,
+        "move_regret_train_groups_without_table": int(len(train_graphs) - MOVE_REGRET_SOURCE["n_train_groups_with_table"]) if MOVE_REGRET_SOURCE else int(len(train_graphs)),
+        "move_regret_sha256": MOVE_REGRET_SOURCE["sha256"] if MOVE_REGRET_SOURCE else None,
         "num_full_sweep_rtt_rows": (
             int(sum(len(v) for v in FULL_SWEEP_RTT_BY_DATASET.values()))
             if FULL_SWEEP_RTT_BY_DATASET is not None
