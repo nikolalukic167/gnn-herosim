@@ -18,5 +18,6 @@ export DAG_PRIMARY_ALPHA_KEY=inf
 CACHE=/share/nikola.lukic/uncut_arm1/cache_run/cache/graphs.pkl
 mkdir -p $D
 echo "node $(hostname) job $SLURM_JOB_ID task ${SLURM_ARRAY_TASK_ID:-0} HEAD $(git rev-parse HEAD) cpu $(lscpu | grep -m1 'Model name')"
-mkdir -p $D/parts
-python3 scripts_cosim/uncut_move_regret_label.py label --cache $CACHE --task $SLURM_ARRAY_TASK_ID --stride ${STRIDE:-8} --out $D/parts/part_$(printf "%02d" $SLURM_ARRAY_TASK_ID).pkl
+WHICH=${WHICH:-train}      # train: the move-regret table; val: the candidate-set mask only
+mkdir -p $D/parts_$WHICH
+python3 scripts_cosim/uncut_move_regret_label.py label --cache $CACHE --which $WHICH --task $SLURM_ARRAY_TASK_ID --stride ${STRIDE:-8} --out $D/parts_$WHICH/part_$(printf "%02d" $SLURM_ARRAY_TASK_ID).pkl

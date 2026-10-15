@@ -371,8 +371,21 @@ def regret_term(b: BatchedTeacherForced, lp: Tensor, data: Any) -> Tensor:
     return (lp[sid].exp() * dpad).sum()
 
 
+def unscored_mass(b: BatchedTeacherForced, lp: Tensor, data: Any) -> Tuple[float, int]:
+    """Diagnostic (no gradient): the probability the model puts on candidates the labeller's engine never scored, summed over the label plan's choice steps, and the number
+    of those steps. ``data.unscored_pad`` is 1 on such candidates ([n_tasks, widest candidate set])."""
+    sid = torch.as_tensor(b.state_of["prefix"][0], device=lp.device)
+    upad = data.unscored_pad.to(device=lp.device, dtype=lp.dtype)
+    if upad.shape[0] != sid.shape[0] or upad.shape[1] != lp.shape[1]:
+        raise ValueError(f"unscored_pad {tuple(upad.shape)} does not match the group's states {(sid.shape[0], lp.shape[1])}")
+    choice = torch.as_tensor(b.S.C > 1, device=lp.device)
+    with torch.no_grad():
+        mass = (lp[sid].exp() * upad).sum(dim=1)
+        return float(mass[choice].sum()), int(choice.sum())
+
+
 def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int]], order: Sequence[int],
-                    full_context_weight: float, device: torch.device, regret_lambda: float = 0.0) -> Tensor:
+                    full_context_weight: float, device: torch.device, regret_lambda: float = 0.0, unscored_stats: Any = None) -> Tensor:
     """-log sum_k prod_t p(plan_k[t] | strict prefix) + w * (-log sum_k prod_t p(plan_k[t] | all others)), batched.
     With ``regret_lambda`` > 0 (the expected move-regret lever, uncut_groups_s0_v1) it adds lambda * ``regret_term``; at 0 none of its operations run."""
     _unsupported(model, ctx)
@@ -384,4 +397,8 @@ def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[in
         loss = loss + full_context_weight * -torch.logsumexp(b.step_logps(lp, "full").sum(dim=1), dim=0)
     if regret_lambda > 0.0:
         loss = loss + regret_lambda * regret_term(b, lp, data)
+    if unscored_stats is not None and bool(getattr(data, "unscored_ok", False)):
+        m, k = unscored_mass(b, lp, data)
+        unscored_stats["mass"] += m
+        unscored_stats["steps"] += k
     return loss

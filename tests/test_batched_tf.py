@@ -175,6 +175,7 @@ def _loss_fn(batched: bool, strip_branch: bool = False):
         topological_task_order=topological_task_order, make_partial_state_score_fn=make_partial_state_score_fn,
         build_partial_state_context_from_graph=build_partial_state_context_from_graph, _TRAIN_SEED=1,
         _ANCHOR_STATS={s: {"ce": 0.0, "floor": 0.0, "top1": 0.0, "groups": 0.0} for s in ("train", "val")},
+        _UNSCORED_STATS={s_: {"mass": 0.0, "steps": 0} for s_ in ("train", "val")},
         NEAR_CFG=types.SimpleNamespace(dag_alpha_key=ALPHA, tied_max_plans=0, anchor_ce_weight=0.5, score_task_rows_only=False,
                                        batched_tf=batched),
     )
@@ -579,3 +580,50 @@ def test_the_trainer_refuses_a_table_for_a_non_train_group_and_logs_the_coverage
     wb = src[src.index("wandb.init("):src.index("wandb.init(") + 6000]
     for key in ("move_regret_train_groups_with_table", "move_regret_train_groups_without_table", "move_regret_sha256", "regret_lambda"):
         assert f'"{key}"' in wb, key
+
+
+@pytest.mark.parametrize("arm", ARMS)
+def test_unscored_mass_is_the_label_state_probability_on_masked_candidates_and_changes_nothing_else(graphs, arm):
+    from src.policy.gnn.batched_tf import batched_tf_loss
+    from src.policy.gnn.partial_state_edges import make_partial_state_score_fn
+
+    graph = _with_table(_pick(graphs)["typical"])
+    n = int(graph.n_tasks)
+    plan = [int(v) for v in graph.tied_optimal_logit_plans[ALPHA][0]]
+    rng = np.random.RandomState(7)
+    up = torch.zeros_like(graph.move_regret_pad)
+    for t in range(n):
+        c = len(graph.task_logit_to_placement[t])
+        row = (rng.uniform(size=c) < 0.3).astype(np.float32)
+        row[plan[t]] = 0.0
+        up[t, :c] = torch.from_numpy(row)
+    graph.unscored_pad, graph.unscored_ok = up, True
+    model = _trainer_model(arm, graph).eval()
+    ctx, order = _ctx(graph), _order(graph)
+    plans = graph.tied_optimal_logit_plans[ALPHA]
+    stats = {"mass": 0.0, "steps": 0}
+    with torch.no_grad():
+        with_stats = float(batched_tf_loss(model, graph, ctx, plans, order, 1.0, torch.device("cpu"), regret_lambda=1.0, unscored_stats=stats))
+        without = float(batched_tf_loss(model, graph, ctx, plans, order, 1.0, torch.device("cpu"), regret_lambda=1.0))
+        score = make_partial_state_score_fn(model, graph, ctx)
+        committed, ref, steps = {}, 0.0, 0
+        for t in order:
+            p = F.softmax(score(t, committed), dim=-1)
+            if p.numel() > 1:
+                ref += float((p * up[t, :p.numel()]).sum())
+                steps += 1
+            committed[t] = tuple(int(v) for v in graph.task_logit_to_placement[t][plan[t]])
+    assert with_stats == without                                           # the diagnostic reads the log-probs and changes nothing
+    assert stats["steps"] == steps and stats["mass"] == pytest.approx(ref, rel=1e-4, abs=1e-5)
+    graph.unscored_ok = False
+    stats2 = {"mass": 0.0, "steps": 0}
+    with torch.no_grad():
+        batched_tf_loss(model, graph, ctx, plans, order, 1.0, torch.device("cpu"), unscored_stats=stats2)
+    assert stats2 == {"mass": 0.0, "steps": 0}
+
+
+def test_the_trainer_logs_the_unscored_mass_per_epoch_for_train_and_val_and_reads_a_mask_only_val_file():
+    src = (REPO_ROOT / "src/notebooks/train_near_rtt.py").read_text()
+    assert '_UNSCORED_STATS["train" if model.training else "val"]' in src
+    assert 'log_dict[f"{_split}/unscored_mass"]' in src
+    assert "NEAR_RTT_UNSCORED_MASK_VAL_PATH" in src and "mask-only file" in src

@@ -18,4 +18,7 @@ export DAG_PRIMARY_ALPHA_KEY=inf
 CACHE=/share/nikola.lukic/uncut_arm1/cache_run/cache/graphs.pkl
 mkdir -p $D
 echo "node $(hostname) job $SLURM_JOB_ID task ${SLURM_ARRAY_TASK_ID:-0} HEAD $(git rev-parse HEAD) cpu $(lscpu | grep -m1 'Model name')"
-python3 scripts_cosim/uncut_move_regret_label.py merge --parts $D/parts --out $D/move_regret.pkl
+WHICH=${WHICH:-train}
+OUT=$D/move_regret.pkl; [ "$WHICH" = val ] && OUT=$D/unscored_mask_val.pkl
+python3 scripts_cosim/uncut_move_regret_label.py merge --which $WHICH --parts $D/parts_$WHICH --out $OUT
+md5sum $OUT; sha256sum $OUT
