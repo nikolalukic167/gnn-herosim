@@ -301,6 +301,27 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-15 (filed ~17:00Z) — **DIAGNOSTIC: Arm 2 gnn decision-time profile on an intermediate checkpoint (epoch 47 of 100) (the user's request via the expert; S6).** Timing only. Not an interim look, not PROVISIONAL-W, and used by no gate or read. No latency, paired statistic or bar comparison was computed or sent.
+  - **Checkpoint.** A copy of `arm2_gpu_5f4258a4/models/uncut-arm2-gnn-eng-gpu-seed1.resume.pt`: epoch 47, pin 5f4258a4, W&B pgb0c2de. The copy's md5 is `af4cfa7b09d2c8f977040db89bc90d8c`. `d["model"]` was extracted to a scratch `.pt` (md5 `9a4cb3454db260a27406babc24446188`) and paired with a copy of the run's contract (md5 `a67b6ed408d22553cab84d3c0e40af44`: reencode_every auto, group_anchor, random_prefix_k 2, MP on). It was served under the stem `diag-ep47`, which no stager or md5 file names. Both `.pt` copies are deleted. The training job and `models/` were not touched.
+  - **Run.** Job 879906 on the G4 chain at `5c8c959e`, kind `ra_gnn_eng_arm2_nosplit`, 19461 g0 (the calibration topology), both rungs, seed 1, PAR 1, 1 thread. It ran on a-rtx6000-o-1, EPYC 9475F, SMT on, logged by lscpu.
+    - Exact `perf_counter` timers around each `_prefix_inference` call (the region the clock charges) were injected by an untracked `sitecustomize.py` (md5 60c43f82), active only under `S6_DECTIMER_OUT` and removed after the run. They split the wall into: build (`_build_inference_graph` + `attach_live_prefix_block` + `move_graph_tensors_`), the first `_encode`, the later `_encode` calls (Arm 2 re-encodes), `_score` (EdgeScorer), `partial_state_columns`, and other.
+    - py-spy (100 Hz, nonblocking) was attached to each cell.
+    - The timers and py-spy add overhead, so absolute ms are diagnostic.
+    - Files: `interim/diag_arm2_ep47/` (`timing_ep47.json` md5 4913d258, speedscope files, `analyse.py`).
+  - **Result**, moderate / heavy, all batches:
+    - **Shares:** build 33.1 / 32.4 %, first encode 13.6 / 13.0 %, **re-encodes 42.6 / 42.1 %**, EdgeScorer 4.5 / 5.3 %, partial_state refresh 1.7 / 2.2 %, other 4.4 / 5.1 %.
+    - **Per batch:** mean 26.7 / 28.5 ms, p90 39.1 / 41.4 ms.
+    - **Per task:** mean 5.28 / 5.47 ms.
+    - **Encodes:** 4.1 / 4.3 per batch. **Plan evals per task 7.59 / 7.66**, at 0.70 / 0.71 ms per plan eval.
+  - **By bucket** ≤ 10 / 11–50 / 51–100 / 101–256, moderate (heavy within about 10 %, except 101–256, which is 677 ms per batch):
+    - **Wall per batch:** mean 22.6 / 68.7 / 160 / 447 ms; p90 31.1 / 92.0 / 222 / 584 ms.
+    - **Wall per task:** mean 6.49 / 3.38 / 2.43 / 2.83 ms.
+    - **Re-encode share:** 38.6 / 63.6 / 40.9 / 19.9 %.
+    - **EdgeScorer share:** 1.8 / 9.4 / 28.6 / 50.3 %.
+    - **Re-encodes per task:** 0.71 / 0.56 / 0.21 / 0.09. Encodes per batch: 3.5 / 12.4 / 14.8 / 15.6.
+    - **Plan evals per task:** 4.34 / 12.7 / 14.8 / 15.6, at 1.50 / 0.27 / 0.16 / 0.18 ms per plan eval.
+  - **Beside Arm 1 gnn** (serve-fast entry, 2026-10-15; one Arm 1b cell on EPYC 9355, all buckets): build 61 %, encode 22 %, EdgeScorer 9 %, partial_state 3.5 %, other 3.5 %. Arm 2's first encode plus build (about 46 %) matches Arm 1's build plus encode share of a smaller wall. The re-encodes are the extra 42 %.
+  - **Reading.** The re-encode cost is a full graph encode, about 3.5 ms each at ≤ 10 tasks. The meter charges each re-encode as n extra plan evals, so in small batches the charged evals per task, 4.3, run well above the encodes per task. That is why Arm 2's w per plan eval is low and its evals per task are high (K0's PROVISIONAL-W disclosure, 2026-10-15). Epoch 47 is not the served checkpoint, so these timings describe the architecture's cost profile, not the final arm's.
 - 2026-10-15 (filed ~16:46Z) — **Gate change G5 `8dfd7e0c`: the kind `ra_mlp_same_arm1b` on the Arm 1/1b chain (the expert's ruling; S5, from the proposal of the same date).** No Arm 1b mlp_same cell or calibration had run. It changes no existing arm, checkpoint or statistic.
   - **Why.** The Arm 1b amendment of 2026-10-15 adds `mlp_same` seeds 1 and 2 as a comparator. The gate had no kind that serves an Arm 1b MLP: its kinds named `ra_{gnn,twin}_eng_arm1b`, and the Arm 1 MLP kind `ra_mlp_same_arm1` demands a sidecar without `batched_teacher_forced`.
   - **What.** G5 is a child of `114cc0e7` (the Arm 1/1b root, ruling (i)) on `rp/uncut-arm1b-mlp-gate` and touches exactly the gate and `tests/test_uncut_arm1_gate_stage.py`, as the frozen reader's `GATE_CHANGE_FILES` requires. 11 lines in `scripts_cosim/fresh_topo_burst_v1_gate.py`:
