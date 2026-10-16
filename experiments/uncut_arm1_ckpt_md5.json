@@ -24,10 +24,24 @@
       "host": "a-rtx6000-o-2",
       "cpu": "AMD EPYC 9475F 48-Core Processor (srun --overlap lscpu on co-running array task 871420_4 on the same node, 2026-10-15T08:11:03Z)",
       "file": "uncut-arm1-gnn-eng-seed2-final.pt"
+    },
+    "mlp_same|s1": {
+      "job": "871420_4",
+      "host": "a-rtx6000-o-2",
+      "cpu": "AMD EPYC 9475F 48-Core Processor (srun --overlap lscpu on a co-running array task of the same node a-rtx6000-o-2, 2026-10-15T04:34:19Z; arm1_cpu_captures.jsonl)",
+      "file": "uncut-arm1-mlp-same-seed1-final.pt"
+    },
+    "mlp_same|s2": {
+      "job": "871420_5",
+      "host": "a-rtx6000-o-2",
+      "cpu": "AMD EPYC 9475F 48-Core Processor (srun --overlap lscpu on a co-running array task of the same node a-rtx6000-o-2, 2026-10-15T04:34:19Z; arm1_cpu_captures.jsonl)",
+      "file": "uncut-arm1-mlp-same-seed2-final.pt"
     }
   },
   "twin_eng|s1": "a357802f315cceb5b0cff41fb34e4aa2",
   "twin_eng|s2": "f4367ebeedb6e8f6eae816cef7f1c65d",
   "gnn_eng|s1": "832727022ef864a1035161e5759aacf2",
-  "gnn_eng|s2": "691cc7f16d91c97364290142e40a5b4b"
+  "gnn_eng|s2": "691cc7f16d91c97364290142e40a5b4b",
+  "mlp_same|s1": "bd13dd1eff3d165939de241fcbd35dcb",
+  "mlp_same|s2": "3a6aaa215a70ed02db843222f24aa2d8"
 }
