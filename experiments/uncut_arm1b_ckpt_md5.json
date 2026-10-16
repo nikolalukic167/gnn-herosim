@@ -4,10 +4,14 @@
     "gnn_eng|s1": {"job": "870044_0", "host": "os-cpu-slurm-8", "cpu": "AMD EPYC 9335 32-Core Processor", "file": "uncut-arm1b-gnn-eng-seed1-final.pt"},
     "gnn_eng|s2": {"job": "870044_1", "host": "os-cpu-slurm-10", "cpu": "AMD EPYC 9335 32-Core Processor", "file": "uncut-arm1b-gnn-eng-seed2-final.pt"},
     "twin_eng|s1": {"job": "870044_2", "host": "os-cpu-slurm-16", "cpu": "lscpu model not captured", "file": "uncut-arm1b-twin-eng-seed1-final.pt"},
-    "twin_eng|s2": {"job": "870044_3", "host": "os-cpu-slurm-17", "cpu": "lscpu model not captured", "file": "uncut-arm1b-twin-eng-seed2-final.pt"}
+    "twin_eng|s2": {"job": "870044_3", "host": "os-cpu-slurm-17", "cpu": "lscpu model not captured", "file": "uncut-arm1b-twin-eng-seed2-final.pt"},
+    "mlp_same|s1": {"job": "879907_0", "host": "a-rtx6000-o-1", "cpu": "AMD EPYC 9475F 48-Core Processor (lscpu in the task's own log header, CPU-only run, 6 threads on 16 physical cores)", "file": "uncut-arm1b-mlp-same-seed1-final.pt"},
+    "mlp_same|s2": {"job": "879907_1", "host": "a-rtx6000-o-1", "cpu": "AMD EPYC 9475F 48-Core Processor (lscpu in the task's own log header, CPU-only run, 6 threads on 16 physical cores)", "file": "uncut-arm1b-mlp-same-seed2-final.pt"}
   },
   "gnn_eng|s1": "f8b8be77761a020b1179f0853ae2f0a2",
   "gnn_eng|s2": "95f391d1a1638f456cd3e091f01f10c6",
   "twin_eng|s1": "2c22db5270c05c3f6a115b6a47fdf903",
-  "twin_eng|s2": "9e337dd6a9c8659e082e9292102a8fe1"
+  "twin_eng|s2": "9e337dd6a9c8659e082e9292102a8fe1",
+  "mlp_same|s1": "604b87fbfa84212357de710421091869",
+  "mlp_same|s2": "5f4290e3453e421f96049ee5880f24ee"
 }
