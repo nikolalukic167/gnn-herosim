@@ -1,0 +1,37 @@
+{
+  "_ckpt_dir": "/home/nikola.lukic/gnn-herosim/models",
+  "_provenance": {
+    "twin_eng|s1": {
+      "job": "869854",
+      "host": "os-cpu-slurm-9",
+      "cpu": "AMD EPYC 9335 32-Core Processor",
+      "file": "uncut-arm2-twin-eng-seed1-final.pt",
+      "links": [
+        {
+          "job": "869854",
+          "host": "os-cpu-slurm-9",
+          "cpu": "AMD EPYC 9335 32-Core Processor",
+          "cpu_source": "srun --overlap lscpu, 2026-10-14T17:28:31Z"
+        }
+      ],
+      "submission": "arm2@33de2b47"
+    },
+    "twin_eng|s2": {
+      "job": "869860",
+      "host": "os-cpu-slurm-11",
+      "cpu": "AMD EPYC 9335 32-Core Processor",
+      "file": "uncut-arm2-twin-eng-seed2-final.pt",
+      "links": [
+        {
+          "job": "869860",
+          "host": "os-cpu-slurm-11",
+          "cpu": "AMD EPYC 9335 32-Core Processor",
+          "cpu_source": "srun --overlap lscpu, 2026-10-14T17:28:31Z"
+        }
+      ],
+      "submission": "arm2@33de2b47"
+    }
+  },
+  "twin_eng|s1": "6f9366f5936a7af07bf57a24e5923c08",
+  "twin_eng|s2": "6f7701cb786d0b575414cffdcebf6a78"
+}
