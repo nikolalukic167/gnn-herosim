@@ -161,7 +161,7 @@ ARM1_KINDS = ("ra_gnn_eng_arm1", "ra_twin_eng_arm1", "ra_mlp_same_arm1")
 # uncut_groups_s0_v1 Arm 1b (pre-registered, f6c1b85e): gnn_eng and its twin on the Arm 1 corpus and split, trained with the batched
 # teacher-forced loss (NEAR_RTT_BATCHED_TF); checkpoints <R1A_ARM1B_STEM or uncut-arm1b>-{gnn-eng,twin-eng}-seed<N>, served as Arm 1's.
 # Serving ignores the sidecar's batched_teacher_forced, so the cell checks it: true for Arm 1b, absent or false for Arm 1.
-ARM1B_KINDS = ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
+ARM1B_KINDS = ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b", "ra_mlp_same_arm1b")  # the MLP is Arm 1b's comparator (amendment of 2026-10-15): served as Arm 1's mlp_same, trained with the batched loss
 RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM1_KINDS + ARM1B_KINDS
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm1", "ra_twin_eng_arm1b")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
@@ -240,6 +240,11 @@ def cotenancy_k() -> float:
     if type(k) not in (int, float) or not k >= 1.0:
         raise SystemExit(f"FAIL LOUD: {DC_W_FILE} has no k_cotenancy >= 1 (got {k!r}); the _kr cells serve only after it is frozen")
     return float(k)
+
+
+def arm_kind_of(base_kind: str) -> str:
+    """GNN_ARM_KIND a graph-free gate kind serves under: the kind without its ra_ prefix and its Arm 1 / Arm 1b suffix."""
+    return base_kind[3:].removesuffix("_arm1b").removesuffix("_arm1")
 
 
 def arm1_trainer_check(base_kind: str, side: str) -> None:
@@ -1091,8 +1096,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             # additionally refuse a serving environment that names another arm.
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v5", PARTIAL_STATE_LOAD_SECONDS="1",
                        PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE=ra_serving_slate(side))
-            if base_kind in ("ra_mlp_same", "ra_set_transformer", "ra_mlp_same_arm1"):
-                env["GNN_ARM_KIND"] = base_kind[3:].removesuffix("_arm1")
+            if base_kind in ("ra_mlp_same", "ra_set_transformer", "ra_mlp_same_arm1", "ra_mlp_same_arm1b"):
+                env["GNN_ARM_KIND"] = arm_kind_of(base_kind)
         if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
