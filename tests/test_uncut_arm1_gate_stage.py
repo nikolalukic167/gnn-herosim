@@ -132,7 +132,7 @@ def test_mlp_same_arm1b_serves_as_arm1s_mlp_and_every_old_kind_routes_unchanged(
     for seq in (G.RA_KINDS, G.R1A_NOSPLIT, G.ARM1B_KINDS):
         assert seq.count(new) + seq.count(f"{new}_nosplit") >= 1
     assert tuple(k for k in G.ARM1B_KINDS if k != new) == ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
-    assert tuple(k for k in G.RA_KINDS if k != new) == tuple(f"ra_{a}" for a in G.RA_ARMS) + G.ARM2_KINDS + G.ARM1_KINDS \
+    assert tuple(k for k in G.RA_KINDS if k != new and k not in G.ARM3_KINDS) == tuple(f"ra_{a}" for a in G.RA_ARMS) + G.ARM2_KINDS + G.ARM1_KINDS \
         + ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b")
     assert f"{new}_nosplit" in G.R1A_ARMS and f"{new}_nosplit" in G.R1A_NOSPLIT
 
@@ -151,6 +151,58 @@ def test_trainer_check_tells_arm1b_from_arm1(tmp_path, btf, arm1_ok, arm1b_ok):
                 with pytest.raises(SystemExit, match="batched_teacher_forced"):
                     G.arm1_trainer_check(k, str(side))
     G.arm1_trainer_check("ra_gnn_eng", str(side))
+
+
+def test_gate_knows_arm3_kinds_and_leaves_the_others_alone(tmp_path, monkeypatch):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    assert G.ARM3_KINDS == ("ra_gnn_eng_arm3", "ra_twin_eng_arm3")
+    for k in G.ARM3_KINDS:
+        assert k in G.RA_KINDS and f"{k}_nosplit" in G.R1A_ARMS and f"{k}_nosplit" in G.R1A_NOSPLIT
+    assert "ra_twin_eng_arm3" in G.RA_MP_OFF and "ra_gnn_eng_arm3" not in G.RA_MP_OFF
+    assert G.ARM1_KINDS == ("ra_gnn_eng_arm1", "ra_twin_eng_arm1", "ra_mlp_same_arm1")
+    assert G.ARM1B_KINDS == ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b", "ra_mlp_same_arm1b")
+    assert G.RA_MP_OFF[:5] == ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm1", "ra_twin_eng_arm1b")
+    assert G.split_dc("ra_gnn_eng_arm3_nosplit_k100") == ("ra_gnn_eng_arm3_nosplit", 1.0)
+    f = tmp_path / "w.json"
+    f.write_text(json.dumps({**json.load(open(G.DC_W_FILE)), "k_cotenancy": 1.5}))
+    monkeypatch.setattr(G, "DC_W_FILE", str(f))
+    assert G.split_dc("ra_gnn_eng_arm3_nosplit_kr") == ("ra_gnn_eng_arm3_nosplit", 1.5)
+    with pytest.raises(SystemExit, match="only the Arm 1"):
+        G.split_dc("ra_mlp_same_arm3_nosplit_kr")
+
+
+def _arm3_side(tmp_path, **kw):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    sc = {"batched_teacher_forced": True, "regret_lambda": 0.5,
+          "move_regret": {"sha256": G.ARM3_TABLE_SHA256, "lambda": 0.5, "path": "x"}}
+    sc.update(kw)
+    side = tmp_path / "c.contract.json"
+    side.write_text(json.dumps({k: v for k, v in sc.items() if v != "absent"}))
+    return str(side)
+
+
+def test_arm3_trainer_check_accepts_only_the_lever(tmp_path):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    for k in G.ARM3_KINDS:
+        G.arm3_trainer_check(k, _arm3_side(tmp_path))
+        G.arm3_trainer_check(k, _arm3_side(tmp_path, regret_lambda=2.0, move_regret={"sha256": G.ARM3_TABLE_SHA256, "lambda": 2.0}))
+    bad = [dict(batched_teacher_forced=False), dict(batched_teacher_forced="absent"), dict(regret_lambda="absent"), dict(regret_lambda=0.0), dict(regret_lambda="0.5"),
+           dict(move_regret="absent"), dict(move_regret={"sha256": "0" * 64, "lambda": 0.5}),
+           dict(move_regret={"sha256": G.ARM3_TABLE_SHA256, "lambda": 2.0})]
+    for kw in bad:
+        with pytest.raises(SystemExit, match="FAIL LOUD"):
+            G.arm3_trainer_check("ra_gnn_eng_arm3", _arm3_side(tmp_path, **kw))
+    # an Arm 1b-style sidecar (batched, no lambda) is not Arm 3, and Arm 3's is not checked as another kind
+    with pytest.raises(SystemExit, match="regret_lambda"):
+        G.arm3_trainer_check("ra_twin_eng_arm3", _arm3_side(tmp_path, regret_lambda="absent", move_regret="absent"))
+    G.arm3_trainer_check("ra_gnn_eng_arm1b", _arm3_side(tmp_path, regret_lambda="absent"))
+    G.arm1_trainer_check("ra_gnn_eng_arm3", _arm3_side(tmp_path, batched_teacher_forced=False))
+    # a lever checkpoint is refused as Arm 1 or Arm 1b; lambda 0 or absent (every existing sidecar) is unchanged
+    for k in ("ra_gnn_eng_arm1b", "ra_twin_eng_arm1b", "ra_mlp_same_arm1b", "ra_gnn_eng_arm1"):
+        with pytest.raises(SystemExit, match="not a lever"):
+            G.arm1_trainer_check(k, _arm3_side(tmp_path, batched_teacher_forced=k.endswith("1b")))
+    G.arm1_trainer_check("ra_gnn_eng_arm1b", _arm3_side(tmp_path, regret_lambda=0.0, move_regret="absent"))
+    G.arm1_trainer_check("ra_gnn_eng_arm1b", _arm3_side(tmp_path, regret_lambda="absent", move_regret="absent"))
 
 
 def _fake_sys(tmp_path, smt="off", cores=4, tpc=1):
