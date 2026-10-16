@@ -46,10 +46,10 @@ Arm 1b (pre-registered f6c1b85e; the MLP comparator added by the amendment of 20
   WIN-ARM-ONLY) and --compare ra_gnn_eng_arm1_nosplit (direction only: sign, topologies ahead, unadjusted p, descriptive). Its checkpoints
   come from its own md5 file, passed as arm1b=<path>; its w (ARM1B_W_KINDS) must sit within W_GUARD_X of Arm 1's at every pin (w_guard).
   The gate changes are --gate-change bf79865a,<Arm 1b kinds>.
-Arm 3 (the expected move-regret lever, gate change G5): --primary ra_gnn_eng_arm3_nosplit --twin ra_twin_eng_arm3_nosplit, no MLP, both verdicts, read after
+Arm 3 (the expected move-regret lever, gate change G6): --primary ra_gnn_eng_arm3_nosplit --twin ra_twin_eng_arm3_nosplit, no MLP, both verdicts, read after
   Arm 1b with --after-read <Arm 1b's read JSON> (its primary must be ra_gnn_eng_arm1b_nosplit) and --compare ra_gnn_eng_arm1b_nosplit (direction only). B6: the lever
   was conceived after interim looks, so the program-level label is never open: at best WIN-ARM-ONLY. Its checkpoints come from its own md5 file (arm3=<path>); its w
-  (ARM3_W_KINDS) must sit within W_GUARD_X of Arm 1b's same arm at every pin. The gate changes are --gate-change <...>,8dfd7e0c,<G5>.
+  (ARM3_W_KINDS) must sit within W_GUARD_X of Arm 1b's same arm at every pin. The gate changes are --gate-change <...>,8dfd7e0c,<G6>.
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
   sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
   OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (per seed cell, > 3 x cd's mean, either statistic; the arm's count is the worse seed's), tail flag
@@ -83,7 +83,7 @@ W_FILE = "scripts_cosim/decision_cost_w.json"
 ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
 # Arm 1b (pre-registered f6c1b85e): its own w, each within W_GUARD_X of Arm 1's same arm (scalar and every bucket, both rungs), else stop
 ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
-# the expected move-regret lever (Arm 3, gate change G5): gnn_eng and its MP-OFF twin, no MLP; each within W_GUARD_X of Arm 1b's same arm
+# the expected move-regret lever (Arm 3, gate change G6): gnn_eng and its MP-OFF twin, no MLP; each within W_GUARD_X of Arm 1b's same arm
 ARM3_W_KINDS = tuple(f"ra_{a}_arm3_nosplit" for a in ("gnn_eng", "twin_eng"))
 LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS
 W_GUARD_X = 1.5

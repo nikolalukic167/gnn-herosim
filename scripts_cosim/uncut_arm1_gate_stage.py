@@ -31,7 +31,7 @@ import sys
 ARMS = ("gnn_eng", "twin_eng", "mlp_same")
 WARMTH = "node_disk_v2"
 ARM1B_STEM, ARM1B_ARMS = "uncut-arm1b", ("gnn_eng", "twin_eng", "mlp_same")
-# the expected move-regret lever (Arm 3, gate kind G5): one lambda's checkpoints, copied to <stem>-<arm>-seed<N>; its contract names lambda and the frozen table
+# the expected move-regret lever (Arm 3, gate kind G6): one lambda's checkpoints, copied to <stem>-<arm>-seed<N>; its contract names lambda and the frozen table
 ARM3_STEM, ARM3_ARMS = "uncut-arm3", ("gnn_eng", "twin_eng")
 ARM3_TABLE_SHA256 = "17a7387271eeea6f961371e7a4f93603efb58bc0d368af9f84f410af0af166be"
 
