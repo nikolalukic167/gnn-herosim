@@ -31,6 +31,9 @@ import sys
 ARMS = ("gnn_eng", "twin_eng", "mlp_same")
 WARMTH = "node_disk_v2"
 ARM1B_STEM, ARM1B_ARMS = "uncut-arm1b", ("gnn_eng", "twin_eng", "mlp_same")
+# the expected move-regret lever (Arm 3, gate kind G5): one lambda's checkpoints, copied to <stem>-<arm>-seed<N>; its contract names lambda and the frozen table
+ARM3_STEM, ARM3_ARMS = "uncut-arm3", ("gnn_eng", "twin_eng")
+ARM3_TABLE_SHA256 = "17a7387271eeea6f961371e7a4f93603efb58bc0d368af9f84f410af0af166be"
 
 
 def md5(path):
@@ -57,6 +60,8 @@ def main(argv=None):
         raise SystemExit(f"FAIL LOUD: --arms {a.arms} is not a subset of {ARMS}")
     if a.stem == ARM1B_STEM and set(arms) - set(ARM1B_ARMS):
         raise SystemExit(f"FAIL LOUD: Arm 1b ({ARM1B_STEM}) has only {ARM1B_ARMS}, not {a.arms}")
+    if a.stem == ARM3_STEM and set(arms) - set(ARM3_ARMS):
+        raise SystemExit(f"FAIL LOUD: Arm 3 ({ARM3_STEM}) has only {ARM3_ARMS}, not {a.arms}")
     if os.path.exists(a.dest):
         raise SystemExit(f"FAIL LOUD: {a.dest} exists; stage into a fresh directory")
     want = json.load(open(a.md5))
@@ -117,7 +122,7 @@ def main(argv=None):
                 raise SystemExit(f"FAIL LOUD: {arm}'s seeds come from different jobs {jobs}; the hedge rule never splits an arm's seeds")
     if "{file}" in a.src and prov is None:
         raise SystemExit(f"FAIL LOUD: --src uses {{file}} but {a.md5} has no _provenance")
-    plan = []
+    plan, lams = [], set()
     for key, m in sorted((k, m) for k, m in want.items() if k.split("|")[0] in arms):
         arm, seed = key.split("|")
         seed = int(seed.lstrip("s"))
@@ -140,10 +145,21 @@ def main(argv=None):
         if warmth != WARMTH:
             raise SystemExit(f"FAIL LOUD: {key}: {side} physics_env.warmth_physics is {warmth!r}, not the gate's {WARMTH!r}")
         btf = contract.get("batched_teacher_forced")
-        if (btf is not True) if a.stem == ARM1B_STEM else (btf is not None and btf is not False):
+        if (btf is not True) if a.stem in (ARM1B_STEM, ARM3_STEM) else (btf is not None and btf is not False):
             raise SystemExit(f"FAIL LOUD: {key}: {side} batched_teacher_forced is {btf!r}; --stem {a.stem} needs "
-                             + ("true (Arm 1b)" if a.stem == ARM1B_STEM else "it absent or false"))
+                             + ("true (Arm 1b / Arm 3)" if a.stem in (ARM1B_STEM, ARM3_STEM) else "it absent or false"))
+        lam, mr = contract.get("regret_lambda"), contract.get("move_regret")
+        if a.stem == ARM3_STEM:
+            if type(lam) not in (int, float) or not lam > 0:
+                raise SystemExit(f"FAIL LOUD: {key}: {side} regret_lambda is {lam!r}; --stem {a.stem} needs a number > 0")
+            if not isinstance(mr, dict) or mr.get("sha256") != ARM3_TABLE_SHA256 or float(mr.get("lambda", -1)) != float(lam):
+                raise SystemExit(f"FAIL LOUD: {key}: {side} move_regret {mr!r} is not the frozen table {ARM3_TABLE_SHA256} at its lambda {lam!r}")
+            lams.add(float(lam))
+        elif lam not in (None, 0, 0.0):
+            raise SystemExit(f"FAIL LOUD: {key}: {side} regret_lambda is {lam!r}; --stem {a.stem} is not a lever (Arm 3) run")
         plan.append((key, m, src, side, f"{a.stem}-{arm.replace('_', '-')}-seed{seed}"))
+    if len(lams) > 1:
+        raise SystemExit(f"FAIL LOUD: the Arm 3 checkpoints carry several lambdas {sorted(lams)}; one lambda is staged")
     os.makedirs(os.path.join(a.dest, "models"))
     for r in ("wf1_moderate", "wf1_heavy"):
         os.symlink(os.path.realpath(os.path.join(a.inputs_group, r)), os.path.join(a.dest, r))
@@ -159,6 +175,8 @@ def main(argv=None):
     out = {"label": a.label, "md5_file": os.path.abspath(a.md5), "md5_file_md5": md5(a.md5), "inputs_group": os.path.realpath(a.inputs_group),
            "split": os.path.basename(a.split), "split_md5": md5(a.split), "stem": a.stem, "arms": list(arms),
            "ckpt_dir": ckpt_dir, "provenance": {k: prov[k] for k in staged} if prov is not None else None, "checkpoints": staged}
+    if a.stem == ARM3_STEM:
+        out["regret_lambda"] = sorted(lams)[0]
     json.dump(out, open(os.path.join(a.dest, "STAGE.json"), "w"), indent=1)
     print(json.dumps({k: v["staged"] for k, v in staged.items()}, indent=1))
     return out

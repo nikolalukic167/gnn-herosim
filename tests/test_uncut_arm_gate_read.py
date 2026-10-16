@@ -648,3 +648,106 @@ def test_arm1b_mlp_flag_is_the_same_trainers_mlp(arm1b_mlp):
         run1b(d, cm1, cm1b, after("WIN"), mlp=A1M)
     with pytest.raises(SystemExit, match="same trainer"):
         run(d, cm1, mlp=B1M)
+
+
+C1, C1T = "ra_gnn_eng_arm3_nosplit", "ra_twin_eng_arm3_nosplit"
+
+
+def w3(w, x=1.2, buckets=True):
+    """Arm 3's w on top of w1b's: gnn_eng and twin_eng, each x times Arm 1b's."""
+    w = w1b(w, 1.2, buckets)
+    for a in ("gnn_eng", "twin_eng"):
+        src, k = f"ra_{a}_arm1b_nosplit", f"ra_{a}_arm3_nosplit"
+        w["w_ms_per_plan"][k] = {r: v * x for r, v in w["w_ms_per_plan"][src].items()}
+        if buckets and src in w.get("w_ms_per_plan_by_bucket", {}):
+            w["w_ms_per_plan_by_bucket"][k] = {r: {b: v * x for b, v in bs.items()} for r, bs in w["w_ms_per_plan_by_bucket"][src].items()}
+        w[f"_source_{k}"] = "own le10, exclusive"
+    return w
+
+
+@pytest.mark.parametrize("x, ok", [(1.2, True), (1.5, True), (1 / 1.5, True), (1.51, False), (0.6, False)])
+def test_arm3_w_guard_is_against_arm1b(x, ok):
+    w = w3(w_with(W0, GT, by_bucket=True), x)
+    if ok:
+        G.w_guard(w, "sha")
+    else:
+        with pytest.raises(SystemExit, match="Arm 3 w .*Arm 1b's"):
+            G.w_guard(w, "sha")
+    lone = w3(w_with(W0, GT, by_bucket=True))
+    del lone["w_ms_per_plan"]["ra_twin_eng_arm1b_nosplit"]
+    with pytest.raises(SystemExit, match="without Arm 1b's"):
+        G.w_guard(lone, "sha")
+
+
+def test_arm3_md5_namespace_and_w_kinds(tmp_path):
+    assert G.ckpt_tag(C1) == "arm3" and G.ckpt_tag(C1T) == "arm3" and G.ckpt_tag(B1) == "arm1b" and G.ckpt_tag(A1) == "" and G.ckpt_arm(C1) == "gnn_eng"
+    assert set(G.ARM3_W_KINDS) == {C1, C1T} and set(G.ARM3_W_KINDS) <= set(G.LEARNED_W_KINDS)
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    a.write_text(json.dumps({"gnn_eng|s1": "x"}))
+    b.write_text(json.dumps({"gnn_eng|s1": "y"}))
+    assert G.ckpt_md5s(f"{a},arm3={b}") == {"gnn_eng|s1": "x", "gnn_eng@arm3|s1": "y"}
+
+
+def fill3(d, ck, c_mean, b_mean=1.9):
+    for i, t in enumerate(TOPOS):
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                cell(d, "cd_ib0", 0, t, w, r, 2.0, busy=0.1)
+                cell(d, "cd", 0, t, w, r, 2.0, busy=0.1)
+                for sfx in ("_k100", "_kr"):
+                    for sd in (1, 2):
+                        cell(d, C1, sd, t, w, r, c_mean - 0.001 * (i + 1), ck, sfx=sfx)
+                        cell(d, C1T, sd, t, w, r, 2.0, ck, sfx=sfx)
+                        cell(d, B1, sd, t, w, r, b_mean, ck, sfx=sfx)
+
+
+@pytest.fixture
+def arm3(tmp_path, gate):
+    d, ck, _ = gate
+    m = hashlib.md5(b"weights").hexdigest()
+    cm1b, cm3 = tmp_path / "ck1b.json", tmp_path / "ck3.json"
+    for f in (cm1b, cm3):
+        f.write_text(json.dumps({f"{a}|s{s}": m for a in ("gnn_eng", "twin_eng") for s in (1, 2)}))
+    fill3(d, ck, 1.8)
+
+    def after(label, primary=B1):
+        p = tmp_path / f"arm1b_{len(label)}_{primary}.json"
+        p.write_text(json.dumps({"primary": primary, "combined": {"F1": label}}))
+        return str(p)
+    return d, str(cm1b), str(cm3), after
+
+
+def run3(d, cm1b, cm3, after, **kw):
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", C1, "--twin", C1T, "--checkpoint-md5", f"arm1b={cm1b},arm3={cm3}"]
+    if after:
+        args += ["--after-read", after]
+    kw.setdefault("compare", B1)
+    for k, v in kw.items():
+        args += [f"--{k}", v]
+    return G.main(args)
+
+
+@pytest.mark.parametrize("arm1b_label", ["WIN", "WIN-ROBUST", "WIN-ARM-ONLY", "TIES"])
+def test_arm3_is_never_program_level(arm3, arm1b_label):
+    """B6: the lever was conceived after interim looks and gets no share of the program alpha: at best WIN-ARM-ONLY, whatever Arm 1b read."""
+    d, cm1b, cm3, after = arm3
+    res = run3(d, cm1b, cm3, after(arm1b_label))
+    assert res["sequence"]["program_label_open"] is False and res["sequence"]["arm1b_combined_F1"] == arm1b_label
+    assert res["F2"]["holm_family"] == 4
+    assert res["F1"]["label"] == "WIN-ARM-ONLY" and res["cotenancy"]["F1"]["label"] == "WIN-ARM-ONLY" and res["combined"]["F1"] == "WIN-ARM-ONLY"
+    assert res["combined"]["MP"] != "MP-ATTRIBUTED"
+
+
+def test_arm3_needs_the_arm1b_read_first_no_mlp_and_both_verdicts(arm3):
+    d, cm1b, cm3, after = arm3
+    with pytest.raises(SystemExit, match="after-read"):
+        run3(d, cm1b, cm3, "")
+    with pytest.raises(SystemExit, match="not Arm 1b's gate read"):
+        run3(d, cm1b, cm3, after("WIN", primary=A1))
+    with pytest.raises(SystemExit, match="both verdicts"):
+        run3(d, cm1b, cm3, after("WIN"), cotenancy="off")
+    with pytest.raises(SystemExit, match="no MLP"):
+        run3(d, cm1b, cm3, after("WIN"), mlp=B1M)
+    with pytest.raises(SystemExit, match="one trainer's"):
+        run3(d, cm1b, cm3, after("WIN"), twin=B1T)

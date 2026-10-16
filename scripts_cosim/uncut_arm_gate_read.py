@@ -46,6 +46,10 @@ Arm 1b (pre-registered f6c1b85e; the MLP comparator added by the amendment of 20
   WIN-ARM-ONLY) and --compare ra_gnn_eng_arm1_nosplit (direction only: sign, topologies ahead, unadjusted p, descriptive). Its checkpoints
   come from its own md5 file, passed as arm1b=<path>; its w (ARM1B_W_KINDS) must sit within W_GUARD_X of Arm 1's at every pin (w_guard).
   The gate changes are --gate-change bf79865a,<Arm 1b kinds>.
+Arm 3 (the expected move-regret lever, gate change G5): --primary ra_gnn_eng_arm3_nosplit --twin ra_twin_eng_arm3_nosplit, no MLP, both verdicts, read after
+  Arm 1b with --after-read <Arm 1b's read JSON> (its primary must be ra_gnn_eng_arm1b_nosplit) and --compare ra_gnn_eng_arm1b_nosplit (direction only). B6: the lever
+  was conceived after interim looks, so the program-level label is never open: at best WIN-ARM-ONLY. Its checkpoints come from its own md5 file (arm3=<path>); its w
+  (ARM3_W_KINDS) must sit within W_GUARD_X of Arm 1b's same arm at every pin. The gate changes are --gate-change <...>,8dfd7e0c,<G5>.
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
   sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
   OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (per seed cell, > 3 x cd's mean, either statistic; the arm's count is the worse seed's), tail flag
@@ -79,7 +83,9 @@ W_FILE = "scripts_cosim/decision_cost_w.json"
 ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
 # Arm 1b (pre-registered f6c1b85e): its own w, each within W_GUARD_X of Arm 1's same arm (scalar and every bucket, both rungs), else stop
 ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
-LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS
+# the expected move-regret lever (Arm 3, gate change G5): gnn_eng and its MP-OFF twin, no MLP; each within W_GUARD_X of Arm 1b's same arm
+ARM3_W_KINDS = tuple(f"ra_{a}_arm3_nosplit" for a in ("gnn_eng", "twin_eng"))
+LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS
 W_GUARD_X = 1.5
 # co-tenancy amendment (2026-10-14) and Arm 1b: the gate-code commits between --pin and the w-only pins (bf79865a the _kr tag, then the
 # Arm 1b kinds) each touch the gate and its test, nothing else
@@ -164,13 +170,14 @@ def w_frozen(prev, cur, sha):
 
 
 def w_guard(w, sha):
-    """Arm 1b's w (each arm, rung, and bucket where both have buckets) within W_GUARD_X of Arm 1's same arm, which must be in the same file."""
-    for b in ARM1B_W_KINDS:
+    """Arm 1b's w (each arm, rung, and bucket where both have buckets) within W_GUARD_X of Arm 1's same arm, and Arm 3's of Arm 1b's, which must be in the same file."""
+    for b in ARM1B_W_KINDS + ARM3_W_KINDS:
         if b not in w.get("w_ms_per_plan", {}):
             continue
-        a = b.replace("_arm1b_", "_arm1_")
+        a = b.replace("_arm1b_", "_arm1_") if b in ARM1B_W_KINDS else b.replace("_arm3_", "_arm1b_")
+        who, ref = ("Arm 1b", "Arm 1") if b in ARM1B_W_KINDS else ("Arm 3", "Arm 1b")
         if a not in w.get("w_ms_per_plan", {}):
-            raise SystemExit(f"FAIL LOUD: {sha} has Arm 1b w for {b} without Arm 1's {a} to guard it against")
+            raise SystemExit(f"FAIL LOUD: {sha} has {who} w for {b} without {ref}'s {a} to guard it against")
         pairs = [(f"{r}", w["w_ms_per_plan"][b].get(r), w["w_ms_per_plan"][a].get(r)) for r in RUNGS]
         bb, ab = w.get("w_ms_per_plan_by_bucket", {}).get(b) or {}, w.get("w_ms_per_plan_by_bucket", {}).get(a) or {}
         for r in RUNGS:
@@ -179,7 +186,7 @@ def w_guard(w, sha):
             pairs += [(f"{r}/{k}", bb[r][k], ab[r][k]) for k in (bb.get(r) or {})]
         for where, x, y in pairs:
             if x is None or y is None or not (float(x) > 0 and float(y) > 0) or max(x / y, y / x) > W_GUARD_X * (1 + 1e-9):
-                raise SystemExit(f"FAIL LOUD: {sha} Arm 1b w {b}[{where}] = {x!r} is not within {W_GUARD_X}x of Arm 1's {y!r}: stop")
+                raise SystemExit(f"FAIL LOUD: {sha} {who} w {b}[{where}] = {x!r} is not within {W_GUARD_X}x of {ref}'s {y!r}: stop")
 
 
 def w_pin_chain(repo, base, w_pins, gate_change=""):
@@ -221,14 +228,15 @@ def pin_match(commit, pins):
 def ckpt_arm(arm):
     """The training log's arm name for a gate arm: ra_gnn_eng_arm1_nosplit -> gnn_eng (S7's keys); an exact key wins."""
     arm = arm[3:] if arm.startswith("ra_") else arm
-    for sfx in ("_nosplit", "_arm1b", "_arm1"):
+    for sfx in ("_nosplit", "_arm3", "_arm1b", "_arm1"):
         arm = arm[: -len(sfx)] if arm.endswith(sfx) else arm
     return arm
 
 
 def ckpt_tag(arm):
-    """The md5 namespace a gate arm's checkpoint is looked up in: "arm1b" for Arm 1b (its own md5 file, passed as arm1b=<path>), else ""."""
-    return "arm1b" if arm.removesuffix("_nosplit").endswith("_arm1b") else ""
+    """The md5 namespace a gate arm's checkpoint is looked up in: "arm1b" for Arm 1b and "arm3" for Arm 3 (their own md5 files, passed as arm1b=<path> / arm3=<path>), else ""."""
+    a = arm.removesuffix("_nosplit")
+    return "arm1b" if a.endswith("_arm1b") else "arm3" if a.endswith("_arm3") else ""
 
 
 def ckpt_md5s(spec):
@@ -632,19 +640,25 @@ def main(argv=None):
     cells, failed = load(a.gate, a.suffix)
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
     ckpt = ckpt_md5s(a.checkpoint_md5)
-    prog_allowed, arm1b = True, any(ckpt_tag(x) == "arm1b" for x in (a.primary, a.twin))
-    if arm1b != bool(a.after_read) or (a.compare and not arm1b):
-        raise SystemExit("FAIL LOUD: --after-read (and --compare) go with an Arm 1b read and only with it; Arm 1b is read after Arm 1")
+    prog_allowed = True
+    tags = {ckpt_tag(x) for x in (a.primary, a.twin)}
+    if len(tags) > 1 or "arm3" in tags and a.mlp:
+        raise SystemExit("FAIL LOUD: --primary and --twin must be one trainer's (Arm 3 has no MLP comparator)")
+    arm1b, arm3 = "arm1b" in tags, "arm3" in tags
+    if (arm1b or arm3) != bool(a.after_read) or (a.compare and not (arm1b or arm3)):
+        raise SystemExit("FAIL LOUD: --after-read (and --compare) go with an Arm 1b or Arm 3 read and only with it; Arm 1b is read after Arm 1, Arm 3 after Arm 1b")
     if a.mlp and (ckpt_tag(a.mlp) == "arm1b") != arm1b:
         raise SystemExit("FAIL LOUD: --mlp must be the same trainer's MLP: ra_mlp_same_arm1b_nosplit for an Arm 1b read, an Arm 1 or RA MLP otherwise")
-    if arm1b:
+    if arm1b or arm3:
         if a.cotenancy != "required":
-            raise SystemExit("FAIL LOUD: Arm 1b is read under both verdicts")
+            raise SystemExit("FAIL LOUD: Arm 1b and Arm 3 are read under both verdicts")
         with open(a.after_read) as fh:
             prev = json.load(fh)
-        if prev.get("primary") != "ra_gnn_eng_arm1_nosplit" or not isinstance(prev.get("combined"), dict):
-            raise SystemExit(f"FAIL LOUD: {a.after_read} is not Arm 1's gate read under both verdicts")
-        prog_allowed = prog_win(prev["combined"]["F1"])
+        before = "ra_gnn_eng_arm1b_nosplit" if arm3 else "ra_gnn_eng_arm1_nosplit"
+        if prev.get("primary") != before or not isinstance(prev.get("combined"), dict):
+            raise SystemExit(f"FAIL LOUD: {a.after_read} is not {'Arm 1b' if arm3 else 'Arm 1'}'s gate read under both verdicts")
+        # B6: the lever was conceived after interim looks and gets no share of the program alpha: never a program-level label
+        prog_allowed = prog_win(prev["combined"]["F1"]) and not arm3
         if a.compare:
             learned.append(a.compare)
     w_pins = None
@@ -670,8 +684,8 @@ def main(argv=None):
     failed_kr.update({k: v for k, v in failed.items() if k[0] not in learned})
     res = {"filed": FILED, "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth, "primary": a.primary, "twin": a.twin,
            "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
-    if arm1b:
-        res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), "arm1_combined_F1": prev["combined"]["F1"],
+    if arm1b or arm3:
+        res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), ("arm1b_combined_F1" if arm3 else "arm1_combined_F1"): prev["combined"]["F1"],
                            "program_label_open": prog_allowed}
     res["hosts"] = hosts(cells)
     res.update(verdict(cells, failed, a, topos, prog_allowed))
