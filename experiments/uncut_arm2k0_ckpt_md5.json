@@ -30,8 +30,40 @@
         }
       ],
       "submission": "arm2k0@33de2b47"
+    },
+    "gnn_eng|s1": {
+      "job": "869863",
+      "host": "os-cpu-slurm-12",
+      "cpu": "AMD EPYC 9335 32-Core Processor",
+      "file": "uncut-arm2k0-gnn-eng-seed1-final.pt",
+      "links": [
+        {
+          "job": "869863",
+          "host": "os-cpu-slurm-12",
+          "cpu": "AMD EPYC 9335 32-Core Processor",
+          "cpu_source": "srun --overlap lscpu, 2026-10-14T17:28:30Z"
+        }
+      ],
+      "submission": "arm2k0@33de2b47"
+    },
+    "gnn_eng|s2": {
+      "job": "869869",
+      "host": "os-cpu-slurm-14",
+      "cpu": "AMD EPYC 9335 32-Core Processor",
+      "file": "uncut-arm2k0-gnn-eng-seed2-final.pt",
+      "links": [
+        {
+          "job": "869869",
+          "host": "os-cpu-slurm-14",
+          "cpu": "AMD EPYC 9335 32-Core Processor",
+          "cpu_source": "srun --overlap lscpu, 2026-10-14T17:28:30Z"
+        }
+      ],
+      "submission": "arm2k0@33de2b47"
     }
   },
   "twin_eng|s1": "1de44d9340bf164114eea5f003b6637c",
-  "twin_eng|s2": "6d1b03b3e59e25ac6b855e648aa2cf29"
+  "twin_eng|s2": "6d1b03b3e59e25ac6b855e648aa2cf29",
+  "gnn_eng|s1": "0e1460ca006a0a7e54d617c20e3c8cd3",
+  "gnn_eng|s2": "b678621d7bd69c154baca4693e7386e7"
 }
