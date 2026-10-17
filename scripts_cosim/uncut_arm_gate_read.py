@@ -86,7 +86,9 @@ ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "ml
 ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
 # the expected move-regret lever (Arm 3, gate change G6): gnn_eng and its MP-OFF twin, no MLP; each within W_GUARD_X of Arm 1b's same arm
 ARM3_W_KINDS = tuple(f"ra_{a}_arm3_nosplit" for a in ("gnn_eng", "twin_eng"))
-LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS
+# combined lever (G8 / G8b): F, L, FL, FL's MLP and the two FAST arms; their w sits at w-only pins on G8 / G8b, never on the older chains
+COMB_W_KINDS = tuple(f"{k}_nosplit" for k in ("ra_gnn_eng_combf", "ra_gnn_eng_combl", "ra_gnn_eng_combfl", "ra_mlp_same_combfl", "ra_gnn_eng_a3l", "ra_gnn_eng_a3lft"))
+LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS + COMB_W_KINDS
 W_GUARD_X = 1.5
 # co-tenancy amendment (2026-10-14) and Arm 1b: the gate-code commits between --pin and the w-only pins (bf79865a the _kr tag, then the
 # Arm 1b kinds) each touch the gate and its test, nothing else
