@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
 import re
 import sys
@@ -297,27 +298,73 @@ def sidecar_entry(r: Dict[str, Any], split: str) -> Dict[str, Any]:
             "n_plans_replayed": r["n_plans"], "current_plan": r["current_plan"], "best_tag": r["best_tag"]}
 
 
+def read_done(path: str) -> Dict[str, Dict[str, Any]]:
+    """The finished states of a shard file. A last line that is not complete JSON (the job was cancelled mid-write) is dropped and the file rewritten without it."""
+    done: Dict[str, Dict[str, Any]] = {}
+    if not Path(path).exists():
+        return done
+    lines = [x for x in open(path).read().split("\n") if x.strip()]
+    keep = []
+    for k, line in enumerate(lines):
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            if k == len(lines) - 1:
+                print(f"WARNING: dropped an incomplete last line of {path}", flush=True)
+                break
+            raise SystemExit(f"FAIL LOUD: {path} line {k + 1} is not JSON and is not the last line")
+        done[r["gid"]] = r
+        keep.append(line)
+    open(path, "w").write("".join(x + "\n" for x in keep))
+    return done
+
+
+def _work(args):
+    corpus, st = args
+    r = replay_state(corpus, st)
+    return {"gid": st["gid"], **sidecar_entry(r, st["split"]), "wall_s": r["wall_s"]}
+
+
+def _init_worker():
+    for v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+        os.environ[v] = "1"
+    try:
+        import torch
+
+        torch.set_num_threads(1)
+    except Exception:
+        pass
+
+
 def cmd_relabel(a):
     states = all_states(a.split, a.corpus)
     i, n = (int(x) for x in a.shard.split("/"))
     mine = states[i::n]
-    done = {}
-    if Path(a.out).exists():
-        for line in open(a.out):
-            r = json.loads(line)
-            done[r["gid"]] = r
+    if a.limit_states:
+        mine = mine[:a.limit_states]
+    done = read_done(a.out)
+    todo = [st for st in mine if st["gid"] not in done]
     t0 = time.time()
     with open(a.out, "a") as fh:
-        for k, st in enumerate(mine):
-            if st["gid"] in done:
-                continue
-            r = replay_state(a.corpus, st)
-            e = {"gid": st["gid"], **sidecar_entry(r, st["split"]), "wall_s": r["wall_s"]}
-            fh.write(json.dumps(e) + "\n")
-            fh.flush()
-            if k % 25 == 0:
-                print(f"[{k + 1}/{len(mine)}] {st['gid']} {st['split']} {st['bucket']} plans={r['n_plans']} {time.time() - t0:.0f}s", flush=True)
-    print(f"relabel shard {i}/{n}: {len(mine)} states, {time.time() - t0:.0f} s")
+        if a.workers <= 1:
+            results = (_work((a.corpus, st)) for st in todo)
+            pool = None
+        else:
+            import multiprocessing as mp
+
+            pool = mp.get_context(os.environ.get("LABEL_SCREEN_MP", "spawn")).Pool(a.workers, initializer=_init_worker)
+            results = pool.imap(_work, [(a.corpus, st) for st in todo], chunksize=1)       # ordered: the file's row order does not depend on the worker count
+        try:
+            for k, e in enumerate(results):
+                fh.write(json.dumps(e) + "\n")
+                fh.flush()
+                if k % 25 == 0:
+                    print(f"[{len(done) + k + 1}/{len(mine)}] {e['gid']} {e['split']} {e['bucket']} plans={e['n_plans_replayed']} {time.time() - t0:.0f}s", flush=True)
+        finally:
+            if pool is not None:
+                pool.terminate()
+                pool.join()
+    print(f"relabel shard {i}/{n}: {len(mine)} states ({len(done)} already done), {a.workers} workers, {time.time() - t0:.0f} s")
 
 
 def cmd_merge(a):
@@ -362,6 +409,8 @@ def main(argv=None):
     rl.add_argument("--corpus", required=True)
     rl.add_argument("--shard", required=True)
     rl.add_argument("--out", required=True)
+    rl.add_argument("--workers", type=int, default=1)
+    rl.add_argument("--limit-states", type=int, default=0)
     mg = sub.add_parser("merge")
     mg.add_argument("--split", required=True)
     mg.add_argument("--corpus", required=True)

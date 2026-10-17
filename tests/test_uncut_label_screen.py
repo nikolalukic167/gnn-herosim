@@ -182,3 +182,57 @@ def test_relabel_cache_check_flags_non_candidates():
     assert C.check_entry(g, {"plans": [[[1, 3], [4, 5]]]}) == []
     assert C.check_entry(g, {"plans": [[[1, 9], [4, 5]]]}) == ["task 0: (1, 9) is not a candidate"]
     assert "graph 2" in C.check_entry(g, {"plans": [[[1, 2]]]})[0]
+
+
+# ---- relabel workers and resume --------------------------------------------------------------------------------------------------------------
+def _fake_states(n=12):
+    return [{"gid": f"a/ds_{i:03d}", "split": "train" if i % 4 else "val", "bucket": "le10", "small": bool(i % 2)} for i in range(n)]
+
+
+def _fake_replay(corpus, st):
+    k = int(st["gid"].split("_")[1])
+    return {"gid": st["gid"], "bucket": st["bucket"], "n_tasks": 2, "label_source": "exact", "method": "exhaustive", "label_plan": P((k, k), (k + 1, k + 1)),
+            "rtt_sim": 8.0 + k, "rtt_label": 10.0 + k, "differs": k % 3 == 0, "gain": 0.1 if k % 3 == 0 else 0.0, "n_plans": 3 + k, "current_plan": P((0, 0), (0, 0)),
+            "best_tag": "enum", "wall_s": 0.0}
+
+
+def _args(tmp_path, out, workers, limit=0, shard="0/2"):
+    import argparse
+    return argparse.Namespace(split="s", corpus="c", shard=shard, out=str(out), workers=workers, limit_states=limit)
+
+
+def _jl(path):
+    return [json.loads(x) for x in open(path).read().split("\n") if x.strip()]
+
+
+def _strip(rows):
+    return [{k: v for k, v in r.items() if k != "wall_s"} for r in rows]
+
+
+def test_relabel_one_and_four_workers_write_identical_jl(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
+    monkeypatch.setattr(L, "replay_state", _fake_replay)
+    monkeypatch.setenv("LABEL_SCREEN_MP", "fork")
+    L.cmd_relabel(_args(tmp_path, tmp_path / "w1.jsonl", 1))
+    L.cmd_relabel(_args(tmp_path, tmp_path / "w4.jsonl", 4))
+    assert len(_jl(tmp_path / "w1.jsonl")) == 6
+    assert _strip(_jl(tmp_path / "w1.jsonl")) == _strip(_jl(tmp_path / "w4.jsonl"))          # same rows in the same order
+
+
+def test_relabel_resume_after_a_truncated_line_equals_an_unbroken_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
+    monkeypatch.setattr(L, "replay_state", _fake_replay)
+    monkeypatch.setenv("LABEL_SCREEN_MP", "fork")
+    L.cmd_relabel(_args(tmp_path, tmp_path / "full.jsonl", 1))
+    part = tmp_path / "part.jsonl"
+    L.cmd_relabel(_args(tmp_path, part, 1, limit=3))
+    part.write_text(part.read_text() + '{"gid": "a/ds_006", "plans": [[[6, 6')              # cancelled mid-write
+    L.cmd_relabel(_args(tmp_path, part, 4))
+    assert _strip(_jl(part)) == _strip(_jl(tmp_path / "full.jsonl"))
+
+
+def test_read_done_fails_on_a_bad_line_that_is_not_last(tmp_path):
+    f = tmp_path / "x.jsonl"
+    f.write_text('{"gid": "a"}\nnot json\n{"gid": "b"}\n')
+    with pytest.raises(SystemExit, match="not the last line"):
+        L.read_done(str(f))
