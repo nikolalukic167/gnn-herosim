@@ -46,6 +46,7 @@ RP2C_POOL = tuple(range(9473, 9569))
 RULE_POLICY = {
     "reactive": "knative_network",
     "batched": "peer_greedy_network_batch",
+    "heft": "heft_network_batch",  # uncut_groups_s0_v1 descriptive reference row: the batched greedy placed in decreasing upward-rank order
     "selfpredict": "peer_greedy_selfpredict_network",
     "cd": "peer_greedy_network_cd",
     "cd_blind": "peer_greedy_network_cd",  # cd_gap_v1 D1: HEROSIM_PG_BATCH_BLIND=1
@@ -258,7 +259,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
     return DC_ENV, repr(k * float(w[kind][rung]))
 
 
-R1A_DIAG = (*OBS_ARMS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_DIAG = (*OBS_ARMS, "heft", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
                *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
@@ -1049,7 +1050,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
@@ -1339,7 +1340,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("decima instrument off: decima_batches == 0")
         if not out["env"].get("HEROSIM_DECIMA_ALPHA"):
             problems.append("served without HEROSIM_DECIMA_ALPHA in provenance")
-    if kind in ("batched", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
+    if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_slate", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", *EXT_KINDS) and int(c.get("pg_batches") or 0) == 0:
         problems.append("decoded no batches")
     # cd_declared: the slate must have been applied to every batch, and nowhere else
     declared = int(c.get("pg_declared_batches") or 0)

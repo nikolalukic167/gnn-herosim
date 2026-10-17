@@ -77,6 +77,7 @@ from src.policy.knative.autoscaler import KnativeAutoscaler
 from src.policy.knative.scheduler import KnativeScheduler
 
 from src.policy.random.scheduler import RandomScheduler, RandomNetworkScheduler
+from src.policy.heft_network.scheduler import HeftNetworkBatchScheduler
 
 
 from src.policy.determined.orchestrator import DeterminedOrchestrator
@@ -749,6 +750,7 @@ def start_simulation(
         "peer_greedy_oracle_network_peer_greedy_oracle_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedyOracleNetworkScheduler),
         "peer_greedy_selfpredict_network_peer_greedy_selfpredict_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, PeerGreedySelfPredictNetworkScheduler),
         "peer_greedy_network_batch_peer_greedy_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkBatchScheduler),
+        "heft_network_batch_heft_network_batch": (GNNOrchestrator, GNNAutoscaler, HeftNetworkBatchScheduler),
         "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": (GNNOrchestrator, GNNAutoscaler, PeerGreedyLearnedNetworkBatchScheduler),
         "peer_greedy_network_cd_peer_greedy_network_cd": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDScheduler),
         "peer_greedy_network_cd_random_seed_peer_greedy_network_cd_random_seed": (GNNOrchestrator, GNNAutoscaler, PeerGreedyNetworkCDRandomSeedScheduler),
