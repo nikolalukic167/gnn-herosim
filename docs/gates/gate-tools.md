@@ -194,6 +194,8 @@ about 0.97. Fix: use effective queue share = (queue + compute_start − io_end) 
 wait is 0.006 s and lock wait is 826 of 837 s at ×11.61 (`load_recalibration_v1`). The "unplaced" explanation above is
 not supported there. Whether the `workload_fix_v1` W4 cells collapse by the same mechanism is unverified.
 
+**Third point (2026-10-17, SCIENTIST, from the code).** `queue_time = arrived − scheduled` (`infrastructure.py:437`) is not a pure platform-queue wait. It also holds the request's own network latency, the ingress link wait and transfer, and replica start-up (`:1462–1614`). The replica also admits the next task only after ingress plus cold start. So `queue_share` is the share of latency "between placement and arrival on the replica", not "in the platform queue". Any text calling it the platform queue carries this mislabel.
+
 ## 2026-10-08 — The autoscaler loops call `env.step()`: any extra scheduled event is a physics change
 
 `Autoscaler.autoscaler_process` and `_kpa_autoscaler_process` (`src/placement/autoscaler.py`) end every iteration
