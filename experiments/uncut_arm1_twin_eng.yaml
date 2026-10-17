@@ -10,7 +10,7 @@
 # to the old path within 1e-5 of the logit scale, not byte-equal; with the flag off the weights' md5 is unchanged. Training pin: reference-physics db011e74 plus the split file.
 # Runtime (S5's profile, expert 2026-10-13): torch-threads 6 and num-dataloader-workers 0 (more threads or workers were slower on the cache); one run per CPU-amd node.
 trainer: gnn
-lineage: uncut_arm1
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT

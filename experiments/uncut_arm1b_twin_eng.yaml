@@ -5,7 +5,7 @@
 # mask over the distinct-state rows, float order differs; the full list is in docs/lineages/uncut_groups_s0_v1.md, "Arm 1b pre-registered"). Seeds 1 and 2 via run_experiment.py --seed.
 # The device (CPU-amd or GPU) is chosen by the one-epoch timings filed in the node; a GPU run sets nothing here, the launcher pins CUBLAS_WORKSPACE_CONFIG.
 trainer: gnn
-lineage: uncut_arm1b
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT
