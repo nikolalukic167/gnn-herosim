@@ -481,7 +481,11 @@ def gap_attribution(cells, primary, topos):
     return out
 
 
-def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust, prog_allowed=True):
+FIXED_SEQ_WHY = "fixed sequence: Arm 1 did not win at program level, so this arm's best label is ARM-ONLY"
+COMB_B6_WHY = "B6: the combined lever was conceived after interim looks, so its best label is ARM-ONLY"
+
+
+def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust, prog_allowed=True, closed_why=FIXED_SEQ_WHY):
     if win_four(f1, WIN_MED, ALPHA):
         seed_ok = all(all(e["median_pct"] is not None and e["median_pct"] <= SEED_MED for e in es) for es in seeds_alone.values())
         col_ok = all(h_primary[r]["collapse_any"] <= h_bar[r]["collapse_any"] for r in RUNGS)
@@ -494,7 +498,7 @@ def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust, prog_allowed=
         if any(h_bar[r]["collapse_any"] > 0 for r in RUNGS):
             base = ("WIN-ROBUST" if win_four(robust, WIN_MED, PROG_ALPHA if prog else ALPHA) else "WIN-OVER-BRITTLE-BAR") + ("" if prog else " (ARM-ONLY)")
         if not prog_allowed:
-            return base, "fixed sequence: Arm 1 did not win at program level, so this arm's best label is ARM-ONLY"
+            return base, closed_why
         return base, "program-level (Holm < .025 on all four)" if prog else "clears .05 but not .025: never quoted as the program result"
     sig = [e for e in f1 if e["p_holm"] < ALPHA]
     if not sig:
@@ -524,7 +528,7 @@ def direction(cells, a, b, topos):
     return out
 
 
-def verdict(cells, failed, a, topos, prog_allowed=True):
+def verdict(cells, failed, a, topos, prog_allowed=True, closed_why=FIXED_SEQ_WHY):
     """F1, F2, health, decision share and the descriptive block on one cell set. prog_allowed False: the fixed sequence closes the
     program-level label (Arm 1b when Arm 1 did not win at program level)."""
     ref_seeds = (1,)
@@ -538,7 +542,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
     seeds_alone = {sd: four(cells, a.primary, (sd,), BAR, (0,), topos) for sd in SEEDS}
     robust = family(four(cells, a.primary, SEEDS, CD, (0,), topos))
     anchor = {r: (res["decision_share_pct"][a.primary][r] or 0) >= (res["decision_share_pct"][BAR][r] or 0) for r in RUNGS}
-    lab, why = f1_label(f1, seeds_alone, res["health"][a.primary], res["health"][BAR], anchor, robust, prog_allowed)
+    lab, why = f1_label(f1, seeds_alone, res["health"][a.primary], res["health"][BAR], anchor, robust, prog_allowed, closed_why)
     res["F1"] = {"tests": f1, "seeds_alone": seeds_alone, "vs_cd_robust": robust, "anchor_ok": anchor, "label": lab, "why": why}
     prog = prog_win(lab)
     if a.twin:
@@ -671,7 +675,8 @@ def main(argv=None):
     if not a.twin and ckpt_tag(a.primary) != "arm3" and SEEDS == (1, 2) and a.primary not in COMB_W_KINDS:
         raise SystemExit("FAIL LOUD: --twin is required (only an Arm 3 read, or a seed-extension read of an arm with no new-seed twin, may go without one)")
     ckpt = ckpt_md5s(a.checkpoint_md5)
-    prog_allowed = True
+    # B6 for the combined lever (every COMB kind, the FAST arms included): never a program-level label
+    prog_allowed, closed_why = (False, COMB_B6_WHY) if a.primary in COMB_W_KINDS else (True, FIXED_SEQ_WHY)
     tags = {ckpt_tag(x) for x in (a.primary, a.twin) if x}
     if len(tags) > 1 or "arm3" in tags and a.mlp:
         raise SystemExit("FAIL LOUD: --primary and --twin must be one trainer's (Arm 3 has no MLP comparator)")
@@ -723,9 +728,9 @@ def main(argv=None):
         res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), ("arm1b_combined_F1" if arm3 else "arm1_combined_F1"): prev["combined"]["F1"],
                            "program_label_open": prog_allowed}
     res["hosts"] = hosts(cells)
-    res.update(verdict(cells, failed, a, topos, prog_allowed))
+    res.update(verdict(cells, failed, a, topos, prog_allowed, closed_why))
     if a.cotenancy == "required":
-        res["cotenancy"] = verdict(cells_kr, failed_kr, a, topos, prog_allowed)
+        res["cotenancy"] = verdict(cells_kr, failed_kr, a, topos, prog_allowed, closed_why)
         res["combined"] = combine(res, res["cotenancy"], a)
         lab, why, f2 = res["combined"]["F1"], res["combined"]["why"], res["combined"]
     else:

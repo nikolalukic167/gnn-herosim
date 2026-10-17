@@ -928,3 +928,33 @@ def test_comb_primary_reads_without_a_twin(gate, tmp_path):
     res = G.main(["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
                   "--primary", k, "--checkpoint-md5", str(cm), "--cotenancy", "off"])
     assert res["F2"]["MP"] == G.NO_TWIN_COMB and res["F1"]["tests"][0]["n_topologies"] == 12
+
+
+def comb_sweep(d, ck, tmp_path, k):
+    for t in TOPOS:
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                cell(d, "cd_ib0", 0, t, w, r, 2.0, busy=0.1)
+                cell(d, "cd", 0, t, w, r, 2.0, busy=0.1)
+                for sd in (1, 2):
+                    cell(d, k, sd, t, w, r, 1.8 - 0.001 * t, ck)
+    cm = tmp_path / "ck_comb.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for s in (1, 2)}))
+    return G.main(["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+                   "--primary", k, "--checkpoint-md5", str(cm), "--cotenancy", "off"])
+
+
+@pytest.mark.parametrize("k", G.COMB_W_KINDS)
+def test_comb_clean_sweep_is_capped_at_win_arm_only(gate, tmp_path, k):
+    """B6: a clean sweep (every topology ahead at both rungs, both statistics) for any combined kind prints WIN-ARM-ONLY, never WIN."""
+    d, ck, _ = gate
+    res = comb_sweep(d, ck, tmp_path, k)
+    assert all(e["p_holm"] < G.PROG_ALPHA and e["faster"] == e["n_topologies"] == 12 for e in res["F1"]["tests"])
+    assert res["F1"]["label"] == "WIN-ARM-ONLY" and "combined" not in res
+    assert res["F1"]["why"] == G.COMB_B6_WHY
+
+
+def test_b6_cap_reasons_and_kinds():
+    """The cap is keyed on COMB_W_KINDS membership; the Arm 1b / Arm 3 fixed-sequence reason is unchanged."""
+    assert G.FIXED_SEQ_WHY.startswith("fixed sequence") and "B6" in G.COMB_B6_WHY
+    assert not set(G.COMB_W_KINDS) & set(G.ARM1_W_KINDS + G.ARM1B_W_KINDS + G.ARM3_W_KINDS)
