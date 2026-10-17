@@ -1,0 +1,5026 @@
+{
+ "seed": 20261017,
+ "per_bucket": 125,
+ "counts": {
+  "le10": {
+   "frame": 3916,
+   "drawn": 125
+  },
+  "11_50": {
+   "frame": 3754,
+   "drawn": 125
+  },
+  "51_100": {
+   "frame": 1618,
+   "drawn": 125
+  },
+  "101_256": {
+   "frame": 457,
+   "drawn": 125
+  }
+ },
+ "n": 500,
+ "state_list_sha256": "d2a7551a9c5ecc3b7f3a098e8a9ea9929b7c8522781bc63f9c524a801f9fa03d",
+ "states": [
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00022",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16206,
+   "plan_space_size": 15625,
+   "label_source": "exact",
+   "state_id": "A/cc40s16206__g2heavy__cd_ib0_s0#1185",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00027",
+   "bucket": "le10",
+   "n_tasks": 6,
+   "topology": 16237,
+   "plan_space_size": 1404928,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16237__g2heavy__cd_ib0_s0#1922",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00064",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16228,
+   "plan_space_size": 20,
+   "label_source": "exact",
+   "state_id": "C2/cc40s16228__g2heavy__cd_ib0_s0#3753",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00150",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16229,
+   "plan_space_size": 2250,
+   "label_source": "exact",
+   "state_id": "A/cc40s16229__g0heavy__cd_ib0_s0#102",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00191",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16234,
+   "plan_space_size": 8,
+   "label_source": "exact",
+   "state_id": "C3/cc40s16234__g1moderate__cd_ib0_s0#1542",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00232",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16245,
+   "plan_space_size": 8,
+   "label_source": "exact",
+   "state_id": "C1/cc40s16245__g2heavy__cd_ib0_s0#312",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00282",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16225,
+   "plan_space_size": 10800,
+   "label_source": "exact",
+   "state_id": "C2/cc40s16225__g2heavy__cd_ib0_s0#3473",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00340",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16238,
+   "plan_space_size": 28,
+   "label_source": "exact",
+   "state_id": "C2/cc40s16238__g2heavy__cd_ib0_s0#617",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00398",
+   "bucket": "le10",
+   "n_tasks": 7,
+   "topology": 16225,
+   "plan_space_size": 10765300,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16225__g3moderate__cd_ib0_s0#433",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00409",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16222,
+   "plan_space_size": 343,
+   "label_source": "exact",
+   "state_id": "A/cc40s16222__g1moderate__cd_ib0_s0#924",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00418",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16223,
+   "plan_space_size": 5145,
+   "label_source": "exact",
+   "state_id": "A/cc40s16223__g3heavy__cd_ib0_s0#4082",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00430",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16247,
+   "plan_space_size": 4350,
+   "label_source": "exact",
+   "state_id": "B/cc40s16247__g0moderate__cd_ib0_s0#523",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00455",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16239,
+   "plan_space_size": 31104,
+   "label_source": "exact",
+   "state_id": "C2/cc40s16239__g3heavy__cd_ib0_s0#2975",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00602",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16231,
+   "plan_space_size": 840,
+   "label_source": "exact",
+   "state_id": "A/cc40s16231__g1heavy__cd_ib0_s0#1725",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00619",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16225,
+   "plan_space_size": 1440,
+   "label_source": "exact",
+   "state_id": "C1/cc40s16225__g3heavy__cd_ib0_s0#722",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00634",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16232,
+   "plan_space_size": 264,
+   "label_source": "exact",
+   "state_id": "A/cc40s16232__g1heavy__cd_ib0_s0#2311",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00680",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16204,
+   "plan_space_size": 700,
+   "label_source": "exact",
+   "state_id": "C2/cc40s16204__g1heavy__cd_ib0_s0#482",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00691",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16225,
+   "plan_space_size": 900,
+   "label_source": "exact",
+   "state_id": "B/cc40s16225__g1heavy__cd_ib0_s0#747",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00754",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16248,
+   "plan_space_size": 80,
+   "label_source": "exact",
+   "state_id": "A/cc40s16248__g1moderate__cd_ib0_s0#336",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00762",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16231,
+   "plan_space_size": 416,
+   "label_source": "exact",
+   "state_id": "C3/cc40s16231__g1moderate__cd_ib0_s0#818",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00769",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16215,
+   "plan_space_size": 3610,
+   "label_source": "exact",
+   "state_id": "C2/cc40s16215__g1heavy__cd_ib0_s0#4212",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00792",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16217,
+   "plan_space_size": 98,
+   "label_source": "exact",
+   "state_id": "B/cc40s16217__g2heavy__cd_ib0_s0#873",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00821",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16206,
+   "plan_space_size": 215040,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16206__g3heavy__cd_ib0_s0#2793",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00824",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16232,
+   "plan_space_size": 160,
+   "label_source": "exact",
+   "state_id": "C2/cc40s16232__g2heavy__cd_ib0_s0#2751",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00867",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16203,
+   "plan_space_size": 432,
+   "label_source": "exact",
+   "state_id": "C1/cc40s16203__g2heavy__cd_ib0_s0#3622",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00878",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16241,
+   "plan_space_size": 64,
+   "label_source": "exact",
+   "state_id": "C1/cc40s16241__g2heavy__cd_ib0_s0#2284",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00880",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16221,
+   "plan_space_size": 96,
+   "label_source": "exact",
+   "state_id": "C1/cc40s16221__g2moderate__cd_ib0_s0#1906",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00888",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16224,
+   "plan_space_size": 147456,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16224__g1heavy__cd_ib0_s0#698",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00889",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16215,
+   "plan_space_size": 8,
+   "label_source": "exact",
+   "state_id": "B/cc40s16215__g1heavy__cd_ib0_s0#304",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00915",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16233,
+   "plan_space_size": 25,
+   "label_source": "exact",
+   "state_id": "C3/cc40s16233__g1moderate__cd_ib0_s0#239",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00926",
+   "bucket": "le10",
+   "n_tasks": 6,
+   "topology": 16224,
+   "plan_space_size": 15812280,
+   "label_source": "ils",
+   "state_id": "B/cc40s16224__g3heavy__cd_ib0_s0#1591",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_00977",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16224,
+   "plan_space_size": 112000,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16224__g2heavy__cd_ib0_s0#2494",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01205",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16227,
+   "plan_space_size": 8575,
+   "label_source": "exact",
+   "state_id": "A/cc40s16227__g1heavy__cd_ib0_s0#2815",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01265",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16227,
+   "plan_space_size": 6498,
+   "label_source": "exact",
+   "state_id": "C1/cc40s16227__g1moderate__cd_ib0_s0#1375",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01401",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16241,
+   "plan_space_size": 87856,
+   "label_source": "exact",
+   "state_id": "A/cc40s16241__g3heavy__cd_ib0_s0#1086",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01445",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16219,
+   "plan_space_size": 60,
+   "label_source": "exact",
+   "state_id": "A/cc40s16219__g2moderate__cd_ib0_s0#33958",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01451",
+   "bucket": "le10",
+   "n_tasks": 7,
+   "topology": 16248,
+   "plan_space_size": 14623232,
+   "label_source": "hand",
+   "state_id": "A/cc40s16248__g0heavy__cd_ib0_s0#25723",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01473",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16203,
+   "plan_space_size": 84,
+   "label_source": "exact",
+   "state_id": "A/cc40s16203__g2moderate__cd_ib0_s0#37377",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01519",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16234,
+   "plan_space_size": 12,
+   "label_source": "exact",
+   "state_id": "A/cc40s16234__g3moderate__cd_ib0_s0#8037",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01531",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16221,
+   "plan_space_size": 80,
+   "label_source": "exact",
+   "state_id": "A/cc40s16221__g2heavy__cd_ib0_s0#29692",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01540",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16243,
+   "plan_space_size": 15,
+   "label_source": "exact",
+   "state_id": "A/cc40s16243__g3moderate__cd_ib0_s0#20150",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01546",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16235,
+   "plan_space_size": 49,
+   "label_source": "exact",
+   "state_id": "A/cc40s16235__g1moderate__cd_ib0_s0#36691",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01577",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16241,
+   "plan_space_size": 192,
+   "label_source": "exact",
+   "state_id": "A/cc40s16241__g3moderate__cd_ib0_s0#43202",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01607",
+   "bucket": "le10",
+   "n_tasks": 10,
+   "topology": 16228,
+   "plan_space_size": 331776,
+   "label_source": "hand",
+   "state_id": "A/cc40s16228__g1moderate__cd_ib0_s0#14401",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01615",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16248,
+   "plan_space_size": 9576,
+   "label_source": "exact",
+   "state_id": "A/cc40s16248__g2heavy__cd_ib0_s0#23049",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01620",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16245,
+   "plan_space_size": 64,
+   "label_source": "exact",
+   "state_id": "A/cc40s16245__g3heavy__cd_ib0_s0#16895",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01636",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16236,
+   "plan_space_size": 36,
+   "label_source": "exact",
+   "state_id": "A/cc40s16236__g3moderate__cd_ib0_s0#46595",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01653",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16244,
+   "plan_space_size": 6000,
+   "label_source": "exact",
+   "state_id": "A/cc40s16244__g1heavy__cd_ib0_s0#26285",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01709",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16212,
+   "plan_space_size": 144,
+   "label_source": "exact",
+   "state_id": "A/cc40s16212__g2moderate__cd_ib0_s0#10544",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01713",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16209,
+   "plan_space_size": 88000,
+   "label_source": "exact",
+   "state_id": "A/cc40s16209__g2moderate__cd_ib0_s0#45648",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01766",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16204,
+   "plan_space_size": 2744,
+   "label_source": "exact",
+   "state_id": "A/cc40s16204__g1heavy__cd_ib0_s0#35748",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01769",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16237,
+   "plan_space_size": 125,
+   "label_source": "exact",
+   "state_id": "A/cc40s16237__g2heavy__cd_ib0_s0#34672",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01772",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16209,
+   "plan_space_size": 175,
+   "label_source": "exact",
+   "state_id": "A/cc40s16209__g0heavy__cd_ib0_s0#45501",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01808",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16219,
+   "plan_space_size": 68607,
+   "label_source": "exact",
+   "state_id": "A/cc40s16219__g2moderate__cd_ib0_s0#36179",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01838",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16225,
+   "plan_space_size": 127008,
+   "label_source": "ils",
+   "state_id": "A/cc40s16225__g2moderate__cd_ib0_s0#16793",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01888",
+   "bucket": "le10",
+   "n_tasks": 10,
+   "topology": 16234,
+   "plan_space_size": 104857600000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g1heavy__cd_ib0_s0#12266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01895",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16235,
+   "plan_space_size": 81,
+   "label_source": "exact",
+   "state_id": "A/cc40s16235__g1moderate__cd_ib0_s0#25670",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01905",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16236,
+   "plan_space_size": 648,
+   "label_source": "exact",
+   "state_id": "A/cc40s16236__g1moderate__cd_ib0_s0#44820",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01915",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16206,
+   "plan_space_size": 132,
+   "label_source": "exact",
+   "state_id": "A/cc40s16206__g2heavy__cd_ib0_s0#48492",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01973",
+   "bucket": "le10",
+   "n_tasks": 6,
+   "topology": 16204,
+   "plan_space_size": 41472,
+   "label_source": "exact",
+   "state_id": "A/cc40s16204__g3heavy__cd_ib0_s0#47857",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_01995",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16249,
+   "plan_space_size": 16,
+   "label_source": "exact",
+   "state_id": "A/cc40s16249__g3heavy__cd_ib0_s0#23580",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02070",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16212,
+   "plan_space_size": 245,
+   "label_source": "exact",
+   "state_id": "A/cc40s16212__g1moderate__cd_ib0_s0#4751",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02080",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16217,
+   "plan_space_size": 8100,
+   "label_source": "exact",
+   "state_id": "A/cc40s16217__g1moderate__cd_ib0_s0#20211",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02128",
+   "bucket": "le10",
+   "n_tasks": 6,
+   "topology": 16246,
+   "plan_space_size": 1080,
+   "label_source": "exact",
+   "state_id": "A/cc40s16246__g0heavy__cd_ib0_s0#42328",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02139",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16249,
+   "plan_space_size": 45,
+   "label_source": "exact",
+   "state_id": "A/cc40s16249__g3heavy__cd_ib0_s0#8413",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02184",
+   "bucket": "le10",
+   "n_tasks": 7,
+   "topology": 16212,
+   "plan_space_size": 6561,
+   "label_source": "exact",
+   "state_id": "A/cc40s16212__g1heavy__cd_ib0_s0#15218",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02248",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16224,
+   "plan_space_size": 56,
+   "label_source": "exact",
+   "state_id": "A/cc40s16224__g0heavy__cd_ib0_s0#13226",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02314",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16246,
+   "plan_space_size": 1372,
+   "label_source": "exact",
+   "state_id": "A/cc40s16246__g2moderate__cd_ib0_s0#31377",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02387",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16206,
+   "plan_space_size": 36,
+   "label_source": "exact",
+   "state_id": "A/cc40s16206__g0moderate__cd_ib0_s0#5059",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02422",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16234,
+   "plan_space_size": 192,
+   "label_source": "exact",
+   "state_id": "A/cc40s16234__g3moderate__cd_ib0_s0#14710",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02434",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16247,
+   "plan_space_size": 384,
+   "label_source": "exact",
+   "state_id": "A/cc40s16247__g3heavy__cd_ib0_s0#33221",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02452",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16229,
+   "plan_space_size": 5,
+   "label_source": "exact",
+   "state_id": "A/cc40s16229__g3moderate__cd_ib0_s0#22109",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02453",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16217,
+   "plan_space_size": 4900,
+   "label_source": "exact",
+   "state_id": "A/cc40s16217__g1moderate__cd_ib0_s0#33997",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02468",
+   "bucket": "le10",
+   "n_tasks": 6,
+   "topology": 16233,
+   "plan_space_size": 34012224,
+   "label_source": "hand",
+   "state_id": "A/cc40s16233__g2moderate__cd_ib0_s0#36707",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02478",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16203,
+   "plan_space_size": 100,
+   "label_source": "exact",
+   "state_id": "A/cc40s16203__g3heavy__cd_ib0_s0#23546",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02541",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16241,
+   "plan_space_size": 8,
+   "label_source": "exact",
+   "state_id": "A/cc40s16241__g3heavy__cd_ib0_s0#6593",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02564",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16231,
+   "plan_space_size": 18,
+   "label_source": "exact",
+   "state_id": "A/cc40s16231__g3heavy__cd_ib0_s0#43571",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02616",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16248,
+   "plan_space_size": 14,
+   "label_source": "exact",
+   "state_id": "A/cc40s16248__g3heavy__cd_ib0_s0#40136",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02626",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16217,
+   "plan_space_size": 392,
+   "label_source": "exact",
+   "state_id": "A/cc40s16217__g1moderate__cd_ib0_s0#2856",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02661",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16219,
+   "plan_space_size": 324,
+   "label_source": "exact",
+   "state_id": "A/cc40s16219__g1heavy__cd_ib0_s0#43175",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02766",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16237,
+   "plan_space_size": 2880,
+   "label_source": "exact",
+   "state_id": "A/cc40s16237__g0moderate__cd_ib0_s0#9284",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02790",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16217,
+   "plan_space_size": 9,
+   "label_source": "exact",
+   "state_id": "A/cc40s16217__g0heavy__cd_ib0_s0#20090",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02800",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16241,
+   "plan_space_size": 33,
+   "label_source": "exact",
+   "state_id": "A/cc40s16241__g3heavy__cd_ib0_s0#7832",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02842",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16234,
+   "plan_space_size": 192,
+   "label_source": "exact",
+   "state_id": "A/cc40s16234__g3heavy__cd_ib0_s0#44416",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02849",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16208,
+   "plan_space_size": 4,
+   "label_source": "exact",
+   "state_id": "A/cc40s16208__g2moderate__cd_ib0_s0#44201",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02866",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16232,
+   "plan_space_size": 12,
+   "label_source": "exact",
+   "state_id": "A/cc40s16232__g2moderate__cd_ib0_s0#23914",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02887",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16244,
+   "plan_space_size": 2528750,
+   "label_source": "ils",
+   "state_id": "A/cc40s16244__g2heavy__cd_ib0_s0#25531",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_02962",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16233,
+   "plan_space_size": 15288,
+   "label_source": "exact",
+   "state_id": "A/cc40s16233__g3heavy__cd_ib0_s0#45424",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03126",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16248,
+   "plan_space_size": 11025,
+   "label_source": "exact",
+   "state_id": "A/cc40s16248__g1heavy__cd_ib0_s0#47152",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03154",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16209,
+   "plan_space_size": 72,
+   "label_source": "exact",
+   "state_id": "A/cc40s16209__g0moderate__cd_ib0_s0#2767",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03278",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16237,
+   "plan_space_size": 2744,
+   "label_source": "exact",
+   "state_id": "A/cc40s16237__g3heavy__cd_ib0_s0#47550",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03341",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16231,
+   "plan_space_size": 51200,
+   "label_source": "exact",
+   "state_id": "A/cc40s16231__g3heavy__cd_ib0_s0#44800",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03412",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16238,
+   "plan_space_size": 75,
+   "label_source": "exact",
+   "state_id": "A/cc40s16238__g0heavy__cd_ib0_s0#19425",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03480",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16245,
+   "plan_space_size": 700,
+   "label_source": "exact",
+   "state_id": "A/cc40s16245__g1moderate__cd_ib0_s0#24563",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03581",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16238,
+   "plan_space_size": 147,
+   "label_source": "exact",
+   "state_id": "A/cc40s16238__g2heavy__cd_ib0_s0#20059",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03636",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16216,
+   "plan_space_size": 160,
+   "label_source": "exact",
+   "state_id": "A/cc40s16216__g3moderate__cd_ib0_s0#15870",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03786",
+   "bucket": "le10",
+   "n_tasks": 7,
+   "topology": 16245,
+   "plan_space_size": 2105352,
+   "label_source": "hand",
+   "state_id": "A/cc40s16245__g3heavy__cd_ib0_s0#48384",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03836",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16237,
+   "plan_space_size": 12,
+   "label_source": "exact",
+   "state_id": "A/cc40s16237__g2heavy__cd_ib0_s0#11516",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03847",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16232,
+   "plan_space_size": 5632,
+   "label_source": "exact",
+   "state_id": "A/cc40s16232__g3moderate__cd_ib0_s0#37045",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03854",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16242,
+   "plan_space_size": 720,
+   "label_source": "exact",
+   "state_id": "A/cc40s16242__g2moderate__cd_ib0_s0#44408",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03855",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16214,
+   "plan_space_size": 30,
+   "label_source": "exact",
+   "state_id": "A/cc40s16214__g1heavy__cd_ib0_s0#38882",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03856",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16222,
+   "plan_space_size": 6050,
+   "label_source": "exact",
+   "state_id": "A/cc40s16222__g0moderate__cd_ib0_s0#35282",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03887",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16225,
+   "plan_space_size": 64,
+   "label_source": "exact",
+   "state_id": "A/cc40s16225__g0moderate__cd_ib0_s0#39202",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03923",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16233,
+   "plan_space_size": 40,
+   "label_source": "exact",
+   "state_id": "A/cc40s16233__g3heavy__cd_ib0_s0#21591",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03973",
+   "bucket": "le10",
+   "n_tasks": 7,
+   "topology": 16234,
+   "plan_space_size": 41154000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16234__g1heavy__cd_ib0_s0#7700",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03982",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16234,
+   "plan_space_size": 480,
+   "label_source": "exact",
+   "state_id": "A/cc40s16234__g0heavy__cd_ib0_s0#13459",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_03997",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16221,
+   "plan_space_size": 431244,
+   "label_source": "hand",
+   "state_id": "A/cc40s16221__g0heavy__cd_ib0_s0#28179",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04013",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16206,
+   "plan_space_size": 49,
+   "label_source": "exact",
+   "state_id": "A/cc40s16206__g1moderate__cd_ib0_s0#12743",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04015",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16248,
+   "plan_space_size": 9,
+   "label_source": "exact",
+   "state_id": "A/cc40s16248__g1moderate__cd_ib0_s0#49766",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04222",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16207,
+   "plan_space_size": 4,
+   "label_source": "exact",
+   "state_id": "A/cc40s16207__g1heavy__cd_ib0_s0#28468",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04247",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16241,
+   "plan_space_size": 4480,
+   "label_source": "exact",
+   "state_id": "A/cc40s16241__g3heavy__cd_ib0_s0#13167",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04267",
+   "bucket": "le10",
+   "n_tasks": 6,
+   "topology": 16209,
+   "plan_space_size": 40960,
+   "label_source": "exact",
+   "state_id": "A/cc40s16209__g0moderate__cd_ib0_s0#42359",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04300",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16203,
+   "plan_space_size": 12996,
+   "label_source": "exact",
+   "state_id": "A/cc40s16203__g1heavy__cd_ib0_s0#47205",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04480",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16207,
+   "plan_space_size": 54,
+   "label_source": "exact",
+   "state_id": "A/cc40s16207__g3heavy__cd_ib0_s0#19862",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04521",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16215,
+   "plan_space_size": 48,
+   "label_source": "exact",
+   "state_id": "A/cc40s16215__g2moderate__cd_ib0_s0#41501",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04545",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16215,
+   "plan_space_size": 46656,
+   "label_source": "exact",
+   "state_id": "A/cc40s16215__g2moderate__cd_ib0_s0#24100",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04554",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16245,
+   "plan_space_size": 189,
+   "label_source": "exact",
+   "state_id": "A/cc40s16245__g1heavy__cd_ib0_s0#42461",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04559",
+   "bucket": "le10",
+   "n_tasks": 7,
+   "topology": 16235,
+   "plan_space_size": 355775247,
+   "label_source": "hand",
+   "state_id": "A/cc40s16235__g3heavy__cd_ib0_s0#4680",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04627",
+   "bucket": "le10",
+   "n_tasks": 5,
+   "topology": 16214,
+   "plan_space_size": 1452,
+   "label_source": "exact",
+   "state_id": "A/cc40s16214__g1moderate__cd_ib0_s0#27926",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04647",
+   "bucket": "le10",
+   "n_tasks": 7,
+   "topology": 16212,
+   "plan_space_size": 28224,
+   "label_source": "exact",
+   "state_id": "A/cc40s16212__g0moderate__cd_ib0_s0#3939",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04682",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16206,
+   "plan_space_size": 30,
+   "label_source": "exact",
+   "state_id": "A/cc40s16206__g0moderate__cd_ib0_s0#30975",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04685",
+   "bucket": "le10",
+   "n_tasks": 8,
+   "topology": 16249,
+   "plan_space_size": 52488,
+   "label_source": "exact",
+   "state_id": "A/cc40s16249__g2moderate__cd_ib0_s0#41162",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04721",
+   "bucket": "le10",
+   "n_tasks": 3,
+   "topology": 16247,
+   "plan_space_size": 16,
+   "label_source": "exact",
+   "state_id": "A/cc40s16247__g0heavy__cd_ib0_s0#20120",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04736",
+   "bucket": "le10",
+   "n_tasks": 4,
+   "topology": 16202,
+   "plan_space_size": 6655,
+   "label_source": "exact",
+   "state_id": "A/cc40s16202__g3moderate__cd_ib0_s0#19695",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04753",
+   "bucket": "le10",
+   "n_tasks": 2,
+   "topology": 16205,
+   "plan_space_size": 8,
+   "label_source": "exact",
+   "state_id": "A/cc40s16205__g2moderate__cd_ib0_s0#25681",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04836",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16235,
+   "plan_space_size": 9172942848,
+   "label_source": "hand",
+   "state_id": "B/cc40s16235__g2moderate__cd_ib0_s0#346",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04845",
+   "bucket": "11_50",
+   "n_tasks": 14,
+   "topology": 16229,
+   "plan_space_size": 3453948905472,
+   "label_source": "ils",
+   "state_id": "B/cc40s16229__g2moderate__cd_ib0_s0#34",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04849",
+   "bucket": "11_50",
+   "n_tasks": 21,
+   "topology": 16222,
+   "plan_space_size": 164945913289345843200000,
+   "label_source": "ils",
+   "state_id": "C3/cc40s16222__g1heavy__cd_ib0_s0#2764",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04867",
+   "bucket": "11_50",
+   "n_tasks": 44,
+   "topology": 16245,
+   "plan_space_size": 15771069068166940840962605387794612224,
+   "label_source": "ils",
+   "state_id": "A/cc40s16245__g3heavy__cd_ib0_s0#684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04889",
+   "bucket": "11_50",
+   "n_tasks": 27,
+   "topology": 16202,
+   "plan_space_size": 197475112144277202519396068622336,
+   "label_source": "ils",
+   "state_id": "B/cc40s16202__g1heavy__cd_ib0_s0#1926",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04894",
+   "bucket": "11_50",
+   "n_tasks": 23,
+   "topology": 16203,
+   "plan_space_size": 2500000000000000,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16203__g2heavy__cd_ib0_s0#652",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04920",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16221,
+   "plan_space_size": 3779136,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16221__g2moderate__cd_ib0_s0#23",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04929",
+   "bucket": "11_50",
+   "n_tasks": 23,
+   "topology": 16229,
+   "plan_space_size": 359646960561212620800000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16229__g2moderate__cd_ib0_s0#432",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04945",
+   "bucket": "11_50",
+   "n_tasks": 22,
+   "topology": 16209,
+   "plan_space_size": 55205899504677038592000000,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16209__g1moderate__cd_ib0_s0#676",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_04992",
+   "bucket": "11_50",
+   "n_tasks": 14,
+   "topology": 16247,
+   "plan_space_size": 24903680000000,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16247__g2heavy__cd_ib0_s0#1140",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05035",
+   "bucket": "11_50",
+   "n_tasks": 23,
+   "topology": 16213,
+   "plan_space_size": 1564415569065864990234375,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16213__g3heavy__cd_ib0_s0#3804",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05094",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16225,
+   "plan_space_size": 100192997081088,
+   "label_source": "ils",
+   "state_id": "C3/cc40s16225__g2moderate__cd_ib0_s0#748",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05157",
+   "bucket": "11_50",
+   "n_tasks": 31,
+   "topology": 16212,
+   "plan_space_size": 3402501379835204505600000000000000000,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16212__g1heavy__cd_ib0_s0#1366",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05167",
+   "bucket": "11_50",
+   "n_tasks": 24,
+   "topology": 16238,
+   "plan_space_size": 32535882602611200000,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16238__g2moderate__cd_ib0_s0#327",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05178",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16249,
+   "plan_space_size": 33882912000,
+   "label_source": "ils",
+   "state_id": "C3/cc40s16249__g2moderate__cd_ib0_s0#1000",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05285",
+   "bucket": "11_50",
+   "n_tasks": 31,
+   "topology": 16221,
+   "plan_space_size": 13393176486260976552097559819059200000,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16221__g2moderate__cd_ib0_s0#385",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05305",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16223,
+   "plan_space_size": 74649600,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16223__g2heavy__cd_ib0_s0#480",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05326",
+   "bucket": "11_50",
+   "n_tasks": 24,
+   "topology": 16214,
+   "plan_space_size": 179334627210716774400000000,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16214__g1heavy__cd_ib0_s0#2500",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05341",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16209,
+   "plan_space_size": 78732,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16209__g0heavy__cd_ib0_s0#132",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05363",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16249,
+   "plan_space_size": 11047192756224,
+   "label_source": "hand",
+   "state_id": "B/cc40s16249__g3moderate__cd_ib0_s0#83",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05391",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16244,
+   "plan_space_size": 5329321249996800000,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16244__g1heavy__cd_ib0_s0#3602",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05416",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16244,
+   "plan_space_size": 5000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16244__g3moderate__cd_ib0_s0#1666",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05475",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16233,
+   "plan_space_size": 658409472,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16233__g2moderate__cd_ib0_s0#1836",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05479",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16237,
+   "plan_space_size": 124416,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16237__g1heavy__cd_ib0_s0#304",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05493",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16228,
+   "plan_space_size": 648000,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16228__g3moderate__cd_ib0_s0#89",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05655",
+   "bucket": "11_50",
+   "n_tasks": 41,
+   "topology": 16247,
+   "plan_space_size": 20568004209678745600000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g2heavy__cd_ib0_s0#2678",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05746",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16227,
+   "plan_space_size": 69984,
+   "label_source": "hand",
+   "state_id": "B/cc40s16227__g2moderate__cd_ib0_s0#332",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05774",
+   "bucket": "11_50",
+   "n_tasks": 35,
+   "topology": 16201,
+   "plan_space_size": 424387034850342454375313336351588352,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16201__g0heavy__cd_ib0_s0#657",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05820",
+   "bucket": "11_50",
+   "n_tasks": 17,
+   "topology": 16207,
+   "plan_space_size": 45349632,
+   "label_source": "hand",
+   "state_id": "A/cc40s16207__g0heavy__cd_ib0_s0#3765",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05886",
+   "bucket": "11_50",
+   "n_tasks": 16,
+   "topology": 16244,
+   "plan_space_size": 298041489951654150144,
+   "label_source": "hand",
+   "state_id": "B/cc40s16244__g3moderate__cd_ib0_s0#550",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05891",
+   "bucket": "11_50",
+   "n_tasks": 16,
+   "topology": 16235,
+   "plan_space_size": 6220800000000,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16235__g1heavy__cd_ib0_s0#2599",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05931",
+   "bucket": "11_50",
+   "n_tasks": 23,
+   "topology": 16249,
+   "plan_space_size": 61532935270383794699842560000000,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16249__g2heavy__cd_ib0_s0#2400",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_05936",
+   "bucket": "11_50",
+   "n_tasks": 13,
+   "topology": 16205,
+   "plan_space_size": 3774873600,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16205__g2heavy__cd_ib0_s0#2884",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06216",
+   "bucket": "11_50",
+   "n_tasks": 25,
+   "topology": 16227,
+   "plan_space_size": 1813985280000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16227__g0heavy__cd_ib0_s0#5165",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06249",
+   "bucket": "11_50",
+   "n_tasks": 31,
+   "topology": 16202,
+   "plan_space_size": 2966308593750000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16202__g0moderate__cd_ib0_s0#3273",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06268",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16244,
+   "plan_space_size": 1362944,
+   "label_source": "hand",
+   "state_id": "A/cc40s16244__g2moderate__cd_ib0_s0#49285",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06280",
+   "bucket": "11_50",
+   "n_tasks": 23,
+   "topology": 16205,
+   "plan_space_size": 18874368,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g3moderate__cd_ib0_s0#43683",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06342",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16239,
+   "plan_space_size": 14745600,
+   "label_source": "hand",
+   "state_id": "A/cc40s16239__g1moderate__cd_ib0_s0#48594",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06527",
+   "bucket": "11_50",
+   "n_tasks": 26,
+   "topology": 16246,
+   "plan_space_size": 2017815046875000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16246__g3moderate__cd_ib0_s0#22522",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06549",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16208,
+   "plan_space_size": 90699264,
+   "label_source": "hand",
+   "state_id": "A/cc40s16208__g1moderate__cd_ib0_s0#4094",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06560",
+   "bucket": "11_50",
+   "n_tasks": 13,
+   "topology": 16201,
+   "plan_space_size": 9437184,
+   "label_source": "ils",
+   "state_id": "A/cc40s16201__g1moderate__cd_ib0_s0#18073",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06580",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16223,
+   "plan_space_size": 24576,
+   "label_source": "hand",
+   "state_id": "A/cc40s16223__g0moderate__cd_ib0_s0#37314",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06602",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16241,
+   "plan_space_size": 559872,
+   "label_source": "ils",
+   "state_id": "A/cc40s16241__g2moderate__cd_ib0_s0#42934",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06625",
+   "bucket": "11_50",
+   "n_tasks": 49,
+   "topology": 16201,
+   "plan_space_size": 25132537841796875000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16201__g2moderate__cd_ib0_s0#40101",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06628",
+   "bucket": "11_50",
+   "n_tasks": 30,
+   "topology": 16224,
+   "plan_space_size": 19696231806384375000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16224__g2heavy__cd_ib0_s0#46053",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06645",
+   "bucket": "11_50",
+   "n_tasks": 35,
+   "topology": 16247,
+   "plan_space_size": 909769216957750444032,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g3moderate__cd_ib0_s0#10988",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06680",
+   "bucket": "11_50",
+   "n_tasks": 17,
+   "topology": 16244,
+   "plan_space_size": 3747179003904,
+   "label_source": "hand",
+   "state_id": "A/cc40s16244__g2moderate__cd_ib0_s0#31734",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06706",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16231,
+   "plan_space_size": 26146890000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16231__g2moderate__cd_ib0_s0#22065",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06774",
+   "bucket": "11_50",
+   "n_tasks": 16,
+   "topology": 16225,
+   "plan_space_size": 1631424872448,
+   "label_source": "ils",
+   "state_id": "A/cc40s16225__g0moderate__cd_ib0_s0#25009",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06775",
+   "bucket": "11_50",
+   "n_tasks": 17,
+   "topology": 16247,
+   "plan_space_size": 52488000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g0moderate__cd_ib0_s0#21664",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06796",
+   "bucket": "11_50",
+   "n_tasks": 30,
+   "topology": 16203,
+   "plan_space_size": 29353417113600000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16203__g3heavy__cd_ib0_s0#48518",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06845",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16234,
+   "plan_space_size": 204800,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g2moderate__cd_ib0_s0#17525",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06891",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16206,
+   "plan_space_size": 10418625,
+   "label_source": "ils",
+   "state_id": "A/cc40s16206__g1moderate__cd_ib0_s0#45962",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06929",
+   "bucket": "11_50",
+   "n_tasks": 38,
+   "topology": 16208,
+   "plan_space_size": 11609505792,
+   "label_source": "hand",
+   "state_id": "A/cc40s16208__g0moderate__cd_ib0_s0#20617",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06984",
+   "bucket": "11_50",
+   "n_tasks": 14,
+   "topology": 16245,
+   "plan_space_size": 1890625000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16245__g2moderate__cd_ib0_s0#35490",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_06991",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16228,
+   "plan_space_size": 6871947673600000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16228__g1heavy__cd_ib0_s0#7890",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07017",
+   "bucket": "11_50",
+   "n_tasks": 28,
+   "topology": 16247,
+   "plan_space_size": 419904000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g1moderate__cd_ib0_s0#31534",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07025",
+   "bucket": "11_50",
+   "n_tasks": 21,
+   "topology": 16245,
+   "plan_space_size": 2097255810736858316668928,
+   "label_source": "hand",
+   "state_id": "A/cc40s16245__g0moderate__cd_ib0_s0#43008",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07048",
+   "bucket": "11_50",
+   "n_tasks": 24,
+   "topology": 16204,
+   "plan_space_size": 24535128960000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16204__g1moderate__cd_ib0_s0#24779",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07052",
+   "bucket": "11_50",
+   "n_tasks": 30,
+   "topology": 16231,
+   "plan_space_size": 456080629326534102011996160000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16231__g0moderate__cd_ib0_s0#42462",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07055",
+   "bucket": "11_50",
+   "n_tasks": 48,
+   "topology": 16208,
+   "plan_space_size": 847622907049404564614012839370162176,
+   "label_source": "hand",
+   "state_id": "A/cc40s16208__g3heavy__cd_ib0_s0#44494",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07088",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16239,
+   "plan_space_size": 226748160000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16239__g3heavy__cd_ib0_s0#49560",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07092",
+   "bucket": "11_50",
+   "n_tasks": 31,
+   "topology": 16234,
+   "plan_space_size": 64465935400299510000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g2moderate__cd_ib0_s0#28289",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07147",
+   "bucket": "11_50",
+   "n_tasks": 50,
+   "topology": 16242,
+   "plan_space_size": 34489703921846815155446197701944546304,
+   "label_source": "ils",
+   "state_id": "A/cc40s16242__g1heavy__cd_ib0_s0#23721",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07159",
+   "bucket": "11_50",
+   "n_tasks": 38,
+   "topology": 16203,
+   "plan_space_size": 263123266118066974658396160000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16203__g2moderate__cd_ib0_s0#6356",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07167",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16248,
+   "plan_space_size": 3027795758385463296,
+   "label_source": "ils",
+   "state_id": "A/cc40s16248__g3moderate__cd_ib0_s0#31086",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07172",
+   "bucket": "11_50",
+   "n_tasks": 14,
+   "topology": 16231,
+   "plan_space_size": 12150000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16231__g2moderate__cd_ib0_s0#36012",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07185",
+   "bucket": "11_50",
+   "n_tasks": 19,
+   "topology": 16208,
+   "plan_space_size": 2015815983104000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16208__g3moderate__cd_ib0_s0#47590",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07212",
+   "bucket": "11_50",
+   "n_tasks": 41,
+   "topology": 16208,
+   "plan_space_size": 755106255012878807828936653799424,
+   "label_source": "hand",
+   "state_id": "A/cc40s16208__g3moderate__cd_ib0_s0#33844",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07248",
+   "bucket": "11_50",
+   "n_tasks": 32,
+   "topology": 16205,
+   "plan_space_size": 389045294689821721632,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g1heavy__cd_ib0_s0#31051",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07274",
+   "bucket": "11_50",
+   "n_tasks": 22,
+   "topology": 16222,
+   "plan_space_size": 384956582400000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16222__g2moderate__cd_ib0_s0#12869",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07295",
+   "bucket": "11_50",
+   "n_tasks": 35,
+   "topology": 16235,
+   "plan_space_size": 10859348380521332736,
+   "label_source": "ils",
+   "state_id": "A/cc40s16235__g1moderate__cd_ib0_s0#34841",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07328",
+   "bucket": "11_50",
+   "n_tasks": 27,
+   "topology": 16244,
+   "plan_space_size": 880602513408000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16244__g0moderate__cd_ib0_s0#37683",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07329",
+   "bucket": "11_50",
+   "n_tasks": 42,
+   "topology": 16202,
+   "plan_space_size": 6469721964790960268800,
+   "label_source": "hand",
+   "state_id": "A/cc40s16202__g2heavy__cd_ib0_s0#10418",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07342",
+   "bucket": "11_50",
+   "n_tasks": 44,
+   "topology": 16245,
+   "plan_space_size": 73691306573577785966592,
+   "label_source": "ils",
+   "state_id": "A/cc40s16245__g1moderate__cd_ib0_s0#33301",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07359",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16248,
+   "plan_space_size": 409600,
+   "label_source": "hand",
+   "state_id": "A/cc40s16248__g3heavy__cd_ib0_s0#49273",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07392",
+   "bucket": "11_50",
+   "n_tasks": 25,
+   "topology": 16234,
+   "plan_space_size": 430259200000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16234__g1heavy__cd_ib0_s0#42843",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07395",
+   "bucket": "11_50",
+   "n_tasks": 21,
+   "topology": 16232,
+   "plan_space_size": 8666449635704832,
+   "label_source": "hand",
+   "state_id": "A/cc40s16232__g3heavy__cd_ib0_s0#7040",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07397",
+   "bucket": "11_50",
+   "n_tasks": 13,
+   "topology": 16239,
+   "plan_space_size": 61334280470528,
+   "label_source": "ils",
+   "state_id": "A/cc40s16239__g1moderate__cd_ib0_s0#35008",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07415",
+   "bucket": "11_50",
+   "n_tasks": 33,
+   "topology": 16232,
+   "plan_space_size": 26683490719466510400000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16232__g3moderate__cd_ib0_s0#49824",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07452",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16207,
+   "plan_space_size": 116658313381639330560000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16207__g1heavy__cd_ib0_s0#46292",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07497",
+   "bucket": "11_50",
+   "n_tasks": 19,
+   "topology": 16238,
+   "plan_space_size": 1080000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16238__g3heavy__cd_ib0_s0#5714",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07498",
+   "bucket": "11_50",
+   "n_tasks": 24,
+   "topology": 16202,
+   "plan_space_size": 26873856,
+   "label_source": "hand",
+   "state_id": "A/cc40s16202__g1heavy__cd_ib0_s0#22385",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07524",
+   "bucket": "11_50",
+   "n_tasks": 28,
+   "topology": 16207,
+   "plan_space_size": 201553920000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16207__g3heavy__cd_ib0_s0#31462",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07535",
+   "bucket": "11_50",
+   "n_tasks": 32,
+   "topology": 16208,
+   "plan_space_size": 165112971264,
+   "label_source": "hand",
+   "state_id": "A/cc40s16208__g1heavy__cd_ib0_s0#40381",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07564",
+   "bucket": "11_50",
+   "n_tasks": 19,
+   "topology": 16228,
+   "plan_space_size": 168664740519087707485372416,
+   "label_source": "hand",
+   "state_id": "A/cc40s16228__g2moderate__cd_ib0_s0#24903",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07659",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16216,
+   "plan_space_size": 2304,
+   "label_source": "ils",
+   "state_id": "A/cc40s16216__g3moderate__cd_ib0_s0#45190",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07665",
+   "bucket": "11_50",
+   "n_tasks": 37,
+   "topology": 16217,
+   "plan_space_size": 134217728,
+   "label_source": "hand",
+   "state_id": "A/cc40s16217__g2moderate__cd_ib0_s0#31996",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07670",
+   "bucket": "11_50",
+   "n_tasks": 20,
+   "topology": 16231,
+   "plan_space_size": 5302416201426432000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16231__g2heavy__cd_ib0_s0#29579",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07680",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16223,
+   "plan_space_size": 1749600000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16223__g0heavy__cd_ib0_s0#5544",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07714",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16221,
+   "plan_space_size": 197448192,
+   "label_source": "ils",
+   "state_id": "A/cc40s16221__g3heavy__cd_ib0_s0#22010",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07742",
+   "bucket": "11_50",
+   "n_tasks": 13,
+   "topology": 16236,
+   "plan_space_size": 472392,
+   "label_source": "ils",
+   "state_id": "A/cc40s16236__g3moderate__cd_ib0_s0#42036",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07793",
+   "bucket": "11_50",
+   "n_tasks": 43,
+   "topology": 16244,
+   "plan_space_size": 65197351812680916044938739712,
+   "label_source": "ils",
+   "state_id": "A/cc40s16244__g2heavy__cd_ib0_s0#48926",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07815",
+   "bucket": "11_50",
+   "n_tasks": 42,
+   "topology": 16241,
+   "plan_space_size": 2265257959912431364866048000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16241__g1moderate__cd_ib0_s0#36369",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07843",
+   "bucket": "11_50",
+   "n_tasks": 22,
+   "topology": 16242,
+   "plan_space_size": 3906250000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16242__g0heavy__cd_ib0_s0#40259",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07891",
+   "bucket": "11_50",
+   "n_tasks": 32,
+   "topology": 16241,
+   "plan_space_size": 2836140198288800350697280000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16241__g1moderate__cd_ib0_s0#40381",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07902",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16246,
+   "plan_space_size": 7776,
+   "label_source": "ils",
+   "state_id": "A/cc40s16246__g3moderate__cd_ib0_s0#8489",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_07912",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16231,
+   "plan_space_size": 126052500,
+   "label_source": "ils",
+   "state_id": "A/cc40s16231__g3moderate__cd_ib0_s0#18482",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08032",
+   "bucket": "11_50",
+   "n_tasks": 18,
+   "topology": 16219,
+   "plan_space_size": 13177032454057536,
+   "label_source": "ils",
+   "state_id": "A/cc40s16219__g2moderate__cd_ib0_s0#16924",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08100",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16223,
+   "plan_space_size": 5878656,
+   "label_source": "hand",
+   "state_id": "A/cc40s16223__g1moderate__cd_ib0_s0#15061",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08231",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16214,
+   "plan_space_size": 76527504,
+   "label_source": "hand",
+   "state_id": "A/cc40s16214__g1moderate__cd_ib0_s0#40880",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08250",
+   "bucket": "11_50",
+   "n_tasks": 42,
+   "topology": 16228,
+   "plan_space_size": 16305951501495584222072510363819014918351204909056,
+   "label_source": "ils",
+   "state_id": "A/cc40s16228__g0heavy__cd_ib0_s0#19692",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08255",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16238,
+   "plan_space_size": 394827264,
+   "label_source": "hand",
+   "state_id": "A/cc40s16238__g2moderate__cd_ib0_s0#22844",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08257",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16206,
+   "plan_space_size": 14706125000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16206__g2moderate__cd_ib0_s0#11934",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08402",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16221,
+   "plan_space_size": 93870151167297716224,
+   "label_source": "hand",
+   "state_id": "A/cc40s16221__g2heavy__cd_ib0_s0#27479",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08507",
+   "bucket": "11_50",
+   "n_tasks": 35,
+   "topology": 16225,
+   "plan_space_size": 15061465876813217714405376,
+   "label_source": "ils",
+   "state_id": "A/cc40s16225__g1heavy__cd_ib0_s0#28093",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08563",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16216,
+   "plan_space_size": 38508291648,
+   "label_source": "hand",
+   "state_id": "A/cc40s16216__g0heavy__cd_ib0_s0#18628",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08565",
+   "bucket": "11_50",
+   "n_tasks": 17,
+   "topology": 16201,
+   "plan_space_size": 5981846598000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16201__g2moderate__cd_ib0_s0#14690",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08573",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16225,
+   "plan_space_size": 1179648,
+   "label_source": "ils",
+   "state_id": "A/cc40s16225__g0moderate__cd_ib0_s0#5954",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08618",
+   "bucket": "11_50",
+   "n_tasks": 22,
+   "topology": 16209,
+   "plan_space_size": 2517630976,
+   "label_source": "hand",
+   "state_id": "A/cc40s16209__g0heavy__cd_ib0_s0#37931",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08625",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16212,
+   "plan_space_size": 329204736,
+   "label_source": "ils",
+   "state_id": "A/cc40s16212__g1heavy__cd_ib0_s0#41190",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08638",
+   "bucket": "11_50",
+   "n_tasks": 14,
+   "topology": 16216,
+   "plan_space_size": 14745600,
+   "label_source": "hand",
+   "state_id": "A/cc40s16216__g3heavy__cd_ib0_s0#36093",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08768",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16224,
+   "plan_space_size": 384,
+   "label_source": "hand",
+   "state_id": "A/cc40s16224__g0heavy__cd_ib0_s0#23984",
+   "small": true
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08799",
+   "bucket": "11_50",
+   "n_tasks": 30,
+   "topology": 16209,
+   "plan_space_size": 10709525323390280221075704578572288,
+   "label_source": "hand",
+   "state_id": "A/cc40s16209__g3heavy__cd_ib0_s0#20815",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_08861",
+   "bucket": "11_50",
+   "n_tasks": 16,
+   "topology": 16231,
+   "plan_space_size": 1625702400000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16231__g2moderate__cd_ib0_s0#13087",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09018",
+   "bucket": "11_50",
+   "n_tasks": 14,
+   "topology": 16235,
+   "plan_space_size": 2480524250904,
+   "label_source": "ils",
+   "state_id": "A/cc40s16235__g2heavy__cd_ib0_s0#42717",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09031",
+   "bucket": "11_50",
+   "n_tasks": 21,
+   "topology": 16219,
+   "plan_space_size": 10679871743735422222761984,
+   "label_source": "ils",
+   "state_id": "A/cc40s16219__g1moderate__cd_ib0_s0#43920",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09122",
+   "bucket": "11_50",
+   "n_tasks": 13,
+   "topology": 16203,
+   "plan_space_size": 142603316384256,
+   "label_source": "ils",
+   "state_id": "A/cc40s16203__g0heavy__cd_ib0_s0#23228",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09123",
+   "bucket": "11_50",
+   "n_tasks": 15,
+   "topology": 16216,
+   "plan_space_size": 11390625000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16216__g2heavy__cd_ib0_s0#30162",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09153",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16208,
+   "plan_space_size": 92160000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16208__g2heavy__cd_ib0_s0#11865",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09212",
+   "bucket": "11_50",
+   "n_tasks": 12,
+   "topology": 16215,
+   "plan_space_size": 20995200,
+   "label_source": "ils",
+   "state_id": "A/cc40s16215__g2heavy__cd_ib0_s0#8162",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09265",
+   "bucket": "11_50",
+   "n_tasks": 11,
+   "topology": 16223,
+   "plan_space_size": 6442450944,
+   "label_source": "hand",
+   "state_id": "A/cc40s16223__g3heavy__cd_ib0_s0#41682",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09284",
+   "bucket": "11_50",
+   "n_tasks": 13,
+   "topology": 16223,
+   "plan_space_size": 19585255593738240,
+   "label_source": "hand",
+   "state_id": "A/cc40s16223__g2heavy__cd_ib0_s0#23749",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09293",
+   "bucket": "11_50",
+   "n_tasks": 18,
+   "topology": 16225,
+   "plan_space_size": 12538266255360000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16225__g2moderate__cd_ib0_s0#3070",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09350",
+   "bucket": "11_50",
+   "n_tasks": 14,
+   "topology": 16205,
+   "plan_space_size": 1357302007332864,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g2heavy__cd_ib0_s0#21282",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09449",
+   "bucket": "51_100",
+   "n_tasks": 61,
+   "topology": 16219,
+   "plan_space_size": 1862645149230957031250000000000000000,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16219__g1heavy__cd_ib0_s0#3627",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09451",
+   "bucket": "51_100",
+   "n_tasks": 69,
+   "topology": 16203,
+   "plan_space_size": 3582673625840950090330495671251251584615516915087522103154618400768,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16203__g3heavy__cd_ib0_s0#797",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09460",
+   "bucket": "51_100",
+   "n_tasks": 79,
+   "topology": 16238,
+   "plan_space_size": 16233647602910523441378149614536100218877547088829207542770502331269120000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16238__g2moderate__cd_ib0_s0#623",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09485",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16216,
+   "plan_space_size": 2018424089313015450324218749257718431744,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16216__g0heavy__cd_ib0_s0#94",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09536",
+   "bucket": "51_100",
+   "n_tasks": 76,
+   "topology": 16238,
+   "plan_space_size": 4416491511299491340746752000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16238__g3moderate__cd_ib0_s0#748",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09561",
+   "bucket": "51_100",
+   "n_tasks": 84,
+   "topology": 16202,
+   "plan_space_size": 851946664988327804928000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16202__g0heavy__cd_ib0_s0#180",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09574",
+   "bucket": "51_100",
+   "n_tasks": 79,
+   "topology": 16244,
+   "plan_space_size": 6189477360863510152897885700043027370394987565996367792262086656,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16244__g0heavy__cd_ib0_s0#807",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09605",
+   "bucket": "51_100",
+   "n_tasks": 58,
+   "topology": 16249,
+   "plan_space_size": 115460303127765655517578125,
+   "label_source": "ils",
+   "state_id": "C3/cc40s16249__g0moderate__cd_ib0_s0#390",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09606",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16224,
+   "plan_space_size": 36879337156986411428481461096808838305153024,
+   "label_source": "hand",
+   "state_id": "B/cc40s16224__g3heavy__cd_ib0_s0#640",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09623",
+   "bucket": "51_100",
+   "n_tasks": 89,
+   "topology": 16243,
+   "plan_space_size": 90284566885766226664267076755644559478343125544600611057210734572207027628210038451765664974220755294263441358848,
+   "label_source": "ils",
+   "state_id": "B/cc40s16243__g1heavy__cd_ib0_s0#185",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09627",
+   "bucket": "51_100",
+   "n_tasks": 71,
+   "topology": 16205,
+   "plan_space_size": 257595465668117811697268216350000550569845109736423424,
+   "label_source": "ils",
+   "state_id": "B/cc40s16205__g3moderate__cd_ib0_s0#1790",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09669",
+   "bucket": "51_100",
+   "n_tasks": 58,
+   "topology": 16221,
+   "plan_space_size": 7283117115550889698536925670412547683702933118101340815360000000000000,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16221__g0heavy__cd_ib0_s0#390",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09690",
+   "bucket": "51_100",
+   "n_tasks": 70,
+   "topology": 16209,
+   "plan_space_size": 248476195970222320556640625000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16209__g2heavy__cd_ib0_s0#97",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09692",
+   "bucket": "51_100",
+   "n_tasks": 59,
+   "topology": 16215,
+   "plan_space_size": 9087431093208829919232,
+   "label_source": "ils",
+   "state_id": "B/cc40s16215__g1heavy__cd_ib0_s0#3137",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09703",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16225,
+   "plan_space_size": 57193176913053130291773685366784000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16225__g0moderate__cd_ib0_s0#267",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09731",
+   "bucket": "51_100",
+   "n_tasks": 70,
+   "topology": 16207,
+   "plan_space_size": 83629257305422559834941810735506713644299780472166517257670747508172031787008,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16207__g2moderate__cd_ib0_s0#97",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09813",
+   "bucket": "51_100",
+   "n_tasks": 59,
+   "topology": 16239,
+   "plan_space_size": 66166193406813836594263657498542080000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16239__g0moderate__cd_ib0_s0#831",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09816",
+   "bucket": "51_100",
+   "n_tasks": 71,
+   "topology": 16221,
+   "plan_space_size": 565892055267619711048807659144732779814918038974364807009797500655335866547535135899648,
+   "label_source": "hand",
+   "state_id": "B/cc40s16221__g3heavy__cd_ib0_s0#1790",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09851",
+   "bucket": "51_100",
+   "n_tasks": 62,
+   "topology": 16212,
+   "plan_space_size": 12056809372903645894656000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16212__g2heavy__cd_ib0_s0#3022",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09860",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16209,
+   "plan_space_size": 3950117641239288989860729770380899588767744000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16209__g0heavy__cd_ib0_s0#4155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09905",
+   "bucket": "51_100",
+   "n_tasks": 61,
+   "topology": 16204,
+   "plan_space_size": 3676258543978604182634496,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16204__g2heavy__cd_ib0_s0#4331",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09947",
+   "bucket": "51_100",
+   "n_tasks": 81,
+   "topology": 16202,
+   "plan_space_size": 1746182454832228075847218089652043907072,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16202__g2heavy__cd_ib0_s0#4356",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09949",
+   "bucket": "51_100",
+   "n_tasks": 71,
+   "topology": 16237,
+   "plan_space_size": 21698014417337834160176547148524260149631530303488000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16237__g3heavy__cd_ib0_s0#1790",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09954",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16203,
+   "plan_space_size": 4554349532227980882140886593546747904000000,
+   "label_source": "hand",
+   "state_id": "C3/cc40s16203__g1heavy__cd_ib0_s0#2211",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09960",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16234,
+   "plan_space_size": 151512921148161031819988551809504683846056792890674685935616,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16234__g2moderate__cd_ib0_s0#509",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09983",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16202,
+   "plan_space_size": 15641745384812356827975038436473463885529088000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16202__g0heavy__cd_ib0_s0#3509",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_09993",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16212,
+   "plan_space_size": 315916194842201233418741008362897408000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16212__g0heavy__cd_ib0_s0#4155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10003",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16204,
+   "plan_space_size": 31250000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g0moderate__cd_ib0_s0#18673",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10034",
+   "bucket": "51_100",
+   "n_tasks": 68,
+   "topology": 16209,
+   "plan_space_size": 4991874990165983232000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16209__g3moderate__cd_ib0_s0#18947",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10052",
+   "bucket": "51_100",
+   "n_tasks": 95,
+   "topology": 16238,
+   "plan_space_size": 436876502482369738577636408812840308318798067269632,
+   "label_source": "hand",
+   "state_id": "A/cc40s16238__g1heavy__cd_ib0_s0#8003",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10094",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16234,
+   "plan_space_size": 312500000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g3moderate__cd_ib0_s0#28538",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10097",
+   "bucket": "51_100",
+   "n_tasks": 54,
+   "topology": 16241,
+   "plan_space_size": 245870357223370273812654590532229291781399313,
+   "label_source": "ils",
+   "state_id": "A/cc40s16241__g3moderate__cd_ib0_s0#16341",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10110",
+   "bucket": "51_100",
+   "n_tasks": 63,
+   "topology": 16232,
+   "plan_space_size": 20542695432781824,
+   "label_source": "hand",
+   "state_id": "A/cc40s16232__g2moderate__cd_ib0_s0#23917",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10139",
+   "bucket": "51_100",
+   "n_tasks": 74,
+   "topology": 16235,
+   "plan_space_size": 24346898290704384,
+   "label_source": "hand",
+   "state_id": "A/cc40s16235__g0moderate__cd_ib0_s0#10488",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10147",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16247,
+   "plan_space_size": 11731982231140136718750000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16247__g0heavy__cd_ib0_s0#25155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10191",
+   "bucket": "51_100",
+   "n_tasks": 69,
+   "topology": 16202,
+   "plan_space_size": 254254864836295156668998063409266688000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16202__g2moderate__cd_ib0_s0#5921",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10214",
+   "bucket": "51_100",
+   "n_tasks": 74,
+   "topology": 16218,
+   "plan_space_size": 26483113786586475781935675928018944,
+   "label_source": "hand",
+   "state_id": "A/cc40s16218__g0heavy__cd_ib0_s0#10488",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10235",
+   "bucket": "51_100",
+   "n_tasks": 95,
+   "topology": 16227,
+   "plan_space_size": 36509539998411036120878416566313890375648645077718043459584,
+   "label_source": "ils",
+   "state_id": "A/cc40s16227__g3moderate__cd_ib0_s0#44876",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10246",
+   "bucket": "51_100",
+   "n_tasks": 65,
+   "topology": 16247,
+   "plan_space_size": 1009714565912092213248,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g0heavy__cd_ib0_s0#6080",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10260",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16209,
+   "plan_space_size": 390534808788245198425336303124480000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16209__g3heavy__cd_ib0_s0#18406",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10266",
+   "bucket": "51_100",
+   "n_tasks": 56,
+   "topology": 16239,
+   "plan_space_size": 534096706049482064240138155720704,
+   "label_source": "hand",
+   "state_id": "A/cc40s16239__g0moderate__cd_ib0_s0#24351",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10277",
+   "bucket": "51_100",
+   "n_tasks": 95,
+   "topology": 16213,
+   "plan_space_size": 3045877467640278214988377153873443603515625,
+   "label_source": "ils",
+   "state_id": "A/cc40s16213__g2moderate__cd_ib0_s0#21441",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10295",
+   "bucket": "51_100",
+   "n_tasks": 74,
+   "topology": 16244,
+   "plan_space_size": 3279775534925508863320335718278367813886590058496,
+   "label_source": "ils",
+   "state_id": "A/cc40s16244__g1heavy__cd_ib0_s0#43602",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10305",
+   "bucket": "51_100",
+   "n_tasks": 54,
+   "topology": 16206,
+   "plan_space_size": 5881479657485211965774948211,
+   "label_source": "hand",
+   "state_id": "A/cc40s16206__g0moderate__cd_ib0_s0#8038",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10313",
+   "bucket": "51_100",
+   "n_tasks": 63,
+   "topology": 16206,
+   "plan_space_size": 4710418487907855914247379647561990144,
+   "label_source": "ils",
+   "state_id": "A/cc40s16206__g1heavy__cd_ib0_s0#20053",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10320",
+   "bucket": "51_100",
+   "n_tasks": 94,
+   "topology": 16228,
+   "plan_space_size": 330878957985140953034350118567936,
+   "label_source": "ils",
+   "state_id": "A/cc40s16228__g3moderate__cd_ib0_s0#34139",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10339",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16244,
+   "plan_space_size": 9671406556917033397649408,
+   "label_source": "hand",
+   "state_id": "A/cc40s16244__g1moderate__cd_ib0_s0#34180",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10341",
+   "bucket": "51_100",
+   "n_tasks": 87,
+   "topology": 16213,
+   "plan_space_size": 120182612832205284203619646701568000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16213__g2moderate__cd_ib0_s0#15454",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10345",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16212,
+   "plan_space_size": 590295810358705651712,
+   "label_source": "ils",
+   "state_id": "A/cc40s16212__g0moderate__cd_ib0_s0#18673",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10352",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16217,
+   "plan_space_size": 22067482534159923000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16217__g1heavy__cd_ib0_s0#6437",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10360",
+   "bucket": "51_100",
+   "n_tasks": 69,
+   "topology": 16232,
+   "plan_space_size": 14210469196225814419329574297298534400000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16232__g1moderate__cd_ib0_s0#35372",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10380",
+   "bucket": "51_100",
+   "n_tasks": 58,
+   "topology": 16245,
+   "plan_space_size": 8566303286690908576466998394880000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16245__g1moderate__cd_ib0_s0#2089",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10382",
+   "bucket": "51_100",
+   "n_tasks": 59,
+   "topology": 16242,
+   "plan_space_size": 279657428630958123145996583597800849145856,
+   "label_source": "hand",
+   "state_id": "A/cc40s16242__g1heavy__cd_ib0_s0#9669",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10394",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16247,
+   "plan_space_size": 290420756304773155911401472,
+   "label_source": "hand",
+   "state_id": "A/cc40s16247__g0moderate__cd_ib0_s0#18673",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10405",
+   "bucket": "51_100",
+   "n_tasks": 90,
+   "topology": 16205,
+   "plan_space_size": 34103898251380203600955216284114161562720856262645085614962176404307836928,
+   "label_source": "ils",
+   "state_id": "A/cc40s16205__g2heavy__cd_ib0_s0#12954",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10417",
+   "bucket": "51_100",
+   "n_tasks": 63,
+   "topology": 16225,
+   "plan_space_size": 1298074214633706907132624082305024,
+   "label_source": "ils",
+   "state_id": "A/cc40s16225__g2moderate__cd_ib0_s0#23917",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10436",
+   "bucket": "51_100",
+   "n_tasks": 52,
+   "topology": 16236,
+   "plan_space_size": 543523436460236603392,
+   "label_source": "ils",
+   "state_id": "A/cc40s16236__g3moderate__cd_ib0_s0#20297",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10438",
+   "bucket": "51_100",
+   "n_tasks": 67,
+   "topology": 16207,
+   "plan_space_size": 41635188888613706314863061395761587283820544000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16207__g1moderate__cd_ib0_s0#35616",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10440",
+   "bucket": "51_100",
+   "n_tasks": 95,
+   "topology": 16245,
+   "plan_space_size": 1207755551641874392926692962646484375,
+   "label_source": "hand",
+   "state_id": "A/cc40s16245__g3moderate__cd_ib0_s0#45540",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10444",
+   "bucket": "51_100",
+   "n_tasks": 62,
+   "topology": 16219,
+   "plan_space_size": 476599842811687500000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16219__g1moderate__cd_ib0_s0#39219",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10449",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16241,
+   "plan_space_size": 1296391175098476168964507191604150272,
+   "label_source": "ils",
+   "state_id": "A/cc40s16241__g0moderate__cd_ib0_s0#29091",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10451",
+   "bucket": "51_100",
+   "n_tasks": 58,
+   "topology": 16212,
+   "plan_space_size": 35842623209122669119530694833471546720256,
+   "label_source": "ils",
+   "state_id": "A/cc40s16212__g0heavy__cd_ib0_s0#33506",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10459",
+   "bucket": "51_100",
+   "n_tasks": 92,
+   "topology": 16243,
+   "plan_space_size": 4611686018427387904000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16243__g3moderate__cd_ib0_s0#5779",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10464",
+   "bucket": "51_100",
+   "n_tasks": 62,
+   "topology": 16245,
+   "plan_space_size": 45516600395122527389883787233879408455140245504,
+   "label_source": "ils",
+   "state_id": "A/cc40s16245__g3moderate__cd_ib0_s0#42197",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10468",
+   "bucket": "51_100",
+   "n_tasks": 94,
+   "topology": 16205,
+   "plan_space_size": 15984077996739718972679274325434433536,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g3moderate__cd_ib0_s0#34139",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10471",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16245,
+   "plan_space_size": 324073873343137371869726333120544768,
+   "label_source": "ils",
+   "state_id": "A/cc40s16245__g3moderate__cd_ib0_s0#10183",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10481",
+   "bucket": "51_100",
+   "n_tasks": 51,
+   "topology": 16221,
+   "plan_space_size": 578415690713088000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16221__g0moderate__cd_ib0_s0#41182",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10511",
+   "bucket": "51_100",
+   "n_tasks": 95,
+   "topology": 16239,
+   "plan_space_size": 2320542448807028362947169952694282928169935545973660740530057571729408,
+   "label_source": "hand",
+   "state_id": "A/cc40s16239__g1heavy__cd_ib0_s0#8003",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10516",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16206,
+   "plan_space_size": 2960514415880378004026994645270528000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16206__g0heavy__cd_ib0_s0#19627",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10518",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16217,
+   "plan_space_size": 248908952892499558400000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16217__g3moderate__cd_ib0_s0#47671",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10522",
+   "bucket": "51_100",
+   "n_tasks": 69,
+   "topology": 16213,
+   "plan_space_size": 1818632874295719136447064101027206660096,
+   "label_source": "hand",
+   "state_id": "A/cc40s16213__g2heavy__cd_ib0_s0#31190",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10534",
+   "bucket": "51_100",
+   "n_tasks": 68,
+   "topology": 16212,
+   "plan_space_size": 19922159246878951179844522102866028802177726223607199170560000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16212__g3moderate__cd_ib0_s0#18947",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10535",
+   "bucket": "51_100",
+   "n_tasks": 52,
+   "topology": 16213,
+   "plan_space_size": 2272605146463811397552490234375,
+   "label_source": "hand",
+   "state_id": "A/cc40s16213__g0heavy__cd_ib0_s0#47827",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10540",
+   "bucket": "51_100",
+   "n_tasks": 56,
+   "topology": 16205,
+   "plan_space_size": 6820521780134210954155114806286221312,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g3heavy__cd_ib0_s0#21497",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10545",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16217,
+   "plan_space_size": 80201701577541936648021956679276403470779769122600555419921875,
+   "label_source": "ils",
+   "state_id": "A/cc40s16217__g3moderate__cd_ib0_s0#23451",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10576",
+   "bucket": "51_100",
+   "n_tasks": 64,
+   "topology": 16205,
+   "plan_space_size": 186238150484908001177811309057131393867588837572608,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g2moderate__cd_ib0_s0#16454",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10583",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16233,
+   "plan_space_size": 11626209038157087112704,
+   "label_source": "hand",
+   "state_id": "A/cc40s16233__g3moderate__cd_ib0_s0#47671",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10591",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16205,
+   "plan_space_size": 611952986477363256620682488848580608,
+   "label_source": "ils",
+   "state_id": "A/cc40s16205__g3moderate__cd_ib0_s0#40554",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10617",
+   "bucket": "51_100",
+   "n_tasks": 94,
+   "topology": 16243,
+   "plan_space_size": 173174624437157857317949201976321271567086852450452530392466365508682626061078364160000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16243__g3heavy__cd_ib0_s0#34139",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10634",
+   "bucket": "51_100",
+   "n_tasks": 67,
+   "topology": 16204,
+   "plan_space_size": 144824667784051710305649111678106711168647168,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g2moderate__cd_ib0_s0#3446",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10658",
+   "bucket": "51_100",
+   "n_tasks": 51,
+   "topology": 16208,
+   "plan_space_size": 158993694406781688266883072,
+   "label_source": "ils",
+   "state_id": "A/cc40s16208__g1moderate__cd_ib0_s0#22439",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10665",
+   "bucket": "51_100",
+   "n_tasks": 97,
+   "topology": 16204,
+   "plan_space_size": 456930227285176232823902066895289202780120061480695136510862688256,
+   "label_source": "ils",
+   "state_id": "A/cc40s16204__g3heavy__cd_ib0_s0#46428",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10672",
+   "bucket": "51_100",
+   "n_tasks": 92,
+   "topology": 16233,
+   "plan_space_size": 13164036458569648337239753460458804039861886925068638906788872192,
+   "label_source": "ils",
+   "state_id": "A/cc40s16233__g3heavy__cd_ib0_s0#5779",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10682",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16234,
+   "plan_space_size": 6112251732438835879213006848,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g0moderate__cd_ib0_s0#44965",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10695",
+   "bucket": "51_100",
+   "n_tasks": 63,
+   "topology": 16234,
+   "plan_space_size": 15474250491067253436239052800000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16234__g1moderate__cd_ib0_s0#20053",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10705",
+   "bucket": "51_100",
+   "n_tasks": 54,
+   "topology": 16208,
+   "plan_space_size": 2287634161859548511468750526144681571516416,
+   "label_source": "ils",
+   "state_id": "A/cc40s16208__g3moderate__cd_ib0_s0#16341",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10733",
+   "bucket": "51_100",
+   "n_tasks": 63,
+   "topology": 16239,
+   "plan_space_size": 4986934853958738472845858619336356203497594552320000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16239__g0moderate__cd_ib0_s0#45321",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10741",
+   "bucket": "51_100",
+   "n_tasks": 73,
+   "topology": 16222,
+   "plan_space_size": 73667072313234621949804513157195602329600000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16222__g3moderate__cd_ib0_s0#17191",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10744",
+   "bucket": "51_100",
+   "n_tasks": 74,
+   "topology": 16208,
+   "plan_space_size": 41632233973317815681629612199116800000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16208__g0heavy__cd_ib0_s0#10488",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10759",
+   "bucket": "51_100",
+   "n_tasks": 74,
+   "topology": 16202,
+   "plan_space_size": 58327750817862073452023938019599004467200000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16202__g0heavy__cd_ib0_s0#10488",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10761",
+   "bucket": "51_100",
+   "n_tasks": 52,
+   "topology": 16217,
+   "plan_space_size": 3181440296326619174067229324133971331614637031424,
+   "label_source": "ils",
+   "state_id": "A/cc40s16217__g0heavy__cd_ib0_s0#39674",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10789",
+   "bucket": "51_100",
+   "n_tasks": 95,
+   "topology": 16234,
+   "plan_space_size": 2041101437918655928193176073917542283837857944205722150573730468750000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g2heavy__cd_ib0_s0#21441",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10792",
+   "bucket": "51_100",
+   "n_tasks": 51,
+   "topology": 16233,
+   "plan_space_size": 126908196839865312243955531776,
+   "label_source": "ils",
+   "state_id": "A/cc40s16233__g1moderate__cd_ib0_s0#40964",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10803",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16215,
+   "plan_space_size": 360287970189639680000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16215__g0heavy__cd_ib0_s0#22118",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10812",
+   "bucket": "51_100",
+   "n_tasks": 77,
+   "topology": 16208,
+   "plan_space_size": 14213499036490917832032936151594646080230169193339515377316959688461385728,
+   "label_source": "hand",
+   "state_id": "A/cc40s16208__g1moderate__cd_ib0_s0#31336",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10853",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16248,
+   "plan_space_size": 709294672938108331038449871093760000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16248__g0heavy__cd_ib0_s0#24904",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10886",
+   "bucket": "51_100",
+   "n_tasks": 98,
+   "topology": 16213,
+   "plan_space_size": 146596272563772111939260054688887828679710584035840000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16213__g0moderate__cd_ib0_s0#23001",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10889",
+   "bucket": "51_100",
+   "n_tasks": 61,
+   "topology": 16213,
+   "plan_space_size": 819566011202924192519109626454664544256,
+   "label_source": "hand",
+   "state_id": "A/cc40s16213__g3heavy__cd_ib0_s0#23042",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10933",
+   "bucket": "51_100",
+   "n_tasks": 51,
+   "topology": 16246,
+   "plan_space_size": 1226320063542464957003551720335218426004524767398834228515625,
+   "label_source": "hand",
+   "state_id": "A/cc40s16246__g0heavy__cd_ib0_s0#8522",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10958",
+   "bucket": "51_100",
+   "n_tasks": 62,
+   "topology": 16208,
+   "plan_space_size": 14766705728856080112111339729366024192,
+   "label_source": "hand",
+   "state_id": "A/cc40s16208__g1heavy__cd_ib0_s0#39219",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_10961",
+   "bucket": "51_100",
+   "n_tasks": 56,
+   "topology": 16223,
+   "plan_space_size": 19492810752430327877278557043609829376000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16223__g0moderate__cd_ib0_s0#39043",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11004",
+   "bucket": "51_100",
+   "n_tasks": 68,
+   "topology": 16208,
+   "plan_space_size": 9133090384129900485277175903320312500000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16208__g3heavy__cd_ib0_s0#11879",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11020",
+   "bucket": "51_100",
+   "n_tasks": 54,
+   "topology": 16209,
+   "plan_space_size": 96479729228174488169059713024,
+   "label_source": "ils",
+   "state_id": "A/cc40s16209__g1heavy__cd_ib0_s0#25774",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11079",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16204,
+   "plan_space_size": 334093303431411994962623474577866342201799966487216128,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g0heavy__cd_ib0_s0#34555",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11080",
+   "bucket": "51_100",
+   "n_tasks": 52,
+   "topology": 16202,
+   "plan_space_size": 465570015819704098930448409862964904984576,
+   "label_source": "hand",
+   "state_id": "A/cc40s16202__g3heavy__cd_ib0_s0#20297",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11089",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16215,
+   "plan_space_size": 6326457325245992609663436153723252402196111965392879616,
+   "label_source": "hand",
+   "state_id": "A/cc40s16215__g1heavy__cd_ib0_s0#42868",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11110",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16204,
+   "plan_space_size": 5860153719965887973816062445706240000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g0heavy__cd_ib0_s0#25155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11128",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16228,
+   "plan_space_size": 1171433773640550818119680000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16228__g3heavy__cd_ib0_s0#43495",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11180",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16219,
+   "plan_space_size": 684114074224967982167407766519414784,
+   "label_source": "hand",
+   "state_id": "A/cc40s16219__g0heavy__cd_ib0_s0#25155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11197",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16231,
+   "plan_space_size": 28752842816697922560000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16231__g1moderate__cd_ib0_s0#27403",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11204",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16212,
+   "plan_space_size": 374543978731134502950538697540760040283203125,
+   "label_source": "ils",
+   "state_id": "A/cc40s16212__g2heavy__cd_ib0_s0#13430",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11231",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16231,
+   "plan_space_size": 152264117481516908366476854951936,
+   "label_source": "ils",
+   "state_id": "A/cc40s16231__g2heavy__cd_ib0_s0#14131",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11238",
+   "bucket": "51_100",
+   "n_tasks": 98,
+   "topology": 16234,
+   "plan_space_size": 2903360809929433952221672108870292342336123401619052587598741504000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g1moderate__cd_ib0_s0#10986",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11241",
+   "bucket": "51_100",
+   "n_tasks": 57,
+   "topology": 16209,
+   "plan_space_size": 55183652305482247294281835964596991557632000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16209__g3heavy__cd_ib0_s0#23451",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11254",
+   "bucket": "51_100",
+   "n_tasks": 60,
+   "topology": 16247,
+   "plan_space_size": 155742599484028969932424286208157286400000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g0heavy__cd_ib0_s0#45113",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11281",
+   "bucket": "51_100",
+   "n_tasks": 74,
+   "topology": 16242,
+   "plan_space_size": 3415083373588179567037613940777598201129298356720934071862890070016,
+   "label_source": "hand",
+   "state_id": "A/cc40s16242__g3moderate__cd_ib0_s0#12988",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11308",
+   "bucket": "51_100",
+   "n_tasks": 62,
+   "topology": 16247,
+   "plan_space_size": 3097216109625504504744457219362848958965792273133512252276736,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g2heavy__cd_ib0_s0#29235",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11324",
+   "bucket": "51_100",
+   "n_tasks": 54,
+   "topology": 16234,
+   "plan_space_size": 380724590519595936731866595328,
+   "label_source": "hand",
+   "state_id": "A/cc40s16234__g0heavy__cd_ib0_s0#4437",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11331",
+   "bucket": "51_100",
+   "n_tasks": 56,
+   "topology": 16218,
+   "plan_space_size": 158145428567262467160062811371373481209375420647820232633450668754993152,
+   "label_source": "ils",
+   "state_id": "A/cc40s16218__g1moderate__cd_ib0_s0#46435",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11353",
+   "bucket": "51_100",
+   "n_tasks": 51,
+   "topology": 16232,
+   "plan_space_size": 92516075496261812625843582664704,
+   "label_source": "hand",
+   "state_id": "A/cc40s16232__g1heavy__cd_ib0_s0#22439",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11354",
+   "bucket": "51_100",
+   "n_tasks": 53,
+   "topology": 16202,
+   "plan_space_size": 68099410347997195197752330285936548272061819784232173568,
+   "label_source": "ils",
+   "state_id": "A/cc40s16202__g0moderate__cd_ib0_s0#4155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11379",
+   "bucket": "51_100",
+   "n_tasks": 55,
+   "topology": 16217,
+   "plan_space_size": 13290125556587509055286259239197638041981505636644421632,
+   "label_source": "ils",
+   "state_id": "A/cc40s16217__g1heavy__cd_ib0_s0#4149",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11393",
+   "bucket": "51_100",
+   "n_tasks": 63,
+   "topology": 16222,
+   "plan_space_size": 1254292295775316577078167000197156044800000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16222__g2moderate__cd_ib0_s0#10699",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11394",
+   "bucket": "51_100",
+   "n_tasks": 63,
+   "topology": 16217,
+   "plan_space_size": 3313590830697168102803805210512861201250000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16217__g2heavy__cd_ib0_s0#23917",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11398",
+   "bucket": "51_100",
+   "n_tasks": 72,
+   "topology": 16229,
+   "plan_space_size": 3646270206471181193759752719293995341419317352516812800000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16229__g2moderate__cd_ib0_s0#47378",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11401",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16245,
+   "plan_space_size": 3724873073204056202478086340193065294746281927146907827090488323396751665721994248111873494765141297414384368743753644537164274018375710202247916568250335550987070310294348627968,
+   "label_source": "hand",
+   "state_id": "B/cc40s16245__g2heavy__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11412",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16234,
+   "plan_space_size": 114562906330780424102843993108517383174661907424877776240520621766995823659319296000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16234__g3moderate__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11413",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16229,
+   "plan_space_size": 3127915390764112479316656145521574647402294411264,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16229__g3heavy__cd_ib0_s0#4061",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11419",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16236,
+   "plan_space_size": 67451769608361795023291183353284747277812568833174972926291845072963812880192056734395163835809798905742936622158178209026891379968342951717884256002350069631166898604343296000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16236__g3heavy__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11431",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16227,
+   "plan_space_size": 2987995248680459188192990333529894723666515669927155594935934845956782295652750493503389874567494970763852215476897516118822024396731797239979861621663393207971681338226510576181857771385048268800000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16227__g3heavy__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11438",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16207,
+   "plan_space_size": 44403256354275663980739879793031981772158877146584947818842177662159330837653373507385547500769675770328784622714892282423334303319195894795650404040427083420251521403026482039574724803900183891051422723239504236514525603324569321472,
+   "label_source": "ils",
+   "state_id": "B/cc40s16207__g2moderate__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11439",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16216,
+   "plan_space_size": 1882374404655163700799358883546622294914074816149401757025627499160932702273735808661794712997520720322051132871237216159868594113986621137852825600000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16216__g2heavy__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11440",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16201,
+   "plan_space_size": 885561392372184901920224349300536277518117231438101217280000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16201__g3heavy__cd_ib0_s0#1266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11442",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16203,
+   "plan_space_size": 60997724294479579846954055246583391331076964855868656171962110611553960204264379120189583910240256000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16203__g2heavy__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11450",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16208,
+   "plan_space_size": 146721865090431237935023891620128704349894032157756405212015794081887056997578875888205824000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16208__g2moderate__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11456",
+   "bucket": "101_256",
+   "n_tasks": 140,
+   "topology": 16245,
+   "plan_space_size": 77264662474374733037233692649386364652733176696399060968484401056358556033345521246037100874773313609853611957573669355520000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "B/cc40s16245__g2heavy__cd_ib0_s0#1402",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11459",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16227,
+   "plan_space_size": 118629087412683376993342810852373794034812943597568000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "B/cc40s16227__g2moderate__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11460",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16215,
+   "plan_space_size": 2444582763165267576191513854832307730799888986989603301682526273374265679156543504726990644743561734943222848579117367830801697795056856241425723949056000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "B/cc40s16215__g2heavy__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11461",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16242,
+   "plan_space_size": 10889035741470030830827987437816582766592,
+   "label_source": "hand",
+   "state_id": "B/cc40s16242__g2moderate__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11465",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16209,
+   "plan_space_size": 55273721546992382382484313840717257330868531976984068254665771746658720076084136962890625000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "C1/cc40s16209__g3moderate__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11469",
+   "bucket": "101_256",
+   "n_tasks": 140,
+   "topology": 16235,
+   "plan_space_size": 535476778203611501322914618944972988451046122094412305288610535941475442036441406250000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16235__g0heavy__cd_ib0_s0#1712",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11475",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16232,
+   "plan_space_size": 1974271997170340544200002951179742674027508078628779993132500516864000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "B/cc40s16232__g2heavy__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11476",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16237,
+   "plan_space_size": 167895991928415855363549469693588957859591200480670121716907962350351368741030455566942691802978515625000000000000000000,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16237__g3heavy__cd_ib0_s0#1266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11479",
+   "bucket": "101_256",
+   "n_tasks": 140,
+   "topology": 16206,
+   "plan_space_size": 6132813696073996204922315951318973070007899821915921708313783733769260236800000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "B/cc40s16206__g2heavy__cd_ib0_s0#1402",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11482",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16203,
+   "plan_space_size": 278596145683432760251637116570268959488670803748758597363847286322733595574111653442249039751044897126089288420093430808345710759153522261218448850261693338677673984,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16203__g3moderate__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11488",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16218,
+   "plan_space_size": 840563365235532555077178428462087911083321220177979745787160418605235842832915480089817084063952279393561184406280517578125,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16218__g3moderate__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11497",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16244,
+   "plan_space_size": 4952418253696299497151472892224848681252465568386338250723164160000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16244__g3moderate__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11502",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16202,
+   "plan_space_size": 133950734024498912965637026338250542517006246387908028506065474104695960788533248,
+   "label_source": "ils",
+   "state_id": "B/cc40s16202__g2moderate__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11505",
+   "bucket": "101_256",
+   "n_tasks": 195,
+   "topology": 16205,
+   "plan_space_size": 108577600388943033466163088596852751123951053942741769645293604138962172226205472328753781212382326136629597432186613262045601488517560587480697980788587972914531398450527970170654881948368896,
+   "label_source": "ils",
+   "state_id": "B/cc40s16205__g2heavy__cd_ib0_s0#980",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11507",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16223,
+   "plan_space_size": 8505861031556343938068334977912617752610397798613545238168629684273732107201327745358688851117179723847776950660747950264361186075139049731028318104691780066177149566000762148844426442098838800074902742699401805259382338980922003632275218851580406814913782017216976648266211808772096,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16223__g3heavy__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11508",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16234,
+   "plan_space_size": 168582072621864223539976721401066291200000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16234__g3heavy__cd_ib0_s0#1266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11515",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16208,
+   "plan_space_size": 92599052279119307145821476760808976092810424148935861012486811121873459365128456138232076993222045166019355995113783296,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16208__g3moderate__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11528",
+   "bucket": "101_256",
+   "n_tasks": 138,
+   "topology": 16242,
+   "plan_space_size": 805958950613587049084804199691908676925383381916364761763551431939071048749220915996490616487252794431949256419321572875042816,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16242__g1heavy__cd_ib0_s0#2322",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11530",
+   "bucket": "101_256",
+   "n_tasks": 140,
+   "topology": 16219,
+   "plan_space_size": 5308308042792731269854095668164776951791898674986661974306146958662704575843020098093163418310504611840000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "B/cc40s16219__g0moderate__cd_ib0_s0#1712",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11534",
+   "bucket": "101_256",
+   "n_tasks": 138,
+   "topology": 16205,
+   "plan_space_size": 82030902915745551236643065631043252780036958233632465566233174127597018719975959296066270346542794615472573251392848337427275057210044948479340103284725380500422656,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16205__g1heavy__cd_ib0_s0#2322",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11537",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16249,
+   "plan_space_size": 1554652002234422864922343000375720881224190174052873405820264508875773905869465082203351233553007104587318458158105493504,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16249__g3moderate__cd_ib0_s0#1266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11540",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16216,
+   "plan_space_size": 70946438774361872197324907890238879939945280257555204900052130516726976424016277518556753745833424355079306914546728522743808,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16216__g3moderate__cd_ib0_s0#1266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11541",
+   "bucket": "101_256",
+   "n_tasks": 138,
+   "topology": 16224,
+   "plan_space_size": 130073260042145397769807941391033063331363048911864388833813164091313023134957408431398586402829390911600919261336481014372095754240000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16224__g1heavy__cd_ib0_s0#2322",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11542",
+   "bucket": "101_256",
+   "n_tasks": 138,
+   "topology": 16236,
+   "plan_space_size": 34517803619769046741140120389586745560208976033713843872079850973844720052712562477286652572796789937564936323307522966235788630466723422303024679264837392728809587800539136,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16236__g1heavy__cd_ib0_s0#2322",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11550",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16207,
+   "plan_space_size": 38187767290998599063350519174502601776011437584660103493196653786133314989757522061033472,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16207__g3heavy__cd_ib0_s0#4061",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11559",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16228,
+   "plan_space_size": 137444096733714388523144090797753010306251607591952303661893955124752584380763023757274463324131479741558431940608,
+   "label_source": "hand",
+   "state_id": "C2/cc40s16228__g3heavy__cd_ib0_s0#1266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11566",
+   "bucket": "101_256",
+   "n_tasks": 140,
+   "topology": 16218,
+   "plan_space_size": 1585200058020308432435041343155596662302567289405035868215964297743362546030329521761258690474216317474043485236678356558151680000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "B/cc40s16218__g0heavy__cd_ib0_s0#1712",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11573",
+   "bucket": "101_256",
+   "n_tasks": 234,
+   "topology": 16229,
+   "plan_space_size": 32030978878122473193029106001802275322161111979636227380793724370944000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "C1/cc40s16229__g3moderate__cd_ib0_s0#1814",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11577",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16243,
+   "plan_space_size": 6396380896082635900988020641244269113650169822004155189240296156755410260800000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "C2/cc40s16243__g3heavy__cd_ib0_s0#1266",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11582",
+   "bucket": "101_256",
+   "n_tasks": 139,
+   "topology": 16239,
+   "plan_space_size": 76611836641496844597471371571678616806069547257261195264,
+   "label_source": "hand",
+   "state_id": "A/cc40s16239__g0moderate__cd_ib0_s0#15457",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11588",
+   "bucket": "101_256",
+   "n_tasks": 183,
+   "topology": 16207,
+   "plan_space_size": 40616115443347141392596333365192811602081041371533111834737680619373381545129796817185561459166997067663648875017979748589410736017835977636577280000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16207__g3moderate__cd_ib0_s0#36708",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11590",
+   "bucket": "101_256",
+   "n_tasks": 240,
+   "topology": 16216,
+   "plan_space_size": 711179987531605431222954273764551290029385046210020638367490184263594722421801478433627795964265640623816873954703531600965792693174734054224434674523167334463071712685360485787089144530639781888,
+   "label_source": "ils",
+   "state_id": "A/cc40s16216__g2moderate__cd_ib0_s0#26522",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11596",
+   "bucket": "101_256",
+   "n_tasks": 102,
+   "topology": 16236,
+   "plan_space_size": 1139942729918557718255697681581316596004024384537219653390177402880000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16236__g2moderate__cd_ib0_s0#34751",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11600",
+   "bucket": "101_256",
+   "n_tasks": 182,
+   "topology": 16213,
+   "plan_space_size": 32366871738403641253992424372914753412944760903387335570299639648151594286463471122312191897822761582592000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16213__g0heavy__cd_ib0_s0#42826",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11602",
+   "bucket": "101_256",
+   "n_tasks": 125,
+   "topology": 16204,
+   "plan_space_size": 1181892622379560642287507356263509046736972481888189336634935931305984,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g0moderate__cd_ib0_s0#48747",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11607",
+   "bucket": "101_256",
+   "n_tasks": 134,
+   "topology": 16204,
+   "plan_space_size": 1497761525413164394705456025530528448572915007373705216,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g2moderate__cd_ib0_s0#45149",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11611",
+   "bucket": "101_256",
+   "n_tasks": 197,
+   "topology": 16202,
+   "plan_space_size": 4545233903942946329134705385190331248614311694877622417447488239857135274045203552709224767937784800377566467870162944000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16202__g1heavy__cd_ib0_s0#46058",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11614",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16242,
+   "plan_space_size": 12255081394308013044007917401391539192112460192301917136348069859071356182878673801596541151675463276219049191669760000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16242__g1moderate__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11615",
+   "bucket": "101_256",
+   "n_tasks": 147,
+   "topology": 16236,
+   "plan_space_size": 125236737537878753441860054533045969266612127846243,
+   "label_source": "hand",
+   "state_id": "A/cc40s16236__g0moderate__cd_ib0_s0#27155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11619",
+   "bucket": "101_256",
+   "n_tasks": 134,
+   "topology": 16212,
+   "plan_space_size": 541816590816124029142827007800745308744805515264,
+   "label_source": "ils",
+   "state_id": "A/cc40s16212__g2moderate__cd_ib0_s0#45149",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11627",
+   "bucket": "101_256",
+   "n_tasks": 182,
+   "topology": 16209,
+   "plan_space_size": 10633823966279326983230456482242756608000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16209__g0moderate__cd_ib0_s0#42826",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11628",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16227,
+   "plan_space_size": 774072552828926186698503353519072262098451845290229898553737908991295488,
+   "label_source": "ils",
+   "state_id": "A/cc40s16227__g3moderate__cd_ib0_s0#35789",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11630",
+   "bucket": "101_256",
+   "n_tasks": 201,
+   "topology": 16205,
+   "plan_space_size": 12172458430487429005817276077475785834790805846676396201120884463419038026631736008307491376997419102643347781664375213675370693986615586457434536130715658414456832,
+   "label_source": "ils",
+   "state_id": "A/cc40s16205__g1heavy__cd_ib0_s0#44893",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11631",
+   "bucket": "101_256",
+   "n_tasks": 120,
+   "topology": 16215,
+   "plan_space_size": 65438199552984761180944510726112474937116371948828763357184,
+   "label_source": "ils",
+   "state_id": "A/cc40s16215__g0moderate__cd_ib0_s0#9363",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11633",
+   "bucket": "101_256",
+   "n_tasks": 182,
+   "topology": 16249,
+   "plan_space_size": 2439646722174305386803926806273007509739292426359422311766206848467569441477358628712445226008683300971448329306112,
+   "label_source": "ils",
+   "state_id": "A/cc40s16249__g0heavy__cd_ib0_s0#42826",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11635",
+   "bucket": "101_256",
+   "n_tasks": 201,
+   "topology": 16201,
+   "plan_space_size": 93963776227579294991855967905748892605748509510465993344041635282337665557861328125,
+   "label_source": "ils",
+   "state_id": "A/cc40s16201__g1moderate__cd_ib0_s0#44893",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11639",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16216,
+   "plan_space_size": 16710720708243531394877644670805265532791343220222175789072276204444379587377336399842268145506772141112580267007908801671271306650128884517218287616,
+   "label_source": "ils",
+   "state_id": "A/cc40s16216__g1heavy__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11640",
+   "bucket": "101_256",
+   "n_tasks": 231,
+   "topology": 16232,
+   "plan_space_size": 419657139765697514509951101650395574478517224672007612219037610792676239013451527585149265314537002426812535609070885358385850015866914253381367194704850976768,
+   "label_source": "ils",
+   "state_id": "A/cc40s16232__g1heavy__cd_ib0_s0#43676",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11649",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16239,
+   "plan_space_size": 187493249807452714244013306512214066134077264723964617587625980377197265625,
+   "label_source": "hand",
+   "state_id": "A/cc40s16239__g1moderate__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11656",
+   "bucket": "101_256",
+   "n_tasks": 147,
+   "topology": 16206,
+   "plan_space_size": 29418945270334788325429006683524588853530706146788298981376,
+   "label_source": "hand",
+   "state_id": "A/cc40s16206__g0moderate__cd_ib0_s0#27155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11657",
+   "bucket": "101_256",
+   "n_tasks": 197,
+   "topology": 16248,
+   "plan_space_size": 605604224993843467786380760867488103138252381082891643953689712580891673335333498818091835937947892555597548458799247660164972309818845872903501400595605910087,
+   "label_source": "ils",
+   "state_id": "A/cc40s16248__g1heavy__cd_ib0_s0#46058",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11659",
+   "bucket": "101_256",
+   "n_tasks": 197,
+   "topology": 16209,
+   "plan_space_size": 2123621192666625041060657980829010371284219051649082491372566611112344295427350076168601600000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16209__g1moderate__cd_ib0_s0#46058",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11665",
+   "bucket": "101_256",
+   "n_tasks": 240,
+   "topology": 16212,
+   "plan_space_size": 4929935664596128333903937602808762957033966576937138863254403017919023992740483787008607709906925833420800000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16212__g2heavy__cd_ib0_s0#26522",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11667",
+   "bucket": "101_256",
+   "n_tasks": 103,
+   "topology": 16205,
+   "plan_space_size": 19565639936598365165412425994873046875000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g3moderate__cd_ib0_s0#23106",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11673",
+   "bucket": "101_256",
+   "n_tasks": 182,
+   "topology": 16206,
+   "plan_space_size": 335830765777445096216797365710581722660292173701211012170044323348064865791375019719712494970626847539200000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16206__g0moderate__cd_ib0_s0#42826",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11675",
+   "bucket": "101_256",
+   "n_tasks": 134,
+   "topology": 16229,
+   "plan_space_size": 649037107316853453566312041152512,
+   "label_source": "ils",
+   "state_id": "A/cc40s16229__g2moderate__cd_ib0_s0#45149",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11676",
+   "bucket": "101_256",
+   "n_tasks": 197,
+   "topology": 16212,
+   "plan_space_size": 37341027863515712511242013440675458421190198358079267920843162229623750656,
+   "label_source": "ils",
+   "state_id": "A/cc40s16212__g1heavy__cd_ib0_s0#46058",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11679",
+   "bucket": "101_256",
+   "n_tasks": 105,
+   "topology": 16203,
+   "plan_space_size": 388941183133394044913612355418020374432921073697866746251182080000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16203__g3heavy__cd_ib0_s0#44042",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11688",
+   "bucket": "101_256",
+   "n_tasks": 136,
+   "topology": 16206,
+   "plan_space_size": 80894978113872974063269793987274169921875,
+   "label_source": "hand",
+   "state_id": "A/cc40s16206__g0moderate__cd_ib0_s0#19260",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11700",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16237,
+   "plan_space_size": 433942706585032929102305663840416256185872678912,
+   "label_source": "ils",
+   "state_id": "A/cc40s16237__g3moderate__cd_ib0_s0#35789",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11704",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16214,
+   "plan_space_size": 436372809567470818843459973679523504914565370065382781417732606678532096000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16214__g3moderate__cd_ib0_s0#36380",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11705",
+   "bucket": "101_256",
+   "n_tasks": 105,
+   "topology": 16205,
+   "plan_space_size": 180892979735335163605460203479154906957581291611628457127571357696,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g3moderate__cd_ib0_s0#44042",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11709",
+   "bucket": "101_256",
+   "n_tasks": 231,
+   "topology": 16237,
+   "plan_space_size": 1407374883553280000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16237__g1heavy__cd_ib0_s0#43676",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11713",
+   "bucket": "101_256",
+   "n_tasks": 149,
+   "topology": 16241,
+   "plan_space_size": 66106803716026654054383979585545312902216444079961680629465088000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16241__g0heavy__cd_ib0_s0#14867",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11717",
+   "bucket": "101_256",
+   "n_tasks": 147,
+   "topology": 16235,
+   "plan_space_size": 3297137999469283728309493629176746597637695963308394371698994810593324944602183813793563012745295256463551972877915352700663406635515904,
+   "label_source": "ils",
+   "state_id": "A/cc40s16235__g0heavy__cd_ib0_s0#27155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11719",
+   "bucket": "101_256",
+   "n_tasks": 134,
+   "topology": 16204,
+   "plan_space_size": 124518235764964860402701835487790216947511273701820755377411842346191406250000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g2heavy__cd_ib0_s0#45149",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11730",
+   "bucket": "101_256",
+   "n_tasks": 125,
+   "topology": 16204,
+   "plan_space_size": 60406004584286954599535262057124983415504896000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16204__g0heavy__cd_ib0_s0#48747",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11735",
+   "bucket": "101_256",
+   "n_tasks": 134,
+   "topology": 16233,
+   "plan_space_size": 43718676111572226206788609861355525449383764070215348937862083907795040390248790791008107219648662530304214683381411267136905212212090769567,
+   "label_source": "hand",
+   "state_id": "A/cc40s16233__g2heavy__cd_ib0_s0#45149",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11752",
+   "bucket": "101_256",
+   "n_tasks": 201,
+   "topology": 16225,
+   "plan_space_size": 978090249617937406877690579759885806679701738824117379517959372800000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16225__g1moderate__cd_ib0_s0#44893",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11755",
+   "bucket": "101_256",
+   "n_tasks": 134,
+   "topology": 16249,
+   "plan_space_size": 4951760157141521099596496896,
+   "label_source": "ils",
+   "state_id": "A/cc40s16249__g2moderate__cd_ib0_s0#45149",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11761",
+   "bucket": "101_256",
+   "n_tasks": 105,
+   "topology": 16243,
+   "plan_space_size": 51555163887694117825351190487931770334347264,
+   "label_source": "hand",
+   "state_id": "A/cc40s16243__g3moderate__cd_ib0_s0#44042",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11763",
+   "bucket": "101_256",
+   "n_tasks": 125,
+   "topology": 16205,
+   "plan_space_size": 357848746717982796603218141549123832060718014019484522075228817728268253790208,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g0heavy__cd_ib0_s0#48747",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11765",
+   "bucket": "101_256",
+   "n_tasks": 147,
+   "topology": 16233,
+   "plan_space_size": 1794496896614167402418212726447317770687824560128000000000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16233__g0heavy__cd_ib0_s0#27155",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11766",
+   "bucket": "101_256",
+   "n_tasks": 201,
+   "topology": 16203,
+   "plan_space_size": 17271506762632578181759205101337958378177868082749869698297499997904838328320000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16203__g1moderate__cd_ib0_s0#44893",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11772",
+   "bucket": "101_256",
+   "n_tasks": 103,
+   "topology": 16218,
+   "plan_space_size": 15254479267247142369549543982404016901126430546704504017488846185564611805184,
+   "label_source": "hand",
+   "state_id": "A/cc40s16218__g3moderate__cd_ib0_s0#23106",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11773",
+   "bucket": "101_256",
+   "n_tasks": 201,
+   "topology": 16246,
+   "plan_space_size": 48152795356981360865503594684226196473168208201407078702368194842652885421072020776299425021066047356342722921415008531251200000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16246__g1heavy__cd_ib0_s0#44893",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11779",
+   "bucket": "101_256",
+   "n_tasks": 197,
+   "topology": 16237,
+   "plan_space_size": 1662804220326246871328220273354288119753522601323516364895629719070460488658260766752768,
+   "label_source": "ils",
+   "state_id": "A/cc40s16237__g1moderate__cd_ib0_s0#46058",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11781",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16244,
+   "plan_space_size": 803040235172006731561201967774844193855607072582241821031851694078707106135598242338899428865657425860830997092761600000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16244__g1heavy__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11786",
+   "bucket": "101_256",
+   "n_tasks": 201,
+   "topology": 16203,
+   "plan_space_size": 11985921078505939773973669787459355143447413051759157321281937452794095780655553810787818524569969346325708688517137234473163955181287038714547354023778912807879065332161482342179840467270531844135270219776,
+   "label_source": "ils",
+   "state_id": "A/cc40s16203__g1heavy__cd_ib0_s0#44893",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11801",
+   "bucket": "101_256",
+   "n_tasks": 182,
+   "topology": 16234,
+   "plan_space_size": 89468767595957103444182966634606443802310229851419173670809480630909097264724380809004947865600000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16234__g0moderate__cd_ib0_s0#42826",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11807",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16208,
+   "plan_space_size": 69674261576876409236122897178130470379754261867543813053862365310187911419695413517181826570216196158054998628626055939503622031052716196815023938534849380352,
+   "label_source": "ils",
+   "state_id": "A/cc40s16208__g1moderate__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11809",
+   "bucket": "101_256",
+   "n_tasks": 231,
+   "topology": 16247,
+   "plan_space_size": 12033616643915214535212043853542963290389334750074708986035633975419216470919911868829904056277147975191336475075658188624019759403484173929375758024704,
+   "label_source": "ils",
+   "state_id": "A/cc40s16247__g1heavy__cd_ib0_s0#43676",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11812",
+   "bucket": "101_256",
+   "n_tasks": 240,
+   "topology": 16205,
+   "plan_space_size": 14749519686370236638912142820024344185428006651266574661703380526108204072960000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g2moderate__cd_ib0_s0#26522",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11815",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16245,
+   "plan_space_size": 5141287708037656432380237091568770522303034670461228675082206726074218750000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16245__g1moderate__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11822",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16249,
+   "plan_space_size": 3012900361573503696796557909537545121624581267874944152805990103309358962470000635358775192059904,
+   "label_source": "ils",
+   "state_id": "A/cc40s16249__g1moderate__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11824",
+   "bucket": "101_256",
+   "n_tasks": 181,
+   "topology": 16217,
+   "plan_space_size": 151443902341725209518375273009459942465418341616779835974594405843376858378486636093636560817761780757426117894434145609711616,
+   "label_source": "ils",
+   "state_id": "A/cc40s16217__g1moderate__cd_ib0_s0#5684",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11826",
+   "bucket": "101_256",
+   "n_tasks": 182,
+   "topology": 16238,
+   "plan_space_size": 5058041982545883048914441076435950741492094744008384275381842718742988858027069446310012408350566735266622958298632041604888313987072,
+   "label_source": "hand",
+   "state_id": "A/cc40s16238__g0heavy__cd_ib0_s0#42826",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11837",
+   "bucket": "101_256",
+   "n_tasks": 215,
+   "topology": 16215,
+   "plan_space_size": 37058393019005914461401378518539741343839229060089076261450089747088669085792192347969127215980255121704463053619200000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16215__g3heavy__cd_ib0_s0#32412",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11842",
+   "bucket": "101_256",
+   "n_tasks": 240,
+   "topology": 16215,
+   "plan_space_size": 61255099186035109719181711142263515334104585314094469513173770210432003120053992902905694469366630003673374225756291609854535237565336883532141860043037914169344,
+   "label_source": "ils",
+   "state_id": "A/cc40s16215__g2moderate__cd_ib0_s0#26522",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11847",
+   "bucket": "101_256",
+   "n_tasks": 215,
+   "topology": 16218,
+   "plan_space_size": 48752335006412614082206070353866429375553040061591702206984857862553600000000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16218__g3heavy__cd_ib0_s0#32412",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11849",
+   "bucket": "101_256",
+   "n_tasks": 109,
+   "topology": 16218,
+   "plan_space_size": 6710545803200268805333486866932485618720101994948160918515550952180072392168222701845695155687687,
+   "label_source": "ils",
+   "state_id": "A/cc40s16218__g0moderate__cd_ib0_s0#18849",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11858",
+   "bucket": "101_256",
+   "n_tasks": 183,
+   "topology": 16245,
+   "plan_space_size": 240519855726734258741962554751692014424728980514485087940057597785383507262851794123262679501416009571015579654700700215881736994684928000000000000000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16245__g3heavy__cd_ib0_s0#36708",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11860",
+   "bucket": "101_256",
+   "n_tasks": 183,
+   "topology": 16233,
+   "plan_space_size": 9234763263517094397047348467251126492253357687566245266923278425075916032685931805540536664395224186880000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16233__g3moderate__cd_ib0_s0#36708",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11867",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16243,
+   "plan_space_size": 7198441441731345438733790341287841968778921960244706609673859131556180787200000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16243__g2heavy__cd_ib0_s0#40319",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11874",
+   "bucket": "101_256",
+   "n_tasks": 109,
+   "topology": 16206,
+   "plan_space_size": 28516548051098581537362304016166966994675902927353497076757569785221484581570478080000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16206__g0heavy__cd_ib0_s0#18849",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11875",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16227,
+   "plan_space_size": 4583940228032980483759744228663761575301319421813768671903875072000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16227__g2heavy__cd_ib0_s0#40319",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11879",
+   "bucket": "101_256",
+   "n_tasks": 197,
+   "topology": 16205,
+   "plan_space_size": 89366152011885693784003838909450164095961748334659422889901318044423920690859295637504000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16205__g1heavy__cd_ib0_s0#46058",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11880",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16242,
+   "plan_space_size": 474034107677198573877706703853719471949943741750492341056591917222366528386038369476508400580289788680510572445553569824768,
+   "label_source": "ils",
+   "state_id": "A/cc40s16242__g3heavy__cd_ib0_s0#36380",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11881",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16244,
+   "plan_space_size": 113907326481626728148184802089264201429164269294225195008000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16244__g2heavy__cd_ib0_s0#40319",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11884",
+   "bucket": "101_256",
+   "n_tasks": 102,
+   "topology": 16221,
+   "plan_space_size": 52770147382136414355823562880578956185928518607397563755512237548828125,
+   "label_source": "hand",
+   "state_id": "A/cc40s16221__g2moderate__cd_ib0_s0#34751",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11898",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16214,
+   "plan_space_size": 13644990958076767742400343292739024513929740042633216000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16214__g3heavy__cd_ib0_s0#36380",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11906",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16218,
+   "plan_space_size": 376739295781056988353390359664190883743382930983621760478996520760119892656803131103515625,
+   "label_source": "hand",
+   "state_id": "A/cc40s16218__g3heavy__cd_ib0_s0#36380",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11926",
+   "bucket": "101_256",
+   "n_tasks": 125,
+   "topology": 16232,
+   "plan_space_size": 884562588180208957967441288763297446782919233036540182528,
+   "label_source": "hand",
+   "state_id": "A/cc40s16232__g0heavy__cd_ib0_s0#48747",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11927",
+   "bucket": "101_256",
+   "n_tasks": 103,
+   "topology": 16219,
+   "plan_space_size": 5758909457223127482266061926099070651970460123100610653130220942462707706749215319860458180342970534535888896,
+   "label_source": "hand",
+   "state_id": "A/cc40s16219__g3heavy__cd_ib0_s0#23106",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11937",
+   "bucket": "101_256",
+   "n_tasks": 183,
+   "topology": 16235,
+   "plan_space_size": 10578670576406204435398592038471322258388162983551779631230391911710720000000000000000000000000000000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16235__g3moderate__cd_ib0_s0#36708",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11941",
+   "bucket": "101_256",
+   "n_tasks": 125,
+   "topology": 16249,
+   "plan_space_size": 25417661851890272940306275147173738096073004078761226139621115777300362634676400397833879105746746063232421875,
+   "label_source": "ils",
+   "state_id": "A/cc40s16249__g0heavy__cd_ib0_s0#48747",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11946",
+   "bucket": "101_256",
+   "n_tasks": 120,
+   "topology": 16246,
+   "plan_space_size": 632076009227429067937019344423068983444592984616756439208984375,
+   "label_source": "ils",
+   "state_id": "A/cc40s16246__g0moderate__cd_ib0_s0#9363",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11947",
+   "bucket": "101_256",
+   "n_tasks": 101,
+   "topology": 16212,
+   "plan_space_size": 30053567936118311316263788050183488019163084789991920670723000809013468496313003101443440329448549094354083892953088,
+   "label_source": "hand",
+   "state_id": "A/cc40s16212__g2heavy__cd_ib0_s0#40319",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11949",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16221,
+   "plan_space_size": 82957907190881505302294895402067817999382118162477055346690453959306681253888,
+   "label_source": "ils",
+   "state_id": "A/cc40s16221__g3moderate__cd_ib0_s0#35789",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11955",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16243,
+   "plan_space_size": 59955212646304842632982346556186272487351224888155885823117767496476145429419127977541632000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16243__g3heavy__cd_ib0_s0#20912",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11966",
+   "bucket": "101_256",
+   "n_tasks": 120,
+   "topology": 16229,
+   "plan_space_size": 919973073089479921953602000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16229__g0moderate__cd_ib0_s0#9363",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11968",
+   "bucket": "101_256",
+   "n_tasks": 109,
+   "topology": 16246,
+   "plan_space_size": 25807632721092456066201981204438023015533966786560000000000000000000000000000000000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16246__g0moderate__cd_ib0_s0#18849",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11969",
+   "bucket": "101_256",
+   "n_tasks": 136,
+   "topology": 16221,
+   "plan_space_size": 864568520669010283502757009313569269688004896195345324453290017579893657767950185920899055616,
+   "label_source": "ils",
+   "state_id": "A/cc40s16221__g0heavy__cd_ib0_s0#19260",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11973",
+   "bucket": "101_256",
+   "n_tasks": 104,
+   "topology": 16216,
+   "plan_space_size": 100676674307144924332558770095208305692508160000000000000000000000000000000,
+   "label_source": "hand",
+   "state_id": "A/cc40s16216__g3moderate__cd_ib0_s0#36380",
+   "small": false
+  },
+  {
+   "gid": "gnn_datasets_wf1_train/ds_11990",
+   "bucket": "101_256",
+   "n_tasks": 109,
+   "topology": 16235,
+   "plan_space_size": 55615270308186014456791714549104640000000000000000000000000000000000,
+   "label_source": "ils",
+   "state_id": "A/cc40s16235__g0heavy__cd_ib0_s0#18849",
+   "small": false
+  }
+ ]
+}
