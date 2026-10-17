@@ -301,7 +301,15 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
-- 2026-10-17 — **Seed extension (B6, post-look): DRAFT REGISTRATION, waiting for the expert's sign-off. No new seed has trained.** (S6; the user via the expert: "run more seeds. It addresses points 2 and 5 together and turns your 'direction only' findings into either claims or clean negatives".)
+- 2026-10-17 — **Seed extension (B6, post-look): REGISTERED, signed by the expert as drafted at `1d609e82`, before any new seed trained.** (S6; the user via the expert: "run more seeds. It addresses points 2 and 5 together and turns your 'direction only' findings into either claims or clean negatives".)
+  - **Sign-off rulings.**
+    - (1) S = 8 (Phase 1) and S = 6 (Phase 2), seeds 11–18, and the 1 % CLEAN-NEGATIVE margin, labelled post-look, are accepted as written.
+    - (2) E4b is admitted: Arm 1 gnn trains seeds 11–16 at Arm 1's own pin and config, and **E4 is k = 4**.
+    - (3) Phase 2 launches now, alongside Phase 1, with the total queue ≤ 44 jobs (K0 CPU jobs staggered in if needed) and Arm 2 gnn on L40S.
+    - (4) (c) stays UNRESOLVED as drafted; the expert takes the topology extension to the user.
+    - Split: S7 trains the Arm 1b gnn and twin. S6 trains the Arm 3 gnn and twin, runs the Arm 3 twin calibration and makes the reader `--seeds` change, with B3 byte-identity on every filed read.
+    - Merges wait for the user, so training and gating run from this branch's pins.
+    - The draft text below is the registration, unchanged.
   - **Post-look.**
     - This extension is designed after every final read: Arm 1, 1b, 2, K0 and 3, both verdicts, the attribution contrasts, the linearity check and felt F_L.
     - The filed verdicts stay as filed.
