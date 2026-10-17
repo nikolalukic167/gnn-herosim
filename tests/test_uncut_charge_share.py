@@ -123,3 +123,16 @@ def test_drift_stop(tmp_path, wf, end_ms, verdict):
         write(tmp_path / "e", "cd_ib0", r, (end_ms,) * 3, topo=19461)
     out = C.main(["drift", "--start", str(tmp_path / "s"), "--end", str(tmp_path / "e"), "--arm", "cd_ib0", "--w-file", wf])
     assert out["verdict"] == verdict
+
+
+def test_q_fill_missing_dq_ruling_c(tmp_path, wf):
+    b = bar(tmp_path)
+    for r in ("moderate", "heavy"):
+        write(tmp_path / "new", "cd_ib0", r, (0.012, 0.0, 0.0), evals=(1000, 0, 0))
+    args = ["q", "--new", str(tmp_path / "new"), "--arm", "cd_ib0", "--bar", b, "--w-file", wf, "--fit", fit(tmp_path)]
+    with pytest.raises(SystemExit, match="no re-measured w"):
+        C.main(args)
+    h = C.main(args + ["--fill-missing-dq", "0.36"])["rungs"]["heavy"]
+    share = 0.01 * 1e-3 * 1000 / (2.0 * 100)
+    assert h["by_bucket"]["11_50"]["q"] is None and h["by_bucket"]["11_50"]["dq_filled"] == 0.36 and "dq_filled" not in h["by_bucket"]["le10"]
+    assert abs(h["bound"] - share * (1 * 0.2 + 20 * 0.36 + 60 * 0.36)) < 1e-12
