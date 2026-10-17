@@ -48,7 +48,7 @@ Arm 1b (pre-registered f6c1b85e; the MLP comparator added by the amendment of 20
   The gate changes are --gate-change bf79865a,<Arm 1b kinds>.
 Arm 3 (the expected move-regret lever, gate change G6): --primary ra_gnn_eng_arm3_nosplit --twin ra_twin_eng_arm3_nosplit, no MLP, both verdicts, read after
   Arm 1b with --after-read <Arm 1b's read JSON> (its primary must be ra_gnn_eng_arm1b_nosplit) and --compare ra_gnn_eng_arm1b_nosplit (direction only). B6: the lever
-  was conceived after interim looks, so the program-level label is never open: at best WIN-ARM-ONLY. Its checkpoints come from its own md5 file (arm3=<path>); its w
+  was conceived after interim looks, so the program-level label is never open: at best WIN-ARM-ONLY. With no MP-OFF twin trained (wave 2 held) the read omits --twin: F1 against the bar is read as filed, F2 is skipped and says so ('no MP attribution'). Its checkpoints come from its own md5 file (arm3=<path>); its w
   (ARM3_W_KINDS) must sit within W_GUARD_X of Arm 1b's same arm at every pin. The gate changes are --gate-change <...>,8dfd7e0c,<G6>.
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
   sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
@@ -520,10 +520,10 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
     ref_seeds = (1,)
     res = {}
     res["health"] = {arm: health(cells, failed, arm, sd, topos) for arm, sd in
-                     [(a.primary, SEEDS), (a.twin, SEEDS)] + ([(a.mlp, SEEDS)] if a.mlp else []) + ([(a.reference, ref_seeds)] if a.reference else [])
+                     [(a.primary, SEEDS)] + ([(a.twin, SEEDS)] if a.twin else []) + ([(a.mlp, SEEDS)] if a.mlp else []) + ([(a.reference, ref_seeds)] if a.reference else [])
                      + [(BAR, (0,)), (CD, (0,))]}
     res["decision_share_pct"] = {arm: decision_share(cells, arm, sd, topos) for arm, sd in
-                                 [(a.primary, SEEDS), (a.twin, SEEDS), (BAR, (0,)), (CD, (0,))] + ([(a.mlp, SEEDS)] if a.mlp else [])}
+                                 [(a.primary, SEEDS)] + ([(a.twin, SEEDS)] if a.twin else []) + [(BAR, (0,)), (CD, (0,))] + ([(a.mlp, SEEDS)] if a.mlp else [])}
     f1 = family(four(cells, a.primary, SEEDS, BAR, (0,), topos))
     seeds_alone = {sd: four(cells, a.primary, (sd,), BAR, (0,), topos) for sd in SEEDS}
     robust = family(four(cells, a.primary, SEEDS, CD, (0,), topos))
@@ -531,11 +531,14 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
     lab, why = f1_label(f1, seeds_alone, res["health"][a.primary], res["health"][BAR], anchor, robust, prog_allowed)
     res["F1"] = {"tests": f1, "seeds_alone": seeds_alone, "vs_cd_robust": robust, "anchor_ok": anchor, "label": lab, "why": why}
     prog = prog_win(lab)
-    f2 = four(cells, a.primary, SEEDS, a.twin, SEEDS, topos) + (four(cells, a.primary, SEEDS, a.mlp, SEEDS, topos) if a.mlp else [])
-    family(f2)
-    res["F2"] = {"holm_family": len(f2), "tests": f2, "MP": "MP-" + f2_label(f2[:4], prog)}
-    if a.mlp:
-        res["F2"]["MODEL-CLASS"] = f"MODEL-CLASS-{f2_label(f2[4:], prog)} (corpus: {a.corpus})"
+    if a.twin:
+        f2 = four(cells, a.primary, SEEDS, a.twin, SEEDS, topos) + (four(cells, a.primary, SEEDS, a.mlp, SEEDS, topos) if a.mlp else [])
+        family(f2)
+        res["F2"] = {"holm_family": len(f2), "tests": f2, "MP": "MP-" + f2_label(f2[:4], prog)}
+        if a.mlp:
+            res["F2"]["MODEL-CLASS"] = f"MODEL-CLASS-{f2_label(f2[4:], prog)} (corpus: {a.corpus})"
+    else:
+        res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN}
     res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
     if a.reference:
         res["descriptive"]["training_effect_vs_reference"] = four(cells, a.primary, SEEDS, a.reference, ref_seeds, topos)
@@ -545,6 +548,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
 
 
 F2_ORDER = ("ATTRIBUTED", "DIRECTION", "NOT-SEPARATED")
+NO_TWIN = "F2 skipped: no MP-OFF twin trained (wave 2 held); no MP attribution"
 
 
 def weaker(x, y):
@@ -605,7 +609,7 @@ def combine(main, cot, a):
     mw, cw = f1_parts(m)[0] == "win", f1_parts(c)[0] == "win"
     flags = (["NOT-COTENANCY-ROBUST"] if mw and not cw else []) + (["COTENANCY-ANOMALY"] if cw and not mw else [])
     why = f"weaker of frozen {m!r} and co-tenancy {c!r}" + (f"; {', '.join(flags)}" if flags else "")
-    out = {"F1": f1, "why": why, "flags": flags, "MP": weaker(main["F2"]["MP"], cot["F2"]["MP"])}
+    out = {"F1": f1, "why": why, "flags": flags, "MP": NO_TWIN if NO_TWIN in (main["F2"]["MP"], cot["F2"]["MP"]) else weaker(main["F2"]["MP"], cot["F2"]["MP"])}
     if a.mlp:
         out["MODEL-CLASS"] = weaker(main["F2"]["MODEL-CLASS"], cot["F2"]["MODEL-CLASS"])
     return out
@@ -618,7 +622,7 @@ def main(argv=None):
     ap.add_argument("--topos-sha256", required=True)
     ap.add_argument("--pin", required=True)
     ap.add_argument("--primary", required=True)
-    ap.add_argument("--twin", required=True)
+    ap.add_argument("--twin", default="", help="required, except for an Arm 3 read before its MP-OFF twin is trained (F2 is then skipped and says so)")
     ap.add_argument("--mlp", default="")
     ap.add_argument("--reference", default="")
     ap.add_argument("--checkpoint-md5", required=True)
@@ -639,9 +643,11 @@ def main(argv=None):
     topos = [int(x) for x in a.topos.split(",")]
     cells, failed = load(a.gate, a.suffix)
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
+    if not a.twin and ckpt_tag(a.primary) != "arm3":
+        raise SystemExit("FAIL LOUD: --twin is required (only an Arm 3 read may go without one, while no MP-OFF twin is trained)")
     ckpt = ckpt_md5s(a.checkpoint_md5)
     prog_allowed = True
-    tags = {ckpt_tag(x) for x in (a.primary, a.twin)}
+    tags = {ckpt_tag(x) for x in (a.primary, a.twin) if x}
     if len(tags) > 1 or "arm3" in tags and a.mlp:
         raise SystemExit("FAIL LOUD: --primary and --twin must be one trainer's (Arm 3 has no MLP comparator)")
     arm1b, arm3 = "arm1b" in tags, "arm3" in tags
