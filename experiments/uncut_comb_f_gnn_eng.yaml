@@ -2,7 +2,7 @@
 # with one change: (F) the in-flight queue features, PARTIAL_STATE_CONTRACT partial_state_v6 (S4, 3cdb02bb/f7a69913) on its v6 cache (canonical digest ea967a6c...).
 # Current labels. Seeds 1 and 2 via run_experiment.py --seed; served -final.pt.
 trainer: gnn
-lineage: uncut_comb
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_groups/inflight/cache_v6_a/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT

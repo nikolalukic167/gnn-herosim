@@ -9,7 +9,7 @@
 # NEAR_RTT_VAL_EXACT_REGRET is '0': the val regret needs the RTT of every plan the decoder may pick, and a sampled dataset (placements.jsonl header exhaustive=false) lists only the label
 # plan (and the hand plan for an ILS label), so an exact regret would be undefined for any other plan. Selection then follows the recipe's existing rule on the other val metrics.
 trainer: gnn
-lineage: uncut_arm2
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT

@@ -1,6 +1,6 @@
 # aggr_sum_v1 -- lf1sum: local_features_v1_lf1gnn.yaml verbatim with sum (not mean) aggregation in the bipartite edge convs.
 trainer: gnn
-lineage: aggr_sum_v1
+lineage: bipartite_aggr_v1
 cache_dir: simulation_data/graphs_cache_small_batch_v1_psv4_inf
 unset_env:
 - TRAIN_INIT_CHECKPOINT

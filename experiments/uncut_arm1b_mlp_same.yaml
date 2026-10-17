@@ -3,7 +3,7 @@
 # Same: lr 0.001, embedding = hidden = 128, ce_only + full-context CE 1.0, 100 epochs, patience 60, min-epochs 100, cache, split 613c8cbb, NEAR_RTT_TOP_K 1, VAL_EXACT_REGRET 0, -final.pt, the val decode.
 # NEAR_RTT_SCORE_TASK_ROWS_ONLY is not set (mlp_same has no edge_scorer; the batched path does not use it). Seeds 1 and 2 via run_experiment.py --seed. Device: set by the one-epoch timing filed in the node.
 trainer: gnn
-lineage: uncut_arm1b
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT
