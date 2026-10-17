@@ -301,6 +301,53 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **FINAL READS, Arm 2 (registered) and K0 (reported after it, ruling 2): both F1 MIXED; MP-NOT-SEPARATED in both; the attribution contrasts are direction-only; the final read files are committed** (S6). Interim looks preceded these reads. The verdicts are computed on the final cells only.
+  - **Cells:** jobs 883174 (Arm 2, os-cpu-slurm-23) and 883175 (K0, os-cpu-slurm-24) at `742eaf97` (`rp/uncut-w-arm2`: G4 → W-A2 bd2ed080 → the Arm 2 gnn pin 742eaf97). 384 cells each: gnn and twin `_k100`, the 869828 set, EPYC 9335, SMT off, PAR 60, 1 thread. 0 failed, 0 kills, 0 collapses.
+  - **Reader:** `uncut_arm_gate_read.py` at reference-physics `7af86191` (md5 d60406b7, carrying the B3 change 7d3ea1bf). Arguments: `--pin d6ae87c2 --gate-change bf79865a,e8c87702,114cc0e7,69354280 --w-pins bd2ed080,742eaf97 --cotenancy off`, and each arm's own md5 file. **No `_kr` kinds:** Arm 2 and K0 have no co-tenancy cells (W-A2 carries no k), so the reader's cotenancy field reads "OFF (not the gate read)". This is the gate read with no co-tenancy verdict.
+  - **Arm 2 (registered):** **F1 MIXED; F2 MP-NOT-SEPARATED.** gnn vs cd_ib0, median, ahead, Holm p:
+    - moderate whole −5.82 %, 10/12, 0.015;
+    - moderate after-360 −8.09 %, 10/12, 0.0098;
+    - heavy whole +1.26 %, 3/12, 0.18;
+    - heavy after-360 −1.84 %, 9/12, 0.10.
+    - Per seed: s1 −5.81 / −8.14 / +0.69 / −2.56 %; s2 −5.87 / −7.99 / −0.36 / −3.53 %.
+    - Against cd: −10.63 / −15.23 / −2.64 / −10.35 %. Anchor OK.
+    - F2, gnn vs twin: −1.71 % (10/12, Holm p 0.037), −1.38 % (9/12, 0.16), −1.30 % (7/12, 1.0), +0.57 % (6/12, 1.0).
+    - Decision share (% of latency): gnn 0.183 / 0.203, twin 0.099 / 0.111.
+    - Gap attribution: WIN-NOT-UNCUT at both rungs.
+    - Device disclosure: the Arm 2 gnn trained on an L40S GPU, its twin on CPU (EPYC 9335).
+  - **K0 (reported after Arm 2):** **F1 MIXED; F2 MP-NOT-SEPARATED.** gnn vs cd_ib0:
+    - moderate whole −5.99 %, 10/12, 0.010;
+    - moderate after-360 −8.39 %, 11/12, 0.0059;
+    - heavy whole −1.63 %, 10/12, 0.092;
+    - heavy after-360 −9.40 %, 10/12, 0.014.
+    - That is three of four Holm-significant; the heavy-whole test fails, so not WIN-ARM.
+    - Per seed: s1 −5.86 / −8.96 / −3.56 / −9.17 %; s2 −5.47 / −7.87 / −1.62 / −9.76 %.
+    - Against cd: −10.12 / −13.68 / −6.28 / −16.70 %.
+    - F2, gnn vs twin: −1.53 % (11/12, Holm p 0.0098), −1.57 % (10/12, 0.10), −0.24 % (7/12, 1.0), +0.37 % (5/12, 1.0).
+    - Decision share: gnn 0.183 / 0.211, twin 0.099 / 0.115.
+    - Gap attribution: WIN-NOT-UNCUT moderate, UNCUT-ATTRIBUTED heavy. Both K0 seeds trained on CPU.
+  - **Attribution contrasts (registered DIRECTION-ONLY, descriptive), computed outside the read because the cells sit on different w-pin chains.** Frozen `contrast()` at 557d84bf, seeds pooled. Each entry gives median, ahead for the first arm, and the unadjusted exact sign-flip p (Wilcoxon in the file). Order: moderate whole / after-360, heavy whole / after-360.
+    - **Arm 2 vs K0 (random-prefix):**
+      - gnn −0.22 % (7/12, 0.16), −0.07 % (6/12, 0.27), +2.42 % (1/12, 0.009), +4.43 % (2/12, 0.017);
+      - twin −0.75 % (9/12, 0.035), −0.95 % (9/12, 0.015), +2.47 % (3/12, 0.065), +6.77 % (2/12, 0.016).
+      - Direction: random-prefix K = 2 is level-to-slightly-ahead at moderate and behind at heavy, for both gnn and twin. The gnn pair is not device-matched (Arm 2 gnn GPU, K0 gnn CPU); the twin pair is (both CPU).
+    - **K0 vs Arm 1 (B1 + B2):**
+      - gnn +1.43 % (5/12, 0.14), +0.95 % (5/12, 0.81), −1.00 % (8/12, 0.86), −7.86 % (9/12, 0.041);
+      - twin +0.79 % (4/12, 0.46), +0.58 % (5/12, 0.74), −2.44 % (10/12, 0.022), −5.01 % (9/12, 0.012).
+      - Direction: B1 + B2 is level at moderate and ahead at heavy, mostly after 360 s. Both pairs trained on CPU.
+  - **Final read files** (committed in `uncut_groups_s0_v1/final_reads/`, for citation), with md5s:
+
+    | file | md5 |
+    |---|---|
+    | `read_arm1_frozen557.json` | 93b46aa971db328a18cf2676ca71fb49 |
+    | `read_arm1_curba344.json` (byte-identical) | 93b46aa971db328a18cf2676ca71fb49 |
+    | `read_arm1b_curba344_nocompare.json` | 301b11c37f3cda559ff392234303e53d |
+    | `compare_arm1b_vs_arm1_gnn_a1.json` | 19ef5eb51ce793d9cf8b000c97fa5340 |
+    | `read_arm2_7af86191.json` | f8e7f97c8092ca65605dc64996d94dbd |
+    | `read_k0_7af86191.json` | 1f5b4bf6b9a48bab1ee1b53ba9a2e8a1 |
+    | `attribution_contrasts_arm2_k0_arm1.json` | 8f423e7c77a0dfd9b92154cf28f2d445 |
+
+  - **Not yet filed:** the per-cell `_kr` − frozen-w linearity check (0.468 · F_L) for Arm 1 and 1b.
 - 2026-10-17 — **FINAL READS, Arm 1 and Arm 1b: both F1 MIXED (frozen and co-tenancy); MP-NOT-SEPARATED in both; MODEL-CLASS-NOT-SEPARATED (Arm 1), MODEL-CLASS-DIRECTION (Arm 1b)** (the registered reads; S6). Interim looks preceded these reads (the interim-looks log, rows 1–13). Every verdict below is computed on the final cells only, by the pre-interim rule.
   - **Cells** (fresh, the 869828 set: 19537–19548 × g0–g3 × moderate/heavy × seeds 1, 2). All ran on CPU-amd, AMD EPYC 9335, SMT off, nproc 64, `--exclusive`, one node per job, PAR 60, 1 thread, CELL_MEM 16G, `r1a_gate.sbatch` at each pin. Node split agreed with S4 (lever cells on other nodes).
     - **Arm 1** at W2 `b3ec1fdc`: jobs 883168–883170 (os-cpu-slurm-13/14/15), 1,152 cells. gnn, twin and mlp, each `_k100` and `_kr`.
