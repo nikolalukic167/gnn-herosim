@@ -21,7 +21,8 @@ every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (n
 rows with no unstamped (NaN) task (never counted as 0 lock wait).
 
 Cell value: a learned arm's cell mean = the mean of its two seeds' cell means (whole-run averageElapsedTime, after-360 s steady_state.after_360s.mean);
-a cell with either seed missing is missing for the arm. Each seed is also read alone.
+a cell with either seed missing is missing for the arm. Each seed is also read alone. --seeds (default 1,2; the seed extension of 2026-10-17
+reads its new seeds 11-18 with it) replaces the learned arms' seed set everywhere 'two seeds' is said here; a learned cell at any other seed fails loud.
 Statistic: per topology the median over the windows present of 100 (arm - bar) / bar; then the median over topologies, the sign count, an exact
 two-sided Wilcoxon (r1_attribution_v1_read.exact_wilcoxon) and Holm (r1_attribution_v1_read.holm).
 
@@ -545,7 +546,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
         if a.mlp:
             res["F2"]["MODEL-CLASS"] = f"MODEL-CLASS-{f2_label(f2[4:], prog)} (corpus: {a.corpus})"
     else:
-        res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN}
+        res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN if SEEDS == (1, 2) else NO_TWIN_EXT}
     res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
     if a.reference:
         res["descriptive"]["training_effect_vs_reference"] = four(cells, a.primary, SEEDS, a.reference, ref_seeds, topos)
@@ -556,6 +557,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
 
 F2_ORDER = ("ATTRIBUTED", "DIRECTION", "NOT-SEPARATED")
 NO_TWIN = "F2 skipped: no MP-OFF twin trained (wave 2 held); no MP attribution"
+NO_TWIN_EXT = "F2 skipped: seed-extension read of an arm with no new-seed twin (registered 2026-10-17); MP is read in the extension's own family E2"
 
 
 def weaker(x, y):
@@ -641,17 +643,26 @@ def main(argv=None):
     ap.add_argument("--gate-change", default="", help="the gate-code commits between --pin and the w-only pins, in order (bf79865a the _kr tag, then the Arm 1b kinds)")
     ap.add_argument("--after-read", default="", help="Arm 1b: Arm 1's gate read JSON (--out of its own read); its combined F1 opens or closes the program-level label")
     ap.add_argument("--compare", default="", help="Arm 1b: Arm 1's primary, read direction-only against this primary")
+    ap.add_argument("--seeds", default="1,2", help="the learned arms' checkpoint seeds (seed extension: 11-18 or 11-16; the pooled line lists all)")
     ap.add_argument("--cotenancy", choices=("required", "off"), default="required",
                     help="required (the gate read): the learned arms' <arm>_kr cells give the second verdict; off only for smokes")
     a = ap.parse_args(argv)
+    global SEEDS
+    seeds = tuple(int(x) for x in a.seeds.split(",") if x.isdigit())
+    if len(seeds) != len([x for x in a.seeds.split(",") if x]) or not seeds or len(set(seeds)) != len(seeds) or min(seeds) < 1:
+        raise SystemExit(f"FAIL LOUD: --seeds {a.seeds!r}: distinct checkpoint seeds >= 1")
+    SEEDS = seeds
     print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
     if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
         raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
     topos = [int(x) for x in a.topos.split(",")]
     cells, failed = load(a.gate, a.suffix)
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
-    if not a.twin and ckpt_tag(a.primary) != "arm3":
-        raise SystemExit("FAIL LOUD: --twin is required (only an Arm 3 read may go without one, while no MP-OFF twin is trained)")
+    stray = sorted({(k[0], k[1]) for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) in (a.primary, a.twin, a.mlp) and k[1] not in SEEDS})
+    if stray:
+        raise SystemExit(f"FAIL LOUD: learned cells at seeds outside --seeds {list(SEEDS)}: {stray[:6]}")
+    if not a.twin and ckpt_tag(a.primary) != "arm3" and SEEDS == (1, 2):
+        raise SystemExit("FAIL LOUD: --twin is required (only an Arm 3 read, or a seed-extension read of an arm with no new-seed twin, may go without one)")
     ckpt = ckpt_md5s(a.checkpoint_md5)
     prog_allowed = True
     tags = {ckpt_tag(x) for x in (a.primary, a.twin) if x}
@@ -697,6 +708,8 @@ def main(argv=None):
     failed_kr.update({k: v for k, v in failed.items() if k[0] not in learned})
     res = {"filed": FILED, "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth, "primary": a.primary, "twin": a.twin,
            "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
+    if SEEDS != (1, 2):
+        res["seeds"] = list(SEEDS)
     if arm1b or arm3:
         res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), ("arm1b_combined_F1" if arm3 else "arm1_combined_F1"): prev["combined"]["F1"],
                            "program_label_open": prog_allowed}
