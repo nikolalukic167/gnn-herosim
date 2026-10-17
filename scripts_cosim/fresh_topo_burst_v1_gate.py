@@ -284,6 +284,59 @@ def ra_serving_slate(side: str) -> str:
 
 
 R1A_ON = False  # set by main() for phase r1a: progress watchdog and the 5 % pause line
+PARALLEL = None  # set by main(): cells run at once in this job (recorded in each r1a cell's host block)
+SYSCPU = "/sys/devices/system/cpu"
+
+
+def _read(path: str) -> Optional[str]:
+    try:
+        with open(path) as fh:
+            return fh.read().strip()
+    except OSError:
+        return None
+
+
+def _cpulist(cpus: List[int]) -> str:
+    runs, out = [], []
+    for c in sorted(cpus):
+        if runs and c == runs[-1][1] + 1:
+            runs[-1][1] = c
+        else:
+            runs.append([c, c])
+    for lo, hi in runs:
+        out.append(f"{lo}" if lo == hi else f"{lo}-{hi}")
+    return ",".join(out)
+
+
+def host_block(sys_cpu: str = SYSCPU, cpuinfo: str = "/proc/cpuinfo") -> Dict[str, object]:
+    """uncut_groups_s0_v1 calibration protocol (SMT, 2026-10-14): the host a cell ran on. nproc is the job's cpuset after SMT;
+    physical_cores counts distinct (package, core) in it. Thread(s) per core is lscpu's (None where lscpu is absent)."""
+    cpus = sorted(os.sched_getaffinity(0))
+    cores = {(_read(f"{sys_cpu}/cpu{c}/topology/physical_package_id"), _read(f"{sys_cpu}/cpu{c}/topology/core_id")) for c in cpus}
+    model = next((ln.split(":", 1)[1].strip() for ln in (_read(cpuinfo) or "").splitlines() if ln.startswith("model name")), None)
+    try:
+        lscpu = subprocess.run(["lscpu"], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        lscpu = ""
+    tpc = next((ln.split(":", 1)[1].strip() for ln in lscpu.splitlines() if ln.startswith("Thread(s) per core")), None)
+    return {"hostname": os.uname().nodename, "cpu_model": model, "threads_per_core": tpc, "smt_control": _read(f"{sys_cpu}/smt/control"),
+            "smt_active": _read(f"{sys_cpu}/smt/active"), "cpus_online": _read(f"{sys_cpu}/online"), "cpuset": _cpulist(cpus), "nproc": len(cpus),
+            "physical_cores": len(cores), "parallel": PARALLEL}
+
+
+def check_host(h: Dict[str, object]) -> None:
+    """Cells never fail on SMT (they charge the frozen w in simulated time). A calibration job sets R1A_EXPECT_SMT / R1A_EXPECT_CPU_MODEL
+    and fails loud when its host is in another state or model."""
+    for env, key in (("R1A_EXPECT_SMT", "smt_control"), ("R1A_EXPECT_CPU_MODEL", "cpu_model")):
+        want = os.environ.get(env, "").strip()
+        if want and h.get(key) != want:
+            raise SystemExit(f"FAIL LOUD: {env}={want!r} but host {h.get('hostname')} has {key}={h.get(key)!r}; a calibration never mixes states")
+
+
+def check_parallel(h: Dict[str, object]) -> None:
+    """r1a: PAR from physical cores. Every cell runs one torch/OMP thread, so PAR above the cpuset's physical cores oversubscribes it."""
+    if h["parallel"] is not None and h["parallel"] > h["physical_cores"]:
+        raise SystemExit(f"FAIL LOUD: --parallel {h['parallel']} exceeds the {h['physical_cores']} physical cores in this job's cpuset ({h['cpuset']})")
 R1A_LIMIT_S = 8100
 _LAST_ARRIVAL: Dict[str, float] = {}
 LEARNED_KINDS = ("gnnedge0", "mpoff", "cdimit") + LOAD_KINDS + RA_KINDS
@@ -1175,6 +1228,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     out["python_env"] = (doc.get("run_provenance") or {}).get("python_env")  # the raw JSON is deleted at job exit; PARITY.md reads the interpreter from here
     out["env_fingerprint"] = (doc.get("run_provenance") or {}).get("env_fingerprint")
+    if R1A_ON:
+        out["host"] = host_block()
+        check_host(out["host"])
     n = out.get("num_tasks")
     problems = []
     orig_kind, kind = kind, check_alias(kind)
@@ -1460,9 +1516,15 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     ap.add_argument("--no-scope", action="store_true", help="no per-run systemd scope (SLURM nodes)")
     a = ap.parse_args()
-    global NO_SCOPE, R1A_ON
+    global NO_SCOPE, R1A_ON, PARALLEL
     NO_SCOPE = a.no_scope
     R1A_ON = a.phase == "r1a"
+    PARALLEL = a.parallel
+    if R1A_ON:
+        h = host_block()
+        print(f"[host] {json.dumps(h, sort_keys=True)}", flush=True)
+        check_parallel(h)
+        check_host(h)
     selection = None
     if a.phase in ("gate", "d1", "d2", "d4", "d5", "d6", "a", "v4", "fix", "bc1", "bc1selfref", "fc1", "xs1", "xs1cd", "ladder", "jitsmoke", "ladderjit", "capacity", "guard", "decimatune", "decima", "x11confirm", "grounded", "x15fill", "groundedx15", "groundedladder", "peakctl", "peakmlp", "rawplan", "rawgnn", "rawmlp", "w0mlp", "rp2dev", "rp2conf", "sb1dev", "sbconf", "scale", "lf1conf", "rb1", "agg1", "het1", "so1", "cl1", "tp1", "wf1", "r1a") + RAW_V2:
         selection = json.load(open(a.selection))
