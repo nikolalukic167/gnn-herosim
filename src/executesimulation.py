@@ -1239,6 +1239,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             # backlog_corpus_v1: how an in-flight task is priced at capture and serving.
             "HEROSIM_INFLIGHT_CAPTURE",
             "HEROSIM_PG_INFLIGHT",
+            "HEROSIM_PG_INFLIGHT_FULL",
             "HEROSIM_PG_EXT_RATE",
             "HEROSIM_PG_EXCHANGE_SCALE",
             # transfer_physics_v1: transmission model and replica release during I/O
