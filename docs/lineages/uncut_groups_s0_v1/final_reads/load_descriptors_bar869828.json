@@ -18,7 +18,8 @@
  "definitions": {
   "lat_over_svc": "averageElapsedTime / (averageColdStartTime + averageExecutionTime + averageCommunicationsTime); the no-queue service time is exec + cold start + transfer (communications). The headline form.",
   "lat_over_svc_pull": "the same with averagePullTime added to the service time",
-  "lat_over_noqueue": "averageElapsedTime / (averageElapsedTime - averageQueueTime - lock_wait.mean), i.e. with all queueing removed"
+  "lat_over_noqueue": "averageElapsedTime / (averageElapsedTime - averageQueueTime - lock_wait.mean), i.e. with all queueing removed",
+  "queue_time_is_not_pure_queueing": "queue_time = arrived_time - scheduled_time (src/placement/infrastructure.py:437 at d6ae87c2); it includes waiting for the replica to initialise, the platform FIFO wait, the request's own network latency and ingress link pipes/hold (:1472, :1499, :1551, :1587; arrived.succeed() at :1614). queue_share and effective_queue_share are therefore not pure platform queueing; the split among these terms was not measured."
  },
  "cross_check": {
   "scientist_effective_queue_share": "0.347 (0.236-0.457)",
