@@ -301,6 +301,45 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Learned w frozen in the SMT-off venue; drift stop OK; k_cotenancy 1.468; the final-read pins** (calibration protocol step 4, the expert's go; S6). Nothing is served from these pins until the final reads, which wait on the Arm 2 gnn.
+  - **Series.** Job 882799 on A = os-cpu-slurm-9 and B = os-cpu-slurm-10: AMD EPYC 9335 32-Core, SMT off, the same venue as 871538, exclusive (both nodes idle at submit). It ran 1:12:12, rc 0, 24/24 cells per node, 0 failed. Every cell has the host block, one model, one SMT state and 1 torch thread.
+    - Recipe: 19461 g0, both rungs, k = 0, seed 1, PAR 1, through `cot_calib_v2.sbatch` (b46fd80f), called by `cot_learned_smt.sbatch` (1a3353fe; it is `cot_hand_smt.sbatch` with only the steps script and the time limit changed) and `cot_learned_steps.sh` (44556f25). All in `/share/nikola.lukic/uncut_groups/cotenancy/`.
+    - Steps, in order on both nodes:
+      - L1b_gnn, L1b_twin at G5 `8dfd7e0c`;
+      - L1_gnn, L1_twin, L1_mlp at `114cc0e7`;
+      - L1b_mlp at G5;
+      - shared (7 × 8 pinned) S1_gnn at `114cc0e7` and S1b_gnn at G5;
+      - K0_twin, K0_gnn, A2_twin at G4 `69354280`;
+      - H3end (`cd_ib0`, the H3start recipe, `114cc0e7`).
+    - Inputs are the staged `interim/in_*_calib` directories; the Arm 1b md5s, including the mlp, were re-checked against the reference-physics file. Data: `smt_series2_learned/`; reads in `smt_series2_learned/reads/`.
+  - **Drift stop** (`uncut_charge_share.py drift`, H3start from 871538 vs H3end): OK on both nodes, at most 0.75 % against the 2 % limit. A: moderate +0.75 %, heavy −0.24 %. B: moderate +0.26 %, heavy +0.49 %.
+  - **Learned r** (`uncut_cotenancy_r.py`, A + B pooled, 7 × 8 pinned):
+    - r_gnn_eng (Arm 1) 1.173: rungs 1.171 / 1.173, buckets 1.16–1.19.
+    - r_gnn_eng_1b 1.163: rungs 1.162 / 1.163.
+  - **k_cotenancy** = max(1, every r measured in either state, per-bucket rule) = **1.468**:
+    - SMT on: 1.468 (r_hand) and 1.373 (r_cd_ib0 19461).
+    - SMT off: r_hand `cd_ib0` 1.169 and `cd` 1.173, r_cd_ib0_19461 1.185 (871538); r_gnn_eng 1.173 and r_gnn_eng_1b 1.163 (882799).
+  - **Frozen w**, ms per plan, moderate / heavy: sum of decision seconds ÷ sum of plan evals, pooled over A and B with `uncut_charge_share.pooled_w` at 0442c1cf. Per-bucket values are in each pin. Table `reads/freeze_w.json`, md5 `8fc5305bef0506d334f40768c398a7f9`.
+
+    | arm | gnn_eng | twin_eng | mlp_same |
+    |---|---|---|---|
+    | Arm 1 | 2.922 / 2.912 | 2.284 / 2.350 | 2.210 / 2.241 |
+    | Arm 1b | 2.925 / 2.895 | 2.291 / 2.378 | 2.180 / 2.295 |
+    | Arm 2-K0 | 0.723 / 0.728 | 0.396 / 0.405 | — |
+    | Arm 2 | (to come) | 0.394 / 0.402 | — |
+
+    - Every Arm 1b w is within 1.10× of Arm 1's, so `w_guard` (1.5×) passes.
+    - Arm 2 and K0 w are per plan eval, re-encode evals included.
+    - K0 was checked for health only (encode check passes, 2/2 per node). Its calibration directories `K0_{twin,gnn}_{A,B}` are sealed read-only: list `smt_series2_learned/k0_series2_seal.md5`, 48 entries, md5 `cac46045ce1042a48f4eae278e55f438`.
+  - **The final-read pins.** They are w-only chains rooted at gate commits and kept off reference-physics like G4. Each commit changes only `scripts_cosim/decision_cost_w.json`, which round-trips byte-identically at indent 1, so the commits only add keys.
+    - **Arm 1** (`rp/uncut-w-arm1`): `114cc0e7` → W1 `9883639b` (Arm 1 gnn and twin, k_cotenancy 1.468) → **W2 `b3ec1fdc`** (Arm 1 mlp).
+    - **Arm 1b** (`rp/uncut-w-arm1b`): G5 `8dfd7e0c` → W1b `50e72efd` (Arm 1 and 1b gnn/twin, k) → **W2b `59798c41`** (Arm 1 and 1b mlp).
+    - **Arm 2 / K0** (`rp/uncut-w-arm2`): G4 `69354280` → **W-A2 `bd2ed080`** (K0 twin and gnn, Arm 2 twin; no k, since there are no Arm 2 `_kr` kinds). Arm 2 gnn gets its own w-only commit on top, from its own calibration in this venue, followed by another H3.
+  - **Reader for Arm 1b (the expert's ruling under B3).** `w_pin_chain` passes Arm 1 (W1, W2) with both the frozen reader 557d84bf and the current one (0442c1cf). The frozen reader passes Arm 1b through W1b but refuses W2b, because its `LEARNED_W_KINDS` predates G5's `ra_mlp_same_arm1b`.
+    - Ruling: the Arm 1b final read runs on the current reader (0442c1cf, which carries B4) with `--mlp`, Holm over 8. It is not split.
+    - The frozen reader also runs Arm 1b's gnn/twin read through W1b. Its output must be byte-identical to the current reader's gnn/twin output; any difference stops the read.
+    - The mlp comparisons come from the current reader alone and are labelled so.
+    - Arm 1 is unaffected.
 - 2026-10-17 — **Hand q_n under SMT off: KEEP. Amendment made after the data were seen (ruling (c), the expert, on S6's report).** The frozen hand w stays, 869828 stands, and no hand cell reruns.
   - **The series, job 871538** at 114cc0e7, on A = os-cpu-slurm-9 and B = os-cpu-slurm-10. Both are AMD EPYC 9335 32-Core, SMT off, 1 thread per core; the model is the same at every step start and end (16/16). Steps H3start, H1, H2 (7 × 8 load, pinned) and H4 ran in one allocation, rc 0. Data: `/share/nikola.lukic/uncut_groups/cotenancy/smt_series1/`; reads in `smt_series1_reads/`.
   - **Why the filed rule could not run.** H1 and H2 use the frozen 863811 recipe (19405/19411, groups cut at 10), so every served batch is ≤ 10 tasks and the re-measure has 0 plan evals in 11_50 and gt50. The 869828 bar is uncut and has evals in all three buckets. `uncut_charge_share.py q` therefore fails loud for both arms ("bucket 11_50 has bar plan evals but no re-measured w"). `cd` has no uncut re-measure at all.
