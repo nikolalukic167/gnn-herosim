@@ -1,0 +1,109 @@
+{
+ "label": "descriptive, computed outside the read: the cells sit on different w-pin chains",
+ "reader_function": "uncut_arm_gate_read.contrast @ 557d84bf",
+ "a": "ra_gnn_eng_arm1b_nosplit (W2b 59798c41)",
+ "b": "ra_gnn_eng_arm1_nosplit (W2 b3ec1fdc)",
+ "failed": 0,
+ "tests": [
+  {
+   "rung": "moderate",
+   "stat": "whole",
+   "pooled": {
+    "median_pct": 1.4862360830902475,
+    "faster": 1,
+    "n_topologies": 12,
+    "p_unadjusted": 0.00341796875,
+    "sign": "positive"
+   },
+   "seed1": {
+    "median_pct": 0.9327226208462724,
+    "faster": 4,
+    "n_topologies": 12,
+    "p_unadjusted": 0.0771484375,
+    "sign": "positive"
+   },
+   "seed2": {
+    "median_pct": 1.7405878826961205,
+    "faster": 2,
+    "n_topologies": 12,
+    "p_unadjusted": 0.01611328125,
+    "sign": "positive"
+   }
+  },
+  {
+   "rung": "moderate",
+   "stat": "after360",
+   "pooled": {
+    "median_pct": 0.8255033627906767,
+    "faster": 4,
+    "n_topologies": 12,
+    "p_unadjusted": 0.10986328125,
+    "sign": "positive"
+   },
+   "seed1": {
+    "median_pct": 0.9283709141091049,
+    "faster": 4,
+    "n_topologies": 12,
+    "p_unadjusted": 0.1513671875,
+    "sign": "positive"
+   },
+   "seed2": {
+    "median_pct": 0.6471327591893736,
+    "faster": 4,
+    "n_topologies": 12,
+    "p_unadjusted": 0.38037109375,
+    "sign": "positive"
+   }
+  },
+  {
+   "rung": "heavy",
+   "stat": "whole",
+   "pooled": {
+    "median_pct": 0.33404274437582304,
+    "faster": 3,
+    "n_topologies": 12,
+    "p_unadjusted": 0.10986328125,
+    "sign": "positive"
+   },
+   "seed1": {
+    "median_pct": -0.4257007575420545,
+    "faster": 7,
+    "n_topologies": 12,
+    "p_unadjusted": 0.85009765625,
+    "sign": "negative"
+   },
+   "seed2": {
+    "median_pct": 1.6899407176834493,
+    "faster": 2,
+    "n_topologies": 12,
+    "p_unadjusted": 0.0068359375,
+    "sign": "positive"
+   }
+  },
+  {
+   "rung": "heavy",
+   "stat": "after360",
+   "pooled": {
+    "median_pct": -2.205934638195184,
+    "faster": 10,
+    "n_topologies": 12,
+    "p_unadjusted": 0.04248046875,
+    "sign": "negative"
+   },
+   "seed1": {
+    "median_pct": -0.45146013309471833,
+    "faster": 8,
+    "n_topologies": 12,
+    "p_unadjusted": 0.5693359375,
+    "sign": "negative"
+   },
+   "seed2": {
+    "median_pct": -5.12583156033673,
+    "faster": 11,
+    "n_topologies": 12,
+    "p_unadjusted": 0.00927734375,
+    "sign": "negative"
+   }
+  }
+ ]
+}
