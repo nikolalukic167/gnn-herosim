@@ -560,6 +560,7 @@ scheduling_strategies: Dict[str, str] = {
     "peer_greedy_oracle_network_peer_greedy_oracle_network": "PEER-GREEDY-ORACLE-NETWORK",
     "peer_greedy_selfpredict_network_peer_greedy_selfpredict_network": "PEER-GREEDY-SELFPREDICT-NETWORK",
     "peer_greedy_network_batch_peer_greedy_network_batch": "PEER-GREEDY-NETWORK-BATCH",
+    "heft_network_batch_heft_network_batch": "HEFT-NETWORK-BATCH",
     "peer_greedy_learned_network_batch_peer_greedy_learned_network_batch": "PEER-GREEDY-LEARNED-NETWORK-BATCH",
     "peer_greedy_network_cd_peer_greedy_network_cd": "PEER-GREEDY-NETWORK-CD",
     "peer_greedy_network_cd_random_seed_peer_greedy_network_cd_random_seed": "PEER-GREEDY-NETWORK-CD-RANDOM-SEED",
