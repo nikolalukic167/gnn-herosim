@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -196,9 +197,9 @@ def _fake_replay(corpus, st):
             "best_tag": "enum", "wall_s": 0.0}
 
 
-def _args(tmp_path, out, workers, limit=0, shard="0/2"):
+def _args(tmp_path, out, workers, limit=0, shard="0/2", timeout=60.0):
     import argparse
-    return argparse.Namespace(split="s", corpus="c", shard=shard, out=str(out), workers=workers, limit_states=limit)
+    return argparse.Namespace(split="s", corpus="c", shard=shard, out=str(out), workers=workers, limit_states=limit, max_tasks_per_child=8, state_timeout=timeout)
 
 
 def _jl(path):
@@ -236,3 +237,29 @@ def test_read_done_fails_on_a_bad_line_that_is_not_last(tmp_path):
     f.write_text('{"gid": "a"}\nnot json\n{"gid": "b"}\n')
     with pytest.raises(SystemExit, match="not the last line"):
         L.read_done(str(f))
+
+
+def test_relabel_fails_loud_when_a_worker_dies(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
+    def die(corpus, st):
+        if st["gid"] == "a/ds_004":
+            os._exit(9)          # what the kernel's OOM kill looks like to the pool
+        return _fake_replay(corpus, st)
+    monkeypatch.setattr(L, "replay_state", die)
+    monkeypatch.setenv("LABEL_SCREEN_MP", "fork")
+    with pytest.raises(SystemExit, match="FAIL LOUD: state a/ds_004"):
+        L.cmd_relabel(_args(tmp_path, tmp_path / "x.jsonl", 3))
+    assert [r["gid"] for r in _jl(tmp_path / "x.jsonl")] == ["a/ds_000", "a/ds_002"]        # the rows before it are on disk, intact
+
+
+def test_relabel_fails_loud_on_a_state_that_never_returns(tmp_path, monkeypatch):
+    import time as _t
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
+    def slow(corpus, st):
+        if st["gid"] == "a/ds_002":
+            _t.sleep(30)
+        return _fake_replay(corpus, st)
+    monkeypatch.setattr(L, "replay_state", slow)
+    monkeypatch.setenv("LABEL_SCREEN_MP", "fork")
+    with pytest.raises(SystemExit, match="a/ds_002"):
+        L.cmd_relabel(_args(tmp_path, tmp_path / "y.jsonl", 3, timeout=1.0))
