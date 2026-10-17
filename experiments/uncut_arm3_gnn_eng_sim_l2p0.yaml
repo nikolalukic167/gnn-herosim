@@ -1,0 +1,60 @@
+# uncut_groups_s0_v1 combined lever FAST arm (registered 2026-10-17, 56092996; B6, best label WIN-ARM-ONLY): Arm 3's recipe (experiments/uncut_arm3_gnn_eng_l2p0.yaml, lambda 2.0)
+# on S7's simulator labels (NEAR_RTT_LABEL_OVERRIDE_JSON, sha256 5ae45a56...; train labels only) with the move-regret table recomputed against them (sha256 0117cbd2ee9af473ad14d0ab3e32b7d08cdd1d54df9ed631da9486628c78cdc2).
+# (A3-L) from scratch: 100 epochs, seeds 1 and 2.
+trainer: gnn
+lineage: uncut_arm3
+cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_BATCHED_TF: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v5
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+  NEAR_RTT_REGRET_LAMBDA: '2.0'
+  NEAR_RTT_MOVE_REGRET_PATH: /share/nikola.lukic/uncut_groups/lever_sim/move_regret_simlabels.pkl
+  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_arm1/label_screen/sim_labels_arm1.json
+  NEAR_RTT_UNSCORED_MASK_VAL_PATH: /share/nikola.lukic/uncut_groups/lever/unscored_mask_val.pkl
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-arm3-gnn-eng-sim-l2p0
+  tags:
+  - uncut-arm3
+  - lever-regret
+  - device-cpu
+  - lambda-2p0
+  - comb-fast
+  - gnn-eng-sim
+  - batched-tf
+  - ils-r010
+  - opening30
+  - gnn-eng
