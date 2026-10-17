@@ -76,7 +76,11 @@ def test_frozen_buckets_cover_both_rungs_and_le10_is_the_scalar():
     for arm, rungs in f["w_ms_per_plan_by_bucket"].items():
         assert set(rungs) == {"moderate", "heavy"}
         for rung, b in rungs.items():
-            assert set(b) == set(RATES) and b["le10"] == f["w_ms_per_plan"][arm][rung]
+            assert set(b) == set(RATES) and all(float(v) > 0 for v in b.values())
+            # hand rules' buckets were imputed from the scalar (33629f1f); a learned arm's buckets are calibrated per bucket and
+            # its scalar is a separate pooled fit (Arm 1/1b/2/K0/3 at their w pins, and the FAST kinds' copy of Arm 3's)
+            if not arm.startswith("ra_"):
+                assert b["le10"] == f["w_ms_per_plan"][arm][rung]
     for arm in ("cd", "cd_ib0"):
         assert arm not in f["w_ms_per_plan_by_bucket"]
 

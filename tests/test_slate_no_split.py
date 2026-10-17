@@ -99,7 +99,9 @@ def test_harness_serves_the_nosplit_kinds_and_keeps_them_out_of_the_default_grid
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
     import fresh_topo_burst_v1_gate as G
 
-    assert G.R1A_NOSPLIT == ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")
+    # slate_fix's three come first; later lineages (uncut Arm 1, the combined lever) append their own kinds
+    assert G.R1A_NOSPLIT[:3] == ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit")
+    assert len(set(G.R1A_NOSPLIT)) == len(G.R1A_NOSPLIT)
     for k in G.R1A_NOSPLIT:
         assert k in G.R1A_ARMS and next((k[:-len(s)] for s in G.SUFFIXES if k.endswith(s)), k) in G.RA_KINDS
     for k in ("cd", "selfpredict", "ra_gnn_eng", "ra_gnn_eng_physmp", "ra_gnn_eng_cdapply", "cd_pull"):

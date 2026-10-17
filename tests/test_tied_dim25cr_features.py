@@ -150,6 +150,7 @@ def _run_trainer(args):
     )
 
 
+@needs_smoke_dag  # the trainer loads the cache before it validates flags (always has), so this needs the smoke cache
 def test_tied_labels_requires_candidate_relative_queue(tmp_path):
     result = _run_trainer(
         [
@@ -163,6 +164,7 @@ def test_tied_labels_requires_candidate_relative_queue(tmp_path):
     assert "--candidate-relative-queue" in result.stderr
 
 
+@needs_smoke_dag  # the trainer loads the cache before it validates flags (always has), so this needs the smoke cache
 def test_tied_labels_rejects_alongside_partial_state(tmp_path):
     result = _run_trainer(
         [
