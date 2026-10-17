@@ -1,0 +1,57 @@
+# uncut_arm3 twin -- the MP-OFF twin of the move-regret lever (lambda = 2.0), registered in the seed extension of uncut_groups_s0_v1 (2026-10-17, B6, post-look):
+# experiments/uncut_arm1b_twin_eng.yaml unchanged (GNN_DISABLE_MESSAGE_PASSING=1) plus the three lambda lines of experiments/uncut_arm3_gnn_eng_l2p0.yaml. CPU, 6 threads.
+# Seeds 11-18 via run_experiment.py --seed.
+trainer: gnn
+lineage: uncut_arm3
+cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_BATCHED_TF: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v5
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  GNN_DISABLE_MESSAGE_PASSING: '1'
+  NEAR_RTT_REGRET_LAMBDA: '2.0'
+  NEAR_RTT_MOVE_REGRET_PATH: /share/nikola.lukic/uncut_groups/lever/move_regret.pkl
+  NEAR_RTT_UNSCORED_MASK_VAL_PATH: /share/nikola.lukic/uncut_groups/lever/unscored_mask_val.pkl
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-arm3-twin-eng-l2p0
+  tags:
+  - uncut-arm3
+  - lever-regret
+  - device-cpu
+  - lambda-2p0
+  - seed-ext
+  - batched-tf
+  - ils-r010
+  - opening30
+  - twin-eng
