@@ -301,6 +301,50 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **FINAL READS, Arm 1 and Arm 1b: both F1 MIXED (frozen and co-tenancy); MP-NOT-SEPARATED in both; MODEL-CLASS-NOT-SEPARATED (Arm 1), MODEL-CLASS-DIRECTION (Arm 1b)** (the registered reads; S6). Interim looks preceded these reads (the interim-looks log, rows 1–13). Every verdict below is computed on the final cells only, by the pre-interim rule.
+  - **Cells** (fresh, the 869828 set: 19537–19548 × g0–g3 × moderate/heavy × seeds 1, 2). All ran on CPU-amd, AMD EPYC 9335, SMT off, nproc 64, `--exclusive`, one node per job, PAR 60, 1 thread, CELL_MEM 16G, `r1a_gate.sbatch` at each pin. Node split agreed with S4 (lever cells on other nodes).
+    - **Arm 1** at W2 `b3ec1fdc`: jobs 883168–883170 (os-cpu-slurm-13/14/15), 1,152 cells. gnn, twin and mlp, each `_k100` and `_kr`.
+    - **Arm 1b** at W2b `59798c41`: jobs 883171–883173 (16/17/18), 1,152 cells, the same six kinds for 1b.
+    - All 2,304 cells completed: 0 failed, 0 kills, 0 collapses in any learned arm; WALL-INFEASIBLE 0.
+    - Inputs `/share/nikola.lukic/uncut_groups/final/in_{arm1,arm1b}`, staged by the c54eb078 stager. Every checkpoint md5 matches its md5 file.
+    - Hand cells: the 869828 bar at d6ae87c2 (cd_ib0, cd).
+  - **Arm 1 read:** frozen reader `557d84bf` with `--pin d6ae87c2 --gate-change bf79865a,e8c87702,114cc0e7 --w-pins 9883639b,b3ec1fdc --mlp ra_mlp_same_arm1_nosplit --cotenancy required`. The current reader `ba344dc3` with the same arguments gives a **byte-identical** JSON: `final/reads/read_arm1_frozen557.json` = `read_arm1_curba344.json`, md5 93b46aa9.
+    - **F1 MIXED** (frozen MIXED, co-tenancy MIXED). gnn vs cd_ib0, frozen w, median, ahead, Holm p:
+      - moderate whole −4.85 %, 12/12, 0.0020;
+      - moderate after-360 −6.30 %, 12/12, 0.0020;
+      - heavy whole −0.49 %, 8/12, 0.41;
+      - heavy after-360 −1.16 %, 7/12, 0.68.
+    - Per seed: s1 −5.19 / −7.07 / −1.67 / −4.32 %; s2 −4.49 / −4.96 / −1.25 / +0.35 %.
+    - Co-tenancy (`_kr`, k 1.468): −4.57 % (12/12), −6.18 % (12/12), −1.67 % (7/12), −0.31 % (6/12); Holm p 0.0020, 0.0020, 0.60, 0.79.
+    - Against cd (robust bar): −10.20 / −13.76 / −4.13 / −10.81 %, all 12/12. Anchor OK at both rungs.
+    - **F2** (Holm over 8), frozen w:
+      - gnn vs twin −2.07 % (12/12, Holm p 0.0039), −1.52 % (11/12, 0.017), −2.02 % (10/12, 0.081), +3.10 % (2/12, 0.085);
+      - gnn vs mlp −3.31 % (12/12, 0.0039), −3.28 % (12/12, 0.0039), −3.07 % (10/12, 0.020), +0.60 % (5/12, 0.97).
+      - Labels: **MP-NOT-SEPARATED; MODEL-CLASS-NOT-SEPARATED** (corpus: uncut_arm1, 12,000 states).
+    - Decision share (% of latency): gnn 0.103 / 0.114, twin 0.080 / 0.089, cd_ib0 0.006 / 0.009.
+    - Gap attribution: UNCUT-ATTRIBUTED at both rungs (groups > 10 carry 55 % / 72 % of the gnn − cd_ib0 gap).
+  - **Arm 1b read:** current reader `ba344dc3` (the point-7 ruling) with `--mlp ra_mlp_same_arm1b_nosplit` (Holm over 8), `--after-read` Arm 1's read, `--gate-change bf79865a,e8c87702,114cc0e7,8dfd7e0c --w-pins 50e72efd,59798c41`. The read JSON is `final/reads/read_arm1b_curba344_nocompare.json`, md5 301b11c3.
+    - **F1 MIXED** (frozen MIXED, co-tenancy MIXED). gnn vs cd_ib0, frozen w:
+      - moderate whole −3.17 % (11/12, Holm p 0.0044);
+      - moderate after-360 −5.40 % (12/12, 0.0020);
+      - heavy whole +0.19 % (6/12, 0.85);
+      - heavy after-360 −1.80 % (7/12, 0.22).
+    - Per seed: s1 −4.56 / −6.17 / −0.77 / −1.08 %; s2 −3.45 / −4.48 / −0.37 / −4.59 %.
+    - Co-tenancy: −3.43 % (10/12, 0.010), −5.10 % (10/12, 0.0098), −0.14 % (6/12, 0.52), −3.81 % (8/12, 0.22).
+    - Against cd: −9.94 / −14.23 / −4.42 / −11.18 %.
+    - **F2**, frozen w:
+      - gnn vs twin −0.28 / −0.35 / −0.47 / +1.70 % (Holm p 0.81–1.0);
+      - gnn vs mlp −2.20 % (12/12, 0.0039), −2.28 % (12/12, 0.0039), −3.04 % (10/12, 0.015), −3.73 % (9/12, 0.21).
+      - Labels: **MP-NOT-SEPARATED; MODEL-CLASS-DIRECTION**. The mlp comparisons come from the current reader only.
+    - Decision share: gnn 0.103 / 0.113, twin 0.080 / 0.091.
+    - **The frozen reader did not read Arm 1b (the expert's ruling (b2)).** The 1b cells ran at W2b, and the frozen reader cannot read them: with `--w-pins 50e72efd` it refuses the W2b cells, and with W1b,W2b it refuses the 1b mlp key (point 7). Nothing was rerun. The evidence that the two readers agree is Arm 1's byte-identity above, and S4's B4 and ba344dc3 proofs.
+  - **Arm 1b vs Arm 1 gnn (`--compare`): descriptive, computed outside the read, because the cells sit on different w-pin chains** (the expert's ruling (a1)). Computed with the frozen contrast function `uncut_arm_gate_read.contrast` at 557d84bf, both `_k100`. Direction only: Arm 1b gnn vs Arm 1 gnn, median, ahead for Arm 1b, unadjusted exact p.
+    - moderate whole +1.49 % (1/12, p 0.003);
+    - moderate after-360 +0.83 % (4/12, 0.11);
+    - heavy whole +0.33 % (3/12, 0.11);
+    - heavy after-360 −2.21 % (10/12, 0.042).
+    - File `final/reads/compare_arm1b_vs_arm1_gnn_a1.json`, md5 19ef5eb5; per seed in the file.
+  - **Still to come:** the K0/Arm 2 registered read, after a B3 reader change (ruling (c1)). The `_kr` − frozen-w linearity check (0.468 · F_L) will be filed with it.
 - 2026-10-17 — **Arm 2 gnn venue calibration: second drift stop on node B (job 883018, the ruling (c) rerun); decision pending with the user** (S6). This entry records facts only. Arm 2 gnn has no venue w and no pin commit. Everything for it is held: no commit and no run.
   - **883018** (`cot_arm2gnn2_smt.sbatch` fc8b4067, `cot_arm2gnn2_steps.sh` cdddd2a8): H3pre → A2_gnn → H3end on os-cpu-slurm-9 / -10 (EPYC 9335, SMT off). Both nodes were idle at submit; only 883018 was on either node at every step's start and end. It ran 13:04, 6/6 cells per node. The A2_gnn cells passed health: 2/2 per node, encode check, commit 69354280.
   - **The four checks** (`uncut_charge_share.py drift`, 2 % per rung; files `cotenancy/smt_series4_arm2gnn/reads/`):
