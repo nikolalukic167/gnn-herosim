@@ -751,3 +751,23 @@ def test_arm3_needs_the_arm1b_read_first_no_mlp_and_both_verdicts(arm3):
         run3(d, cm1b, cm3, after("WIN"), mlp=B1M)
     with pytest.raises(SystemExit, match="one trainer's"):
         run3(d, cm1b, cm3, after("WIN"), twin=B1T)
+
+
+def test_arm3_without_a_twin_skips_f2_and_says_so(arm3):
+    """No MP-OFF twin is trained (wave 2 held): F1 against the bar is read as filed, F2 is skipped and named, no twin cells are needed."""
+    d, cm1b, cm3, after = arm3
+    for f in os.listdir(d):
+        if C1T in f:
+            os.remove(os.path.join(d, f))
+    res = run3(d, cm1b, cm3, after("WIN"), twin="")
+    assert res["twin"] == "" and C1T not in res["health"] and C1T not in res["decision_share_pct"]
+    assert res["F2"] == {"holm_family": 0, "tests": [], "MP": G.NO_TWIN} and res["cotenancy"]["F2"]["MP"] == G.NO_TWIN
+    assert res["combined"]["MP"] == G.NO_TWIN and "no MP attribution" in G.NO_TWIN
+    assert res["F1"]["label"] == "WIN-ARM-ONLY" and res["combined"]["F1"] == "WIN-ARM-ONLY"
+    assert len(res["F1"]["tests"]) == 4 and res["sequence"]["program_label_open"] is False
+
+
+def test_only_an_arm3_read_may_go_without_a_twin(arm1b):
+    d, cm1, cm1b, after = arm1b
+    with pytest.raises(SystemExit, match="--twin is required"):
+        run1b(d, cm1, cm1b, after("WIN"), twin="")
