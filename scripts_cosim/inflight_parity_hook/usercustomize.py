@@ -39,6 +39,18 @@ if _OUT:
         orig = S.PeerGreedyNetworkBatchScheduler._pg_decide
 
         def compare(sched, batch_tasks, system_state):
+            # r1a_gate.sbatch strips PARTIAL_STATE*; the contract is set for the comparison only, and restored, so the simulated decisions are untouched
+            prev = os.environ.get("PARTIAL_STATE_CONTRACT")
+            os.environ["PARTIAL_STATE_CONTRACT"] = "partial_state_v6"
+            try:
+                _compare(sched, batch_tasks, system_state)
+            finally:
+                if prev is None:
+                    os.environ.pop("PARTIAL_STATE_CONTRACT", None)
+                else:
+                    os.environ["PARTIAL_STATE_CONTRACT"] = prev
+
+        def _compare(sched, batch_tasks, system_state):
             fid = snapshot_fidelity.capture(sched, system_state, batch_tasks)
             by_q = {}
             for g in fid["ghosts"]:
