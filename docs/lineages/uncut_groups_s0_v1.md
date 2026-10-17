@@ -301,6 +301,24 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Combined lever, FAST arm A3-L-ft (fine-tuned Arm 3 on the simulator labels): live gate F1 = MIXED. Moderate beats the in-flight bar 12/12 on both statistics; heavy does not separate. Best label possible was WIN-ARM-ONLY (B6).** (S6; the read the expert ordered, run as registered in the FAST amendment.)
+  - **Training.** Job 884233 (tasks 2 and 3, os-cpu-slurm-15), 20 epochs from the filed Arm 3 λ 2.0 `-final.pt` (init md5 `3c4fbacb…` / `d1790788…`, both logged as loaded), simulator train labels (sha256 `5ae45a56…`) and the new move-regret table (sha256 `0117cbd2…`), 0 failures on both seeds. Served `-final.pt`: seed 1 md5 `abb51ee1270123ffbd53d469c0418b54`, seed 2 `c243b3f00c7224dfd0d25a2af3de09a5` (contracts `ef8dced6…` / `e87c9f13…`), staged by `comb/stage_comb.py` into `comb/in_a3lft` with identical md5s (`comb/md5_a3lft.json`, md5 `08b11820…`).
+  - **Cells.** 192 `ra_gnn_eng_a3lft_nosplit_k100` cells (12 topologies 19537–19548 × g0–g3 × moderate / heavy × seeds 1 and 2) at W-FAST `cb944177` (Arm 3's frozen w, k = 1), spread over 4 exclusive idle nodes (R1A_SHARD i/4: jobs 884350–884353 on os-cpu-slurm-10, 12, 15 and 9, about 7.5 min each). 192 summaries, 0 failed. Inputs, selection, split, slate, PAR and LIMIT as the G8 bar run (`comb/cells_bar_g8`).
+  - **Read.** Job 884361, reader at reference-physics `f390a77f`: `--pin a459dd98 --gate-change 095948ea --w-pins cb944177 --bar cd_ib0_inflightfull --cotenancy off`, gate `comb/cells_bar_g8,comb/cells_a3lft`, topology sha256 `553ef17d…`. `comb/reads/read_a3lft.json` md5 `6e2635fc65e9efd497e7a694483f6d6c`. F1, Holm over 4, vs `cd_ib0_inflightfull_k100`:
+
+    | rung | statistic | median % | faster | p | Holm |
+    |---|---|---|---|---|---|
+    | moderate | whole | −6.33 | 12/12 | .00049 | .00195 |
+    | moderate | after-360 | −8.30 | 12/12 | .00049 | .00195 |
+    | heavy | whole | +1.03 | 5/12 | .622 | .622 |
+    | heavy | after-360 | −1.24 | 9/12 | .077 | .154 |
+
+    F2 is skipped by design (the combined lever trains no MP-OFF twin): no MP attribution. Gap attribution (descriptive): moderate UNCUT-ATTRIBUTED, heavy WIN-NOT-UNCUT.
+  - **What the label means.** At moderate load, A3-L-ft beats the in-flight bar on all 12 topologies on both statistics (Holm .00195 each). At heavy it ties the bar: +1.03 % whole (5/12), −1.24 % after-360 (9/12), neither separated. Every learned GNN filed earlier was slower than this bar at heavy whole-run: +2.94 % (K0 gnn, 1/12) to +5.85 % (Arm 2 gnn, 0/12), with Arm 3 gnn at +3.36 % (2/12). That is S4's file-only read of the filed arms against `cd_ib0_inflightfull_k100`, the in-flight bar sensitivity entry below. A tie is not a win: the label is MIXED, and heavy is where the lever fails to clear the bar.
+  - **B3 in the same job.** The filed Arm 1b read, rerun at the default `--bar` with the f390a77f reader, is byte-identical: md5 `301b11c37f3cda559ff392234303e53d`.
+  - **Descriptive only, vs the filed Arm 3 gnn.** Not a test, because the two cell sets sit at different pins (d6ae87c2's chain and cb944177), though at the same frozen w. P-values are unadjusted: moderate whole −2.12 % (11/12, p .0010), after-360 −0.25 % (7/12, p .34); heavy whole −2.78 % (12/12, p .0005), after-360 +0.56 % (5/12, p .68). The fine-tune's gain over Arm 3 is in the whole-run statistic, i.e. mostly the opening; the steady state is unchanged. `comb/reads/desc_a3lft_vs_arm3.json`.
+  - **Disclosures (accepted by the expert before the result).** (1) `--cotenancy off`: A3-L-ft reuses Arm 3's frozen w at k = 1, has no `_kr` cells, and the registration has no co-tenancy verdict for it. (2) The f390a77f reader did not apply B6 to the combined kinds (`prog_allowed` stayed True, so a clean sweep would have printed WIN). The rule for this read was to map any WIN to WIN-ARM-ONLY by hand. The reader printed MIXED, so no mapping was applied. The cap goes into the reader (`s6/reader-b6cap`, with its own B3) before the F/L/FL/FL-MLP reads.
+
 - 2026-10-17 — **Combined lever: every registered training run is launched (L, FL, the FL MLP, A3-L and A3-L-ft, with F from before), and gate change G8b adds the FAST kinds. No learned result yet.** (S6.)
   - **Inputs.**
     - S7's simulator labels: `/share/nikola.lukic/uncut_arm1/label_screen/sim_labels_arm1.json`, sha256 `5ae45a56003b7bfc3c9db67c78267eb16f93d94a3ae7976d76bdb541f674f6fd`. They cover all 11,073 states, and all 11,073 label plans are candidates in the cache.
