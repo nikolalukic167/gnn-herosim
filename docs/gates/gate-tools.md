@@ -155,6 +155,8 @@ With release=0 the same arm is healthy on 3 of 4 cells (`accel_nosplit_v1`, 2026
 number under R1, including r1_attribution_v1's collapse, reflects this blind key, not Knative's concurrency-based
 balancing. Quote it with that caveat, or use a key that counts queue + lock waiters + running.
 
+**Fixed for the reference row, 2026-10-17 (`eedde810`, `rp/uncut-baselines`):** `KnativeInFlightScheduler` ranks by `scaleout.platform_in_flight` under release and is registered for the `knative_network` policy only; the reactive row of the uncut_groups reference baselines moved from +9,237 % to +173 % vs the ib0 bar (moderate, whole run). The other policies built on `KnativeScheduler` (`knative_network_batch`, `offload_network`, `local_first_network`, `roundrobin_network`) still carry the queue-only key; see the audit in `docs/lineages/uncut_groups_s0_v1.md`.
+
 ## 2026-10-11 — `test_trainer_determinism.py` skips 8 of 18 checks without the smoke caches
 
 The pre-training gate in AGENTS.md (`tests/test_trainer_determinism.py`) passes while skipping 8 of its 18 tests when

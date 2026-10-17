@@ -1,0 +1,13 @@
+DESCRIPTIVE reference rows vs cd_ib0_k100 (869828): per-topology median over 4 windows of % (arm - bar)/bar, then median / mean over topologies, topologies ahead of n; negative = faster than the bar
+  reactive_fixed               moderate whole    median +173.18 %  mean +171.16 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed               moderate after360 median +225.29 %  mean +226.48 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed               heavy    whole    median +232.30 %  mean +232.04 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed               heavy    after360 median +459.17 %  mean +451.33 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed: median (end of run - last arrival) 100 s over 96 cells
+  reactive_fixed: failed cells (watchdog) 0
+  heft_wB                      moderate whole    median +16.43 %  mean +16.95 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB                      moderate after360 median +22.18 %  mean +22.15 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB                      heavy    whole    median +18.49 %  mean +20.11 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB                      heavy    after360 median +34.13 %  mean +37.59 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB: median (end of run - last arrival) 72 s over 96 cells
+  heft_wB: failed cells (watchdog) 0

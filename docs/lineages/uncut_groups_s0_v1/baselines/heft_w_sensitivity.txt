@@ -1,0 +1,7 @@
+883589        COMPLETED   00:07:40 
+0
+HEFT w sensitivity: node-B-only (ruled) vs pooled A+B; median %, ahead of 12, per-topology max abs difference
+moderate/whole: B-only +16.43% (0/12)  pooled +16.58% (0/12)  max |diff| per topology 2.392 pp
+moderate/after360: B-only +22.18% (0/12)  pooled +21.71% (0/12)  max |diff| per topology 1.814 pp
+heavy/whole: B-only +18.49% (0/12)  pooled +18.76% (0/12)  max |diff| per topology 4.689 pp
+heavy/after360: B-only +34.13% (0/12)  pooled +33.00% (0/12)  max |diff| per topology 10.281 pp
