@@ -23,7 +23,7 @@ def _platform(pid, node, now, inflight_end=None):
 
 @pytest.fixture
 def world(monkeypatch):
-    monkeypatch.setattr(S, "platform_queue_drain_seconds", lambda p, orch, memo: 0.0)
+    monkeypatch.setattr(S, "platform_queue_drain_seconds", lambda p, orch, memo, exec_scale=1.0, exec_of=None: 0.0)
     monkeypatch.setattr(S, "incoming_cold_start_time", lambda task, p: 0.0)
     monkeypatch.setattr(S, "network_latency_between", lambda a, n, nodes: 0.0)
     n0 = SimpleNamespace(id=0, node_name="node0")
