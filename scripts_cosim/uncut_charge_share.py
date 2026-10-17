@@ -132,10 +132,13 @@ def q_mode(a, w):
             raise SystemExit(f"FAIL LOUD: the re-measure has no {r} cells")
         wf = frozen(w, a.arm, r)
         q = {b: new[r][b] / wf[b] if new[r][b] is not None else None for b in BUCKETS}
+        filled = []
         for b in BUCKETS:
             if q[b] is None and bar[r][b]:
-                raise SystemExit(f"FAIL LOUD: {a.arm} {r} bucket {b} has bar plan evals but no re-measured w")
-        dq = {b: abs((q[b] if q[b] is not None else 1.0) - 1.0) for b in BUCKETS}
+                if a.fill_missing_dq is None:
+                    raise SystemExit(f"FAIL LOUD: {a.arm} {r} bucket {b} has bar plan evals but no re-measured w")
+                filled.append(b)
+        dq = {b: (a.fill_missing_dq if b in filled else abs((q[b] if q[b] is not None else 1.0) - 1.0)) for b in BUCKETS}
         felt_c, worst, hb_worst = {b: 0.0 for b in BUCKETS}, None, None
         for s in [x for x in bar_cells if x["_rung"] == r]:
             R = felt_ratio(s, None if a.ub else fits[r], a.ub)
@@ -157,6 +160,8 @@ def q_mode(a, w):
             bound += F * dq[b]
             bound_pooled += share * dq[b]
             rows[b] = {"w_frozen": wf[b], "w_new": new[r][b], "q": q[b], "F": F, "share_pooled": share}
+            if b in filled:
+                rows[b]["dq_filled"] = a.fill_missing_dq
         F_total = sum(v["F"] for v in rows.values())
         out["rungs"][r] = {"by_bucket": rows, "F_total": F_total, "share_pooled_total": sum(v["share_pooled"] for v in rows.values()),
                            "bound": bound, "bound_pooled": bound_pooled, "worst_cell": worst, "w_new_pooled": new[r]["all"]}
@@ -232,6 +237,8 @@ def main(argv=None):
     ap.add_argument("--fit")
     ap.add_argument("--ub", action="store_true")
     ap.add_argument("--k", type=float)
+    ap.add_argument("--fill-missing-dq", type=float, help="q: |q - 1| for a bucket the re-measure has no evals in but the bar does "
+                    "(ruling (c), 2026-10-17: the worst |q - 1| of the series); unset, such a bucket fails loud")
     ap.add_argument("--out")
     a = ap.parse_args(argv)
     w = json.load(open(a.w_file))
