@@ -1,0 +1,29 @@
+DESCRIPTIVE reference rows vs cd_ib0_inflightfull_k100: per-topology median over 4 windows of % (arm - bar)/bar, then median / mean over topologies, topologies ahead of n; negative = faster than the bar
+  random                       moderate whole    median +183.23 %  mean +188.71 %  ahead 0/12  p 0.0004883  cells 41
+  random                       moderate after360 median +234.12 %  mean +238.25 %  ahead 0/12  p 0.0004883  cells 41
+  random                       heavy    whole    median +274.47 %  mean +277.52 %  ahead 0/12  p 0.0004883  cells 47
+  random                       heavy    after360 median +479.55 %  mean +491.66 %  ahead 0/12  p 0.0004883  cells 47
+  random: median (end of run - last arrival) 107 s over 183 cells
+  random: Holm over the 2 moderate tests: whole 0.0009766, after360 0.0009766
+  random: failed cells (watchdog) 9
+  reactive_fixed               moderate whole    median +175.96 %  mean +174.43 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed               moderate after360 median +228.69 %  mean +228.88 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed               heavy    whole    median +252.93 %  mean +250.38 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed               heavy    after360 median +472.90 %  mean +471.60 %  ahead 0/12  p 0.0004883  cells 48
+  reactive_fixed: median (end of run - last arrival) 100 s over 96 cells
+  reactive_fixed: Holm over the 2 moderate tests: whole 0.0009766, after360 0.0009766
+  reactive_fixed: failed cells (watchdog) 0
+  heft_wB                      moderate whole    median +19.50 %  mean +18.78 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB                      moderate after360 median +24.42 %  mean +22.86 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB                      heavy    whole    median +25.91 %  mean +26.74 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB                      heavy    after360 median +40.58 %  mean +42.47 %  ahead 0/12  p 0.0004883  cells 48
+  heft_wB: median (end of run - last arrival) 72 s over 96 cells
+  heft_wB: Holm over the 2 moderate tests: whole 0.0009766, after360 0.0009766
+  heft_wB: failed cells (watchdog) 0
+  full_cost_cd                 moderate whole    median +6.91 %  mean +7.00 %  ahead 0/12  p 0.0004883  cells 48
+  full_cost_cd                 moderate after360 median +8.05 %  mean +8.33 %  ahead 0/12  p 0.0004883  cells 48
+  full_cost_cd                 heavy    whole    median +9.80 %  mean +9.63 %  ahead 0/12  p 0.0004883  cells 48
+  full_cost_cd                 heavy    after360 median +12.50 %  mean +12.90 %  ahead 0/12  p 0.0004883  cells 48
+  full_cost_cd: median (end of run - last arrival) 64 s over 96 cells
+  full_cost_cd: Holm over the 2 moderate tests: whole 0.0009766, after360 0.0009766
+  full_cost_cd: failed cells (watchdog) 0
