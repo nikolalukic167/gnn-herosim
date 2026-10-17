@@ -1,0 +1,11 @@
+DESCRIPTIVE, computed outside the filed read (the expert's ruling a1): Arm 3 (lambda 2.0, w-pin chain G6/1847a484) vs Arm 1b gnn (final cells, w-pin chain G5/W2b 59798c41), frozen contrast at 557d84bf; paired per topology; both on CPU-amd EPYC 9335, SMT off; negative = Arm 3 faster
+frozen-w: 12 topologies, Arm 3 cells 192, Arm 1b cells 192, failed 0
+  moderate/whole: median -2.52 %  mean -2.27 %  Arm 3 ahead 12/12 | s1 -1.70 % (12/12); s2 -2.64 % (11/12)
+  moderate/after360: median -3.60 %  mean -2.69 %  Arm 3 ahead 11/12 | s1 -2.85 % (12/12); s2 -2.38 % (12/12)
+  heavy/whole: median -0.93 %  mean -0.62 %  Arm 3 ahead 8/12 | s1 +0.28 % (5/12); s2 -1.17 % (7/12)
+  heavy/after360: median +0.52 %  mean +0.77 %  Arm 3 ahead 5/12 | s1 -1.50 % (7/12); s2 +2.22 % (4/12)
+co-tenancy: 12 topologies, Arm 3 cells 192, Arm 1b cells 192, failed 0
+  moderate/whole: median -2.54 %  mean -2.39 %  Arm 3 ahead 12/12 | s1 -2.73 % (12/12); s2 -2.70 % (11/12)
+  moderate/after360: median -3.11 %  mean -2.92 %  Arm 3 ahead 11/12 | s1 -2.74 % (12/12); s2 -2.69 % (11/12)
+  heavy/whole: median -0.67 %  mean -1.26 %  Arm 3 ahead 10/12 | s1 -2.13 % (11/12); s2 -0.06 % (6/12)
+  heavy/after360: median +0.18 %  mean +0.18 %  Arm 3 ahead 6/12 | s1 -4.24 % (10/12); s2 +3.31 % (4/12)
