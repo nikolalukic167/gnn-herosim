@@ -301,6 +301,26 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Arm 2 gnn venue calibration: second drift stop on node B (job 883018, the ruling (c) rerun); decision pending with the user** (S6). This entry records facts only. Arm 2 gnn has no venue w and no pin commit. Everything for it is held: no commit and no run.
+  - **883018** (`cot_arm2gnn2_smt.sbatch` fc8b4067, `cot_arm2gnn2_steps.sh` cdddd2a8): H3pre → A2_gnn → H3end on os-cpu-slurm-9 / -10 (EPYC 9335, SMT off). Both nodes were idle at submit; only 883018 was on either node at every step's start and end. It ran 13:04, 6/6 cells per node. The A2_gnn cells passed health: 2/2 per node, encode check, commit 69354280.
+  - **The four checks** (`uncut_charge_share.py drift`, 2 % per rung; files `cotenancy/smt_series4_arm2gnn/reads/`):
+
+    | node | check | moderate | heavy | verdict |
+    |---|---|---|---|---|
+    | A | H3pre vs H3start (871538) | +0.36 % | +0.45 % | OK |
+    | A | H3end vs H3pre | +0.20 % | +0.19 % | OK |
+    | B | H3pre vs H3start | **+2.11 %** (0.007899 → 0.008066) | −0.14 % | STOP |
+    | B | H3end vs H3pre | **−2.38 %** (0.008066 → 0.007874) | −0.58 % | STOP |
+
+  - **B moderate, the `cd_ib0` H3 w series** (vs H3start 0.007899 ms per plan unless stated):
+    - end of 882799: +0.26 %;
+    - 883010: +3.25 %;
+    - 883018 pre: +2.11 %;
+    - 883018 post: −2.38 % against pre, which is −0.32 % against H3start.
+    - B heavy and every check on node A stay within about 1 %.
+  - **Held w, not used:** Arm 2 gnn from 883018, pooled over A and B: 0.7200 / 0.7291 ms per plan eval (by bucket le10 / 11_50 / gt50: 1.5425 / 0.2828 / 0.1688 moderate, 1.5314 / 0.3075 / 0.1815 heavy). Table `smt_series4_arm2gnn/reads/freeze_w_a2gnn.json`, md5 `cc018e9a9a86022f1f03551cd47de6c7`. It agrees with 883010's held w (0.7197 / 0.7294, md5 94180e75) within 0.05 %.
+  - **Unaffected:** the pins W2 `b3ec1fdc`, W2b `59798c41` and W-A2 `bd2ed080` (bracketed by 882799's passing H3).
+  - **Decision pending with the user** (taken there by the expert). The Arm 2 gnn final read cannot be served until it is decided.
 - 2026-10-17 — **Arm 2 gnn venue calibration: drift stop on node B (job 883010); its w is held and not used; ruling (c), a bracketed rerun** (S6; the expert's ruling). The pins frozen earlier are unaffected.
   - **883010** (`cot_arm2gnn_smt.sbatch` 52cc373a, `cot_arm2gnn_steps.sh` e774e868): steps A2_gnn at G4 `69354280` (`ra_gnn_eng_arm2_nosplit`, `interim/in_2_gnn_calib`, 19461 g0, both rungs, PAR 1, 1 thread) and then H3 (`cd_ib0`, the H3start recipe). It ran on os-cpu-slurm-9 / -10 (EPYC 9335, SMT off, exclusive, no other job on either node), 11:50, rc 0, 4/4 cells per node. The A2_gnn cells passed health: 2/2 per node, encode check, commit 69354280.
   - **Drift stop** (H3start of 871538 vs this H3, `uncut_charge_share.py drift`): A passed (moderate +0.10 %, heavy +1.02 %). B **stopped**: moderate **+3.25 %** (0.007899 → 0.008156 ms per plan), heavy −0.17 %. The previous H3 on B, at the end of 882799 about 7.5 h earlier, had been +0.26 % / +0.49 %.
