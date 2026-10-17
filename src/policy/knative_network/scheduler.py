@@ -214,16 +214,20 @@ class KnativeScheduler(StarvedDeferMixin, Scheduler):
         # (scheduler_process already limits queue depth on uninitialized replicas)
         candidates = initialized_replicas if initialized_replicas else valid_replicas
         
-        # Least Connected (shortest queue) among candidates. Set iteration order is not
+        # Least Connected (shortest queue) among candidates; the load signal is `_connections`. Set iteration order is not
         # reproducible across processes (PYTHONHASHSEED), so tie-break on replica identity.
         bounded_concurrency = min(
-            candidates, key=lambda couple: (len(couple[1].queue.items), couple[0].id, couple[1].id)
+            candidates, key=lambda couple: (self._connections(couple[1]), couple[0].id, couple[1].id)
         )
 
         # print(f"task: {task.id}")
         # print(f"bounded_concurrency: {bounded_concurrency}")
 
         return bounded_concurrency
+
+    @staticmethod
+    def _connections(platform: Platform) -> int:
+        return len(platform.queue.items)
 
     def _get_valid_replicas(self, replicas: Set[Tuple[Node, Platform]], task: Task) -> List[Tuple[Node, Platform]]:
         """Filter replicas based on network connectivity."""
@@ -523,3 +527,17 @@ class KnativeScheduler(StarvedDeferMixin, Scheduler):
             }
         
         return temporal_state
+
+
+class KnativeInFlightScheduler(KnativeScheduler):
+    """`knative_network` (the reactive reference row): least connected by the in-flight count. Under HEROSIM_REPLICA_RELEASE=1 a task leaves
+    platform.queue when its I/O starts and then waits on compute_lock, so the queue alone reads every replica as empty and the id tie-break
+    piles the traffic on the lowest-id replica; the load is then `scaleout.platform_in_flight`, the concurrency the KPA autoscaler counts
+    (it includes the queue). Without release it is the queue, as in the base class. The other policies built on KnativeScheduler keep the base."""
+
+    @staticmethod
+    def _connections(platform: Platform) -> int:
+        from src.placement.infrastructure import REPLICA_RELEASE
+        from src.placement.scaleout import platform_in_flight
+
+        return platform_in_flight(platform) if REPLICA_RELEASE else len(platform.queue.items)
