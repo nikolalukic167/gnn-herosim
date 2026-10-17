@@ -840,8 +840,13 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
                 f"{model_path.name}: this run resolves PARTIAL_STATE_CONTRACT={resolve_partial_state_contract()} "
                 f"(four-type feature blocks) but the checkpoint declares {_trained_psc!r}"
             )
+        # partial_state_v6 appends INFLIGHT_DIM in-flight columns after the four-type ones (placement/inflight_features.py)
+        from src.placement.inflight_features import INFLIGHT_DIM
+        from src.policy.tabular.reduced_features import INFLIGHT_CONTRACTS
+
+        _inflight = str(_trained_psc) in INFLIGHT_CONTRACTS
         layout_task_dim = task_feature_dim - (TASK_EXTRA_DIM if _four_type else 0)
-        layout_plat_dim = platform_feature_dim - (PLATFORM_EXTRA_DIM if _four_type else 0)
+        layout_plat_dim = platform_feature_dim - (PLATFORM_EXTRA_DIM if _four_type else 0) - (INFLIGHT_DIM if _inflight else 0)
         declared_layout = os.environ.get("INFERENCE_FEATURE_LAYOUT", "").strip()
         if not declared_layout and layout_task_dim == 3 and layout_plat_dim == 14:
             raise ValueError(
