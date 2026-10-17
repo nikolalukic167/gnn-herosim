@@ -43,9 +43,9 @@
   ]
  },
  "sequence": {
-  "after_read": "/share/nikola.lukic/uncut_groups/final/reads_arm3/PREVIEW_after_read_placeholder.json",
-  "after_read_md5": "f76d7ab47d47ecddc99d57e262e847fb",
-  "arm1b_combined_F1": "TIES",
+  "after_read": "/share/nikola.lukic/uncut_groups/final/reads/read_arm1b_curba344_nocompare.json",
+  "after_read_md5": "301b11c37f3cda559ff392234303e53d",
+  "arm1b_combined_F1": "MIXED",
   "program_label_open": false
  },
  "hosts": {
