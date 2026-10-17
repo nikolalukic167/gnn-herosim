@@ -171,3 +171,14 @@ def test_merge_rejects_a_state_in_two_shards(tmp_path, monkeypatch):
     import argparse
     with pytest.raises(SystemExit, match="two shards"):
         L.cmd_merge(argparse.Namespace(split="x", corpus="y", inp=[str(f1), str(f2)], out=str(tmp_path / "o.json")))
+
+
+def test_relabel_cache_check_flags_non_candidates():
+    import types
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts_cosim"))
+    import uncut_relabel_cache_check as C
+
+    g = types.SimpleNamespace(task_logit_to_placement=[[[1, 2], [1, 3]], [[4, 5]]])
+    assert C.check_entry(g, {"plans": [[[1, 3], [4, 5]]]}) == []
+    assert C.check_entry(g, {"plans": [[[1, 9], [4, 5]]]}) == ["task 0: (1, 9) is not a candidate"]
+    assert "2 tasks" in C.check_entry(g, {"plans": [[[1, 2]]]})[0]
