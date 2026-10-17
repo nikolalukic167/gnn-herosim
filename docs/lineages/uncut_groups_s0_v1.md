@@ -301,6 +301,29 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Seed extension: family E2 (MP vs twin) WITHDRAWN by the user's direction, before any extension twin finished. E1, E3 and E4 stand unchanged; launch facts and the K0 device disclosure.** (S6; the user via the expert: "stop all twin trainings please and then queue the waiting jobs".)
+  - **Withdrawal.**
+    - The expert cancelled the six running Arm 1b twin runs, s11–s16 (883467–883472), after 56 min. None of them reached a `-final.pt`.
+    - Arm 1b twin s17 / s18 and the Arm 3 twin array (s11–s18) were never submitted. The Arm 3 twin w calibration is dropped.
+    - No extension twin cell runs. E2 is therefore not read on new seeds.
+    - The MP question stays as filed: MP-NOT-SEPARATED for every arm.
+    - The registered labels, margin, seeds and the other families' Holm sizes (E1 k = 4, E3 k = 6, E4 k = 4) are unchanged.
+    - The only trace of an Arm 3 twin is the one-epoch smoke at s11. Job 883525_8 used the config `experiments/uncut_arm3_twin_eng_l2p0.yaml` at `215a9286` and the run name `uncut-arm3-twin-eng-l2p0-smoke`. It passed: 0 failures, sidecheck `ra_twin_eng`, contract λ 2.0, frozen table sha256 17a73872…, batched true, MP off. It is not a checkpoint of the study.
+  - **Training pins.** These are launcher-only commits on each arm's training pin, so `src` is unchanged. `tests/test_trainer_determinism.py` passed at each pin; the Arm 2 test was run with `ARM2_DETERMINISM_CACHE` set to the Arm 1 cache.
+    - Arm 3 `215a9286` on `32f1c6cd`: 13 passed.
+    - K0 `e5ccde78` on `33de2b47`: 13 passed.
+    - Arm 2 gnn GPU `7f476d5b` on `5f4258a4`: 12 passed + 1.
+    - S7's Arm 1b at `c94b9459` and Arm 1 at `69ed8e53`.
+    - The 8–9 skips per pin are legacy caches absent from the worktrees; none is an uncut trainer path.
+  - **Runs**, W&B for every run, cap 100.
+    - Arm 3 gnn s11–s14: 883526_0–3. s15–s18 were cancelled two minutes after start, before any file was written, to hold the queue at 44; they are requeued as slots free.
+    - Arm 2 gnn s11–s16: 883527–883532, one L40S each.
+    - K0 gnn s11–s16: 883549–883554, CPU.
+    - S7: Arm 1 gnn s11–s16 (883452–883458) and Arm 1b gnn s11–s18 (883459–883466).
+  - **K0 device disclosure.**
+    - The K0 extension runs are packed at 12 CPUs / 150 G per run (6 threads), not on an exclusive node as the seed 1 / 2 runs were. sbatch cannot unset the script's `--exclusive` from the command line, so `e5ccde78` drops it from the launcher.
+    - Epoch-0 wall: 1,951 s (s11) and 2,235 s (s12), against 2,115 s for the exclusive original's seed 1, whose 100 epochs took about 66 h.
+    - Arm 3 gnn s11 epoch 0: 362 s, against 396–447 s in wave 1.
 - 2026-10-17 — **Simulator-label screen: REGISTERED before any state is replayed.** (S7; the user's "go screen", relayed by the expert, who fixed the design. **MYOPIC-REPLAY, INTERIM-DESCRIPTIVE**, as with W3: the replay is the group's own tasks from the captured state, not live latency. No training.) **Question:** would labels picked by the simulator differ often enough, and by enough, from the current argmin-S / ILS labels to be worth retraining on?
   - **States.** 500 from the Arm 1 TRAIN key (9,745 states of the 11,073-dataset corpus; the split `experiments/uncut_arm1_split.json`, sha256 613c8cbb…), stratified by group size: ≤ 10 (frame 3,916), 11–50 (3,754), 51–100 (1,618) and 101–256 (457) tasks, **125 each** (every bucket has more than 125). Seed **20261017**: `random.Random(20261017)`, buckets in that order, `sample(sorted dataset ids, 125)`, the draw sorted within each bucket. The draw reads only dataset headers (no replayed RTT, no label outcome): `scripts_cosim/uncut_label_screen.py draw` (6 tests in `tests/test_uncut_label_screen.py`); the list is `docs/lineages/uncut_groups_s0_v1/label_screen_draw.json`, **state-list sha256 `d2a7551a9c5ecc3b7f3a098e8a9ea9929b7c8522781bc63f9c524a801f9fa03d`** (sha256 of the 500 dataset ids joined by newlines in draw order). Never used, and the draw fails loud on them: the 12 gate topologies 19537–19548, the 36 TE3 ids 19554–19589, the 57 `accel_replica_v1` test ids, and the Arm 1 split's own `test` key (the draw takes only `train`). The 500 states sit on 43 corpus topologies, 16201–16249. 67 of the 500 have a plan space ≤ 600 (66 of ≤ 10 tasks, 1 of 11–50).
   - **Current label.** The stored label plan of each state (exact argmin-S, the ILS plan, or the hand plan, per `label_source`). It is replayed again in the same pass so that every plan in a state comes from one code path, and its replayed RTT is compared with the one stored in `placements.jsonl` (a relative difference above 1e-9 on any state stops the screen and is reported).
