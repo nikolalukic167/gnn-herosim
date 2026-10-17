@@ -301,6 +301,47 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Combined lever (in-flight features × simulator labels): REGISTERED before any relabel, recache, training or cell.** (S6 owns the registration, training and gate; S4 builds the features, S7 builds the labels. The user: "go combined. prio this training pls", relayed by the expert.)
+  - **B6.** The lever is conceived after every interim look and every final read, so it gets no share of the program α; the best label is **WIN-ARM-ONLY**. Reads seen before this one: every filed verdict, the in-flight bar sensitivity read, the reference baselines against the in-flight bar, and the seed-extension launch. Not seen: the label screen's result (job 883677), and no seed-extension or TE3 learned result.
+  - **The blind spot both halves target.** Under replica release, the GNN's queue features (`state_capture.py:69,130`, `gnn/orchestrator.py:193`, `live_audit.py:199,276`) and the formula labels (argmin S) count queued tasks only. The reference hand rule `cd_ib0_inflightfull` counts the full in-flight work (`HEROSIM_PG_INFLIGHT_FULL=1`, reference-physics `b3a0522e`).
+  - **Arms (2 × 2 against the filed Arm 1b gnn).** Every arm uses Arm 1b's recipe, as filed:
+    - `experiments/uncut_arm1b_gnn_eng.yaml`: batched teacher-forced loss, the uncut_arm1 corpus (11,073 datasets, split sha256 613c8cbb…);
+    - 100 epochs, `-final.pt` served, CPU with 6 threads;
+    - W&B for every run, the trainer determinism test at the training pin, and a `.contract.json` with every `.pt`.
+    - One recipe change per factor:
+      - **(F) in-flight features, current labels.** The queue features count the full in-flight work, with the same accounting as `cd_ib0_inflightfull`, in capture, cache and serving alike. A new feature-contract value is recorded in the sidecar and enforced at serving.
+      - **(L) current features, simulator labels.** Every train and val state of the corpus is relabelled by the label screen's simulator rule: all plans replayed when the plan space is ≤ 600, else the 8 best distinct plans by S plus the current label. The label is the plan with the lowest replayed group RTT (`uncut_ils.replay_rtts`).
+      - **(FL) both.**
+      - **FL MLP:** the same-input MLP (`ra_mlp_same`, Arm 1b's MLP config) on FL's features and labels, as the attribution control.
+    - **Seeds 1 and 2 for each.** That is 6 GNN runs plus 2 MLP runs, 8 in all. The expert's message counted "8 FL/F/L trainings and 2 MLPs"; 3 arms × 2 seeds gives 6 GNNs.
+    - **No twins** (the user's ruling).
+  - **Before any training (fail loud, never approximated).**
+    - (i) **Feature parity.** On captured live states at the gate pin, the in-flight features the cache gives equal the ones served, to 1e-9. If the stored corpus states lack what the in-flight count needs, F and FL are blocked and reported, not approximated.
+    - (ii) **Label audit.**
+      - The relabel replays each state's stored current label, and a relative difference above 1e-9 from its stored replayed RTT stops the relabel.
+      - The relabel's reader reports, per bucket, the share of labels changed and the mean replayed gain.
+      - The 57 accel test ids and the 12 gate topologies' states are never touched.
+    - (iii) **Recache determinism.** Two recaches of the same inputs are byte-identical.
+  - **Label screen (job 883677).** The user said "go combined" before its read.
+    - If it reads LABELS-AGREE, its registered stop is **overridden by the user's direction**, and L and FL still train. The screen's label is still recorded as read.
+    - If it reads PROCEED-TO-TRAIN, nothing changes.
+  - **Gate.**
+    - Gate pin: a new gate change **G8**, a child of the reference-physics line that carries the in-flight bar. It adds the kinds `ra_gnn_eng_{f,l,fl}_nosplit` and `ra_mlp_same_fl_nosplit`, and serves the in-flight feature contract when the sidecar names it.
+    - The proof before any cell: listing identity with the new kinds removed, as for G6.
+    - Cells: the 12 topologies 19537–19548 × g0–g3 × moderate / heavy × seeds 1, 2, at `_k100`.
+    - Frozen w for F, L, FL and the FL MLP: calibrated by the learned-w venue recipe (exclusive CPU-amd pair, SMT off, H3 drift rule 2 %, provisional then pooled), on a w-only pin.
+    - The bar: `cd_ib0_inflightfull_k100` (S4's 96 cells, job 883737).
+    - For heavy, also TE3's 36 topologies, which need `cd_ib0_inflightfull_k100` heavy cells there first. They run before any FL TE3 cell is read.
+    - **Rule 6:** the live gate runs whatever the label screen, the parity check or any offline number says.
+  - **Primary family (Holm, k = 4).** FL gnn vs `cd_ib0_inflightfull_k100` at moderate and heavy × whole and after-360 on the 12 topologies, with the reader's statistic.
+    - **WIN-ARM-ONLY** needs the program's win rule on all four tests: median ≤ −2 %, Holm p < .05, each seed alone ≤ −1 %, and collapses ≤ the bar's.
+    - Both statistics must clear at both rungs; otherwise the reader's labels apply (MIXED / TIES / LOSS).
+  - **TE3 heavy family (Holm, k = 2).** FL gnn vs `cd_ib0_inflightfull_k100` at heavy whole and after-360 on the 36 TE3 topologies, labelled with the seed extension's per-test labels (CLAIM / REVERSED / CLEAN-NEGATIVE / UNRESOLVED, margin 1 %).
+  - **Secondary (descriptive, no label).**
+    - FL vs Arm 1b gnn; F vs Arm 1b gnn; L vs Arm 1b gnn; FL gnn vs FL MLP.
+    - Arm 1b gnn uses seeds 1 and 2 from its filed cells, plus a descriptive line with the extension seeds 11–18.
+    - Each line gives the median, n ahead and an unadjusted p.
+  - **Priority (the expert's ruling).** Every freed slot goes first to S7's relabel, then S4's recache, then these 8 trainings, ahead of the remaining Arm 3 extension seeds and S5's last TE3 cells, with the queue ≤ 44. Nothing running is cancelled by S4, S6 or S7.
 - 2026-10-17 — **Seed extension: family E2 (MP vs twin) WITHDRAWN by the user's direction, before any extension twin finished. E1, E3 and E4 stand unchanged; launch facts and the K0 device disclosure.** (S6; the user via the expert: "stop all twin trainings please and then queue the waiting jobs".)
   - **Withdrawal.**
     - The expert cancelled the six running Arm 1b twin runs, s11–s16 (883467–883472), after 56 min. None of them reached a `-final.pt`.
