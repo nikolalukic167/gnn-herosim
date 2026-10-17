@@ -165,7 +165,15 @@ ARM2_ALL = ARM2_KINDS + ARM2K0_KINDS
 # checkpoints <R1A_ARM1_STEM or uncut-arm1>-{gnn-eng,twin-eng,mlp-same}-seed<N>. Served nosplit and named in R1A_ARMS (out of the default grid);
 # every check the RA arm of the same recipe gets, they get.
 ARM1_KINDS = ("ra_gnn_eng_arm1", "ra_twin_eng_arm1", "ra_mlp_same_arm1")
-RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS
+# uncut_groups_s0_v1 combined lever (G8, registered 2026-10-17 at c660e61e): Arm 1b's batched teacher-forced gnn recipe with (F) the in-flight
+# queue features (partial_state_v6), (L) the simulator labels, (FL) both, and FL's same-input MLP; checkpoints COMB_STEMS[kind]-seed<N>, served nosplit
+# and named in R1A_ARMS. Serving takes the contract from the sidecar, so each cell checks it, the batched loss and that no regret lever is on.
+COMB_STEMS = {"ra_gnn_eng_combf": "uncut-comb-f-gnn-eng", "ra_gnn_eng_combl": "uncut-comb-l-gnn-eng",
+              "ra_gnn_eng_combfl": "uncut-comb-fl-gnn-eng", "ra_mlp_same_combfl": "uncut-comb-fl-mlp-same"}
+COMB_KINDS = tuple(COMB_STEMS)
+COMB_V6 = ("ra_gnn_eng_combf", "ra_gnn_eng_combfl", "ra_mlp_same_combfl")  # partial_state_v6; combl keeps partial_state_v5
+COMB_CHECK = {"ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
@@ -237,6 +245,25 @@ def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
     return sorted(ids) if ids else None
 
 
+def comb_contract(base_kind: str) -> str:
+    """The partial-state contract a learned RA cell serves: partial_state_v6 for the combined lever's in-flight kinds, partial_state_v5 otherwise."""
+    return "partial_state_v6" if base_kind in COMB_V6 else "partial_state_v5"
+
+
+def comb_trainer_check(base_kind: str, side: str) -> None:
+    """A combined-lever sidecar records the batched loss, its own contract (v6 for F, FL and the MLP; v5 for L) and no regret lever. Other kinds are
+    not checked."""
+    if base_kind not in COMB_KINDS:
+        return
+    sc = json.load(open(side))
+    if sc.get("batched_teacher_forced") is not True:
+        raise SystemExit(f"FAIL LOUD: {side} batched_teacher_forced is {sc.get('batched_teacher_forced')!r}; {base_kind} needs true")
+    if sc.get("regret_lambda") not in (None, 0, 0.0):
+        raise SystemExit(f"FAIL LOUD: {side} regret_lambda is {sc.get('regret_lambda')!r}; {base_kind} is not a regret-lever run")
+    if sc.get("partial_state_contract") != comb_contract(base_kind):
+        raise SystemExit(f"FAIL LOUD: {side} partial_state_contract is {sc.get('partial_state_contract')!r}; {base_kind} needs {comb_contract(base_kind)}")
+
+
 def split_dc(kind: str) -> Tuple[str, Optional[float]]:
     for tag, k in DC_K.items():
         if kind.endswith("_" + tag):
@@ -267,7 +294,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
 
 R1A_DIAG = (*OBS_ARMS, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
-               *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
+               *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS), *(f"{k}_nosplit" for k in COMB_KINDS))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",
             *ARM2_ALL, *(f"{k}_nosplit" for k in ARM2_ALL))  # cdxapply diagnostics; Arm 2 (bare kinds are never run, the _nosplit ones are the gate arms), checkpoint seeds; name them in R1A_ARMS
@@ -1046,6 +1073,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = os.environ.get("R1A_ARM2K0_STEM", "uncut-arm2k0") + "-" + base_kind[3:-len("_arm2k0")].replace("_", "-")
         elif base_kind in ARM1_KINDS:
             stem = os.environ.get("R1A_ARM1_STEM", "uncut-arm1") + "-" + base_kind[3:-len("_arm1")].replace("_", "-")
+        elif base_kind in COMB_KINDS:
+            stem = COMB_STEMS[base_kind]
         elif base_kind in RA_KINDS:
             stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")
         else:
@@ -1054,13 +1083,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         mroot = inputs_root if os.path.isdir(os.path.join(inputs_root, "models")) else inputs
         ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
-        check_kind = "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind[:-len("_arm1")] if base_kind in ARM1_KINDS else base_kind)
+        check_kind = COMB_CHECK[base_kind] if base_kind in COMB_KINDS else "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind[:-len("_arm1")] if base_kind in ARM1_KINDS else base_kind)
         split = (os.environ.get("R1A_SPLIT", "r1_attribution_v1_split.json") if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
                                   os.path.join(mroot, split), "inf"], env=env, cwd=REPO)
         if rc.returncode != 0:
             raise SystemExit(f"FAIL LOUD: sidecheck failed for {ck}")
+        comb_trainer_check(base_kind, side)
         env.update(GNN_MODEL_PATH=ck, GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1",
                    GNN_PREFIX_ALPHA_KEY="inf")
         if base_kind in ("mpoff", "bc1mpoff", "xs1mpoff", "sb1mpoff", "so1mpoff", "so1lfmlp", "rawmlp", "rawStwin", "lf1twin", "lf1mlp") + RA_MP_OFF:
@@ -1068,10 +1098,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if base_kind in RA_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar. The graph-free arms
             # additionally refuse a serving environment that names another arm.
-            env.update(PARTIAL_STATE_CONTRACT="partial_state_v5", PARTIAL_STATE_LOAD_SECONDS="1",
+            env.update(PARTIAL_STATE_CONTRACT=comb_contract(base_kind), PARTIAL_STATE_LOAD_SECONDS="1",
                        PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE=ra_serving_slate(side))
-            if base_kind in ("ra_mlp_same", "ra_set_transformer", "ra_mlp_same_arm1"):
-                env["GNN_ARM_KIND"] = base_kind[3:].removesuffix("_arm1")
+            if base_kind in ("ra_mlp_same", "ra_set_transformer", "ra_mlp_same_arm1", "ra_mlp_same_combfl"):
+                env["GNN_ARM_KIND"] = base_kind[3:].removesuffix("_arm1").removesuffix("_combfl")
         if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
@@ -1478,7 +1508,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("Arm 2 instrument off: arm2_batches == 0 or fewer encodes than batches")
         if base_kind not in ARM2_ALL and int(c.get("arm2_batches") or 0):
             problems.append("a non-Arm-2 arm ran the Arm 2 re-encode")
-        for key, want in (("PARTIAL_STATE_CONTRACT", "partial_state_v5"), ("PARTIAL_STATE_LOAD_SECONDS", "1"),
+        for key, want in (("PARTIAL_STATE_CONTRACT", comb_contract(base_kind)), ("PARTIAL_STATE_LOAD_SECONDS", "1"),
                           ("PARTIAL_STATE_EXCHANGE_SECONDS", "1"), ("GNN_SERVE_CANDIDATE_SLATE", r1a_slate())):
             if out["env"].get(key, "") != want:
                 problems.append(f"served {key}={out['env'].get(key)!r}, {base_kind} needs {want!r}")

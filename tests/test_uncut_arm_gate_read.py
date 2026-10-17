@@ -882,3 +882,18 @@ def test_filed_read_still_needs_the_twin(gate):
             "--primary", P, "--checkpoint-md5", cm, "--cotenancy", "off"]
     with pytest.raises(SystemExit, match="--twin is required"):
         G.main(args)
+
+
+def test_bar_flag_reads_against_the_inflight_bar(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8, bar_mean=3.0)
+    for t in TOPOS:
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                cell(d, "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1)
+    res = run(d, cm, bar="cd_ib0_inflightfull")
+    assert res["bar"] == "cd_ib0_inflightfull" and res["F1"]["tests"][0]["b"] == "cd_ib0_inflightfull"
+    assert -11.0 < res["F1"]["tests"][0]["median_pct"] < -9.0  # 1.8 vs 2.0, not vs cd_ib0's 3.0
+    assert "bar" not in run(d, cm)  # default: the filed bar, no new key
+    with pytest.raises(SystemExit, match="--bar"):
+        run(d, cm, bar="cd")
