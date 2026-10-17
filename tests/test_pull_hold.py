@@ -71,12 +71,16 @@ from src.policy.peer_greedy_network import scheduler as PG  # noqa: E402
 def cd_shell(monkeypatch, pull_hold, holds):
     """A _PeerGreedyCore with the costs pinned: node A (cheap, base 1.0 s) and node B (base 2.0 s)."""
     s = object.__new__(PG.PeerGreedyNetworkBatchScheduler)
+    for v in [k for k in os.environ if k.startswith(("HEROSIM_PG_", "HEROSIM_OBS_"))]:
+        monkeypatch.delenv(v)
+    s.exchange_on = False
+    s._pg_init()  # every rule default (the shell's pins below override); the core gains flags faster than this test
     s.exchange_on, s.pg_exec_oracle, s.pg_inflight, s.pg_ext_rate, s._pg_capture_path = False, False, False, None, None
     s.pg_exchange_scale, s.pg_decisions, s.pg_moved_by_exchange, s.pg_joined_partner = 1.0, 0, 0, 0
     s.pg_pull_hold, s.pg_pull_charged, s.pg_pull_seconds = pull_hold, 0, 0.0
     s.env = SimpleNamespace(now=50.0)
     drain = {"A": 0.5, "B": 1.5}
-    monkeypatch.setattr(PG, "platform_queue_drain_seconds", lambda p, orch, memo, exec_scale=1.0: drain[p.node.node_name])
+    monkeypatch.setattr(PG, "platform_queue_drain_seconds", lambda p, orch, memo, exec_scale=1.0, exec_of=None: drain[p.node.node_name])
     monkeypatch.setattr(PG, "incoming_cold_start_time", lambda task, p: 0.0)
     monkeypatch.setattr(PG, "network_latency_between", lambda src, node, nodes: 0.2)
     calls = []
