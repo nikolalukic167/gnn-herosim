@@ -44,7 +44,7 @@ import os
 from timeit import default_timer
 from typing import Any, Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
-from src.placement.live_audit import inflight_remaining_seconds, orchestrator_of, platform_queue_drain_seconds
+from src.placement.live_audit import inflight_full_seconds, inflight_remaining_seconds, orchestrator_of, platform_queue_drain_seconds
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.model import SystemState
 from src.placement.scheduling_cost import incoming_cold_start_time, network_latency_between
@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
-    "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
+    "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds",
     "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
     "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
     "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
@@ -85,6 +85,10 @@ PG_BATCH_BLIND_ENV = "HEROSIM_PG_BATCH_BLIND"
 # ~idle. 1 adds `live_audit.inflight_remaining_seconds` -- the service end the platform recorded -- to
 # the drain. 0 (the default) is the registered rule, byte-identical.
 PG_INFLIGHT_ENV = "HEROSIM_PG_INFLIGHT"
+# uncut_groups_s0_v1 bar sensitivity: the COMPLETE in-flight drain. HEROSIM_PG_INFLIGHT adds only the one task a platform is serving; under replica release the
+# tasks waiting on the compute lock (and in their input stage) are invisible to the drain walk. 1 adds `live_audit.inflight_full_seconds`, the remaining service of
+# every task in `platform.inflight`. Default 0 = the registered rule, byte-identical; never together with HEROSIM_PG_INFLIGHT.
+PG_INFLIGHT_FULL_ENV = "HEROSIM_PG_INFLIGHT_FULL"
 # accel pull-hold control (cd_pull): price the wait an image pull holding the candidate node's local storage adds at the
 # task's output write, max(0, hold - time to that write); needs the pull ledger (HEROSIM_PULL_LEDGER=1)
 PG_PULL_HOLD_ENV = "HEROSIM_PG_PULL_HOLD"
@@ -330,6 +334,14 @@ class _PeerGreedyCore:
         if raw_inflight not in ("0", "1"):
             raise ValueError(f"FAIL LOUD: {PG_INFLIGHT_ENV} must be 0 or 1, got {raw_inflight!r}")
         self.pg_inflight = raw_inflight == "1"
+        raw_full = os.environ.get(PG_INFLIGHT_FULL_ENV, "0").strip() or "0"
+        if raw_full not in ("0", "1"):
+            raise ValueError(f"FAIL LOUD: {PG_INFLIGHT_FULL_ENV} must be 0 or 1, got {raw_full!r}")
+        self.pg_inflight_full = raw_full == "1"
+        if self.pg_inflight_full and self.pg_inflight:
+            raise ValueError(f"FAIL LOUD: {PG_INFLIGHT_ENV} and {PG_INFLIGHT_FULL_ENV} are both 1; the full variant includes the running task")
+        self.pg_inflight_full_charged = 0
+        self.pg_inflight_full_seconds = 0.0
         self.pg_inflight_charged = 0
         self.pg_inflight_seconds = 0.0
         raw_pull = os.environ.get(PG_PULL_HOLD_ENV, "0").strip() or "0"
@@ -548,6 +560,14 @@ class _PeerGreedyCore:
                     drain += remaining
                     self.pg_inflight_charged += 1
                     self.pg_inflight_seconds += remaining
+            if self.pg_inflight_full:
+                full_key = f"inflight_full:{key}"
+                if full_key not in memo:
+                    memo[full_key] = inflight_full_seconds(platform, exec_scale=xf)
+                if memo[full_key]:
+                    drain += memo[full_key]
+                    self.pg_inflight_full_charged += 1
+                    self.pg_inflight_full_seconds += memo[full_key]
             drain += self._pg_running(platform)
             exec_s = self._pg_exec_table(task.type, plat_type) * xf
             cold = self._pg_cold(task, platform, orch)

@@ -144,6 +144,30 @@ def inflight_remaining_seconds(platform: "Platform") -> Optional[float]:
     return max(0.0, float(end) - float(platform.env.now))
 
 
+def inflight_full_seconds(platform: "Platform", exec_scale: float = 1.0) -> float:
+    """Seconds of service the tasks in `platform.inflight` still need (HEROSIM_REPLICA_RELEASE=1: every task past cold start until its output is
+    written), the tasks `scaleout.platform_in_flight` counts besides the queue. By stage, with the code's own estimates: a task that holds or held
+    the compute lock has `compute_start_time + execution + output - now` left; one whose input stage is over and waits for the lock owes its
+    execution + output; one still in its input stage owes execution + `_approx_comm` (input and output at the storage rate, progress unknown).
+    Execution is the table value on this platform type, as in `platform_queue_drain_seconds`."""
+    from src.placement.infrastructure import _output_estimate_seconds
+
+    now = float(platform.env.now)
+    plat_type = platform.type["shortName"]
+    total = 0.0
+    for task in list(platform.inflight):
+        exec_s = float(task.type.get("executionTime", {}).get(plat_type, 0.0) or 0.0) * exec_scale
+        out_s = _output_estimate_seconds(task)
+        start = getattr(task, "compute_start_time", None)
+        if start is not None:
+            total += max(0.0, float(start) + exec_s + out_s - now)
+        elif getattr(task, "io_end_time", None) is not None:
+            total += exec_s + out_s
+        else:
+            total += exec_s + _approx_comm(task.type)
+    return total
+
+
 def temporal_state_of(scheduler: Any, node: "Node", platform: "Platform") -> Dict[str, float]:
     queue_key = f"{node.node_name}:{platform.id}"
     legacy = scheduler._capture_temporal_state_for_replicas([(node, platform)]).get(queue_key, {})

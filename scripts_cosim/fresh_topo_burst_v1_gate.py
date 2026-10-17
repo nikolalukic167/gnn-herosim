@@ -65,6 +65,7 @@ RULE_POLICY = {
     **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
         "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
         "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
+    "cd_ib0_inflightfull": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity, complete variant: cd_ib0 with HEROSIM_PG_INFLIGHT_FULL=1 (the remaining service of every task in platform.inflight is added to the drain); descriptive
     "cd_ib0_inflight": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity: cd_ib0 with HEROSIM_PG_INFLIGHT=1 (the service end of the task a platform is serving is added to its drain); descriptive
     "cd_ib0": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: plain CD greedy on the ib0 surrogate (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_exactS_ib0_prune": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: cd_exactS_ib0 with cost-ordered top-k pruning of over-cap batches (HEROSIM_PG_CD_EXACT_PRUNE=cost)
@@ -194,7 +195,7 @@ ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA",
 
 def ib0_alpha(kind: str) -> dict:
     """ib0_confirm_v1: the batch alpha the expansion arms on the ib0 surrogate must serve (none for every other arm)."""
-    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
+    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
 def check_alias(kind: str) -> str:
@@ -207,6 +208,8 @@ def check_alias(kind: str) -> str:
         return "cd"
     if kind == "cd_ib0_inflight":
         return "cd_inflight"
+    if kind == "cd_ib0_inflightfull":
+        return "cd"
     for suffix in ("_cdxib0", "_cdxhib0"):
         if kind.endswith(suffix):
             return kind[:-len(suffix)] + "_cdxapply"
@@ -262,7 +265,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
     return DC_ENV, repr(k * float(w[kind][rung]))
 
 
-R1A_DIAG = (*OBS_ARMS, "heft", "cd_ib0_inflight", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_DIAG = (*OBS_ARMS, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
                *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
@@ -1106,7 +1109,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", "cd_ib0_inflight", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
@@ -1120,6 +1123,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / rate_scale)
         if kind in ("cd_inflight", "cd_ib0_inflight"):
             env["HEROSIM_PG_INFLIGHT"] = "1"
+        if kind == "cd_ib0_inflightfull":
+            env["HEROSIM_PG_INFLIGHT_FULL"] = "1"
         if kind == "cd_pull":
             env.update(HEROSIM_PG_PULL_HOLD="1", HEROSIM_PULL_LEDGER="1")
         if kind == "cd_ledger":
@@ -1426,6 +1431,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("CD ran blind")
     if kind == "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") != "1" or int(c.get("pg_inflight_charged") or 0) == 0):
         problems.append("inflight instrument off: HEROSIM_PG_INFLIGHT not served or pg_inflight_charged == 0")
+    if orig_kind == "cd_ib0_inflightfull" and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") != "1" or int(c.get("pg_inflight_full_charged") or 0) == 0):
+        problems.append("full in-flight instrument off: HEROSIM_PG_INFLIGHT_FULL not served or pg_inflight_full_charged == 0")
+    if orig_kind != "cd_ib0_inflightfull" and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") or int(c.get("pg_inflight_full_charged") or 0)):
+        problems.append("a non-full arm charged the full in-flight drain")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
         problems.append("a non-inflight arm charged the in-flight task")
     if kind == "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") != "1" or out["env"].get("HEROSIM_PULL_LEDGER") != "1"
