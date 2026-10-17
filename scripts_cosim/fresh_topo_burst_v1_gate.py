@@ -171,9 +171,14 @@ ARM1_KINDS = ("ra_gnn_eng_arm1", "ra_twin_eng_arm1", "ra_mlp_same_arm1")
 COMB_STEMS = {"ra_gnn_eng_combf": "uncut-comb-f-gnn-eng", "ra_gnn_eng_combl": "uncut-comb-l-gnn-eng",
               "ra_gnn_eng_combfl": "uncut-comb-fl-gnn-eng", "ra_mlp_same_combfl": "uncut-comb-fl-mlp-same"}
 COMB_KINDS = tuple(COMB_STEMS)
+# G8b: the FAST arms, Arm 3's recipe (lambda 2.0) on the simulator labels with the move-regret table recomputed against them; partial_state_v5;
+# (A3-L) from scratch, (A3-L-ft) a 20-epoch fine-tune of the filed Arm 3 -final.pt. Kept out of COMB_KINDS so the G8 kind set is unchanged.
+COMB_FAST = ("ra_gnn_eng_a3l", "ra_gnn_eng_a3lft")
+COMB_STEMS.update({"ra_gnn_eng_a3l": "uncut-a3l-gnn-eng", "ra_gnn_eng_a3lft": "uncut-a3lft-gnn-eng"})
+COMB_FAST_TABLE_SHA256 = "0117cbd2ee9af473ad14d0ab3e32b7d08cdd1d54df9ed631da9486628c78cdc2"
 COMB_V6 = ("ra_gnn_eng_combf", "ra_gnn_eng_combfl", "ra_mlp_same_combfl")  # partial_state_v6; combl keeps partial_state_v5
-COMB_CHECK = {"ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
-RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS
+COMB_CHECK = {"ra_gnn_eng_a3l": "ra_gnn_eng", "ra_gnn_eng_a3lft": "ra_gnn_eng", "ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
@@ -253,12 +258,16 @@ def comb_contract(base_kind: str) -> str:
 def comb_trainer_check(base_kind: str, side: str) -> None:
     """A combined-lever sidecar records the batched loss, its own contract (v6 for F, FL and the MLP; v5 for L) and no regret lever. Other kinds are
     not checked."""
-    if base_kind not in COMB_KINDS:
+    if base_kind not in COMB_KINDS + COMB_FAST:
         return
     sc = json.load(open(side))
     if sc.get("batched_teacher_forced") is not True:
         raise SystemExit(f"FAIL LOUD: {side} batched_teacher_forced is {sc.get('batched_teacher_forced')!r}; {base_kind} needs true")
-    if sc.get("regret_lambda") not in (None, 0, 0.0):
+    if base_kind in COMB_FAST:
+        mr = sc.get("move_regret")
+        if sc.get("regret_lambda") != 2.0 or not isinstance(mr, dict) or mr.get("sha256") != COMB_FAST_TABLE_SHA256 or float(mr.get("lambda", -1)) != 2.0:
+            raise SystemExit(f"FAIL LOUD: {side} regret_lambda {sc.get('regret_lambda')!r} / move_regret {mr!r}: {base_kind} needs lambda 2.0 and the table {COMB_FAST_TABLE_SHA256}")
+    elif sc.get("regret_lambda") not in (None, 0, 0.0):
         raise SystemExit(f"FAIL LOUD: {side} regret_lambda is {sc.get('regret_lambda')!r}; {base_kind} is not a regret-lever run")
     if sc.get("partial_state_contract") != comb_contract(base_kind):
         raise SystemExit(f"FAIL LOUD: {side} partial_state_contract is {sc.get('partial_state_contract')!r}; {base_kind} needs {comb_contract(base_kind)}")
@@ -294,7 +303,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
 
 R1A_DIAG = (*OBS_ARMS, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
-               *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS), *(f"{k}_nosplit" for k in COMB_KINDS))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
+               *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS), *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",
             *ARM2_ALL, *(f"{k}_nosplit" for k in ARM2_ALL))  # cdxapply diagnostics; Arm 2 (bare kinds are never run, the _nosplit ones are the gate arms), checkpoint seeds; name them in R1A_ARMS
@@ -1073,7 +1082,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = os.environ.get("R1A_ARM2K0_STEM", "uncut-arm2k0") + "-" + base_kind[3:-len("_arm2k0")].replace("_", "-")
         elif base_kind in ARM1_KINDS:
             stem = os.environ.get("R1A_ARM1_STEM", "uncut-arm1") + "-" + base_kind[3:-len("_arm1")].replace("_", "-")
-        elif base_kind in COMB_KINDS:
+        elif base_kind in COMB_STEMS:
             stem = COMB_STEMS[base_kind]
         elif base_kind in RA_KINDS:
             stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")
@@ -1083,7 +1092,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         mroot = inputs_root if os.path.isdir(os.path.join(inputs_root, "models")) else inputs
         ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
-        check_kind = COMB_CHECK[base_kind] if base_kind in COMB_KINDS else "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind[:-len("_arm1")] if base_kind in ARM1_KINDS else base_kind)
+        check_kind = COMB_CHECK[base_kind] if base_kind in COMB_CHECK else "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind[:-len("_arm1")] if base_kind in ARM1_KINDS else base_kind)
         split = (os.environ.get("R1A_SPLIT", "r1_attribution_v1_split.json") if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")
         rc = subprocess.run(PY + [os.path.join(REPO, "scripts_cosim/joint_burst_v2_sidecheck.py"), side, check_kind,
