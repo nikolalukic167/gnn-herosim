@@ -1,0 +1,9 @@
+INTERIM-DESCRIPTIVE; negative = Arm 3 (lambda 2.0) faster; paired per topology over 12 topologies; Arm 3, Arm 1b gnn and Arm 1b mlp cells all on a-rtx6000-o-1
+vs Arm 1b gnn moderate/whole: median -2.54 %  mean -2.85 %  Arm 3 ahead 12/12  cells 48  | same seed: s1 -2.88 % (11/12); s2 -3.02 % (12/12)
+vs Arm 1b gnn moderate/after360: median -3.75 %  mean -3.51 %  Arm 3 ahead 12/12  cells 48  | same seed: s1 -3.82 % (11/12); s2 -3.86 % (12/12)
+vs Arm 1b gnn heavy/whole: median -1.20 %  mean -0.63 %  Arm 3 ahead 8/12  cells 48  | same seed: s1 +0.32 % (5/12); s2 -1.68 % (8/12)
+vs Arm 1b gnn heavy/after360: median -0.05 %  mean +1.14 %  Arm 3 ahead 6/12  cells 48  | same seed: s1 -0.25 % (7/12); s2 -1.44 % (7/12)
+vs Arm 1b mlp moderate/whole: median -4.34 %  mean -4.51 %  Arm 3 ahead 12/12  cells 48  | same seed: s1 -5.50 % (12/12); s2 -4.23 % (12/12)
+vs Arm 1b mlp moderate/after360: median -5.10 %  mean -4.99 %  Arm 3 ahead 12/12  cells 48  | same seed: s1 -5.74 % (12/12); s2 -4.28 % (12/12)
+vs Arm 1b mlp heavy/whole: median -3.74 %  mean -3.67 %  Arm 3 ahead 11/12  cells 48  | same seed: s1 -4.38 % (11/12); s2 -4.10 % (10/12)
+vs Arm 1b mlp heavy/after360: median -2.77 %  mean -2.14 %  Arm 3 ahead 9/12  cells 48  | same seed: s1 -2.01 % (7/12); s2 -2.19 % (8/12)
