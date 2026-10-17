@@ -771,3 +771,36 @@ def test_only_an_arm3_read_may_go_without_a_twin(arm1b):
     d, cm1, cm1b, after = arm1b
     with pytest.raises(SystemExit, match="--twin is required"):
         run1b(d, cm1, cm1b, after("WIN"), twin="")
+
+
+SIDE, T2 = "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_arm2_gate.py"
+A2 = {"ra_gnn_eng_arm2_nosplit": {"moderate": 0.7, "heavy": 0.7}}
+
+
+def test_g4_file_set_is_admitted_only_for_the_g4_commit_and_arm2_w_only_on_its_chain(gchain, monkeypatch):
+    repo, base, _, _, _ = gchain
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "g4", base], check=True)
+    g4 = commit(repo, {GATE: "x = 7\n", SIDE: "s = 1\n", T2: "t2 = 1\n"}, "G4-like: gate, sidecheck, its test")
+    w = commit(repo, {G.W_FILE: {**W0, "w_ms_per_plan": {**W0["w_ms_per_plan"], **A2}, "_source_ra_gnn_eng_arm2_nosplit": "x"}}, "arm2 w")
+    with pytest.raises(SystemExit, match="not exactly"):
+        G.w_pin_chain(str(repo), base, [w], g4)  # not the G4 commit: the exact two-file rule
+    monkeypatch.setattr(G, "G4", g4)
+    monkeypatch.setattr(G, "GATE_CHANGE_FILES_BY_COMMIT", {g4: (GATE, SIDE, T2)})
+    ws = G.w_pin_chain(str(repo), base, [w], g4)
+    assert "ra_gnn_eng_arm2_nosplit" in ws[w]["w_ms_per_plan"]
+    # the same Arm 2 w key on a chain without G4 is refused
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "nog4", base], check=True)
+    gc = commit(repo, {GATE: "x = 8\n", G.GATE_CHANGE_FILES[1]: "t = 8\n"}, "plain gate change")
+    w2 = commit(repo, {G.W_FILE: {**W0, "w_ms_per_plan": {**W0["w_ms_per_plan"], **A2}, "_source_ra_gnn_eng_arm2_nosplit": "x"}}, "arm2 w off-chain")
+    with pytest.raises(SystemExit, match="outside the learned arms|adds top-level"):
+        G.w_pin_chain(str(repo), base, [w2], gc)
+    # and the G4 file set on any other commit still fails
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "other", base], check=True)
+    g = commit(repo, {GATE: "x = 9\n", SIDE: "s = 2\n", T2: "t2 = 2\n"}, "not G4")
+    with pytest.raises(SystemExit, match="not exactly"):
+        G.w_pin_chain(str(repo), base, [], g)
+
+
+def test_ckpt_arm_maps_arm2_and_k0():
+    assert G.ckpt_arm("ra_gnn_eng_arm2_nosplit") == "gnn_eng" and G.ckpt_arm("ra_twin_eng_arm2k0_nosplit") == "twin_eng"
+    assert G.ckpt_tag("ra_gnn_eng_arm2_nosplit") == "" and G.G4 in G.GATE_CHANGE_FILES_BY_COMMIT and len(G.GATE_CHANGE_FILES_BY_COMMIT) == 1
