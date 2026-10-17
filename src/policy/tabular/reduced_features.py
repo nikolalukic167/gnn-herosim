@@ -338,20 +338,26 @@ LOAD_SECONDS_DIM = 3
 # Every other column is v4's byte for byte; on uniform links pull == push and 25-26 repeat 7-8.
 # The four-type widening of the legacy task / platform blocks (FOUR_TYPE_CONTRACTS) rides the same version.
 PARTIAL_STATE_CONTRACT_V5 = "partial_state_v5"
+# partial_state_v6 (2026-10-17, docs/lineages/uncut_groups_s0_v1.md, the combined lever): v5 byte for byte (the 27 partial-state columns and the four-type
+# blocks), plus INFLIGHT_DIM columns APPENDED to the platform block after the four-type ones: the platform's in-flight count and the remaining service of its in-flight
+# tasks (placement/inflight_features.py; the accounting of the cd_ib0_inflightfull reference bar). Needs the replica-release physics the corpus was built under.
+PARTIAL_STATE_CONTRACT_V6 = "partial_state_v6"
 EXCHANGE_PUSH_DIM = 2
 VALID_PARTIAL_STATE_CONTRACTS = frozenset(
     {PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
-     PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5}
+     PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6}
 )
 # Contracts whose columns 7-9 carry the peer block (and that therefore need a peer corpus).
 PEER_BLOCK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
-                                  PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5})
+                                  PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6})
 # Contracts that carry the three load columns (and need backlog_s / service_s).
-LOAD_SECONDS_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5})
+LOAD_SECONDS_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6})
 # Contracts that price the exchange pull peer->candidate and add the push columns.
-BOTH_DIRECTION_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5})
+BOTH_DIRECTION_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6})
 # Contracts whose legacy task block and platform replica flags cover all four task types.
-FOUR_TYPE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5})
+FOUR_TYPE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6})
+# Contracts whose platform block carries the in-flight columns (placement/inflight_features.py).
+INFLIGHT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V6})
 # Contracts whose krank block is the fixed-width one-hot; only these pad (and raise).
 KRANK_ONEHOT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2})
 

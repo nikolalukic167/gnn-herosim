@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from src.placement.model import SystemState
 
 from src.policy.tabular.constants import FEATURE_DIM
+from src.placement.inflight_features import INFLIGHT_DIM, inflight_enabled
 from src.placement.four_type_features import (
     four_type_enabled,
     platform_extra_columns,
@@ -124,6 +125,9 @@ class InferenceFeatureBundle:
     # build_pyg_inference_graph; None under every earlier contract, so those graphs are byte-identical.
     four_type_task_extra: Optional[np.ndarray] = None
     four_type_platform_extra: Optional[np.ndarray] = None
+    # partial_state_v6 (placement/inflight_features.py): the in-flight count and work columns appended to the platform block by
+    # build_pyg_inference_graph after the four-type ones; None under every earlier contract.
+    inflight_platform_extra: Optional[np.ndarray] = None
 
 
 _warned_layout_fallback = False
@@ -715,11 +719,25 @@ def build_inference_feature_bundle(
                 )
             )
 
+    inflight_extra = None
+    if inflight_enabled():
+        from src.placement.inflight_features import COUNT_KEY, WORK_KEY, columns as inflight_columns
+
+        rows = []
+        for info in platforms_info:
+            rec = (temporal_state or {}).get(f"{info.node_name}:{info.platform_id}") or {}
+            if COUNT_KEY not in rec or WORK_KEY not in rec:
+                raise ValueError(f"FAIL LOUD: partial_state_v6 serving needs {COUNT_KEY} and {WORK_KEY} in the captured state of "
+                                 f"{info.node_name}:{info.platform_id}")
+            rows.append(inflight_columns(rec[COUNT_KEY], rec[WORK_KEY], queue_norm))
+        inflight_extra = np.asarray(rows, dtype=np.float64).reshape(len(rows), INFLIGHT_DIM)
+
     return InferenceFeatureBundle(
         n_tasks=n_tasks,
         n_platforms=n_platforms,
         four_type_task_extra=four_task_extra,
         four_type_platform_extra=four_platform_extra,
+        inflight_platform_extra=inflight_extra,
         task_features=task_features_arr,
         platform_features=platform_features_arr,
         edge_attr_directed=edge_attr_directed,
@@ -907,6 +925,9 @@ def build_pyg_inference_graph(
             [data.task_features, torch.tensor(bundle.four_type_task_extra, dtype=torch.float32)], dim=1)
         data.platform_features = torch.cat(
             [data.platform_features, torch.tensor(bundle.four_type_platform_extra, dtype=torch.float32)], dim=1)
+    if bundle.inflight_platform_extra is not None:
+        data.platform_features = torch.cat(
+            [data.platform_features, torch.tensor(bundle.inflight_platform_extra, dtype=torch.float32)], dim=1)
 
     # Same-node platform<->platform edges (GIN co-location signal). Cache always
     # sets this; live must too or train/serve topology diverges.

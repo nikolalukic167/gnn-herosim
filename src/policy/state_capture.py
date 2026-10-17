@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from src.placement.infrastructure import Node, Platform, Task
     from src.placement.model import SystemState
 
+from src.placement.inflight_features import COUNT_KEY, WORK_KEY, inflight_enabled, live_state
 from src.placement.warmth import node_has_cached_image
 
 DEFAULT_TASK_TYPE_NAMES: Tuple[str, ...] = ("dnn1", "dnn2")
@@ -149,6 +150,7 @@ class StateCaptureHelper:
         """
         temporal_state = {}
         now = self.env.now
+        inflight_on = inflight_enabled()
         
         for node, platform in replicas:
             key = f"{node.node_name}:{platform.id}"
@@ -203,6 +205,9 @@ class StateCaptureHelper:
                 "comm_remaining": comm_remaining,
                 "previous_task_type_name": prev_task_type_name,
             }
+            if inflight_on:
+                # partial_state_v6: the platform's in-flight count and remaining service (placement/inflight_features.py)
+                temporal_state[key][COUNT_KEY], temporal_state[key][WORK_KEY] = live_state(platform)
         
         return temporal_state
     

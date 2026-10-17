@@ -95,6 +95,7 @@ from src.placement.dag_workload import (
 )
 from src.placement.network_fabric import is_core_link, route_links, transmission_hops
 from src.placement.cache_physics import current_physics_env
+from src.placement.inflight_features import inflight_enabled, state_from_ghosts, columns as inflight_columns, widen_graph as widen_inflight
 from src.placement.four_type_features import (
     four_type_enabled,
     platform_extra_columns,
@@ -687,12 +688,35 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
         logger.warning(msg)
         raise ValueError(msg)
 
-    return {
+    out = {
         'queue_snapshot': queue_snapshot,
         'temporal_state': merged_temporal_state,
         'initialized_snapshot': initialized_snapshot,
         'replicas': replicas_by_task,
     }
+    if inflight_enabled():
+        out['inflight_ghosts'] = _inflight_ghosts_of_dataset(dataset_dir, queue_snapshot)
+    return out
+
+
+def _inflight_ghosts_of_dataset(dataset_dir: Path, queue_snapshot: Mapping[str, int]) -> Dict[str, List[Dict[str, Any]]]:
+    """partial_state_v6: the in-flight records of the stored state (warm_snapshot.json -> snapshot.fidelity.ghosts), grouped by platform key. The snapshot's
+    own queue lengths must equal the ones the cache reads (system_state_captured_unique.json), else the two files describe different moments."""
+    p = Path(dataset_dir) / "warm_snapshot.json"
+    if not p.is_file():
+        raise FileNotFoundError(f"FAIL LOUD: partial_state_v6 needs {p} (the stored in-flight records)")
+    snap = json.load(open(p)).get("snapshot") or {}
+    fid = snap.get("fidelity") or {}
+    if "ghosts" not in fid:
+        raise ValueError(f"FAIL LOUD: {p} has no fidelity.ghosts; the state was not captured with the fidelity markers")
+    stored_queue = {k: _queue_length_int(v) for k, v in (snap.get("full_queue_snapshot") or {}).items()}
+    if stored_queue != dict(queue_snapshot):
+        diff = sorted(k for k in set(stored_queue) | set(queue_snapshot) if stored_queue.get(k) != queue_snapshot.get(k))
+        raise ValueError(f"FAIL LOUD: {p}: the snapshot's queue lengths differ from the cache's on {len(diff)} platforms, e.g. {diff[:3]}")
+    by_q: Dict[str, List[Dict[str, Any]]] = {}
+    for g in fid["ghosts"]:
+        by_q.setdefault(str(g["q"]), []).append(g)
+    return by_q
 
 
 def _single_candidate_slate(all_datasets: Mapping[str, Mapping[str, Any]]) -> Optional[str]:
@@ -889,6 +913,7 @@ def load_all_datasets(
                     'temporal_state': extended_state.get('temporal_state', {}),
                     'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
                     'replicas': extended_state.get('replicas', {}),
+                    'inflight_ghosts': extended_state.get('inflight_ghosts'),
                     'sweep_opt_rtt': float(sweep_rtt),
                     # r1_attribution_v1 declared pruning: each task's own candidate set, None on every earlier corpus
                     **_declared_slate_of(dataset_dir),
@@ -1183,6 +1208,7 @@ def build_graph(
     link_topology: Optional[Mapping[str, Any]] = None,
     network_graph_contract: Optional[str] = None,
     task_candidates: Optional[Sequence[Sequence[Sequence[int]]]] = None,
+    inflight_ghosts: Optional[Mapping[str, Sequence[Mapping[str, Any]]]] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -1440,6 +1466,16 @@ def build_graph(
         if 'replica_task_types' not in df_platforms.columns:
             raise ValueError("partial_state_v5 needs the replica_task_types column (an older extraction has none)")
         four_type_platform_extra = platform_extra_columns(replica_types_arr)
+    inflight_platform_extra = None
+    if inflight_enabled():
+        if inflight_ghosts is None:
+            raise ValueError("partial_state_v6 needs the stored in-flight records (inflight_ghosts) of the dataset")
+        rows = []
+        for pos in range(n_platforms):
+            key = f"{df_platforms['node_name'].to_numpy()[pos]}:{int(plat_ids_arr[pos])}"
+            cnt, work = state_from_ghosts(inflight_ghosts.get(key, ()), int(queue_lengths[pos]), task_priors, str(plat_type_arr[pos]))
+            rows.append(inflight_columns(cnt, work, active_queue_norm))
+        inflight_platform_extra = np.asarray(rows, dtype=np.float64).reshape(n_platforms, 2)
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
     for pos, row in enumerate(df_platforms.itertuples(index=False)):
         node_name = str(row.node_name)
@@ -1678,6 +1714,8 @@ def build_graph(
         # held apart until the platform block is final (main truncates it), then `widen_graph` appends them
         data.four_type_task_extra = torch.from_numpy(four_type_task_extra).to(torch.float32)
         data.four_type_platform_extra = torch.from_numpy(four_type_platform_extra).to(torch.float32)
+    if inflight_platform_extra is not None:
+        data.inflight_platform_extra = torch.from_numpy(inflight_platform_extra).to(torch.float32)
     # Same-node platform<->platform edges for GIN message passing (node aggregation).
     # Lets the GNN propagate contention/co-location signal between platforms that share a
     # physical node (shared FilterStore pulls / node bandwidth) — relational structure a
@@ -2251,6 +2289,7 @@ def main():
                         queue_feature_contract=config.queue_feature_contract,
                         link_topology=dataset_dict.get('link_topology'),
                         task_candidates=dataset_dict.get('task_candidates'),
+                        inflight_ghosts=dataset_dict.get('inflight_ghosts'),
                     )
                     if config.platform_feature_dim != 16:
                         graph.platform_features = graph.platform_features[
@@ -2258,6 +2297,8 @@ def main():
                         ]
                     if four_type_enabled():
                         widen_graph(graph)
+                    if inflight_enabled():
+                        widen_inflight(graph)
                     if config.dag_partial_state:
                         attach_dag_partial_state_block(
                             graph,
