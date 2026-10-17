@@ -298,3 +298,24 @@ def test_s7_schema_per_arm_dirs_and_files(src, tmp_path):
     _prov(md5, lambda d: d["_ckpt_dir"].pop("mlp_same"))
     with pytest.raises(SystemExit, match="every arm"):
         S.main(base + ["--dest", str(t / "d")])
+
+
+
+def test_g8b_fast_kinds_check_lambda_and_the_recomputed_table(tmp_path):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    for k in G.COMB_FAST:
+        assert k not in G.COMB_KINDS and k in G.RA_KINDS and f"{k}_nosplit" in G.R1A_NOSPLIT and f"{k}_nosplit" in G.R1A_ARMS
+        assert G.comb_contract(k) == "partial_state_v5" and G.COMB_CHECK[k] == "ra_gnn_eng" and G.split_dc(f"{k}_nosplit_k100") == (f"{k}_nosplit", 1.0)
+    assert G.COMB_STEMS["ra_gnn_eng_a3l"] == "uncut-a3l-gnn-eng" and G.COMB_STEMS["ra_gnn_eng_a3lft"] == "uncut-a3lft-gnn-eng"
+    good = {"batched_teacher_forced": True, "partial_state_contract": "partial_state_v5", "regret_lambda": 2.0,
+             "move_regret": {"sha256": G.COMB_FAST_TABLE_SHA256, "lambda": 2.0}}
+    p = tmp_path / "c.contract.json"
+    p.write_text(json.dumps(good))
+    G.comb_trainer_check("ra_gnn_eng_a3l", str(p))
+    for bad in ({"regret_lambda": 0.5}, {"move_regret": {"sha256": "17a7387271eeea6f961371e7a4f93603efb58bc0d368af9f84f410af0af166be", "lambda": 2.0}}, {"regret_lambda": None}):
+        p.write_text(json.dumps({**good, **bad}))
+        with pytest.raises(SystemExit, match="FAIL LOUD"):
+            G.comb_trainer_check("ra_gnn_eng_a3lft", str(p))
+    p.write_text(json.dumps(good))
+    with pytest.raises(SystemExit, match="not a regret-lever run"):
+        G.comb_trainer_check("ra_gnn_eng_combf", str(p))
