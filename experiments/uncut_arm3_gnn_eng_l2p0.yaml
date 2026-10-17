@@ -3,7 +3,7 @@
 # scripts_cosim/uncut_move_regret_label.py, sidecar pickle, train groups only; the val mask-only file feeds the per-epoch unscored-mass diagnostic). The registered design is the
 # 'REGISTERED-DESIGN' entry in docs/lineages/uncut_groups_s0_v1.md. CPU, 6 threads, 0 dataloader workers (the device that matches Arm 1b). Seeds 1 and 2 via run_experiment.py --seed.
 trainer: gnn
-lineage: uncut_arm3
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_arm1/cache_run/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT
