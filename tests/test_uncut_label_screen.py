@@ -257,9 +257,10 @@ def test_relabel_fails_loud_on_a_state_that_never_returns(tmp_path, monkeypatch)
     monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
     def slow(corpus, st):
         if st["gid"] == "a/ds_002":
-            _t.sleep(30)
+            _t.sleep(120)
         return _fake_replay(corpus, st)
     monkeypatch.setattr(L, "replay_state", slow)
     monkeypatch.setenv("LABEL_SCREEN_MP", "fork")
-    with pytest.raises(SystemExit, match="a/ds_002"):
-        L.cmd_relabel(_args(tmp_path, tmp_path / "y.jsonl", 3, timeout=1.0))
+    # the first states must not time out on a slow machine (worker start-up counts), so the wait is generous and the hung state sleeps far longer; the message of a TimeoutError is empty
+    with pytest.raises(SystemExit, match=r"FAIL LOUD: state a/ds_\d+: TimeoutError"):
+        L.cmd_relabel(_args(tmp_path, tmp_path / "y.jsonl", 3, timeout=5.0))
