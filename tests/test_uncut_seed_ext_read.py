@@ -63,16 +63,16 @@ def run(tmp_path, d, reads, **kw):
     return X.main(args)
 
 
-BASE = {X.A3G: 1.90, X.A3T: 1.90, X.A1BG: 1.96, X.A1BT: 1.96, X.K0G: 1.96, X.A2G: 2.06, X.A1G: 1.96}
+BASE = {X.A3G: 1.90, X.A1BG: 1.96, X.K0G: 1.96, X.A2G: 2.06, X.A1G: 1.96}
 
 
 def test_families_and_labels(tmp_path):
     d, reads = build(tmp_path, BASE)
     res = run(tmp_path, d, reads)
-    assert [res["families"][f]["holm_family"] for f in ("E1", "E2", "E3", "E4")] == [4, 8, 6, 4]
+    assert sorted(res["families"]) == ["E1", "E3", "E4"]  # E2 withdrawn by the user's direction
+    assert [res["families"][f]["holm_family"] for f in ("E1", "E3", "E4")] == [4, 6, 4]
     fd = res["findings"]
     assert fd["E1"][f"{X.A3G} vs {X.A1BG} moderate"] == "CLAIM"
-    assert fd["E2"][f"{X.A3G} vs {X.A3T} heavy"] == "CLEAN-NEGATIVE"
     assert fd["E3"][f"{X.K0G} vs cd_ib0 heavy"] == "CLAIM"
     assert fd["E4"][f"{X.A2G} vs {X.K0G} heavy"] == "CLAIM"  # K0 the faster, as claimed
     assert fd["E4"][f"{X.K0G} vs {X.A1G} heavy"] == "CLEAN-NEGATIVE"
