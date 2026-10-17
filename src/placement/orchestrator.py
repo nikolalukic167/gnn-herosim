@@ -234,7 +234,7 @@ class Orchestrator:
             # peer_greedy_live_v1: the hand rule's books (src/policy/peer_greedy_network)
             "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
             "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
-            "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds",
+            "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds",
             "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
             "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
             "pg_random_seed_batches",
