@@ -90,6 +90,7 @@ from src.policy.evaluator.scheduler import EvaluatorScheduler
 from src.policy.knative_network.orchestrator import KnativeOrchestrator as KnativeNetworkOrchestrator
 from src.policy.knative_network.autoscaler import KnativeAutoscaler as KnativeNetworkAutoscaler
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
+from src.policy.knative_network.scheduler import KnativeInFlightScheduler
 from src.policy.knative_network_ect.scheduler import KnativeECTScheduler as KnativeNetworkECTScheduler
 from src.policy.peer_greedy_network.scheduler import (
     DrainGreedyNetworkScheduler,
@@ -729,7 +730,7 @@ def start_simulation(
         "xgb_single_xgb_single": (XGBoostSingleOrchestrator, KnativeNetworkAutoscaler, XGBoostSingleScheduler),
         "determined_determined": (DeterminedOrchestrator, DeterminedAutoscaler, DeterminedScheduler),
         "evaluator_evaluator": (EvaluatorOrchestrator, EvaluatorAutoscaler, EvaluatorScheduler),
-        "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkScheduler),
+        "kn_network_kn_network": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeInFlightScheduler),
         "kn_network_ect_kn_network_ect": (KnativeNetworkOrchestrator, KnativeNetworkAutoscaler, KnativeNetworkECTScheduler),
         "kn_network_ect_pull_kn_network_ect_pull": (
             KnativeNetworkOrchestrator,
