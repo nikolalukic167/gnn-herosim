@@ -86,7 +86,9 @@ ARM1_W_KINDS = tuple(f"ra_{a}_arm1_nosplit" for a in ("gnn_eng", "twin_eng", "ml
 ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng", "mlp_same"))
 # the expected move-regret lever (Arm 3, gate change G6): gnn_eng and its MP-OFF twin, no MLP; each within W_GUARD_X of Arm 1b's same arm
 ARM3_W_KINDS = tuple(f"ra_{a}_arm3_nosplit" for a in ("gnn_eng", "twin_eng"))
-LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS
+# combined lever (G8 / G8b): F, L, FL, FL's MLP and the two FAST arms; their w sits at w-only pins on G8 / G8b, never on the older chains
+COMB_W_KINDS = tuple(f"{k}_nosplit" for k in ("ra_gnn_eng_combf", "ra_gnn_eng_combl", "ra_gnn_eng_combfl", "ra_mlp_same_combfl", "ra_gnn_eng_a3l", "ra_gnn_eng_a3lft"))
+LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS + COMB_W_KINDS
 W_GUARD_X = 1.5
 # co-tenancy amendment (2026-10-14) and Arm 1b: the gate-code commits between --pin and the w-only pins (bf79865a the _kr tag, then the
 # Arm 1b kinds) each touch the gate and its test, nothing else
@@ -546,7 +548,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
         if a.mlp:
             res["F2"]["MODEL-CLASS"] = f"MODEL-CLASS-{f2_label(f2[4:], prog)} (corpus: {a.corpus})"
     else:
-        res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN if SEEDS == (1, 2) else NO_TWIN_EXT}
+        res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN_COMB if a.primary in COMB_W_KINDS else NO_TWIN if SEEDS == (1, 2) else NO_TWIN_EXT}
     res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
     if a.reference:
         res["descriptive"]["training_effect_vs_reference"] = four(cells, a.primary, SEEDS, a.reference, ref_seeds, topos)
@@ -557,6 +559,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
 
 F2_ORDER = ("ATTRIBUTED", "DIRECTION", "NOT-SEPARATED")
 NO_TWIN = "F2 skipped: no MP-OFF twin trained (wave 2 held); no MP attribution"
+NO_TWIN_COMB = "F2 skipped: the combined lever trains no MP-OFF twin (the user's ruling); no MP attribution"
 NO_TWIN_EXT = "F2 skipped: seed-extension read of an arm with no new-seed twin (registered 2026-10-17); MP is read in the extension's own family E2"
 
 
@@ -665,7 +668,7 @@ def main(argv=None):
     stray = sorted({(k[0], k[1]) for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) in (a.primary, a.twin, a.mlp) and k[1] not in SEEDS})
     if stray:
         raise SystemExit(f"FAIL LOUD: learned cells at seeds outside --seeds {list(SEEDS)}: {stray[:6]}")
-    if not a.twin and ckpt_tag(a.primary) != "arm3" and SEEDS == (1, 2):
+    if not a.twin and ckpt_tag(a.primary) != "arm3" and SEEDS == (1, 2) and a.primary not in COMB_W_KINDS:
         raise SystemExit("FAIL LOUD: --twin is required (only an Arm 3 read, or a seed-extension read of an arm with no new-seed twin, may go without one)")
     ckpt = ckpt_md5s(a.checkpoint_md5)
     prog_allowed = True
