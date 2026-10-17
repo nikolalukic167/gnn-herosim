@@ -860,3 +860,25 @@ def test_bad_seeds_fail_loud(gate, bad):
     fill(d, ck, 1.8)
     with pytest.raises(SystemExit, match="--seeds"):
         seeds_run(d, cm, bad)
+
+
+def test_extension_read_may_omit_the_twin_but_the_filed_read_may_not(gate, tmp_path):
+    d, ck, _ = gate
+    fill_seeds(d, ck, (11, 12), 1.8)
+    cm = seeds_md5(tmp_path, (11, 12))
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", P, "--checkpoint-md5", cm, "--cotenancy", "off"]
+    for f in os.listdir(d):
+        if f"__{T}_" in f:
+            os.remove(os.path.join(d, f))
+    res = G.main(args + ["--seeds", "11,12"])
+    assert res["F2"]["MP"] == G.NO_TWIN_EXT and res["F2"]["holm_family"] == 0
+
+
+def test_filed_read_still_needs_the_twin(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", P, "--checkpoint-md5", cm, "--cotenancy", "off"]
+    with pytest.raises(SystemExit, match="--twin is required"):
+        G.main(args)

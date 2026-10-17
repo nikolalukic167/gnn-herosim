@@ -546,7 +546,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
         if a.mlp:
             res["F2"]["MODEL-CLASS"] = f"MODEL-CLASS-{f2_label(f2[4:], prog)} (corpus: {a.corpus})"
     else:
-        res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN}
+        res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN if SEEDS == (1, 2) else NO_TWIN_EXT}
     res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
     if a.reference:
         res["descriptive"]["training_effect_vs_reference"] = four(cells, a.primary, SEEDS, a.reference, ref_seeds, topos)
@@ -557,6 +557,7 @@ def verdict(cells, failed, a, topos, prog_allowed=True):
 
 F2_ORDER = ("ATTRIBUTED", "DIRECTION", "NOT-SEPARATED")
 NO_TWIN = "F2 skipped: no MP-OFF twin trained (wave 2 held); no MP attribution"
+NO_TWIN_EXT = "F2 skipped: seed-extension read of an arm with no new-seed twin (registered 2026-10-17); MP is read in the extension's own family E2"
 
 
 def weaker(x, y):
@@ -660,8 +661,8 @@ def main(argv=None):
     stray = sorted({(k[0], k[1]) for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) in (a.primary, a.twin, a.mlp) and k[1] not in SEEDS})
     if stray:
         raise SystemExit(f"FAIL LOUD: learned cells at seeds outside --seeds {list(SEEDS)}: {stray[:6]}")
-    if not a.twin and ckpt_tag(a.primary) != "arm3":
-        raise SystemExit("FAIL LOUD: --twin is required (only an Arm 3 read may go without one, while no MP-OFF twin is trained)")
+    if not a.twin and ckpt_tag(a.primary) != "arm3" and SEEDS == (1, 2):
+        raise SystemExit("FAIL LOUD: --twin is required (only an Arm 3 read, or a seed-extension read of an arm with no new-seed twin, may go without one)")
     ckpt = ckpt_md5s(a.checkpoint_md5)
     prog_allowed = True
     tags = {ckpt_tag(x) for x in (a.primary, a.twin) if x}
