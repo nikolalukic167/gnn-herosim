@@ -57,3 +57,10 @@ def test_every_ib0_variant_gets_the_ib0_alpha_in_the_served_env():
     src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim/fresh_topo_burst_v1_gate.py")).read()
     m = re.search(r'if kind in \("cd_ib0", ([^)]*)\):\n\s+env\.update\(ib0_alpha\(kind\)\)', src)
     assert m and '"cd_ib0_inflight"' in m.group(1) and '"cd_ib0_inflightfull"' in m.group(1)
+
+
+def test_the_full_flag_is_recorded_in_the_result_file_and_cleared_from_the_inherited_env():
+    """An instrument is not on until a result file has it: the flag must be in executesimulation's served-env record and in the gate's clear list."""
+    root = os.path.join(os.path.dirname(__file__), "..")
+    assert '"HEROSIM_PG_INFLIGHT_FULL",' in open(os.path.join(root, "src/executesimulation.py")).read()
+    assert '"HEROSIM_PG_INFLIGHT_FULL", "HEROSIM_KEEP_ALIVE"' in open(os.path.join(root, "scripts_cosim/fresh_topo_burst_v1_gate.py")).read()
