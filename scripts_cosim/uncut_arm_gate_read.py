@@ -90,6 +90,12 @@ W_GUARD_X = 1.5
 # co-tenancy amendment (2026-10-14) and Arm 1b: the gate-code commits between --pin and the w-only pins (bf79865a the _kr tag, then the
 # Arm 1b kinds) each touch the gate and its test, nothing else
 GATE_CHANGE_FILES = ("scripts_cosim/fresh_topo_burst_v1_gate.py", "tests/test_uncut_arm1_gate_stage.py")
+# the K0 / Arm 2 chain (B3, the expert's ruling (c1), 2026-10-17): gate change G4 69354280 (the Arm 2-K0 kinds, ported from c34b17e3) touches
+# the gate, the sidecheck and its own test. That exact set is admitted for that one commit only; every other gate change keeps GATE_CHANGE_FILES.
+G4 = "6935428088592fad78ee2a786ad7d5fc1388e30b"
+GATE_CHANGE_FILES_BY_COMMIT = {G4: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_arm2_gate.py")}
+# Arm 2 and Arm 2-K0 (read under ruling 2, on the G4 chain): their w keys may enter a w-only pin only on a chain through G4
+ARM2_W_KINDS = tuple(f"ra_{a}_eng_{k}_nosplit" for k in ("arm2", "arm2k0") for a in ("gnn", "twin"))
 COT_KEYS = ("k_cotenancy", "_source_k_cotenancy")
 KR = "_kr"
 NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.(summary|failed)\.json$")
@@ -147,8 +153,8 @@ def git(repo, *args):
     return r.stdout
 
 
-def w_frozen(prev, cur, sha):
-    """Every key of `prev` identical in `cur`; every key `cur` adds belongs to an Arm 1 or Arm 1b learned arm."""
+def w_frozen(prev, cur, sha, kinds=LEARNED_W_KINDS):
+    """Every key of `prev` identical in `cur`; every key `cur` adds belongs to a learned arm of `kinds` (Arm 1, 1b and 3; Arm 2 and K0 on the G4 chain)."""
     for top, v in prev.items():
         if top not in cur:
             raise SystemExit(f"FAIL LOUD: {sha} drops {W_FILE} key {top!r}")
@@ -156,12 +162,12 @@ def w_frozen(prev, cur, sha):
             for k, x in v.items():
                 if json.dumps(cur[top].get(k), sort_keys=True) != json.dumps(x, sort_keys=True):
                     raise SystemExit(f"FAIL LOUD: {sha} changes frozen {W_FILE} key {top}[{k!r}]")
-            extra = sorted(set(cur[top]) - set(v) - set(LEARNED_W_KINDS))
+            extra = sorted(set(cur[top]) - set(v) - set(kinds))
         else:
             extra = [] if json.dumps(cur[top], sort_keys=True) == json.dumps(v, sort_keys=True) else [top]
         if extra:
-            raise SystemExit(f"FAIL LOUD: {sha} changes or adds {W_FILE} keys {top}{extra} outside the learned arms {LEARNED_W_KINDS}")
-    extra = sorted(set(cur) - set(prev) - {f"_source_{k}" for k in LEARNED_W_KINDS} - set(COT_KEYS))
+            raise SystemExit(f"FAIL LOUD: {sha} changes or adds {W_FILE} keys {top}{extra} outside the learned arms {kinds}")
+    extra = sorted(set(cur) - set(prev) - {f"_source_{k}" for k in kinds} - set(COT_KEYS))
     if extra:
         raise SystemExit(f"FAIL LOUD: {sha} adds top-level {W_FILE} keys {extra}")
     k = cur.get("k_cotenancy")
@@ -201,8 +207,9 @@ def w_pin_chain(repo, base, w_pins, gate_change=""):
         if git(repo, "rev-parse", g + "^").strip() != parent:
             raise SystemExit(f"FAIL LOUD: the gate change {g} is not a child of {parent}")
         names = sorted(git(repo, "diff", "--name-only", parent, g).split())
-        if names != sorted(GATE_CHANGE_FILES):
-            raise SystemExit(f"FAIL LOUD: the gate change {g} touches {names}, not exactly {list(GATE_CHANGE_FILES)}")
+        allowed = GATE_CHANGE_FILES_BY_COMMIT.get(g, GATE_CHANGE_FILES)
+        if names != sorted(allowed):
+            raise SystemExit(f"FAIL LOUD: the gate change {g} touches {names}, not exactly {list(allowed)}")
     for prev, cur in zip(shas, shas[1:]):
         if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", prev, cur]).returncode:
             raise SystemExit(f"FAIL LOUD: w-only pins are not a chain from {base}: {prev} is not an ancestor of {cur}")
@@ -212,7 +219,7 @@ def w_pin_chain(repo, base, w_pins, gate_change=""):
             raise SystemExit(f"FAIL LOUD: {cur} differs from {root} in {names}, not only {W_FILE}")
     ws = {sha: json.loads(git(repo, "show", f"{sha}:{W_FILE}")) for sha in shas}
     for prev, cur in zip(shas, shas[1:]):
-        w_frozen(ws[prev], ws[cur], cur)
+        w_frozen(ws[prev], ws[cur], cur, LEARNED_W_KINDS + ARM2_W_KINDS if G4 in changes else LEARNED_W_KINDS)
     for sha in shas:
         w_guard(ws[sha], sha)
     return ws
@@ -228,7 +235,7 @@ def pin_match(commit, pins):
 def ckpt_arm(arm):
     """The training log's arm name for a gate arm: ra_gnn_eng_arm1_nosplit -> gnn_eng (S7's keys); an exact key wins."""
     arm = arm[3:] if arm.startswith("ra_") else arm
-    for sfx in ("_nosplit", "_arm3", "_arm1b", "_arm1"):
+    for sfx in ("_nosplit", "_arm3", "_arm2k0", "_arm2", "_arm1b", "_arm1"):
         arm = arm[: -len(sfx)] if arm.endswith(sfx) else arm
     return arm
 
@@ -286,9 +293,9 @@ def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
         if at is None or code.get("dirty") is not False:
             raise SystemExit(f"FAIL LOUD: {key} code {code.get('commit')} dirty={code.get('dirty')} is not the gate pin {pin}"
                              + (f" or a w-only pin" if allowed != [base] else ""))
-        if w_pins and key[0] in LEARNED_W_KINDS and key[0] not in w_pins[at].get("w_ms_per_plan", {}):
+        if w_pins and key[0] in LEARNED_W_KINDS + ARM2_W_KINDS and key[0] not in w_pins[at].get("w_ms_per_plan", {}):
             raise SystemExit(f"FAIL LOUD: {key} ran at {at}, whose {W_FILE} has no calibrated w for {key[0]}")
-        if w_pins and key[0] in LEARNED_W_KINDS:
+        if w_pins and key[0] in LEARNED_W_KINDS + ARM2_W_KINDS:
             k = w_pins[at].get("k_cotenancy") if kr else 1.0
             if k is None:
                 raise SystemExit(f"FAIL LOUD: {key} is a co-tenancy cell at {at}, whose {W_FILE} has no k_cotenancy")
@@ -689,7 +696,7 @@ def main(argv=None):
     cells_kr.update({k: v for k, v in cells.items() if k[0] not in learned})
     failed_kr.update({k: v for k, v in failed.items() if k[0] not in learned})
     res = {"filed": FILED, "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth, "primary": a.primary, "twin": a.twin,
-           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
+           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
     if arm1b or arm3:
         res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), ("arm1b_combined_F1" if arm3 else "arm1_combined_F1"): prev["combined"]["F1"],
                            "program_label_open": prog_allowed}
