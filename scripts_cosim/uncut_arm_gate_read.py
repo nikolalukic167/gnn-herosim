@@ -22,7 +22,7 @@ rows with no unstamped (NaN) task (never counted as 0 lock wait).
 
 Cell value: a learned arm's cell mean = the mean of its two seeds' cell means (whole-run averageElapsedTime, after-360 s steady_state.after_360s.mean);
 a cell with either seed missing is missing for the arm. Each seed is also read alone. --seeds (default 1,2; the seed extension of 2026-10-17
-reads its new seeds 11-18 with it) replaces the learned arms' seed set everywhere 'two seeds' is said here; a learned cell at any other seed fails loud.
+reads its new seeds 11-18 with it; --bar cd_ib0_inflightfull, default cd_ib0, names the hand bar) replaces the learned arms' seed set everywhere 'two seeds' is said here; a learned cell at any other seed fails loud.
 Statistic: per topology the median over the windows present of 100 (arm - bar) / bar; then the median over topologies, the sign count, an exact
 two-sided Wilcoxon (r1_attribution_v1_read.exact_wilcoxon) and Holm (r1_attribution_v1_read.holm).
 
@@ -643,11 +643,15 @@ def main(argv=None):
     ap.add_argument("--gate-change", default="", help="the gate-code commits between --pin and the w-only pins, in order (bf79865a the _kr tag, then the Arm 1b kinds)")
     ap.add_argument("--after-read", default="", help="Arm 1b: Arm 1's gate read JSON (--out of its own read); its combined F1 opens or closes the program-level label")
     ap.add_argument("--compare", default="", help="Arm 1b: Arm 1's primary, read direction-only against this primary")
+    ap.add_argument("--bar", default="cd_ib0", help="the hand bar kind (the combined lever reads against cd_ib0_inflightfull); its cells sit at --pin")
     ap.add_argument("--seeds", default="1,2", help="the learned arms' checkpoint seeds (seed extension: 11-18 or 11-16; the pooled line lists all)")
     ap.add_argument("--cotenancy", choices=("required", "off"), default="required",
                     help="required (the gate read): the learned arms' <arm>_kr cells give the second verdict; off only for smokes")
     a = ap.parse_args(argv)
-    global SEEDS
+    global SEEDS, BAR
+    if a.bar not in ("cd_ib0", "cd_ib0_inflightfull"):
+        raise SystemExit(f"FAIL LOUD: --bar {a.bar!r}: cd_ib0 (the filed bar) or cd_ib0_inflightfull (the combined lever's)")
+    BAR = a.bar
     seeds = tuple(int(x) for x in a.seeds.split(",") if x.isdigit())
     if len(seeds) != len([x for x in a.seeds.split(",") if x]) or not seeds or len(set(seeds)) != len(seeds) or min(seeds) < 1:
         raise SystemExit(f"FAIL LOUD: --seeds {a.seeds!r}: distinct checkpoint seeds >= 1")
@@ -710,6 +714,8 @@ def main(argv=None):
            "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in (w_pins or {}).items()}}
     if SEEDS != (1, 2):
         res["seeds"] = list(SEEDS)
+    if BAR != "cd_ib0":
+        res["bar"] = BAR
     if arm1b or arm3:
         res["sequence"] = {"after_read": os.path.abspath(a.after_read), "after_read_md5": md5(a.after_read), ("arm1b_combined_F1" if arm3 else "arm1_combined_F1"): prev["combined"]["F1"],
                            "program_label_open": prog_allowed}

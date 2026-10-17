@@ -41,14 +41,17 @@ ARM2_ARMS = {
     "ra_gnn_eng_arm2k0": ("gnn", False, False, True, False),
     "ra_twin_eng_arm2k0": ("gnn", True, False, False, False),
 }
+# uncut_groups_s0_v1 combined lever (G8): the gnn_eng / mlp_same architectures on partial_state_v6 (the in-flight columns appended to the platform block;
+# the 27 partial-state edge columns unchanged).
+COMB_V6_ARMS = {"ra_gnn_eng_v6": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v6": RA_ARMS["ra_mlp_same"]}
 ARM2_RANDOM_PREFIX_K = {"ra_gnn_eng_arm2k0": 0, "ra_twin_eng_arm2k0": 0}  # Arm 2-K0; every other Arm 2 arm is K = 2
 
 
 def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
-    kind, mp_off, raw, conv, phys = {**RA_ARMS, **ARM2_ARMS}[arm]
+    kind, mp_off, raw, conv, phys = {**RA_ARMS, **ARM2_ARMS, **COMB_V6_ARMS}[arm]
     graph_free = kind != "gnn"
     want = {
-        "arm_kind": kind, "disable_message_passing": mp_off, "partial_state_contract": "partial_state_v5",
+        "arm_kind": kind, "disable_message_passing": mp_off, "partial_state_contract": "partial_state_v6" if arm in COMB_V6_ARMS else "partial_state_v5",
         "load_seconds": True, "exchange_seconds": True, "full_context_ce_weight": 1.0, "dag_alpha_key": want_alpha,
         "mp_residual": False, "plan_raw": raw, "plan_raw_sum": False, "plan_raw_local": False,
         "mp_bipartite_edge_conv": conv, "mp_bipartite_edge_attr_zero": conv and not phys,
@@ -84,7 +87,7 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
 def main() -> int:
     contract_path, arm, split, want_alpha = sys.argv[1:5]
     sc = json.load(open(contract_path))
-    if arm in RA_ARMS or arm in ARM2_ARMS:
+    if arm in RA_ARMS or arm in ARM2_ARMS or arm in COMB_V6_ARMS:
         return check_ra(sc, arm, split, want_alpha)
     aggr = "sum" if arm in AGG_BASE else "mean"
     arm = AGG_BASE.get(arm, arm)
