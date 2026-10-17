@@ -1153,7 +1153,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                 env["HEROSIM_OBS_SEED"] = str(seed)
         if kind == "cd_exactS_ib0_prune":
             env["HEROSIM_PG_CD_EXACT_PRUNE"] = "cost"
-        if kind == "cd_ib0":
+        if kind in ("cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull"):
             env.update(ib0_alpha(kind))
         if kind == "cd_oracle":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),

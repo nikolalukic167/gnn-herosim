@@ -48,3 +48,12 @@ def test_the_stages_of_an_inflight_task():
     in_input = _task(3.0)                                       # owes execution + the approximate comm (0 without a state size)
     assert inflight_full_seconds(_platform([running, finished_compute, waiting, in_input])) == 5.0 + 0.0 + 2.0 + 3.0
     assert inflight_full_seconds(_platform([waiting]), exec_scale=2.0) == 4.0
+
+
+def test_every_ib0_variant_gets_the_ib0_alpha_in_the_served_env():
+    """The served env for a cd_ib0 cell sets HEROSIM_PG_BATCH_ALPHA where run_one builds it; the in-flight variants must pass the same branch
+    (the cell check, which wants ib0_alpha(kind), failed the first smoke because this spot was missed)."""
+    import re
+    src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim/fresh_topo_burst_v1_gate.py")).read()
+    m = re.search(r'if kind in \("cd_ib0", ([^)]*)\):\n\s+env\.update\(ib0_alpha\(kind\)\)', src)
+    assert m and '"cd_ib0_inflight"' in m.group(1) and '"cd_ib0_inflightfull"' in m.group(1)
