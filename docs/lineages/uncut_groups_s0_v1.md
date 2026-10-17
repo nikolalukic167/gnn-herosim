@@ -342,6 +342,15 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Arm 1b gnn uses seeds 1 and 2 from its filed cells, plus a descriptive line with the extension seeds 11–18.
     - Each line gives the median, n ahead and an unadjusted p.
   - **Priority (the expert's ruling).** Every freed slot goes first to S7's relabel, then S4's recache, then these 8 trainings, ahead of the remaining Arm 3 extension seeds and S5's last TE3 cells, with the queue ≤ 44. Nothing running is cancelled by S4, S6 or S7.
+  - **Confirmed by the expert (2026-10-17, merged as `c660e61e`):** 6 GNN + 2 MLP = 8 runs, and choices (a)–(e) as written.
+    - The `cd_ib0_inflightfull_k100` heavy cells on the 36 TE3 topologies are queued early, at S4's in-flight pin `634cbd8d` (the pin of the 12-topology cells, job 883737).
+  - **Clarifications before any data (S6).**
+    - (1) **Validation labels.** The trainer's label override (`NEAR_RTT_LABEL_OVERRIDE_JSON`, `train_near_rtt.py:1722`; S7's relabel `196fea30`) replaces TRAIN labels only, so L and FL train on simulator labels while their val curves stay on the current labels.
+      - The served checkpoint is `-final.pt` (epoch 100), so val is diagnostic only and no served model depends on it.
+      - The relabel file still carries the val entries.
+      - S7's smoke must show that the override is honoured on the batched teacher-forced path (`NEAR_RTT_BATCHED_TF=1`).
+    - (2) **Training pin.** F, L, FL and the FL MLP train at one new pin off reference-physics that carries S4's feature contract. Arm 1b (the comparator) trained at `c94b9459`.
+      - Before training, the training-relevant `src` diff between `c94b9459` and the new pin is filed. Anything beyond the feature contract and the label loader is named, and is a confound of every F/L/FL vs Arm 1b line.
 - 2026-10-17 — **Seed extension: family E2 (MP vs twin) WITHDRAWN by the user's direction, before any extension twin finished. E1, E3 and E4 stand unchanged; launch facts and the K0 device disclosure.** (S6; the user via the expert: "stop all twin trainings please and then queue the waiting jobs".)
   - **Withdrawal.**
     - The expert cancelled the six running Arm 1b twin runs, s11–s16 (883467–883472), after 56 min. None of them reached a `-final.pt`.
