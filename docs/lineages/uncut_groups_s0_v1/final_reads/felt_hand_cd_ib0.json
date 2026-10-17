@@ -1,0 +1,52 @@
+{
+ "arm": "cd_ib0",
+ "bar": "/share/nikola.lukic/uncut_groups/arm1_k1_bar_d6ae87c2",
+ "estimator": "fit /share/nikola.lukic/uncut_groups/interim/diag_hand_dump/fit_evals_n.json",
+ "rungs": {
+  "heavy": {
+   "n_cells": 48,
+   "F_by_bucket": {
+    "le10": 0.00023243474602824716,
+    "11_50": 0.0007480890245431098,
+    "gt50": 0.0009736284300902944
+   },
+   "F_total": 0.001954152200661651,
+   "F_cell_median": 0.0020135526049374144,
+   "F_cell_max": 0.0025737191250106376,
+   "worst_cell": "cc40s19544__g2heavy__cd_ib0_k100_s0.summary.json",
+   "F_cell_max_by_bucket": {
+    "le10": 0.0002948034366775868,
+    "11_50": 0.0010153610523431934,
+    "gt50": 0.0014071271077429016
+   },
+   "hand_bias": {
+    "k": 1.468,
+    "pooled": 0.000622985851437093,
+    "worst_cell": 0.0008205044621968516
+   }
+  },
+  "moderate": {
+   "n_cells": 48,
+   "F_by_bucket": {
+    "le10": 0.00015932885053265025,
+    "11_50": 0.0004941112001566898,
+    "gt50": 0.0006526036605451954
+   },
+   "F_total": 0.0013060437112345355,
+   "F_cell_median": 0.0013564379420196128,
+   "F_cell_max": 0.001682293245167423,
+   "worst_cell": "cc40s19538__g0moderate__cd_ib0_k100_s0.summary.json",
+   "F_cell_max_by_bucket": {
+    "le10": 0.00020194401516050614,
+    "11_50": 0.0006164282943198352,
+    "gt50": 0.0009040513676092718
+   },
+   "hand_bias": {
+    "k": 1.468,
+    "pooled": 0.000416368158622454,
+    "worst_cell": 0.0005363169201214944
+   }
+  }
+ },
+ "w_file": "/home/nikola.lukic/gnn-herosim-wt/s6_tools_19a2fbd2/scripts_cosim/decision_cost_w.json"
+}
