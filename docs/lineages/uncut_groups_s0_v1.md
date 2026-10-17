@@ -301,6 +301,28 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Combined lever, amendment before any of its training: two FAST arms on Arm 3 with simulator labels; speed and venue rules. Seed extension: the user cancelled the six Arm 1 gnn seeds, so E4b has no input.** (S6; the user, verbatim via the expert: "go fast. i stopped the six runs. spread the live test always and for the future as well. test GPU training. do fine tune but run the normal training in parallel as well. analyze if we can have some speedups there as well".)
+  - **Seed extension, E4b.** The user cancelled the Arm 1 gnn extension runs s11–s16 (883452–883458) before any finished. E4b (K0 gnn vs Arm 1 gnn, heavy) has no new-seed input and is withdrawn, so **E4 is k = 2** (Arm 2 gnn vs K0 gnn, heavy). E1 (k = 4) and E3 (k = 6) are unchanged. E2 was withdrawn earlier.
+  - **FAST arms (B6: Arm 3 is post-look, so the best label is WIN-ARM-ONLY).**
+    - **(A3-L-ft)** Fine-tunes the filed Arm 3 λ 2.0 `-final.pt` (seeds 1 and 2; md5 `3c4fbacb…`, `d1790788…`, `experiments/uncut_arm3_ckpt_md5.json`).
+      - Trained for 20 epochs on S7's simulator labels (the train-label override), with Arm 3's recipe and λ 2.0.
+      - The move-regret table d_c is recomputed against the new labels by S4's `uncut_move_regret_label` path, and its sha256 is filed before training.
+      - The final checkpoint is served.
+    - **(A3-L)** The same arm from scratch: 100 epochs, seeds 1 and 2, the normal recipe, the new labels and the new table, trained in parallel with A3-L-ft.
+    - **w:** both reuse Arm 3's frozen w (pin `1847a484`). The architecture and serving are Arm 3's; this is disclosed, not recalibrated.
+    - **Primary contrast per FAST arm (Holm, k = 4 each):** vs `cd_ib0_inflightfull_k100` at moderate and heavy × whole and after-360 on the 12 topologies, under the program's win rule. The best label is WIN-ARM-ONLY.
+    - **Descriptive:** each FAST arm vs the filed Arm 3 gnn.
+    - F, L, FL and the FL MLP stay as registered.
+  - **Speed (the user: "test GPU training … analyze if we can have some speedups").**
+    - (1) **GPU test.** One epoch of the Arm 3 recipe on the Arm 1b / Arm 1 cache on a GPU node, timed against the CPU epoch (362 s, Arm 3 gnn s11).
+      - If the GPU is faster, both FAST arms and the F/L/FL GNNs train on that GPU type. The device is disclosed in every line against an arm trained on CPU (Arm 1b, the filed Arm 3).
+      - `tests/test_trainer_determinism.py` and a run-to-run bit-equality check run on that device first.
+    - (2) **Speedups.** Only changes that keep the recipe and the numerics. Their measured epoch times are filed:
+      - DataLoader workers;
+      - torch threads per job against physical cores;
+      - cache loading.
+      - Mixed precision is named and **not used**: it changes the numerics. Batch size is part of the recipe and is **not changed**.
+    - (3) **Venue.** Every live gate is spread over about 4 nodes, by shards. This is the user's standing rule.
 - 2026-10-17 — **Combined lever (in-flight features × simulator labels): REGISTERED before any relabel, recache, training or cell.** (S6 owns the registration, training and gate; S4 builds the features, S7 builds the labels. The user: "go combined. prio this training pls", relayed by the expert.)
   - **B6.** The lever is conceived after every interim look and every final read, so it gets no share of the program α; the best label is **WIN-ARM-ONLY**. Reads seen before this one: every filed verdict, the in-flight bar sensitivity read, the reference baselines against the in-flight bar, and the seed-extension launch. Not seen: the label screen's result (job 883677), and no seed-extension or TE3 learned result.
   - **The blind spot both halves target.** Under replica release, the GNN's queue features (`state_capture.py:69,130`, `gnn/orchestrator.py:193`, `live_audit.py:199,276`) and the formula labels (argmin S) count queued tasks only. The reference hand rule `cd_ib0_inflightfull` counts the full in-flight work (`HEROSIM_PG_INFLIGHT_FULL=1`, reference-physics `b3a0522e`).
