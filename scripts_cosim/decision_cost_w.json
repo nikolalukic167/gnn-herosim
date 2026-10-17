@@ -39,6 +39,34 @@
   "ra_twin_eng_nosplit": {
    "moderate": 2.9736,
    "heavy": 3.48608
+  },
+  "ra_gnn_eng_arm1_nosplit": {
+   "heavy": 2.91233,
+   "moderate": 2.922186
+  },
+  "ra_twin_eng_arm1_nosplit": {
+   "heavy": 2.349787,
+   "moderate": 2.283627
+  },
+  "ra_gnn_eng_arm1b_nosplit": {
+   "heavy": 2.894683,
+   "moderate": 2.924815
+  },
+  "ra_twin_eng_arm1b_nosplit": {
+   "heavy": 2.378345,
+   "moderate": 2.291264
+  },
+  "ra_mlp_same_arm1_nosplit": {
+   "heavy": 2.240681,
+   "moderate": 2.210373
+  },
+  "ra_mlp_same_arm1b_nosplit": {
+   "heavy": 2.294701,
+   "moderate": 2.180178
+  },
+  "ra_gnn_eng_arm3_nosplit": {
+   "heavy": 2.951249,
+   "moderate": 2.869762
   }
  },
  "_source": "wall decision seconds / sched_plan_evals, k=0 cells: id/new (cd, cd_exactS, cd_exactS_ib0), id/new2 (nosplit), calib (cd_ib0, cd_exactS_ib0_prune, selfsearch, cdxapply); topologies 19405/19411 g0",
@@ -115,7 +143,100 @@
     "11_50": 1.16033,
     "gt50": 1.63024
    }
+  },
+  "ra_gnn_eng_arm1_nosplit": {
+   "heavy": {
+    "le10": 3.81286,
+    "11_50": 1.229992,
+    "gt50": 1.595881
+   },
+   "moderate": {
+    "le10": 3.819326,
+    "11_50": 1.314094,
+    "gt50": 1.350046
+   }
+  },
+  "ra_twin_eng_arm1_nosplit": {
+   "heavy": {
+    "le10": 2.956781,
+    "11_50": 1.152571,
+    "gt50": 1.628792
+   },
+   "moderate": {
+    "le10": 2.926185,
+    "11_50": 1.091615,
+    "gt50": 1.261055
+   }
+  },
+  "ra_gnn_eng_arm1b_nosplit": {
+   "heavy": {
+    "le10": 3.781354,
+    "11_50": 1.214305,
+    "gt50": 1.707424
+   },
+   "moderate": {
+    "le10": 3.855856,
+    "11_50": 1.219462,
+    "gt50": 1.404914
+   }
+  },
+  "ra_twin_eng_arm1b_nosplit": {
+   "heavy": {
+    "le10": 3.041047,
+    "11_50": 1.079788,
+    "gt50": 1.56442
+   },
+   "moderate": {
+    "le10": 2.942996,
+    "11_50": 1.067399,
+    "gt50": 1.304799
+   }
+  },
+  "ra_mlp_same_arm1_nosplit": {
+   "heavy": {
+    "le10": 2.841585,
+    "11_50": 1.078707,
+    "gt50": 1.476499
+   },
+   "moderate": {
+    "le10": 2.855088,
+    "11_50": 0.971597,
+    "gt50": 1.309345
+   }
+  },
+  "ra_mlp_same_arm1b_nosplit": {
+   "heavy": {
+    "le10": 2.871133,
+    "11_50": 1.120598,
+    "gt50": 1.693234
+   },
+   "moderate": {
+    "le10": 2.834096,
+    "11_50": 0.943647,
+    "gt50": 1.218575
+   }
+  },
+  "ra_gnn_eng_arm3_nosplit": {
+   "heavy": {
+    "le10": 3.828103,
+    "11_50": 1.349742,
+    "gt50": 1.609488
+   },
+   "moderate": {
+    "le10": 3.815157,
+    "11_50": 1.06827,
+    "gt50": 1.497269
+   }
   }
  },
- "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). IMPUTED: cd_exactS heavy and cd_expand heavy (their heavy smoke cells were watchdog-killed, WALL-INFEASIBLE) = the arm's heavy scalar w x its own moderate ratio to le10 (expert ruling 2026-10-13). Scalar w stands for cd and cd_ib0. The gate charges k x these by served batch-size bucket (HEROSIM_DECISION_COST_MS_BY_BUCKET); arms without an entry keep HEROSIM_DECISION_COST_MS. cd_exactS_ib0_prune: S6's prune smoke, job 864605 at c671281c (19461 g0, k = 0, both rungs finished: 4,551 s heavy, 3,900 s moderate wall), /share/nikola.lukic/uncut_groups/wnprune_c671281c, same rule (calibrated scalar x ratio to le10). LEARNED one-pass arms (narrow reopening, 2026-10-13): ra_gnn_eng_nosplit and ra_twin_eng_nosplit, pin 1929fd3c, k = 0, 19461 g0 both rungs, one cell per arm x rung, slate-fix-v1 seed 1; table /share/nikola.lukic/uncut_groups/wn_learned.json sha256 22494440c6197a70f8ddcd8983caba70b885558c4f94f5d9cfde2559a6ad0c86. Same rule (calibrated scalar x ratio to le10; ratios 0.29-0.50: per-plan cost FALLS with batch size, so every large bucket is outside the 1.5x line in the cheaper direction). nosplit uses its calibrated scalar; the twin has no calibration, so its scalar is this smoke's own measured le10 ms per plan (moderate 2.9736, heavy 3.48608; single cell)."
+ "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). IMPUTED: cd_exactS heavy and cd_expand heavy (their heavy smoke cells were watchdog-killed, WALL-INFEASIBLE) = the arm's heavy scalar w x its own moderate ratio to le10 (expert ruling 2026-10-13). Scalar w stands for cd and cd_ib0. The gate charges k x these by served batch-size bucket (HEROSIM_DECISION_COST_MS_BY_BUCKET); arms without an entry keep HEROSIM_DECISION_COST_MS. cd_exactS_ib0_prune: S6's prune smoke, job 864605 at c671281c (19461 g0, k = 0, both rungs finished: 4,551 s heavy, 3,900 s moderate wall), /share/nikola.lukic/uncut_groups/wnprune_c671281c, same rule (calibrated scalar x ratio to le10). LEARNED one-pass arms (narrow reopening, 2026-10-13): ra_gnn_eng_nosplit and ra_twin_eng_nosplit, pin 1929fd3c, k = 0, 19461 g0 both rungs, one cell per arm x rung, slate-fix-v1 seed 1; table /share/nikola.lukic/uncut_groups/wn_learned.json sha256 22494440c6197a70f8ddcd8983caba70b885558c4f94f5d9cfde2559a6ad0c86. Same rule (calibrated scalar x ratio to le10; ratios 0.29-0.50: per-plan cost FALLS with batch size, so every large bucket is outside the 1.5x line in the cheaper direction). nosplit uses its calibrated scalar; the twin has no calibration, so its scalar is this smoke's own measured le10 ms per plan (moderate 2.9736, heavy 3.48608; single cell).",
+ "_source_ra_gnn_eng_arm1_nosplit": "uncut_groups_s0_v1 learned w freeze (calibration protocol under SMT, 2026-10-14; the expert's go 2026-10-17): job 882799, A = os-cpu-slurm-9, B = os-cpu-slurm-10, AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1; w = sum decision seconds / sum plan evals pooled over A and B (uncut_charge_share.pooled_w at 0442c1cf), per rung and served-batch bucket; step L1_gnn; table /share/nikola.lukic/uncut_groups/cotenancy/smt_series2_learned/reads/freeze_w.json md5 8fc5305b. Hand w KEEP under ruling (c) (q_n, 2026-10-17); H3 drift stop OK on A and B.",
+ "_source_ra_twin_eng_arm1_nosplit": "uncut_groups_s0_v1 learned w freeze (calibration protocol under SMT, 2026-10-14; the expert's go 2026-10-17): job 882799, A = os-cpu-slurm-9, B = os-cpu-slurm-10, AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1; w = sum decision seconds / sum plan evals pooled over A and B (uncut_charge_share.pooled_w at 0442c1cf), per rung and served-batch bucket; step L1_twin; table /share/nikola.lukic/uncut_groups/cotenancy/smt_series2_learned/reads/freeze_w.json md5 8fc5305b. Hand w KEEP under ruling (c) (q_n, 2026-10-17); H3 drift stop OK on A and B.",
+ "_source_ra_gnn_eng_arm1b_nosplit": "uncut_groups_s0_v1 learned w freeze (calibration protocol under SMT, 2026-10-14; the expert's go 2026-10-17): job 882799, A = os-cpu-slurm-9, B = os-cpu-slurm-10, AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1; w = sum decision seconds / sum plan evals pooled over A and B (uncut_charge_share.pooled_w at 0442c1cf), per rung and served-batch bucket; step L1b_gnn; table /share/nikola.lukic/uncut_groups/cotenancy/smt_series2_learned/reads/freeze_w.json md5 8fc5305b. Hand w KEEP under ruling (c) (q_n, 2026-10-17); H3 drift stop OK on A and B.",
+ "_source_ra_twin_eng_arm1b_nosplit": "uncut_groups_s0_v1 learned w freeze (calibration protocol under SMT, 2026-10-14; the expert's go 2026-10-17): job 882799, A = os-cpu-slurm-9, B = os-cpu-slurm-10, AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1; w = sum decision seconds / sum plan evals pooled over A and B (uncut_charge_share.pooled_w at 0442c1cf), per rung and served-batch bucket; step L1b_twin; table /share/nikola.lukic/uncut_groups/cotenancy/smt_series2_learned/reads/freeze_w.json md5 8fc5305b. Hand w KEEP under ruling (c) (q_n, 2026-10-17); H3 drift stop OK on A and B.",
+ "k_cotenancy": 1.468,
+ "_source_k_cotenancy": "k_cotenancy = max(1, every r measured in either state under the per-bucket rule): SMT on 1.468 (r_hand, 869835/869836) and 1.373 (r_cd_ib0 19461); SMT off (871538) r_hand cd_ib0 1.169, cd 1.173, r_cd_ib0_19461 1.185; SMT off (882799) r_gnn_eng 1.173, r_gnn_eng_1b 1.163. Max 1.468.",
+ "_source_ra_mlp_same_arm1_nosplit": "uncut_groups_s0_v1 learned w freeze (calibration protocol under SMT, 2026-10-14; the expert's go 2026-10-17): job 882799, A = os-cpu-slurm-9, B = os-cpu-slurm-10, AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1; w = sum decision seconds / sum plan evals pooled over A and B (uncut_charge_share.pooled_w at 0442c1cf), per rung and served-batch bucket; step L1_mlp; table /share/nikola.lukic/uncut_groups/cotenancy/smt_series2_learned/reads/freeze_w.json md5 8fc5305b. Hand w KEEP under ruling (c) (q_n, 2026-10-17); H3 drift stop OK on A and B.",
+ "_source_ra_mlp_same_arm1b_nosplit": "uncut_groups_s0_v1 learned w freeze (calibration protocol under SMT, 2026-10-14; the expert's go 2026-10-17): job 882799, A = os-cpu-slurm-9, B = os-cpu-slurm-10, AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1; w = sum decision seconds / sum plan evals pooled over A and B (uncut_charge_share.pooled_w at 0442c1cf), per rung and served-batch bucket; step L1b_mlp; table /share/nikola.lukic/uncut_groups/cotenancy/smt_series2_learned/reads/freeze_w.json md5 8fc5305b. Hand w KEEP under ruling (c) (q_n, 2026-10-17); H3 drift stop OK on A and B.",
+ "_source_ra_gnn_eng_arm3_nosplit": "uncut_groups_s0_v1 lever live gate (Arm 3 gnn, lambda 2.0; the expert's fallback selection): venue series job 883163 at G6 3df0cce6, A = os-cpu-slurm-9, B = os-cpu-slurm-10, AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1; w = sum decision seconds / sum plan evals pooled over A and B (uncut_charge_share.pooled_w at 0442c1cf), per rung and served-batch bucket; step A3_gnn between H3pre and H3end; table /share/nikola.lukic/uncut_groups/cotenancy/smt_series3_arm3/reads/freeze_w3.json md5 43b5f293. H3 drift stop OK on A (heavy -0.58 %, moderate +0.03 %) and B (heavy +0.65 %, moderate -0.16 %). All other keys are W2b 59798c41's, unchanged."
 }
