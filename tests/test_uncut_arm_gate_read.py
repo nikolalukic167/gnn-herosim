@@ -897,3 +897,17 @@ def test_bar_flag_reads_against_the_inflight_bar(gate):
     assert "bar" not in run(d, cm)  # default: the filed bar, no new key
     with pytest.raises(SystemExit, match="--bar"):
         run(d, cm, bar="cd")
+
+
+def test_comb_kinds_are_w_charged_and_may_be_added_by_a_w_only_pin(tmp_path):
+    assert set(G.COMB_W_KINDS) <= set(G.LEARNED_W_KINDS)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: w_with(W0, ("ra_gnn_eng_combfl_nosplit", "ra_gnn_eng_a3lft_nosplit"))}, "comb w")
+    ws = G.w_pin_chain(str(repo), base[:8], [w1[:8]])
+    assert "ra_gnn_eng_combfl_nosplit" in ws[w1]["w_ms_per_plan"]
+    cells = {("ra_gnn_eng_combf_nosplit", 1, 19537, "g0", "heavy"): {"code": {"commit": w1, "dirty": False}, "_path": "x.summary.json"}}
+    with pytest.raises(SystemExit, match="no calibrated w"):
+        G.asserts(cells, base, ["ra_gnn_eng_combf_nosplit"], {}, ws)
