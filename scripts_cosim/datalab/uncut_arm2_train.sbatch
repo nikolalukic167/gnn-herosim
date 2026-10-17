@@ -5,14 +5,15 @@
 # save its whole state every epoch and continue from it, so a link killed by the time limit loses at most one epoch.
 #   sbatch --export=ALL,TAG=arm2,T=0,WT=<pinned worktree>,EXPECT_HEAD=<sha>[,PREV=<previous link job id>] uncut_arm2_train.sbatch
 # Seed extension (2026-10-17): EXT_SEED=<n> replaces the seed T implies (T still picks the arm); the extension submits with
-#   sbatch --cpus-per-task=12 --mem=150G --oversubscribe ... (one run per 12-CPU slot, as Arm 3's wave 1), set on the command line.
+#   The extension's runs are packed at 12 CPUs / 150G (as Arm 3's wave 1), not --exclusive, so this file no longer
+#   carries --exclusive (the seed 1/2 runs had it; sbatch cannot unset it from the command line). Seed 1/2 resubmissions would pass --exclusive.
 #SBATCH --job-name=uarm2-train
 #SBATCH --output=/share/nikola.lukic/logs/uarm2-train-%j.out
 #SBATCH --partition=CPU-amd
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=6
-#SBATCH --exclusive
+#SBATCH --cpus-per-task=12
+#SBATCH --mem=150G
 #SBATCH --time=7-00:00:00
 set -uo pipefail
 ulimit -n 65536 2>/dev/null || true
