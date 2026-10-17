@@ -1,0 +1,15 @@
+DESCRIPTIVE reference rows vs cd_ib0_k100: per-topology median over 4 windows of % (arm - bar)/bar, then median / mean over topologies, topologies ahead of n; negative = faster than the bar
+  inflight_1task               moderate whole    median -0.74 %  mean -0.69 %  ahead 8/12  p 0.1514  cells 48
+  inflight_1task               moderate after360 median -0.59 %  mean -0.54 %  ahead 8/12  p 0.2036  cells 48
+  inflight_1task               heavy    whole    median -2.20 %  mean -1.81 %  ahead 9/12  p 0.1763  cells 48
+  inflight_1task               heavy    after360 median -2.98 %  mean -1.54 %  ahead 8/12  p 0.5186  cells 48
+  inflight_1task: median (end of run - last arrival) 67 s over 96 cells
+  inflight_1task: Holm over the 2 moderate tests: whole 0.3027, after360 0.3027
+  inflight_1task: failed cells (watchdog) 0
+  inflight_full                moderate whole    median -1.02 %  mean -1.20 %  ahead 9/12  p 0.06396  cells 48
+  inflight_full                moderate after360 median -0.40 %  mean -0.53 %  ahead 6/12  p 0.5186  cells 48
+  inflight_full                heavy    whole    median -5.73 %  mean -5.99 %  ahead 12/12  p 0.0004883  cells 48
+  inflight_full                heavy    after360 median -4.10 %  mean -4.06 %  ahead 9/12  p 0.07715  cells 48
+  inflight_full: median (end of run - last arrival) 69 s over 96 cells
+  inflight_full: Holm over the 2 moderate tests: whole 0.1279, after360 0.5186
+  inflight_full: failed cells (watchdog) 0

@@ -1,0 +1,78 @@
+DESCRIPTIVE reference rows vs cd_ib0_inflightfull_k100: per-topology median over 4 windows of % (arm - bar)/bar, then median / mean over topologies, topologies ahead of n; negative = faster than the bar
+  arm1_gnn                     moderate whole    median -3.89 %  mean -4.82 %  ahead 11/12  p 0.0009766  cells 48
+  arm1_gnn                     moderate after360 median -5.88 %  mean -6.76 %  ahead 12/12  p 0.0004883  cells 48
+  arm1_gnn                     heavy    whole    median +3.05 %  mean +3.55 %  ahead 2/12  p 0.021  cells 48
+  arm1_gnn                     heavy    after360 median +2.03 %  mean +0.21 %  ahead 5/12  p 0.791  cells 48
+  arm1_gnn: median (end of run - last arrival) 40 s over 192 cells
+  arm1_gnn: Holm over the 2 moderate tests: after360 0.0009766, whole 0.0009766
+  arm1_gnn: failed cells (watchdog) 0
+  arm1_mlp                     moderate whole    median -2.47 %  mean -2.06 %  ahead 7/12  p 0.2036  cells 48
+  arm1_mlp                     moderate after360 median -3.87 %  mean -4.07 %  ahead 9/12  p 0.02686  cells 48
+  arm1_mlp                     heavy    whole    median +5.51 %  mean +6.52 %  ahead 0/12  p 0.0004883  cells 48
+  arm1_mlp                     heavy    after360 median -0.36 %  mean +0.36 %  ahead 6/12  p 0.9697  cells 48
+  arm1_mlp: median (end of run - last arrival) 49 s over 192 cells
+  arm1_mlp: Holm over the 2 moderate tests: after360 0.05371, whole 0.2036
+  arm1_mlp: failed cells (watchdog) 0
+  arm1b_gnn                    moderate whole    median -3.22 %  mean -3.84 %  ahead 10/12  p 0.01611  cells 48
+  arm1b_gnn                    moderate after360 median -5.31 %  mean -6.52 %  ahead 12/12  p 0.0004883  cells 48
+  arm1b_gnn                    heavy    whole    median +3.93 %  mean +4.59 %  ahead 0/12  p 0.0004883  cells 48
+  arm1b_gnn                    heavy    after360 median -1.81 %  mean -1.92 %  ahead 6/12  p 0.3394  cells 48
+  arm1b_gnn: median (end of run - last arrival) 42 s over 192 cells
+  arm1b_gnn: Holm over the 2 moderate tests: after360 0.0009766, whole 0.01611
+  arm1b_gnn: failed cells (watchdog) 0
+  arm1b_mlp                    moderate whole    median -1.32 %  mean -1.77 %  ahead 7/12  p 0.3394  cells 48
+  arm1b_mlp                    moderate after360 median -4.42 %  mean -4.09 %  ahead 8/12  p 0.03418  cells 48
+  arm1b_mlp                    heavy    whole    median +5.50 %  mean +7.06 %  ahead 0/12  p 0.0004883  cells 48
+  arm1b_mlp                    heavy    after360 median +0.94 %  mean +1.25 %  ahead 5/12  p 0.4697  cells 48
+  arm1b_mlp: median (end of run - last arrival) 43 s over 192 cells
+  arm1b_mlp: Holm over the 2 moderate tests: after360 0.06836, whole 0.3394
+  arm1b_mlp: failed cells (watchdog) 0
+  arm3_gnn                     moderate whole    median -4.76 %  mean -5.75 %  ahead 11/12  p 0.001465  cells 48
+  arm3_gnn                     moderate after360 median -7.93 %  mean -8.70 %  ahead 12/12  p 0.0004883  cells 48
+  arm3_gnn                     heavy    whole    median +3.36 %  mean +3.25 %  ahead 2/12  p 0.01221  cells 48
+  arm3_gnn                     heavy    after360 median -1.40 %  mean -1.97 %  ahead 7/12  p 0.1763  cells 48
+  arm3_gnn: median (end of run - last arrival) 39 s over 192 cells
+  arm3_gnn: Holm over the 2 moderate tests: after360 0.0009766, whole 0.001465
+  arm3_gnn: failed cells (watchdog) 0
+  k0_gnn                       moderate whole    median -4.42 %  mean -4.13 %  ahead 10/12  p 0.003418  cells 48
+  k0_gnn                       moderate after360 median -6.59 %  mean -6.87 %  ahead 12/12  p 0.0004883  cells 48
+  k0_gnn                       heavy    whole    median +2.94 %  mean +3.44 %  ahead 1/12  p 0.004883  cells 48
+  k0_gnn                       heavy    after360 median -5.19 %  mean -3.63 %  ahead 10/12  p 0.06396  cells 48
+  k0_gnn: median (end of run - last arrival) 43 s over 192 cells
+  k0_gnn: Holm over the 2 moderate tests: after360 0.0009766, whole 0.003418
+  k0_gnn: failed cells (watchdog) 0
+  arm2_gnn                     moderate whole    median -4.61 %  mean -4.63 %  ahead 10/12  p 0.006836  cells 48
+  arm2_gnn                     moderate after360 median -7.91 %  mean -7.59 %  ahead 11/12  p 0.0009766  cells 48
+  arm2_gnn                     heavy    whole    median +5.85 %  mean +6.37 %  ahead 0/12  p 0.0004883  cells 48
+  arm2_gnn                     heavy    after360 median +0.98 %  mean +1.02 %  ahead 4/12  p 0.5186  cells 48
+  arm2_gnn: median (end of run - last arrival) 46 s over 192 cells
+  arm2_gnn: Holm over the 2 moderate tests: after360 0.001953, whole 0.006836
+  arm2_gnn: failed cells (watchdog) 0
+  arm1_twin                    moderate whole    median -3.17 %  mean -3.23 %  ahead 8/12  p 0.021  cells 48
+  arm1_twin                    moderate after360 median -5.72 %  mean -5.65 %  ahead 11/12  p 0.0009766  cells 48
+  arm1_twin                    heavy    whole    median +5.47 %  mean +6.02 %  ahead 0/12  p 0.0004883  cells 48
+  arm1_twin                    heavy    after360 median -1.12 %  mean -1.31 %  ahead 7/12  p 0.3013  cells 48
+  arm1_twin: median (end of run - last arrival) 42 s over 192 cells
+  arm1_twin: Holm over the 2 moderate tests: after360 0.001953, whole 0.021
+  arm1_twin: failed cells (watchdog) 0
+  arm1b_twin                   moderate whole    median -2.84 %  mean -3.70 %  ahead 9/12  p 0.01611  cells 48
+  arm1b_twin                   moderate after360 median -5.60 %  mean -6.03 %  ahead 12/12  p 0.0004883  cells 48
+  arm1b_twin                   heavy    whole    median +3.24 %  mean +4.43 %  ahead 0/12  p 0.0004883  cells 48
+  arm1b_twin                   heavy    after360 median -4.46 %  mean -2.67 %  ahead 8/12  p 0.07715  cells 48
+  arm1b_twin: median (end of run - last arrival) 43 s over 192 cells
+  arm1b_twin: Holm over the 2 moderate tests: after360 0.0009766, whole 0.01611
+  arm1b_twin: failed cells (watchdog) 0
+  k0_twin                      moderate whole    median -2.55 %  mean -2.75 %  ahead 9/12  p 0.07715  cells 48
+  k0_twin                      moderate after360 median -5.09 %  mean -5.18 %  ahead 10/12  p 0.002441  cells 48
+  k0_twin                      heavy    whole    median +2.70 %  mean +3.69 %  ahead 1/12  p 0.0009766  cells 48
+  k0_twin                      heavy    after360 median -5.67 %  mean -4.46 %  ahead 9/12  p 0.01221  cells 48
+  k0_twin: median (end of run - last arrival) 52 s over 192 cells
+  k0_twin: Holm over the 2 moderate tests: after360 0.004883, whole 0.07715
+  k0_twin: failed cells (watchdog) 0
+  arm2_twin                    moderate whole    median -2.35 %  mean -3.13 %  ahead 10/12  p 0.04248  cells 48
+  arm2_twin                    moderate after360 median -5.91 %  mean -6.20 %  ahead 11/12  p 0.001465  cells 48
+  arm2_twin                    heavy    whole    median +6.57 %  mean +6.53 %  ahead 0/12  p 0.0004883  cells 48
+  arm2_twin                    heavy    after360 median -1.45 %  mean +0.18 %  ahead 8/12  p 0.7334  cells 48
+  arm2_twin: median (end of run - last arrival) 47 s over 192 cells
+  arm2_twin: Holm over the 2 moderate tests: after360 0.00293, whole 0.04248
+  arm2_twin: failed cells (watchdog) 0
