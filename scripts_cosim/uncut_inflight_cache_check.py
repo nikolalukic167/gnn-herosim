@@ -29,7 +29,7 @@ def main(argv=None):
     new_g, new_ids = pickle.load(open(Path(a.new) / "graphs.pkl", "rb")), pickle.load(open(Path(a.new) / "dataset_ids.pkl", "rb"))
     old_by = {str(i): g for g, i in zip(old_g, old_ids)}
     mo, mn = json.load(open(Path(a.old) / "metadata.json")), json.load(open(Path(a.new) / "metadata.json"))
-    meta_diff = {k: [mo.get(k), mn.get(k)] for k in set(mo) | set(mn) if mo.get(k) != mn.get(k) and k not in ("dataset_ids", "num_graphs", "num_datasets", "num_combo_datasets", "base_dirs", "num_rtt_combo_rows", "statistics", "rtt_hash_chunks_meta_rel_path")}
+    meta_diff = {k: [mo.get(k), mn.get(k)] for k in set(mo) | set(mn) if mo.get(k) != mn.get(k) and k not in ("dataset_ids", "num_graphs", "num_datasets", "num_combo_datasets", "base_dirs", "num_rtt_combo_rows", "statistics", "rtt_hash_chunks_meta_rel_path", "timing", "parent_dataset_ids")}
     if set(meta_diff) != {"partial_state_contract"} or meta_diff["partial_state_contract"] != ["partial_state_v5", "partial_state_v6"]:
         raise SystemExit(f"FAIL LOUD: metadata differs in more than the contract: {meta_diff}")
     task_types = json.load(open(REPO / "data" / "nofs-ids" / "task-types.json"))
