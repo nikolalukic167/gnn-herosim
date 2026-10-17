@@ -109,7 +109,1595 @@
   }
  },
  "utilisation": {
-  "status": "PENDING: averageOccupation and the platform count are not in the stored summaries (orchestrator.py computes averageOccupation from platform idleProportion; the raw files in /tmp/herosim_raw_869828 were deleted at job exit). A rerun of the 48 moderate cells with the raw dir kept is filed separately when it lands."
+  "status": "MEASURED from a rerun of the 48 moderate cells with the raw results kept; every rerun cell reproduces its stored summary exactly (total_rtt, endTime, queue shares: 48/48, 0 mismatches).",
+  "rerun": {
+   "job": 883559,
+   "pin": "d6ae87c2",
+   "node": "os-cpu-slurm-5",
+   "cmd_env": "R1A_ARMS=cd_ib0_k100 R1A_TOPOS=19537..19548 WF1_RUNGS=moderate KEEP_RAW_DIR=/share/nikola.lukic/uncut_arm1/ld_raw IN=gate_inputs_arm1/inputs_group SELECT=arm1_selected.json PAR=24 CELL_MEM=12G LIMIT=14400 (r1a_gate.sbatch unchanged; KEEP_RAW_DIR is the gate's own switch, fresh_topo_burst_v1_gate.py)",
+   "extraction_job": 883587,
+   "extraction_script": "occ_extract.py (reads stats.nodeResults[].platformResults[].idleProportion from each raw result)"
+  },
+  "definition": {
+   "platform_utilisation_pct": "100 - idleProportion = 100 * load_time / env.now per platform (capacity 1)",
+   "load_time": "accumulates cold_start_duration + task_duration when a task finishes on the platform: compute (cold start + execution) busy time; transfers are not in it",
+   "where_at_pin_d6ae87c2": "src/placement/infrastructure.py:1946 (self.load_time += cold_start_duration + task_duration), :910 (idle_time = env.now - load_time), :925 (idleProportion); src/placement/orchestrator.py:368 and :373 (averageOccupation = the mean over ALL platforms of 100 - idleProportion; streaming path), :582-585 (the other path)",
+   "averageOccupation": "mean over all 919 platforms (clients included); client nodes (nodeId 0-159) run nothing under HEROSIM_SERVER_ONLY_REPLICAS, so the server-platform mean is the load descriptor",
+   "server_platforms": "nodeId 160-183 (the 24 servers; accessClasses order client_node0..159 then node0..23)"
+  },
+  "platform_count": {
+   "all": 919,
+   "client": 799,
+   "server": 120,
+   "server_nodes": 24,
+   "note": "identical in all 48 cells (the same generated topology shape; types: pynqFpga 8, rpiCpu 32, xavierCpu 64, xavierDla 8, xavierGpu 8 on the servers)"
+  },
+  "summary_median_min_max_pct": {
+   "averageOccupation_all_platforms": {
+    "median": 0.1221130416903267,
+    "min": 0.09422642431051484,
+    "max": 0.13984385216711565
+   },
+   "server_platform_mean": {
+    "median": 0.935182377611752,
+    "min": 0.7216173661780262,
+    "max": 1.0709708345131608
+   },
+   "server_platform_mean_over_used_platforms": {
+    "median": 1.058335162984033,
+    "min": 0.7465007236324408,
+    "max": 1.3685390271192308
+   },
+   "server_platform_max": {
+    "median": 8.541174768880317,
+    "min": 6.266359724956942,
+    "max": 17.57728122737869
+   },
+   "n_server_platforms_used": {
+    "median": 107.0,
+    "min": 90,
+    "max": 120
+   }
+  },
+  "reading": "Platform compute utilisation is about 0.9 % on the server platforms (the mean over the 120; the busiest platform is 8.5 % at the median over cells), and the busy time counts cold start + execution only. The no-queue latency is mostly data transfer (1.73 s of 1.93 s), which is not platform busy time; platform compute occupancy is therefore not what loads this cluster (descriptive; no mechanism claimed).",
+  "cells": [
+   {
+    "cell": "cc40s19537__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.13402449667108898,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 90,
+    "occupation_server_mean_pct": 1.0264042703394232,
+    "occupation_server_used_mean_pct": 1.3685390271192308,
+    "occupation_server_max_pct": 10.65182839441647,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.17943323365663844
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.002861523673045152
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.29524345056773016
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 6.643388797640524
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.199848324560163
+     }
+    }
+   },
+   {
+    "cell": "cc40s19537__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.13578525460499583,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 96,
+    "occupation_server_mean_pct": 1.039888741516593,
+    "occupation_server_used_mean_pct": 1.2998609268957413,
+    "occupation_server_max_pct": 8.209433072630404,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.285027745593311
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.0250259708819085
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.30489718347230554
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.949626460212409
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.824395565637097
+     }
+    }
+   },
+   {
+    "cell": "cc40s19537__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.13297834456059515,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 114,
+    "occupation_server_mean_pct": 1.0183924887598912,
+    "occupation_server_used_mean_pct": 1.0719920934314644,
+    "occupation_server_max_pct": 10.54392329407726,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2034930468373357
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.09650991870690229
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2889806401330952
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 6.201831002577878
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.172678486090785
+     }
+    }
+   },
+   {
+    "cell": "cc40s19537__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12374952409107193,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 102,
+    "occupation_server_mean_pct": 0.9477151053307925,
+    "occupation_server_used_mean_pct": 1.1149589474479913,
+    "occupation_server_max_pct": 8.318483573547667,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2344391996309927
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.023512959278673584
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.22382403359475989
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.027941242205774
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 7.068702032252348
+     }
+    }
+   },
+   {
+    "cell": "cc40s19538__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11964021153093306,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 103,
+    "occupation_server_mean_pct": 0.9162446199743957,
+    "occupation_server_used_mean_pct": 1.0674694601643444,
+    "occupation_server_max_pct": 9.282920231420078,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.26209483612574935
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.0660285141597905
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.30777006785993755
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.7809454467253545
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.974354417246168
+     }
+    }
+   },
+   {
+    "cell": "cc40s19538__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12662766901839895,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 108,
+    "occupation_server_mean_pct": 0.9697568985659052,
+    "occupation_server_used_mean_pct": 1.077507665073228,
+    "occupation_server_max_pct": 10.24336606487391,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.33283009501526806
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.05562599547956548
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.40179480688428026
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.0578084962002645
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.718852450280542
+     }
+    }
+   },
+   {
+    "cell": "cc40s19538__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11257699999390372,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 120,
+    "occupation_server_mean_pct": 0.8621521916199792,
+    "occupation_server_used_mean_pct": 0.8621521916199792,
+    "occupation_server_max_pct": 7.936758712517147,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2925212999524138
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.20641791767411632
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.3257397466670273
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.3242416845651395
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.883930245749452
+     }
+    }
+   },
+   {
+    "cell": "cc40s19538__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12499410810103453,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 110,
+    "occupation_server_mean_pct": 0.9572465445404228,
+    "occupation_server_used_mean_pct": 1.0442689576804611,
+    "occupation_server_max_pct": 12.000935645263283,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.3229835572739539
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.10030278830769257
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2893939744051939
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.783614438948394
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.535737223411672
+     }
+    }
+   },
+   {
+    "cell": "cc40s19539__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12169301615363518,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 99,
+    "occupation_server_mean_pct": 0.931965682043256,
+    "occupation_server_used_mean_pct": 1.1296553721736438,
+    "occupation_server_max_pct": 9.776654893609447,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.24926296607176823
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.013573218209101512
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.36665519453913875
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.0876483432254
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.655039492202157
+     }
+    }
+   },
+   {
+    "cell": "cc40s19539__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.1291574770388128,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 107,
+    "occupation_server_mean_pct": 0.9891310116555747,
+    "occupation_server_used_mean_pct": 1.109305807464196,
+    "occupation_server_max_pct": 8.406635226365694,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2361232951497314
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.04424847468233706
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.3380417245675438
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.276286008080332
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.443228176333859
+     }
+    }
+   },
+   {
+    "cell": "cc40s19539__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12873676861456962,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 117,
+    "occupation_server_mean_pct": 0.985909086306579,
+    "occupation_server_used_mean_pct": 1.0111888064682861,
+    "occupation_server_max_pct": 7.55874455893823,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.218082569500595
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.21702241427980873
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.35071761066231444
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.6845387945229895
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.21218438815735
+     }
+    }
+   },
+   {
+    "cell": "cc40s19539__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.13347486180109563,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 107,
+    "occupation_server_mean_pct": 1.0221949832933908,
+    "occupation_server_used_mean_pct": 1.1463868971514664,
+    "occupation_server_max_pct": 9.325435588896838,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.21658334636192045
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.07904040038392202
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.31246136354008835
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.755813189496173
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.544675703686373
+     }
+    }
+   },
+   {
+    "cell": "cc40s19540__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12457198168294595,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 102,
+    "occupation_server_mean_pct": 0.9540137597218944,
+    "occupation_server_used_mean_pct": 1.1223691290845816,
+    "occupation_server_max_pct": 7.630762561157539,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2963623718965618
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.01621911310296742
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.3397369842414968
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.029589643860104
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.201482053727906
+     }
+    }
+   },
+   {
+    "cell": "cc40s19540__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12428808557375773,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 99,
+    "occupation_server_mean_pct": 0.9518395886856946,
+    "occupation_server_used_mean_pct": 1.15374495598266,
+    "occupation_server_max_pct": 9.175191643288159,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.34949254921959394
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.028091245867927217
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2780236252848196
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.427662299128903
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.163884996186656
+     }
+    }
+   },
+   {
+    "cell": "cc40s19540__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12332097011444038,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 120,
+    "occupation_server_mean_pct": 0.9444330961264226,
+    "occupation_server_used_mean_pct": 0.9444330961264226,
+    "occupation_server_max_pct": 8.911561927426362,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.29274768687523256
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.12154594649396477
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.24462210156604924
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.086145176198293
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.34444298031856
+     }
+    }
+   },
+   {
+    "cell": "cc40s19540__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11589274072301682,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 112,
+    "occupation_server_mean_pct": 0.8875452393704372,
+    "occupation_server_used_mean_pct": 0.9509413278968969,
+    "occupation_server_max_pct": 8.518357736171865,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.35735379464575523
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.040771791323302775
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.29496887221039003
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.651626598068006
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.7813600548664645
+     }
+    }
+   },
+   {
+    "cell": "cc40s19541__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12253306722701823,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 99,
+    "occupation_server_mean_pct": 0.938399073180248,
+    "occupation_server_used_mean_pct": 1.137453422036664,
+    "occupation_server_max_pct": 11.224423285169024,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2221551945807061
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.013310405889498611
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.45416982484109747
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.53384911191381
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.633381568922429
+     }
+    }
+   },
+   {
+    "cell": "cc40s19541__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.13235675128290084,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 108,
+    "occupation_server_mean_pct": 1.0136321202415488,
+    "occupation_server_used_mean_pct": 1.1262579113794988,
+    "occupation_server_max_pct": 9.169459477185555,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.19682944373611022
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.05567090285024223
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.432246937884857
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.179730930873696
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.147262314533602
+     }
+    }
+   },
+   {
+    "cell": "cc40s19541__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11728247677449555,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 118,
+    "occupation_server_mean_pct": 0.8981883012980117,
+    "occupation_server_used_mean_pct": 0.9134118318284865,
+    "occupation_server_max_pct": 8.60676917415077,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2144618375812204
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.13979653935731617
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.24909280878479434
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.764688168908155
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.941745885273182
+     }
+    }
+   },
+   {
+    "cell": "cc40s19541__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12757683006388293,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 106,
+    "occupation_server_mean_pct": 0.9770258902392368,
+    "occupation_server_used_mean_pct": 1.106067045553853,
+    "occupation_server_max_pct": 10.500611569126931,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2084422215402224
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.059737981953536856
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.4050433826358413
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.1307670954870215
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.836880047660431
+     }
+    }
+   },
+   {
+    "cell": "cc40s19542__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.10549477464769286,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 103,
+    "occupation_server_mean_pct": 0.8079141491769145,
+    "occupation_server_used_mean_pct": 0.9412592029245606,
+    "occupation_server_max_pct": 6.548238367506016,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.4466101408750358
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.07416410438978538
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.34304230623427934
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.3015073446157697
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.329599884729536
+     }
+    }
+   },
+   {
+    "cell": "cc40s19542__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11332211052542594,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 110,
+    "occupation_server_mean_pct": 0.8678584964405537,
+    "occupation_server_used_mean_pct": 0.9467547233896949,
+    "occupation_server_max_pct": 7.246087852385088,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.3756321906957236
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.05554281144582651
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.27517810803298426
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.121865654422841
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.09678349144256
+     }
+    }
+   },
+   {
+    "cell": "cc40s19542__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.10948234270382705,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 116,
+    "occupation_server_mean_pct": 0.8384522745401422,
+    "occupation_server_used_mean_pct": 0.8673644219380781,
+    "occupation_server_max_pct": 7.2648256575812695,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.40719472640478216
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.11054572221949366
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2705018583345007
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.947449950209357
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.615941685934013
+     }
+    }
+   },
+   {
+    "cell": "cc40s19542__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.1210285382079911,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 114,
+    "occupation_server_mean_pct": 0.9268768884428652,
+    "occupation_server_used_mean_pct": 0.975659882571437,
+    "occupation_server_max_pct": 7.737360406094751,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.42483481800553236
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.03183639338219457
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.21824199053281013
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.0827922038984426
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.522244806947743
+     }
+    }
+   },
+   {
+    "cell": "cc40s19543__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11849190413040471,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 103,
+    "occupation_server_mean_pct": 0.9074504991320161,
+    "occupation_server_used_mean_pct": 1.0572238824839022,
+    "occupation_server_max_pct": 7.645981286947887,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.24988505175588926
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.025560000272188965
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.36169046447142317
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.466936994555523
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.8991717238086885
+     }
+    }
+   },
+   {
+    "cell": "cc40s19543__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.1282808520326957,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 102,
+    "occupation_server_mean_pct": 0.9824175251503946,
+    "occupation_server_used_mean_pct": 1.1557853237063467,
+    "occupation_server_max_pct": 8.56399180158877,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.24512252927721256
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.04588275994503732
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.31190650788303276
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.518164739385558
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.294192505748738
+     }
+    }
+   },
+   {
+    "cell": "cc40s19543__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11587931834789558,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 118,
+    "occupation_server_mean_pct": 0.8874424463476337,
+    "occupation_server_used_mean_pct": 0.9024838437433562,
+    "occupation_server_max_pct": 7.514198106564848,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.24502580777601324
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.15008425617075005
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.22030674111319848
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.235706046943976
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.468113886905927
+     }
+    }
+   },
+   {
+    "cell": "cc40s19543__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12569613296177057,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 100,
+    "occupation_server_mean_pct": 0.9626228849322264,
+    "occupation_server_used_mean_pct": 1.1551474619186717,
+    "occupation_server_max_pct": 8.42397778427248,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.22801180536168886
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.026344656961423407
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.26261258678053645
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.796815965891129
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 7.208236180640592
+     }
+    }
+   },
+   {
+    "cell": "cc40s19544__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.13339990720861372,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 101,
+    "occupation_server_mean_pct": 1.0216209560393001,
+    "occupation_server_used_mean_pct": 1.2138070764823368,
+    "occupation_server_max_pct": 8.27952406461307,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.36553045018931485
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.022989134477511275
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.41799434803170743
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.013506871975649
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.509365696260833
+     }
+    }
+   },
+   {
+    "cell": "cc40s19544__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.13984385216711565,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 98,
+    "occupation_server_mean_pct": 1.0709708345131608,
+    "occupation_server_used_mean_pct": 1.3113928585875438,
+    "occupation_server_max_pct": 9.045563507324403,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.3785900037872949
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.017939670143779285
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.25487340221818133
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 6.3215480463298235
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 7.253678569259726
+     }
+    }
+   },
+   {
+    "cell": "cc40s19544__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.1278772882211992,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 116,
+    "occupation_server_mean_pct": 0.9793268989606838,
+    "occupation_server_used_mean_pct": 1.0130967920282936,
+    "occupation_server_max_pct": 7.874367035500313,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.36422955718003536
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.16557086404554244
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2870292628523541
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.4188611407854435
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.948295227443776
+     }
+    }
+   },
+   {
+    "cell": "cc40s19544__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12807457350178592,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 111,
+    "occupation_server_mean_pct": 0.9808377754011772,
+    "occupation_server_used_mean_pct": 1.0603651625958672,
+    "occupation_server_max_pct": 8.955323538638027,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.3935974923751431
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.03745822602258597
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.28620152699360446
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.441600211662127
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 7.437923806941209
+     }
+    }
+   },
+   {
+    "cell": "cc40s19545__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.09583699169189515,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 99,
+    "occupation_server_mean_pct": 0.7339516280404303,
+    "occupation_server_used_mean_pct": 0.8896383370187035,
+    "occupation_server_max_pct": 6.266359724956942,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2952689162657798
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.009825622620626806
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2698199633798113
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.1041349504238784
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.4120083563958
+     }
+    }
+   },
+   {
+    "cell": "cc40s19545__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11381076263094463,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 99,
+    "occupation_server_mean_pct": 0.8716007571486509,
+    "occupation_server_used_mean_pct": 1.0564857662407892,
+    "occupation_server_max_pct": 8.907820872031778,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.33628223352458875
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.02529863718424563
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2736636514932993
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.954640554682705
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.492584808339094
+     }
+    }
+   },
+   {
+    "cell": "cc40s19545__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.10639116839127465,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 118,
+    "occupation_server_mean_pct": 0.8147790312631783,
+    "occupation_server_used_mean_pct": 0.8285888453523848,
+    "occupation_server_max_pct": 7.181830743315487,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.3393193757433366
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.13177015835637418
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.34384990430636386
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 2.907227267745263
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.697258957582667
+     }
+    }
+   },
+   {
+    "cell": "cc40s19545__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.10143800442167752,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 102,
+    "occupation_server_mean_pct": 0.7768460505293471,
+    "occupation_server_used_mean_pct": 0.913936530034526,
+    "occupation_server_max_pct": 7.220121791445848,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.3023341981801
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.023205062068073712
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.21249241186534262
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.687294059598429
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.870302956966642
+     }
+    }
+   },
+   {
+    "cell": "cc40s19546__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.10783921392359856,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 111,
+    "occupation_server_mean_pct": 0.825868646631559,
+    "occupation_server_used_mean_pct": 0.8928309693314151,
+    "occupation_server_max_pct": 9.591214193857809,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.31007051938187224
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.11121312616085444
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.33425991792384147
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.640758551270645
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.318268780786719
+     }
+    }
+   },
+   {
+    "cell": "cc40s19546__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.10881821071770183,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 105,
+    "occupation_server_mean_pct": 0.8333661304130665,
+    "occupation_server_used_mean_pct": 0.9524184347577903,
+    "occupation_server_max_pct": 7.26543694979776,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.25283761845082964
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.08186780854304265
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.36294305280997174
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.2854501294962883
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.731188551596935
+     }
+    }
+   },
+   {
+    "cell": "cc40s19546__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.09765299054364714,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 117,
+    "occupation_server_mean_pct": 0.7478591525800977,
+    "occupation_server_used_mean_pct": 0.7670350282872797,
+    "occupation_server_max_pct": 7.837658934641567,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.29726521073824586
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.14030103459143328
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.237228288153275
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 3.24713571300963
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.214455921361656
+     }
+    }
+   },
+   {
+    "cell": "cc40s19546__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.118907339825983,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 107,
+    "occupation_server_mean_pct": 0.9106320441673199,
+    "occupation_server_used_mean_pct": 1.0212695822437232,
+    "occupation_server_max_pct": 15.218192042282098,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2432691363295998
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.036776419002334304
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.321933201180314
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.9201675219421155
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.773472718786234
+     }
+    }
+   },
+   {
+    "cell": "cc40s19547__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11577662346932047,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 97,
+    "occupation_server_mean_pct": 0.8866559747358792,
+    "occupation_server_used_mean_pct": 1.0968939893639742,
+    "occupation_server_max_pct": 17.57728122737869,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.20426078554691252
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.017440487385581793
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.21289083635582662
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 5.837686652133579
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.485003542968757
+     }
+    }
+   },
+   {
+    "cell": "cc40s19547__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11138905921208193,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 110,
+    "occupation_server_mean_pct": 0.8530545451325275,
+    "occupation_server_used_mean_pct": 0.9306049583263937,
+    "occupation_server_max_pct": 7.3346274408662,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.19583018068930436
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.056576813597375875
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.37806961739516587
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.035225453120601
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.313898349627177
+     }
+    }
+   },
+   {
+    "cell": "cc40s19547__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.09422642431051484,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 116,
+    "occupation_server_mean_pct": 0.7216173661780262,
+    "occupation_server_used_mean_pct": 0.7465007236324408,
+    "occupation_server_max_pct": 8.874827081919051,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.2201073966812448
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.17224992701312214
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2519950192041782
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 2.646899043590267
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.252294190712966
+     }
+    }
+   },
+   {
+    "cell": "cc40s19547__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12376753481745835,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 106,
+    "occupation_server_mean_pct": 0.9478530374770352,
+    "occupation_server_used_mean_pct": 1.073041174502304,
+    "occupation_server_max_pct": 13.498081820722035,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.19469385644558201
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.03555313770673463
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.2764047460253245
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 6.53900917323632
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.130642013444092
+     }
+    }
+   },
+   {
+    "cell": "cc40s19548__g0moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.11758817979911287,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 102,
+    "occupation_server_mean_pct": 0.9005294769615394,
+    "occupation_server_used_mean_pct": 1.059446443484164,
+    "occupation_server_max_pct": 8.447740030348555,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.16310258014637036
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.03920928057035811
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.3104932301847523
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.863050459322965
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 5.841006151194305
+     }
+    }
+   },
+   {
+    "cell": "cc40s19548__g1moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12728436184720276,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 108,
+    "occupation_server_mean_pct": 0.9747860711464946,
+    "occupation_server_used_mean_pct": 1.0830956346072163,
+    "occupation_server_max_pct": 7.410382833151871,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.1755114691648334
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.0791073515906704
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.36291818648062546
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.618904777290698
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.607599922534202
+     }
+    }
+   },
+   {
+    "cell": "cc40s19548__g2moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.12119833534871462,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 117,
+    "occupation_server_mean_pct": 0.9281772515455728,
+    "occupation_server_used_mean_pct": 0.9519766682518696,
+    "occupation_server_max_pct": 9.786392031687257,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.19325588302306507
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.1325398554510122
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.23408024110069148
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 4.9059416417761526
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.420659897774794
+     }
+    }
+   },
+   {
+    "cell": "cc40s19548__g3moderate__cd_ib0_k100_s0",
+    "averageOccupation_key": 0.134581696587583,
+    "n_platforms_all": 919,
+    "n_platforms_server": 120,
+    "n_platforms_server_used": 111,
+    "occupation_server_mean_pct": 1.03067149303324,
+    "occupation_server_used_mean_pct": 1.114239451927827,
+    "occupation_server_max_pct": 10.09861364977435,
+    "by_type_server": {
+     "pynqFpga": {
+      "n": 8,
+      "mean_pct": 0.1593542204251559
+     },
+     "rpiCpu": {
+      "n": 32,
+      "mean_pct": 0.11887684364262707
+     },
+     "xavierCpu": {
+      "n": 64,
+      "mean_pct": 0.3239942616963034
+     },
+     "xavierDla": {
+      "n": 8,
+      "mean_pct": 6.067914318458962
+     },
+     "xavierGpu": {
+      "n": 8,
+      "mean_pct": 6.165342388473544
+     }
+    }
+   }
+  ]
  },
  "cells": [
   {
