@@ -4,6 +4,7 @@
 # (mini-cache, 70 tensors). Each link is a 7-day job (the partition MaxTime); NEAR_RTT_RESUME=1 saves the whole trainer state every epoch; a link killed by the
 # time limit continues from it. The L40S nodes are shared with other users' jobs, so the node is not --exclusive (8 GPUs per node); 8 CPUs for the host-bound decode.
 #   sbatch --export=ALL,T=0,WT=<pinned worktree>,EXPECT_HEAD=<sha>[,PREV=<previous link job id>] uncut_arm2_gpu_train.sbatch
+# Seed extension (2026-10-17): EXT_SEED=<n> replaces the seed T implies (T=0; seeds 11-16).
 #SBATCH --job-name=uarm2-gpu-train
 #SBATCH --output=/share/nikola.lukic/logs/uarm2-gpu-train-%j.out
 #SBATCH --partition=GPU-l40s
@@ -18,7 +19,8 @@ ulimit -n 65536 2>/dev/null || true
 WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}; T=${T:?FAIL LOUD: set T=0 or 2}
 TAG=arm2; ARM=gnn_eng
 [[ "$T" == 0 || "$T" == 2 ]] || { echo "FAIL LOUD: T $T (only the K=2 GNN runs, T=0 seed 1 and T=2 seed 2, are on GPU)"; exit 1; }
-S=$(( T / 2 + 1 ))
+S=${EXT_SEED:-$(( T / 2 + 1 ))}
+[[ "$S" =~ ^[0-9]+$ ]] || { echo "FAIL LOUD: seed $S"; exit 1; }
 # A link starts only if the previous one ended by the time limit (more epochs to run) or finished; anything else (a crash, an OOM, a cancel) stops the
 # chain here, so a crash loop cannot spend a 7-day slot per link.
 if [[ -n "${PREV:-}" ]]; then
