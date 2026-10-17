@@ -911,3 +911,20 @@ def test_comb_kinds_are_w_charged_and_may_be_added_by_a_w_only_pin(tmp_path):
     cells = {("ra_gnn_eng_combf_nosplit", 1, 19537, "g0", "heavy"): {"code": {"commit": w1, "dirty": False}, "_path": "x.summary.json"}}
     with pytest.raises(SystemExit, match="no calibrated w"):
         G.asserts(cells, base, ["ra_gnn_eng_combf_nosplit"], {}, ws)
+
+
+def test_comb_primary_reads_without_a_twin(gate, tmp_path):
+    d, ck, _ = gate
+    k = "ra_gnn_eng_a3lft_nosplit"
+    for t in TOPOS:
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                cell(d, "cd_ib0", 0, t, w, r, 2.0, busy=0.1)
+                cell(d, "cd", 0, t, w, r, 2.0, busy=0.1)
+                for sd in (1, 2):
+                    cell(d, k, sd, t, w, r, 1.8 - 0.001 * t, ck)
+    cm = tmp_path / "ck_comb.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for s in (1, 2)}))
+    res = G.main(["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+                  "--primary", k, "--checkpoint-md5", str(cm), "--cotenancy", "off"])
+    assert res["F2"]["MP"] == G.NO_TWIN_COMB and res["F1"]["tests"][0]["n_topologies"] == 12
