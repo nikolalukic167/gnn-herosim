@@ -36,3 +36,26 @@ def test_unscored_flags_mark_exactly_the_candidates_the_engine_never_scored():
     assert L.unscored_flags(cands, 0, {(1, 0): 1.0, (2, 0): 2.0}) == [0, 0, 0, 1]
     assert L.unscored_flags(cands, 3, {(1, 0): 1.0}) == [1, 0, 1, 0]            # the label is never "unscored"
     assert L.unscored_flags(cands, 0, None) == [0, 0, 0, 0]                    # an undecided task carries no flags
+
+
+class _G:
+    n_tasks = 2
+    task_logit_to_placement = [[(1, 1), (2, 1)], [(3, 1), (4, 1), (5, 1)]]
+    tied_optimal_logit_plans = {"inf": [[0, 0]]}
+
+
+def test_label_indices_follow_the_sidecar_and_fall_back_to_the_cache(monkeypatch):
+    import uncut_replay_diag as R
+
+    monkeypatch.setattr(R, "ALPHA", "inf", raising=False)
+    assert L.label_indices("g", _G(), None) == [0, 0]
+    assert L.label_indices("g", _G(), {"g": {"plans": [[[2, 1], [5, 1]]]}}) == [1, 2]
+
+
+def test_label_indices_fail_loud_on_a_missing_entry_a_wrong_length_or_a_non_candidate():
+    with pytest.raises(RuntimeError, match="no entry"):
+        L.label_indices("g", _G(), {})
+    with pytest.raises(RuntimeError, match="1 tasks"):
+        L.label_indices("g", _G(), {"g": {"plans": [[[2, 1]]]}})
+    with pytest.raises(RuntimeError, match="not a candidate"):
+        L.label_indices("g", _G(), {"g": {"plans": [[[2, 1], [9, 9]]]}})
