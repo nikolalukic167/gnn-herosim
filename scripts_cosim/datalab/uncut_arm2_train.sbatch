@@ -4,6 +4,8 @@
 # CPU-amd, one run per node (--exclusive), 6 threads, 0 workers. Each link is a 7-day job (the partition MaxTime); NEAR_RTT_RESUME=1 makes the trainer
 # save its whole state every epoch and continue from it, so a link killed by the time limit loses at most one epoch.
 #   sbatch --export=ALL,TAG=arm2,T=0,WT=<pinned worktree>,EXPECT_HEAD=<sha>[,PREV=<previous link job id>] uncut_arm2_train.sbatch
+# Seed extension (2026-10-17): EXT_SEED=<n> replaces the seed T implies (T still picks the arm); the extension submits with
+#   sbatch --cpus-per-task=12 --mem=150G --oversubscribe ... (one run per 12-CPU slot, as Arm 3's wave 1), set on the command line.
 #SBATCH --job-name=uarm2-train
 #SBATCH --output=/share/nikola.lukic/logs/uarm2-train-%j.out
 #SBATCH --partition=CPU-amd
@@ -18,7 +20,8 @@ WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HE
 T=${T:?FAIL LOUD: set T=0..3}
 [[ "$TAG" == arm2 || "$TAG" == arm2k0 ]] || { echo "FAIL LOUD: TAG $TAG"; exit 1; }
 ARM=$(python3 -c "import sys; print(('gnn_eng', 'twin_eng')[int(sys.argv[1]) % 2])" "$T") || { echo "FAIL LOUD: T $T"; exit 1; }
-S=$(( T / 2 + 1 ))
+S=${EXT_SEED:-$(( T / 2 + 1 ))}
+[[ "$S" =~ ^[0-9]+$ ]] || { echo "FAIL LOUD: seed $S"; exit 1; }
 # A link starts only if the previous one ended by the time limit (more epochs to run) or finished; anything else (a crash, an OOM, a cancel) stops the
 # chain here, so a crash loop cannot spend a 7-day slot per link.
 if [[ -n "${PREV:-}" ]]; then
