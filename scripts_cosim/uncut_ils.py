@@ -38,6 +38,7 @@ if str(REPO) not in sys.path:
 
 CAP = 256
 EPS = 1e-9
+ENUM_KEEP = 600        # label screen: the plans of a fully enumerated product that `_search_at_decision(enum_cap=...)` returns, ranked by S
 BUCKETS = (("11_50", 11, 50), ("51_100", 51, 100), ("101_226", 101, 226))
 BUCKET_ALIAS = {"gt100": "101_226"}           # the sealed file names the top bucket gt100
 
@@ -316,7 +317,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
             res.update(out)
         if set(local_of) <= {int(t.id) for t in batch_tasks} and "out" not in seen:
             seen["out"] = _search_at_decision(self, batch_tasks, system_state, res, local_of, set(fr.queued_forced), seed, max_evals, per, max_seconds,
-                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")), job.get("rank_plans"), bool(job.get("zero_move")))
+                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")), job.get("rank_plans"), bool(job.get("zero_move")), int(job.get("enum_cap") or 0))
             raise _Done(seen["out"])
         return res
 
@@ -350,7 +351,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     return out
 
 
-def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False, rank_plans=None, zero_move=False) -> Dict[str, Any]:
+def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False, rank_plans=None, zero_move=False, enum_cap=0) -> Dict[str, Any]:
     """Runs inside the decision: res[i] = (node id, platform id) of batch_tasks[i] under the hand arm."""
     placements = {i: (int(res[i][0]), int(res[i][1])) for i in range(len(batch_tasks))}
     cands_o, couple, keys, plan_o, pinned = sched._pg_plan_objects(batch_tasks, system_state, placements)
@@ -405,6 +406,12 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
                     if best_e is None or v < best_e - EPS:
                         best_e, argm = v, plan
                 exh = {"plans": total, "s_opt": best_e, "ils_gap": r["best_S"] - best_e, "argmin": argm}
+        enum = None
+        if enum_cap:            # label screen: every plan of the product (when it fits enum_cap) ranked by S, ties by enumeration order; the first ENUM_KEEP are returned
+            from itertools import product as _prod
+
+            if math.prod(len(c) for c in ckeys) <= enum_cap:
+                enum = sorted(((S(plan), k, plan) for k, plan in enumerate(_prod(*ckeys))), key=lambda x: (x[0], x[1]))[:ENUM_KEEP]
         order_ = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
         ranks = None
         if rank_plans:          # the standalone-cost rank (the declared slate's order, top-5 = the slate) of each task's placement in the given plans (snapshot batch order)
@@ -425,6 +432,7 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
             "hand": to_batch(start), "start_S": r["start_S"], "best": to_batch(r["best"]), "best_S": r["best_S"], "n_evals": r["n_evals"], "budget": budget,
             "stopped": r["stopped"], "iters": r["iters"], "s_calls": ils_calls, "search_wall": wall_s, "exhaustive": exh,
             "slate_log10": slate_log10, "exact_cap_hit": exact_cap_hit, "ranks": ranks,
+            "enum": None if enum is None else [{"S": v, "k": k, "plan": to_batch(pl)} for v, k, pl in enum],
             "zero_move": None if zmove is None else {"task": [k for k, (_b, i) in enumerate(order) if i == zmove[0]][0], "to": list(zmove[1]),
                                                      "plan": to_batch(start[:zmove[0]] + (zmove[1],) + start[zmove[0] + 1:])},
             "trajectory": [{"eval": t["eval"], "S": t["S"], "iter": t["iter"], "plan": to_batch(t["plan"])} for t in r["trajectory"]],
