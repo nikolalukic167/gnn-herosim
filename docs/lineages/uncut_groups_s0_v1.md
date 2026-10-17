@@ -301,6 +301,85 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Seed extension (B6, post-look): REGISTERED, signed by the expert as drafted at `1d609e82`, before any new seed trained.** (S6; the user via the expert: "run more seeds. It addresses points 2 and 5 together and turns your 'direction only' findings into either claims or clean negatives".)
+  - **Sign-off rulings.**
+    - (1) S = 8 (Phase 1) and S = 6 (Phase 2), seeds 11–18, and the 1 % CLEAN-NEGATIVE margin, labelled post-look, are accepted as written.
+    - (2) E4b is admitted: Arm 1 gnn trains seeds 11–16 at Arm 1's own pin and config, and **E4 is k = 4**.
+    - (3) Phase 2 launches now, alongside Phase 1, with the total queue ≤ 44 jobs (K0 CPU jobs staggered in if needed) and Arm 2 gnn on L40S.
+    - (4) (c) stays UNRESOLVED as drafted; the expert takes the topology extension to the user.
+    - Split: S7 trains the Arm 1b gnn and twin. S6 trains the Arm 3 gnn and twin, runs the Arm 3 twin calibration and makes the reader `--seeds` change, with B3 byte-identity on every filed read.
+    - Merges wait for the user, so training and gating run from this branch's pins.
+    - The draft text below is the registration, unchanged.
+  - **Post-look.**
+    - This extension is designed after every final read: Arm 1, 1b, 2, K0 and 3, both verdicts, the attribution contrasts, the linearity check and felt F_L.
+    - The filed verdicts stay as filed.
+    - The extension is its own families, read on the new seeds only, with no share of the program α. Beside each test goes a pooled descriptive line (seeds 1, 2 and the new seeds; no label).
+  - **Power estimate** (`seed_ext/power2.py`, md5 592dc698; output `seed_ext/power2.json`, md5 8ba221be; job 883375).
+    - For each contrast and topology, the filed `_k100` cells give the reader's statistic per seed. The spread splits into topology × arm variance (σ_T) and one-seed variance (σ_S).
+    - The model per topology is μ + N(0, σ_T²) + N(0, σ_S²/S) for S new seeds. It simulates the exact Wilcoxon at p < .05/k (Bonferroni, conservative against Holm) and the bound below.
+    - Both σ come from two seeds × 12 topologies, so they are rough; σ_T is floored at 0 where it came out negative.
+    - Power to claim at the observed mean / probability of a clean negative if the true effect is 0, n = 12:
+
+    | question | contrast | σ_T / σ_S | S = 2 | S = 6 | S = 8 |
+    |---|---|---|---|---|---|
+    | (a) | Arm 3 − Arm 1b gnn, moderate whole / after-360 | 0.9 / 1.4; 1.6 / 1.2 | .99 / .97 | 1.0 / .98 | 1.0 / .99 |
+    | (a) | same, heavy whole / after-360 (clean negative) | 0 / 4.4; 0 / 8.5 | .12 / .05 | .27 / .11 | .36 / .12 |
+    | (b) | Arm 1b gnn − twin, moderate whole / after-360 (clean negative) | 0 / 1.7; 0 / 1.6 | .56 / .59 | .94 / .96 | .98 / .98 |
+    | (b) | same, heavy whole / after-360 (clean negative) | 2.2 / 1.9; 3.8 / 5.3 | .15 / .05 | .19 / .06 | .18 / .09 |
+    | (c) | heavy vs `cd_ib0`: Arm 3, Arm 1b, K0 whole | 4.6–5.3 / 2.5–3.5 | ≤ .06 | ≤ .06 | ≤ .07 |
+    | (c) | same, after-360 | 7.2–7.9 / 4.0–5.2 | .14 / .16 / .62 | .17 / .17 / .66 | .16 / .20 / .69 |
+    | (d) | Arm 2 − K0 gnn, heavy whole / after-360 (K0 faster) | 0 / 5.3; 0 / 10.8 | .42 / .35 | .94 / .89 | .97 / .97 |
+    | (d) | K0 − Arm 1 gnn, heavy after-360 | 3.9 / 7.8 | .34 | .58 | .64 |
+
+  - **What seeds can and cannot do.**
+    - (a) at moderate load is a claim already at S = 2.
+    - (b) at moderate load becomes a clean negative at S = 6–8.
+    - (d) Arm 2 vs K0 becomes a claim at S = 6–8.
+    - (c) is dominated by σ_T: the heavy effect differs between topologies, not between seeds. No seed count moves it; it stays UNRESOLVED on these 12 topologies.
+      - At S = 2, about 36–48 topologies would give .70–.89 power on after-360. Whole run stays ≤ .45 at 48.
+      - That needs new hand bar cells and is outside this extension, which keeps the same 12 topologies.
+    - The (a) and (b) heavy rows are expected UNRESOLVED as well.
+  - **Seeds and arms.** New seed ids **11–18**, disjoint from seeds 1 and 2, the only seeds any `uncut-*` checkpoint carries, and from the hand cells' seed 0.
+    - **Phase 1 (S = 8, seeds 11–18):** Arm 3 gnn (λ 2.0) and its new MP-OFF twin (`experiments/uncut_arm3_twin_eng_l2p0.yaml`: the Arm 1b twin config plus the three Arm 3 lambda lines; served as the G6 kind `ra_twin_eng_arm3`), Arm 1b gnn and the Arm 1b twin.
+    - **Phase 2 (S = 6, seeds 11–16):** K0 gnn and Arm 2 gnn. Arm 1 gnn joins only if the expert admits the K0 − Arm 1 test (E4b); without it that half of (d) stays descriptive, because Arm 1 has no new seeds.
+    - No new K0 or Arm 2 twins and no MLPs.
+  - **Recipe.**
+    - Each run trains at its arm's original training pin and config, via `run_experiment.py --seed N`, device as originally: Arm 2 gnn on L40S, everything else CPU with 6 threads.
+      - Arm 3 twin: a config-only commit on Arm 3's pin `32f1c6cd`.
+    - Epoch cap 100, `-final.pt` served, W&B for every run, `tests/test_trainer_determinism.py` at each pin before training, and every `.pt` travels with its `.contract.json`.
+    - New md5 files: `experiments/uncut_<arm>_ext_ckpt_md5.json`.
+  - **Gate.**
+    - The same 12 topologies 19537–19548 × g0–g3 × moderate / heavy, the same SELECT, split and slate, and the 869828 bar.
+    - `_k100` and `_kr` cells, at each kind's frozen-w pin: Arm 1b W2b `59798c41`, Arm 3 `1847a484`, Arm 2 / K0 W-A2k `60fee04d`.
+    - The frozen w is per kind and is reused for the new seeds.
+    - The Arm 3 twin needs its own w: a venue series (exclusive pair, H3 drift rule 2 %) and a w-only pin on `1847a484`.
+  - **Read.**
+    - The existing reader gains `--seeds` (default `1,2`). B3 check: every filed read reproduces byte-identically through the changed reader.
+    - Each extension test is the reader's statistic exactly:
+      - cell = mean over the new seeds;
+      - topology = median over the 4 windows of the paired %;
+      - exact two-sided Wilcoxon over the 12 topologies;
+      - frozen and co-tenancy verdicts, combined = the weaker, as filed.
+  - **Families (Holm within each, new seeds only).**
+    - **E1 (a):** Arm 3 gnn vs Arm 1b gnn, 2 rungs × 2 statistics, k = 4.
+    - **E2 (b):** gnn vs twin for Arm 3 and Arm 1b, k = 8.
+    - **E3 (c):** heavy whole and heavy after-360 vs `cd_ib0` for Arm 3, Arm 1b and K0, k = 6.
+    - **E4 (d):** Arm 2 gnn vs K0 gnn at heavy (2 tests); with Arm 1 admitted, also K0 gnn vs Arm 1 gnn at heavy, k = 4 (else k = 2).
+  - **Labels per test.** The claimed direction is "first arm faster", except E4's Arm 2 − K0, where K0 is the faster.
+    - **CLAIM:** Holm p < .05 and median in the claimed direction.
+    - **REVERSED:** Holm p < .05, median against the claimed direction.
+    - **CLEAN-NEGATIVE:** neither of the above, and the sign-test 95 % interval for the median over the 12 topologies, [x(3), x(10)] (coverage 96.1 %), excludes a claimed-direction effect of 1 % or more. 1 % is the reader's per-seed line, below the 2 % WIN line, and is chosen post-look.
+    - **UNRESOLVED:** otherwise.
+    - A rung's finding is a claim (or clean negative) only if both of its statistics are, under the combined verdict.
+  - **Cost (estimate).**
+    - Phase 1: 32 runs × about 12 h × 12 CPUs ≈ 4.6 k CPU-h, one wave of about 14 h on 8 nodes.
+    - Phase 2:
+      - K0 gnn: 6 × about 66 h ≈ 4.8 k CPU-h at 12 CPUs each;
+      - Arm 2 gnn: 6 × about 72 L40S-h ≈ 430 GPU-h;
+      - (Arm 1 gnn: 6 × about 16 h ≈ 1.1 k CPU-h);
+      - wall about 3 days.
+    - Cells: about 9,600 (both charges) ≈ 1.3 k core-h, about 3 h of wall per phase on 8 nodes.
+    - Arm 3 twin calibration: about 15 min on 2 nodes.
 - 2026-10-17 — **Amendment, filed before any cell: three descriptive reference baselines (random, Knative-style reactive, HEFT-style list scheduler) on the final live table** (the user's request, relayed by the expert: "We need at least random, a Knative-style reactive scheduler and a HEFT-style list scheduler, since we cite HEFT but don't compare against it."; S4). **They are reference rows. They are not a new F1 family, join no Holm family, take no program alpha, carry no WIN/LOSS label and change no filed verdict.** **Arms.** (1) `random`: the gate kind `random` (`random_network`, a uniformly random eligible replica per arrival), existing, seeds 1 and 2. (2) `reactive`: the gate kind `reactive` (`knative_network`, the Knative-style reactive scheduler), existing, seed 0. (3) `heft`: NEW gate kind `heft` (`src/policy/heft_network/scheduler.py`, policy `heft_network_batch`, registered in `simulation.py`, `model.py` and `executesimulation.py`; `RULE_POLICY['heft']`, in `R1A_DIAG` so the default grid is untouched), seed 0. **HEFT-style, as built.** A subclass of the registered batched greedy (`peer_greedy_network_batch`), served on the same stack (peer-group batching, masked_topo path, no model). Phase 1: upward rank over the batch, `rank_u(i) = mean_exec(i) + max_j (mean_comm(i, j) + rank_u(j))` with `mean_exec` the mean of the execution-time table over the task's candidate platforms, successors = batch tasks with a larger id that are i's exchange partner or have i in their dependencies (ids follow the workload's topological order), `mean_comm` the mean transfer time plus link latency of the pair's exchange payload over at most 8 sender nodes x 8 receiver platforms (the first by node name). Phase 2: tasks placed in decreasing rank (ties by id), each on the eligible replica of least finish time, which is the registered scorer S unchanged (queue drain including the service already committed in this batch, + cold start + execution + ingress latency + exchange to the partners already placed). **That scorer is what `batched` already uses, so HEFT differs from `batched` in the placement ORDER only**; no refine pass, no search, no learned part. Disclosed limits: the ranking is an estimate over a bounded node sample; a group with no exchange partners and no dependencies is ordered by mean execution time (longest first). **Decision time.** `random` and `reactive` meter no plan evaluations, so no decision time is charged to them (they run as the plain kinds, no k suffix). `heft` is charged as the hand rules are: k = 1 (`_k100`) x its frozen w in ms per metered evaluation, where every candidate score and every transfer-time evaluation of the ranking is one evaluation; w is measured on the exclusive SMT-off EPYC 9335 pair os-cpu-slurm-9 / 10 in the hand/learned calibration recipe (19461 g0, both rungs, k = 0, seed 0, PAR 1, 1 thread), as a series H3pre -> heft -> H3end with the 2 % drift stop, and enters a w-only commit on the code commit; scalar w unless a served-batch bucket exceeds 1.5x the le10 rate, then by bucket (the rule of the w(n) freeze). **Cells.** The same 12 gate topologies 19537-19548 x windows g0-g3 x moderate / heavy as the bar `cd_ib0_k100` (the 869828 cells at `d6ae87c2`, run on os-cpu-slurm-6 with SMT on): 96 cells for `reactive`, 96 for `heft`, 192 for `random` (2 seeds). The new cells run on CPU-amd with SMT off (the bar's venue is not matched; the simulated latency does not depend on the host except through w, which is frozen for `heft` and absent for the other two; the proofs of sim-identity of hand cells across pins stand). **Statistic:** per topology the median over windows of 100 (arm - bar) / bar with the arm's cell mean the mean over its seeds, whole run and after 360 s, then the median over topologies, the mean, and wins (topologies ahead of the bar) of 12, computed with the frozen reader's `contrast` (557d84bf), as the interim reads do. **Smoke on the study's own artifacts, before the cells:** `heft` and `batched` on topology 19461 g0 (the calibration topology), both rungs, k = 0: the cells complete, the batch counters are non-zero, the placement differs from `batched`'s on at least one batch (else the ranking is inert) and the plan-eval count per decision is reported. **Proofs with this commit:** unit tests (`tests/test_heft_network.py`, 8: rank math, order, no refine, metering, registration, gate kind), gate/stage/hygiene suites passing, and the gate-listing proof (`uncut_gate_listing_proof.py`, `7e92557f`) with the new kind removed, at `16dc0b8d` and at this commit: R1A_ARMS, RA_KINDS, RA_MP_OFF and R1A_NOSPLIT identical, the default grid (2,496 cells) and every existing listing identical; the only differing text is the list of allowed arms inside three fail-loud error messages, which now names `heft`. The 57 `accel_replica_v1` test ids are not used. B6 does not apply (no learned arm, no label).
 - 2026-10-17 — **Arm 2 and K0 co-tenancy verdict (Note B, node:931; SCIENTIST's paper audit item 2): both stay F1 MIXED, MP NOT-SEPARATED with `--cotenancy required`. K0 keeps 3 of 4 Holm-significant under co-tenancy** (S6). Gate read. The lineage stays open while the user decides on the next arm.
   - **Identity.**
