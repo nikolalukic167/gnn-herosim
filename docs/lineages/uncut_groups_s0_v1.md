@@ -301,6 +301,27 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Final-read linearity check for Arm 1 and Arm 1b (registered check (2)): no queueing amplification; per-cell linearity cannot be resolved because per-cell scatter is several times larger than the predicted shift** (S6). Descriptive. It changes no verdict. The lineage stays open while the user decides on the next arm.
+  - **Method.** For each frozen-w cell (`_k100`) and its co-tenancy twin (`_kr`, k 1.468), same arm, seed, topology, window and rung:
+    - observed = 100 (mean_kr − mean_k100) / mean_k100 (whole-run averageElapsedTime);
+    - predicted = (k − 1) × F_L = 0.468 × F_L, with F_L the `_k100` cell's felt charge share at the pin's frozen w. F_L comes from `uncut_interim_share.cell` (tool 5c8c959e, md5 f0229b97, default one-plan-per-task path).
+    - Cells: the final-read cells of 883168–883173. Pins: Arm 1 `b3ec1fdc`, Arm 1b `59798c41`. 96 cells per arm and rung.
+    - File `uncut_groups_s0_v1/final_reads/linearity_kr_arm1_arm1b.json`, md5 11f5f81335e84c44ca2f50dc73983b1a.
+  - **Result**, moderate / heavy:
+
+    | arm | observed median (IQR) | predicted median | observed mean | median observed ÷ predicted |
+    |---|---|---|---|---|
+    | Arm 1 gnn | +0.11 % (−1.7..+1.9) / −0.50 % (−3.2..+2.9) | 0.46 / 0.58 % | −0.05 / −0.13 % | 0.24 / −0.78 |
+    | Arm 1 twin | +0.70 % (−1.0..+2.3) / +0.03 % (−2.9..+3.1) | 0.39 / 0.52 % | +0.68 / +0.72 % | 1.85 / 0.07 |
+    | Arm 1 mlp | −0.20 % (−2.0..+1.4) / +0.41 % (−3.1..+3.6) | 0.37 / 0.48 % | −0.14 / +0.12 % | −0.52 / 0.92 |
+    | Arm 1b gnn | −0.03 % (−1.4..+1.7) / +0.62 % (−2.1..+3.4) | 0.46 / 0.58 % | +0.21 / +0.91 % | −0.06 / 1.09 |
+    | Arm 1b twin | +0.21 % (−1.8..+2.2) / +0.99 % (−2.3..+4.1) | 0.40 / 0.51 % | +0.27 / +1.29 % | 0.51 / 2.09 |
+    | Arm 1b mlp | −0.03 % (−1.6..+1.7) / −0.75 % (−3.2..+2.8) | 0.36 / 0.51 % | +0.15 / +0.04 % | −0.09 / −1.45 |
+
+  - **Reading.**
+    - The registered failure is a `_kr` − frozen-w difference many times larger than predicted, meaning queueing amplifies the charge. It does not occur: no arm's median or mean difference exceeds about 2.5× its prediction, and most are at or below it.
+    - Each cell's difference has an IQR of about ±2–3 %, against a predicted shift of about 0.4–0.6 %. Only 5–12 % of cells fall within 0.5–2× of their prediction, and the per-cell sign is often negative. A 1.468× charge changes the simulated trajectory, so the paired cells diverge. Linearity at the cell level is therefore not resolvable on these cells.
+    - The co-tenancy verdicts of both reads (MIXED, as the frozen-w verdicts) stand.
 - 2026-10-17 — **FINAL READS, Arm 2 (registered) and K0 (reported after it, ruling 2): both F1 MIXED; MP-NOT-SEPARATED in both; the attribution contrasts are direction-only; the final read files are committed** (S6). Interim looks preceded these reads. The verdicts are computed on the final cells only.
   - **Cells:** jobs 883174 (Arm 2, os-cpu-slurm-23) and 883175 (K0, os-cpu-slurm-24) at `742eaf97` (`rp/uncut-w-arm2`: G4 → W-A2 bd2ed080 → the Arm 2 gnn pin 742eaf97). 384 cells each: gnn and twin `_k100`, the 869828 set, EPYC 9335, SMT off, PAR 60, 1 thread. 0 failed, 0 kills, 0 collapses.
   - **Reader:** `uncut_arm_gate_read.py` at reference-physics `7af86191` (md5 d60406b7, carrying the B3 change 7d3ea1bf). Arguments: `--pin d6ae87c2 --gate-change bf79865a,e8c87702,114cc0e7,69354280 --w-pins bd2ed080,742eaf97 --cotenancy off`, and each arm's own md5 file. **No `_kr` kinds:** Arm 2 and K0 have no co-tenancy cells (W-A2 carries no k), so the reader's cotenancy field reads "OFF (not the gate read)". This is the gate read with no co-tenancy verdict.
@@ -347,7 +368,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     | `read_k0_7af86191.json` | 1f5b4bf6b9a48bab1ee1b53ba9a2e8a1 |
     | `attribution_contrasts_arm2_k0_arm1.json` | 8f423e7c77a0dfd9b92154cf28f2d445 |
 
-  - **Not yet filed:** the per-cell `_kr` − frozen-w linearity check (0.468 · F_L) for Arm 1 and 1b.
+  - The per-cell `_kr` − frozen-w linearity check for Arm 1 and 1b is filed in its own entry (2026-10-17, above).
 - 2026-10-17 — **FINAL READS, Arm 1 and Arm 1b: both F1 MIXED (frozen and co-tenancy); MP-NOT-SEPARATED in both; MODEL-CLASS-NOT-SEPARATED (Arm 1), MODEL-CLASS-DIRECTION (Arm 1b)** (the registered reads; S6). Interim looks preceded these reads (the interim-looks log, rows 1–13). Every verdict below is computed on the final cells only, by the pre-interim rule.
   - **Cells** (fresh, the 869828 set: 19537–19548 × g0–g3 × moderate/heavy × seeds 1, 2). All ran on CPU-amd, AMD EPYC 9335, SMT off, nproc 64, `--exclusive`, one node per job, PAR 60, 1 thread, CELL_MEM 16G, `r1a_gate.sbatch` at each pin. Node split agreed with S4 (lever cells on other nodes).
     - **Arm 1** at W2 `b3ec1fdc`: jobs 883168–883170 (os-cpu-slurm-13/14/15), 1,152 cells. gnn, twin and mlp, each `_k100` and `_kr`.
