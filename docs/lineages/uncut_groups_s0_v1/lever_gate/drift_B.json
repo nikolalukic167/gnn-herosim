@@ -1,0 +1,19 @@
+{
+ "arm": "cd_ib0",
+ "start": "/share/nikola.lukic/uncut_groups/cotenancy/smt_series3_arm3/H3pre_B",
+ "end": "/share/nikola.lukic/uncut_groups/cotenancy/smt_series3_arm3/H3end_B",
+ "rungs": {
+  "heavy": {
+   "w_start": 0.007301840858588015,
+   "w_end": 0.007349500829649558,
+   "drift": 0.006527117200245236
+  },
+  "moderate": {
+   "w_start": 0.007904911291388246,
+   "w_end": 0.007892503641097299,
+   "drift": -0.001569612843658863
+  }
+ },
+ "verdict": "OK",
+ "w_file": "/home/nikola.lukic/gnn-herosim-wt/s6_tools_0442c1cf/scripts_cosim/decision_cost_w.json"
+}
