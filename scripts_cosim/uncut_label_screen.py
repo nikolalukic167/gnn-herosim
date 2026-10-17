@@ -220,7 +220,9 @@ def replay_state(corpus: str, s: Dict[str, Any]) -> Dict[str, Any]:
     if abs(rt[0] - stored_rtt) > REL_TOL * abs(stored_rtt):
         raise SystemExit(f"FAIL LOUD: {s['gid']}: the current label's replayed RTT {rt[0]!r} is not the stored {stored_rtt!r}")
     dec = decide(rt)
+    method = "exhaustive" if small else ("top8_ils" if ils_rows else "top8_enum")
     return {"gid": s["gid"], "bucket": s["bucket"], "n_tasks": n, "small": small, "label_source": head["label_source"], "n_plans": len(plans),
+            "method": method, "label_plan": plans[dec["best_index"]]["plan"], "current_plan": plans[0]["plan"],
             "rtt_label": rt[0], "stored_label_rtt": stored_rtt, "rtt_sim": rt[dec["best_index"]], "best_tag": plans[dec["best_index"]]["tag"], **dec,
             "tags": [p["tag"] for p in plans], "rtts": rt, "plans": [p["plan"] for p in plans] if not small else None,
             "replay_setup_s": setup, "wall_s": time.time() - t0}
@@ -265,6 +267,82 @@ def cmd_read(a):
         json.dump(res, open(a.out, "w"), indent=1)
 
 
+# ---- the relabel: the screen's method over every corpus state, written as a sidecar --------------------------------------------------------
+RELABEL_VERSION = "uncut_relabel/1"
+
+
+def all_states(split_path: str, corpus: str) -> List[Dict[str, Any]]:
+    """Every dataset of the corpus (train + val + the split's test placeholders), each with its split, sorted by dataset id."""
+    sp = json.load(open(split_path))
+    out = []
+    for key, name in (("train", "train"), ("val", "val"), ("test", "test_placeholder")):
+        for gid in sp[key]:
+            head, _ = _stored_rows(_dataset_dir(corpus, gid))
+            n = int(head["n_tasks"])
+            ps = head.get("plan_space_size")
+            out.append({"gid": gid, "split": name, "bucket": bucket_of(n), "small": ps is not None and int(ps) <= SMALL_PLAN_SPACE})
+    ids = [o["gid"] for o in out]
+    if len(set(ids)) != len(ids):
+        raise SystemExit("FAIL LOUD: a dataset id is in more than one split key")
+    if len(out) != int(sp["n_parents"]):
+        raise SystemExit(f"FAIL LOUD: the split names {len(out)} datasets, n_parents is {sp['n_parents']}")
+    return sorted(out, key=lambda o: o["gid"])
+
+
+def sidecar_entry(r: Dict[str, Any], split: str) -> Dict[str, Any]:
+    """One sidecar entry. `plans` and `cd_rtt` are the keys the trainer's NEAR_RTT_LABEL_OVERRIDE_JSON path reads (plan per dataset task as [node, platform], the label's replayed
+    RTT); the rest is provenance."""
+    return {"plans": [r["label_plan"]], "cd_rtt": r["rtt_sim"], "split": split, "bucket": r["bucket"], "n_tasks": r["n_tasks"], "method": r["method"],
+            "current_label_source": r["label_source"], "differs": r["differs"], "gain": r["gain"], "rtt_current": r["rtt_label"], "rtt_sim": r["rtt_sim"],
+            "n_plans_replayed": r["n_plans"], "current_plan": r["current_plan"], "best_tag": r["best_tag"]}
+
+
+def cmd_relabel(a):
+    states = all_states(a.split, a.corpus)
+    i, n = (int(x) for x in a.shard.split("/"))
+    mine = states[i::n]
+    done = {}
+    if Path(a.out).exists():
+        for line in open(a.out):
+            r = json.loads(line)
+            done[r["gid"]] = r
+    t0 = time.time()
+    with open(a.out, "a") as fh:
+        for k, st in enumerate(mine):
+            if st["gid"] in done:
+                continue
+            r = replay_state(a.corpus, st)
+            e = {"gid": st["gid"], **sidecar_entry(r, st["split"]), "wall_s": r["wall_s"]}
+            fh.write(json.dumps(e) + "\n")
+            fh.flush()
+            if k % 25 == 0:
+                print(f"[{k + 1}/{len(mine)}] {st['gid']} {st['split']} {st['bucket']} plans={r['n_plans']} {time.time() - t0:.0f}s", flush=True)
+    print(f"relabel shard {i}/{n}: {len(mine)} states, {time.time() - t0:.0f} s")
+
+
+def cmd_merge(a):
+    entries = {}
+    for f in a.inp:
+        for line in open(f):
+            e = json.loads(line)
+            if e["gid"] in entries:
+                raise SystemExit(f"FAIL LOUD: {e['gid']} appears in two shards")
+            entries[e["gid"]] = {k: v for k, v in e.items() if k not in ("gid", "wall_s")}
+    expect = {s["gid"] for s in all_states(a.split, a.corpus)}
+    if set(entries) != expect:
+        raise SystemExit(f"FAIL LOUD: sidecar covers {len(entries)} of {len(expect)} states; missing {sorted(expect - set(entries))[:5]}, extra {sorted(set(entries) - expect)[:5]}")
+    body = {"_meta": {"version": RELABEL_VERSION, "method": "exhaustive replay for plan spaces <= 600; else the 8 lowest-S plans plus the current label, replayed; the fastest replayed plan is the label; "
+                      "the current label's replayed RTT must equal its stored RTT (relative 1e-9)", "n": len(entries)}, **dict(sorted(entries.items()))}
+    raw = json.dumps(body, indent=0, sort_keys=False)
+    Path(a.out).write_text(raw + "\n")
+    cnt: Dict[str, Any] = {}
+    for e in entries.values():
+        c = cnt.setdefault(e["split"], {"n": 0, "differs": 0})
+        c["n"] += 1
+        c["differs"] += int(e["differs"])
+    print(json.dumps({"n": len(entries), "by_split": cnt, "sha256": hashlib.sha256(raw.encode()).hexdigest()}))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -279,6 +357,16 @@ def main(argv=None):
     r.add_argument("--out", required=True)
     r.add_argument("--shard", default="")
     r.add_argument("--limit-per-bucket", type=int, default=0)
+    rl = sub.add_parser("relabel")
+    rl.add_argument("--split", required=True)
+    rl.add_argument("--corpus", required=True)
+    rl.add_argument("--shard", required=True)
+    rl.add_argument("--out", required=True)
+    mg = sub.add_parser("merge")
+    mg.add_argument("--split", required=True)
+    mg.add_argument("--corpus", required=True)
+    mg.add_argument("--in", dest="inp", nargs="+", required=True)
+    mg.add_argument("--out", required=True)
     q = sub.add_parser("read")
     q.add_argument("--in", dest="inp", nargs="+", required=True)
     q.add_argument("--out", default="")
@@ -287,6 +375,10 @@ def main(argv=None):
         return cmd_replay(a) or 0
     if a.cmd == "read":
         return cmd_read(a) or 0
+    if a.cmd == "relabel":
+        return cmd_relabel(a) or 0
+    if a.cmd == "merge":
+        return cmd_merge(a) or 0
     accel = json.load(open(a.accel_split))["test"]
     res = draw(load_frame(a.split, a.corpus), accel_test_ids=accel)
     json.dump(res, open(a.out, "w"), indent=1)

@@ -133,3 +133,41 @@ def test_read_rule_needs_share_mean_and_an_interval_above_zero():
 def test_bootstrap_is_deterministic():
     v = [0.0, 0.1, 0.0, 0.3, 0.05, 0.0]
     assert L.bootstrap_mean_ci(v) == L.bootstrap_mean_ci(v)
+
+
+# ---- the relabel sidecar ---------------------------------------------------------------------------------------------------------------------
+def _r(gid="g/ds_1", differs=True):
+    return {"gid": gid, "bucket": "le10", "n_tasks": 2, "label_source": "exact", "method": "exhaustive", "label_plan": P((1, 2), (3, 4)), "rtt_sim": 8.0,
+            "rtt_label": 10.0, "differs": differs, "gain": 0.2 if differs else 0.0, "n_plans": 12, "current_plan": P((5, 6), (7, 8)), "best_tag": "enum"}
+
+
+def test_sidecar_entry_carries_the_override_keys_and_both_rtts():
+    e = L.sidecar_entry(_r(), "val")
+    assert e["plans"] == [P((1, 2), (3, 4))] and e["cd_rtt"] == 8.0           # what NEAR_RTT_LABEL_OVERRIDE_JSON reads
+    assert e["split"] == "val" and e["rtt_current"] == 10.0 and e["rtt_sim"] == 8.0 and e["current_label_source"] == "exact" and e["method"] == "exhaustive"
+
+
+def test_merge_requires_exact_coverage(tmp_path, monkeypatch):
+    states = [{"gid": "a/ds_1", "split": "train"}, {"gid": "a/ds_2", "split": "val"}]
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: states)
+    shard = tmp_path / "s0.jsonl"
+    shard.write_text(json.dumps({"gid": "a/ds_1", **L.sidecar_entry(_r("a/ds_1"), "train"), "wall_s": 1.0}) + "\n")
+    import argparse
+    args = argparse.Namespace(split="x", corpus="y", inp=[str(shard)], out=str(tmp_path / "side.json"))
+    with pytest.raises(SystemExit, match="missing"):
+        L.cmd_merge(args)
+    shard.write_text(shard.read_text() + json.dumps({"gid": "a/ds_2", **L.sidecar_entry(_r("a/ds_2"), "val"), "wall_s": 1.0}) + "\n")
+    L.cmd_merge(args)
+    side = json.load(open(args.out))
+    assert side["_meta"]["n"] == 2 and side["a/ds_2"]["split"] == "val" and "gid" not in side["a/ds_1"] and "wall_s" not in side["a/ds_1"]
+
+
+def test_merge_rejects_a_state_in_two_shards(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: [{"gid": "a/ds_1", "split": "train"}])
+    rows = json.dumps({"gid": "a/ds_1", **L.sidecar_entry(_r("a/ds_1"), "train"), "wall_s": 1.0}) + "\n"
+    f1, f2 = tmp_path / "1.jsonl", tmp_path / "2.jsonl"
+    f1.write_text(rows)
+    f2.write_text(rows)
+    import argparse
+    with pytest.raises(SystemExit, match="two shards"):
+        L.cmd_merge(argparse.Namespace(split="x", corpus="y", inp=[str(f1), str(f2)], out=str(tmp_path / "o.json")))
