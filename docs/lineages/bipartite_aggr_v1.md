@@ -2,6 +2,8 @@
 
 **Superseded in part 2026-09-20 (`unsaturated_edge_v1`):** every "vs reactive" number on the client rungs below was an unpaired ratio of medians over cells (two saturated) and flips sign when paired; the sum-vs-mean contrasts (arm-vs-arm, paired) stand, and E3 replicates `SUM-NOT-SEPARATED` at 6 servers on 16 environments.
 
+**Follow-up 2026-10-18 (recorded; run 2026-10-05 as `aggr_sum_v1`):** sum in place of mean on two later arms, live on `small_batch_confirm_v1`'s 19 topologies, never beats mean: the load arm ties or loses (+0.29 / +1.88 / −1.38 %), the local-feature arm loses at every rung (+2.98 / +13.27 / +6.97 %); 27 of 3,648 cells failed and are missing. The rule "use mean over a variable-sized candidate set" stands. See the Record entry.
+
 **Status:** `CLOSED` (2026-09-18) — **`SUM-COSTS-ONLY-WHERE-CANDIDATES-ARE-MANY`. The prediction
 held, and AMENDMENT 1 then re-read its weakest clause at n = 32 and STRENGTHENED it.** Closed on a live gate at both ends of the server ladder (rule 6). Registered
 2026-09-18; every bar is a module constant in `scripts_cosim/bipartite_aggr_v1_read.py`,
@@ -109,6 +111,39 @@ one. Recorded that way so it can be scored.
 ---
 
 ## Record (newest first)
+
+### 2026-10-18 — follow-up `aggr_sum_v1` (run 2026-10-05, recorded only now): sum loses to or ties mean in the small-batch seat, live
+
+**Why it is here.** `aggr_sum_v1` (commit `60197dc7`, 2026-10-05) re-asked this node's sum-vs-mean question on two later arms:
+`sb1sum` = `experiments/small_batch_v1_sb1load.yaml` and `lf1sum` = `experiments/local_features_v1_lf1gnn.yaml`, each verbatim with
+`sum` instead of `mean` in the bipartite edge convs. It was trained, gated live and read, but no node recorded it and its two configs
+named a lineage with no index row. This entry is the record (S6, from the datalab artifacts; the configs' `lineage:` field now points here).
+- **Trained.** 8 seeds per arm, 100 epochs, W&B project `gnn-peer-affinity-v1` (e.g. run `irmh4por`, `aggr-sum-v1-lf1sum-seed1`),
+  code `60197dc7`. `sb1sum`: array 828344 tasks 8–15, all completed (about 53 min each). `lf1sum`: two earlier attempts ended rc 1 with
+  no traceback (828344 tasks 0–7 after 2 h 03 min at about epoch 65; 828627 tasks 0–7 after 24 min); the served checkpoints come from
+  828726 (8 tasks completed, about 3 h each). Served `-final.pt`: `models/aggr-sum-v1-{sb1sum,lf1sum}-lr2e3-seed{1..8}-final.pt`
+  with sidecars (e.g. lf1sum seed 1 md5 `c1ce2cc7…`).
+- **Live gate.** Job 828727 (os-cpu-slurm-9, 6 h 39 min), gate phase `agg1` at `ae12b277`: both sum arms × 8 seeds on
+  `small_batch_confirm_v1`'s 19 topologies × the grounded ladder x20 / x30 / x50 × windows g0–g3, served `_selfref`. 3,648 cells,
+  **3,621 summaries, 27 failed** (watchdog rc 124 at 2,700 s, all sum-arm cells: 8 × 9538 g2x20 sb1sum, 1 × 9557 g0x30 sb1sum,
+  18 lf1sum across 9483 / 9538 / 9540 / 9557 / 9568). The reader drops a failed (window, seed) from its topology's median, so those
+  cells are missing, never counted as passes.
+- **Read.** `scripts_cosim/aggr_sum_v1_read.py` → `simulation_data/aggr_sum_v1/agg_read.json` (md5 `dd43510b…`): per topology the
+  median paired % over (window, seed), median over the 19, exact Wilcoxon, Holm over every printed test. The mean arms' cells
+  (`sb1load`, `lf1gnn`, `lf1mlp`) and the rule references are read from the earlier `small_batch_confirm_v1`, `local_features_v1` and
+  `rule_baselines_v1` gate directories, so **the sum-vs-mean pairs cross gate pins** (same inputs and cells, different code commits).
+
+  | rung | sb1sum vs sb1load (mean) | lf1sum vs lf1gnn (mean) |
+  |---|---|---|
+  | x20 | +0.29 %, 4/19 faster, Holm .062 — not separated | **+2.98 %**, 1/19, Holm .0005 — mean faster |
+  | x30 | **+1.88 %**, 3/19, Holm .013 — mean faster | **+13.27 %**, 0/19, Holm .0002 — mean faster |
+  | x50 | −1.38 %, 13/19, Holm .16 — not separated | **+6.97 %**, 0/19, Holm .0002 — mean faster |
+
+  Descriptive, same file: `lf1sum` still beats the same-input MLP `lf1mlp` at x20 and x50 (−9.4 / −9.7 %, Holm < .001; x30 −12.0 %,
+  not separated) and loses to CD at every rung (+15.8 / +77.7 / +17.0 %); `sb1sum` beats CD at every rung (−8.2 / −35.0 / −16.9 %).
+- **What it adds.** In this seat `sum` is never better than `mean`: it ties or loses for the load-feature arm and loses at every rung
+  for the local-feature arm. That agrees with this node's rule (use `mean` over a variable-sized candidate set); the candidates per task
+  in this seat were not measured here, so it does not test the scale mechanism itself. Live-gated (rule 6), no new verdict, no index row.
 
 ### 2026-09-18 — AMENDMENT 1 read: the null survives doubled power and gets weaker
 
