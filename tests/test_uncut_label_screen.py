@@ -57,3 +57,79 @@ def test_small_flag_follows_plan_space_600():
     f[k[2]]["plan_space_size"] = None
     out = {s["gid"]: s["small"] for s in L.draw(f)["states"]}
     assert out == {k[0]: True, k[1]: False, k[2]: False}
+
+
+# ---- plan lists, the decision and the reader -------------------------------------------------------------------------------------------------
+def P(*pairs):
+    return [list(x) for x in pairs]
+
+
+def test_gid_order_to_dataset_order_follows_trace_ids():
+    trace, gids = [2722, 2724, 2720, 2721, 2723], [2720, 2721, 2722, 2723, 2724]
+    ev = P((1, 1), (2, 2), (3, 3), (4, 4), (5, 5))             # gid 2720 -> (1,1) ... gid 2724 -> (5,5)
+    assert L.ds_order_from_gid_order(ev, trace, gids) == P((3, 3), (5, 5), (1, 1), (2, 2), (4, 4))
+
+
+def test_top_k_distinct_ranks_by_s_then_eval_and_drops_repeats():
+    rows = [{"S": 3.0, "eval": 1, "plan": P((1, 1))}, {"S": 1.0, "eval": 5, "plan": P((2, 2))}, {"S": 1.0, "eval": 2, "plan": P((3, 3))},
+            {"S": 1.0, "eval": 9, "plan": P((2, 2))}, {"S": 2.0, "eval": 4, "plan": P((4, 4))}]
+    got = L.top_k_distinct(rows, 3)
+    assert [r["plan"] for r in got] == [P((3, 3)), P((2, 2)), P((4, 4))]
+
+
+def test_plan_list_large_ils_is_label_plus_8_best_distinct():
+    label = P((99, 99), (99, 99))            # not among the 8 best by S
+    rows = [{"S": float(i), "eval": i, "plan": P((i, i), (i, i))} for i in range(20)]
+    out = L.plan_list(label, False, ils_rows=rows)
+    assert out[0]["tag"] == "label" and out[0]["plan"] == label
+    assert len(out) == 9 and [o["tag"] for o in out[1:]] == ["ils_top"] * 8
+
+
+def test_plan_list_label_among_the_best_is_not_duplicated():
+    label = P((1, 1), (1, 1))
+    rows = [{"S": float(i), "eval": i, "plan": P((i, i), (i, i))} for i in range(20)]
+    assert len(L.plan_list(label, False, ils_rows=rows)) == 8        # the label is one of the 8 best
+
+
+def test_plan_list_exact_large_uses_the_enumeration_by_s_then_order():
+    label = P((9, 9))
+    enum = [{"S": 1.0, "k": 3, "plan": P((3, 3))}, {"S": 1.0, "k": 1, "plan": P((1, 1))}, {"S": 0.5, "k": 7, "plan": P((7, 7))}] + \
+           [{"S": 5.0 + i, "k": 10 + i, "plan": P((20 + i, 20 + i))} for i in range(10)]
+    out = L.plan_list(label, False, enum=enum)
+    assert [o["plan"] for o in out[:4]] == [label, P((7, 7)), P((1, 1)), P((3, 3))] and len(out) == 9
+
+
+def test_plan_list_small_replays_every_plan_once():
+    label = P((1, 1))
+    enum = [{"S": float(i), "k": i, "plan": P((i, i))} for i in range(5)]
+    out = L.plan_list(label, True, enum=enum)
+    assert [o["plan"] for o in out] == [P((1, 1)), P((0, 0)), P((2, 2)), P((3, 3)), P((4, 4))]
+
+
+def test_decide_tolerance_and_gain():
+    assert L.decide([10.0, 10.0, 10.0 * (1 - 1e-12)]) == {"best_index": 0, "differs": False, "gain": 0.0}     # an equal-RTT alternative agrees
+    d = L.decide([10.0, 9.0, 9.5])
+    assert d["differs"] and d["best_index"] == 1 and d["gain"] == pytest.approx(0.1)
+    assert L.decide([5.0, 6.0])["gain"] == 0.0
+
+
+def _rows(bucket, gains):
+    return [{"bucket": bucket, "differs": g > 0, "gain": g} for g in gains]
+
+
+def test_read_rule_needs_share_mean_and_an_interval_above_zero():
+    big = _rows("le10", [0.10] * 30 + [0.0] * 70)         # (i) 30 %, mean 3 %, interval above 0
+    r = L.read_rows(big)
+    assert r["le10"]["share_differs"] == pytest.approx(0.30) and r["le10"]["meets_rule"] and r["verdict"] == "PROCEED-TO-TRAIN"
+    assert r["le10"]["share_gain_ge_5pct"] == pytest.approx(0.30)
+    low_share = L.read_rows(_rows("11_50", [0.30] * 15 + [0.0] * 85))         # (i) 15 % < 20 %
+    assert not low_share["11_50"]["meets_rule"] and low_share["verdict"] == "LABELS-AGREE"
+    low_mean = L.read_rows(_rows("51_100", [0.05] * 30 + [0.0] * 70))         # mean 1.5 % < 2 %
+    assert not low_mean["51_100"]["meets_rule"]
+    none = L.read_rows(_rows("101_256", [0.0] * 50))
+    assert not none["101_256"]["meets_rule"] and none["101_256"]["mean_gain_ci95"] == [0.0, 0.0]
+
+
+def test_bootstrap_is_deterministic():
+    v = [0.0, 0.1, 0.0, 0.3, 0.05, 0.0]
+    assert L.bootstrap_mean_ci(v) == L.bootstrap_mean_ci(v)
