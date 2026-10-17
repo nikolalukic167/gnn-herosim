@@ -402,8 +402,8 @@ def cmd_merge(a):
         raise SystemExit(f"FAIL LOUD: sidecar covers {len(entries)} of {len(expect)} states; missing {sorted(expect - set(entries))[:5]}, extra {sorted(set(entries) - expect)[:5]}")
     body = {"_meta": {"version": RELABEL_VERSION, "method": "exhaustive replay for plan spaces <= 600; else the 8 lowest-S plans plus the current label, replayed; the fastest replayed plan is the label; "
                       "the current label's replayed RTT must equal its stored RTT (relative 1e-9)", "n": len(entries)}, **dict(sorted(entries.items()))}
-    raw = json.dumps(body, indent=0, sort_keys=False)
-    Path(a.out).write_text(raw + "\n")
+    raw = json.dumps(body, indent=0, sort_keys=False) + "\n"
+    Path(a.out).write_text(raw)
     cnt: Dict[str, Any] = {}
     for e in entries.values():
         c = cnt.setdefault(e["split"], {"n": 0, "differs": 0})
