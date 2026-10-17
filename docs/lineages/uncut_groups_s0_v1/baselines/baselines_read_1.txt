@@ -1,0 +1,25 @@
+DESCRIPTIVE reference rows vs cd_ib0_k100 (869828): per-topology median over 4 windows of % (arm - bar)/bar, then median / mean over topologies, topologies ahead of n; negative = faster than the bar
+  reactive                     moderate whole    median +9236.74 %  mean +9176.52 %  ahead 0/12  p 0.0004883  cells 48
+  reactive                     moderate after360 median +12019.02 %  mean +12489.50 %  ahead 0/12  p 0.0004883  cells 48
+  reactive                     heavy    whole    median +18849.47 %  mean +18697.89 %  ahead 0/12  p 0.0004883  cells 48
+  reactive                     heavy    after360 median +36343.75 %  mean +36240.38 %  ahead 0/12  p 0.0004883  cells 48
+  reactive: median (end of run - last arrival) 6647 s over 96 cells
+  reactive: failed cells (watchdog) 0
+  random                       moderate whole    median +175.92 %  mean +184.56 %  ahead 0/12  p 0.0004883  cells 41
+  random                       moderate after360 median +225.90 %  mean +235.71 %  ahead 0/12  p 0.0004883  cells 41
+  random                       heavy    whole    median +248.16 %  mean +255.71 %  ahead 0/12  p 0.0004883  cells 47
+  random                       heavy    after360 median +466.23 %  mean +468.71 %  ahead 0/12  p 0.0004883  cells 47
+  random: median (end of run - last arrival) 107 s over 183 cells
+  random: failed cells (watchdog) 9
+  arm1_mlp_same                moderate whole    median -1.44 %  mean -3.12 %  ahead 8/12  p 0.09229  cells 48
+  arm1_mlp_same                moderate after360 median -4.07 %  mean -5.02 %  ahead 10/12  p 0.01221  cells 48
+  arm1_mlp_same                heavy    whole    median +1.21 %  mean +0.11 %  ahead 4/12  p 0.5693  cells 48
+  arm1_mlp_same                heavy    after360 median -4.53 %  mean -3.23 %  ahead 7/12  p 0.2334  cells 48
+  arm1_mlp_same: median (end of run - last arrival) 49 s over 192 cells
+  arm1_mlp_same: failed cells (watchdog) 0
+  full_cost_cd                 moderate whole    median +5.54 %  mean +5.79 %  ahead 0/12  p 0.0004883  cells 48
+  full_cost_cd                 moderate after360 median +7.77 %  mean +8.01 %  ahead 0/12  p 0.0004883  cells 48
+  full_cost_cd                 heavy    whole    median +4.58 %  mean +3.68 %  ahead 1/12  p 0.03418  cells 48
+  full_cost_cd                 heavy    after360 median +9.25 %  mean +8.56 %  ahead 1/12  p 0.01611  cells 48
+  full_cost_cd: median (end of run - last arrival) 64 s over 96 cells
+  full_cost_cd: failed cells (watchdog) 0
