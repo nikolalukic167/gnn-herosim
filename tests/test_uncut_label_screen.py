@@ -181,4 +181,4 @@ def test_relabel_cache_check_flags_non_candidates():
     g = types.SimpleNamespace(task_logit_to_placement=[[[1, 2], [1, 3]], [[4, 5]]])
     assert C.check_entry(g, {"plans": [[[1, 3], [4, 5]]]}) == []
     assert C.check_entry(g, {"plans": [[[1, 9], [4, 5]]]}) == ["task 0: (1, 9) is not a candidate"]
-    assert "2 tasks" in C.check_entry(g, {"plans": [[[1, 2]]]})[0]
+    assert "graph 2" in C.check_entry(g, {"plans": [[[1, 2]]]})[0]
