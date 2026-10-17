@@ -21,6 +21,10 @@ def test_skew_warmth_v2_output_subdir():
 def test_skew_warmth_v2_placement_combos_nonzero():
     """Skew infra + load_deterministic must agree on xavier core nodes (platform_id parity)."""
     import json
+    import pytest
+
+    if not __import__("pathlib").Path("data/nofs-ids/traces/workload-10.json").is_file():
+        pytest.skip("data/nofs-ids/traces/workload-10.json is gitignored (data/*/traces/*) and absent from this checkout")
     import shutil
     from pathlib import Path
 
