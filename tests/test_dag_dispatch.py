@@ -111,6 +111,7 @@ def build(dag: Dict[str, List[str]]):
     orch = Harness.__new__(Harness)
     orch.env = env
     orch.scheduler = scheduler
+    orch.autoscaler = None  # workflow_process notes arrivals with the KPA autoscaler (kpa_scaleout_v1); none here
     return env, app, tasks, scheduler, orch
 
 
