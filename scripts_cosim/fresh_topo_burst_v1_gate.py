@@ -259,8 +259,9 @@ def arm1_trainer_check(base_kind: str, side: str) -> None:
 def split_dc(kind: str) -> Tuple[str, Optional[float]]:
     if kind.endswith("_" + DC_KR):
         base = kind[:-len(DC_KR) - 1]
-        if base not in tuple(f"{k}_nosplit" for k in ARM1_KINDS + ARM1B_KINDS):
-            raise SystemExit(f"FAIL LOUD: _{DC_KR} serves only the Arm 1 and Arm 1b learned kinds, not {base!r}")
+        # G7 (uncut_groups_s0_v1 Note B, node:931, registered 2026-10-13): Arm 2 and Arm 2-K0 get their own _kr second verdict
+        if base not in tuple(f"{k}_nosplit" for k in ARM1_KINDS + ARM1B_KINDS + ARM2_ALL):
+            raise SystemExit(f"FAIL LOUD: _{DC_KR} serves only the Arm 1, Arm 1b, Arm 2 and Arm 2-K0 learned kinds, not {base!r}")
         return base, cotenancy_k()
     for tag, k in DC_K.items():
         if kind.endswith("_" + tag):

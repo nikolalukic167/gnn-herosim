@@ -177,3 +177,17 @@ def test_host_block_on_this_machine():
     from scripts_cosim import fresh_topo_burst_v1_gate as G
     h = G.host_block()
     assert h["nproc"] == len(os.sched_getaffinity(0)) and 1 <= h["physical_cores"] <= h["nproc"] and h["hostname"]
+
+
+def test_g7_kr_serves_arm2_and_k0_kinds_and_nothing_else(tmp_path, monkeypatch):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    f = tmp_path / "w.json"
+    monkeypatch.setattr(G, "DC_W_FILE", str(f))
+    f.write_text(json.dumps({**json.load(open(os.path.join(os.path.dirname(G.__file__), "decision_cost_w.json"))), "k_cotenancy": 1.5}))
+    for base in G.ARM2_ALL:
+        k = f"{base}_nosplit_kr"
+        assert G.split_dc(k) == (f"{base}_nosplit", 1.5)
+        assert G.split_dc(f"{base}_nosplit_k100") == (f"{base}_nosplit", 1.0)
+    for other in ("cd_ib0_kr", "ra_gnn_eng_nosplit_kr", "ra_gnn_eng_arm2_kr", "ra_twin_eng_arm2k0_kr"):
+        with pytest.raises(SystemExit, match="only the Arm 1"):
+            G.split_dc(other)
