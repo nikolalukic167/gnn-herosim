@@ -30,8 +30,40 @@
         }
       ],
       "submission": "arm2@33de2b47"
+    },
+    "gnn_eng|s1": {
+      "job": "869961",
+      "host": "a-l40s-o-1",
+      "cpu": "AMD EPYC 9355 32-Core Processor",
+      "file": "uncut-arm2-gnn-eng-gpu-seed1-final.pt",
+      "links": [
+        {
+          "job": "869961",
+          "host": "a-l40s-o-1",
+          "cpu": "AMD EPYC 9355 32-Core Processor",
+          "cpu_source": "srun --overlap lscpu, 2026-10-14T17:28:31Z"
+        }
+      ],
+      "submission": "arm2@5f4258a4"
+    },
+    "gnn_eng|s2": {
+      "job": "869963",
+      "host": "a-l40s-o-1",
+      "cpu": "AMD EPYC 9355 32-Core Processor",
+      "file": "uncut-arm2-gnn-eng-gpu-seed2-final.pt",
+      "links": [
+        {
+          "job": "869963",
+          "host": "a-l40s-o-1",
+          "cpu": "AMD EPYC 9355 32-Core Processor",
+          "cpu_source": "srun --overlap lscpu, 2026-10-14T17:28:31Z"
+        }
+      ],
+      "submission": "arm2@5f4258a4"
     }
   },
   "twin_eng|s1": "6f9366f5936a7af07bf57a24e5923c08",
-  "twin_eng|s2": "6f7701cb786d0b575414cffdcebf6a78"
+  "twin_eng|s2": "6f7701cb786d0b575414cffdcebf6a78",
+  "gnn_eng|s1": "8ee89403f14401f8885fdf1bc4cb81d9",
+  "gnn_eng|s2": "f5eba2e38c50a42b8691c747baa292c9"
 }
