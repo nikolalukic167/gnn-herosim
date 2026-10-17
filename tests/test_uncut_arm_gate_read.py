@@ -804,3 +804,81 @@ def test_g4_file_set_is_admitted_only_for_the_g4_commit_and_arm2_w_only_on_its_c
 def test_ckpt_arm_maps_arm2_and_k0():
     assert G.ckpt_arm("ra_gnn_eng_arm2_nosplit") == "gnn_eng" and G.ckpt_arm("ra_twin_eng_arm2k0_nosplit") == "twin_eng"
     assert G.ckpt_tag("ra_gnn_eng_arm2_nosplit") == "" and G.G4 in G.GATE_CHANGE_FILES_BY_COMMIT and len(G.GATE_CHANGE_FILES_BY_COMMIT) == 1
+
+
+def fill_seeds(d, ck, seeds, primary_mean, twin_mean=2.0):
+    for t in TOPOS:
+        for w in G.WINDOWS:
+            for r in G.RUNGS:
+                cell(d, "cd_ib0", 0, t, w, r, 2.0, busy=0.1)
+                cell(d, "cd", 0, t, w, r, 2.0, busy=0.1)
+                for sd in seeds:
+                    cell(d, P, sd, t, w, r, primary_mean - 0.001 * t, ck)
+                    cell(d, T, sd, t, w, r, twin_mean, ck)
+
+
+def seeds_md5(tmp_path, seeds):
+    cm = tmp_path / "ck_seeds.json"
+    cm.write_text(json.dumps({f"{a}|s{s}": hashlib.md5(b"weights").hexdigest() for a in (P, T) for s in seeds}))
+    return str(cm)
+
+
+def seeds_run(d, cm, seeds=None):
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", P, "--twin", T, "--checkpoint-md5", cm, "--cotenancy", "off"]
+    return G.main(args + (["--seeds", seeds] if seeds is not None else []))
+
+
+def test_seeds_flag_reads_the_extension_seeds_and_records_them(gate, tmp_path):
+    d, ck, _ = gate
+    fill_seeds(d, ck, (11, 12, 13), 1.8)
+    res = seeds_run(d, seeds_md5(tmp_path, (11, 12, 13)), "11,12,13")
+    assert res["seeds"] == [11, 12, 13] and set(res["F1"]["seeds_alone"]) == {11, 12, 13}
+    assert res["F1"]["tests"][0]["a_seeds"] == [11, 12, 13] and res["F1"]["tests"][0]["n_topologies"] == 12
+    assert set(res["health"][P]["heavy"]["per_seed"]) == {11, 12, 13}
+
+
+def test_default_seeds_add_no_key(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    res = run(d, cm)
+    assert "seeds" not in res and set(res["F1"]["seeds_alone"]) == {1, 2}
+
+
+def test_learned_cell_outside_seeds_fails_loud(gate, tmp_path):
+    d, ck, _ = gate
+    fill_seeds(d, ck, (1, 2, 11), 1.8)
+    with pytest.raises(SystemExit, match="outside --seeds"):
+        seeds_run(d, seeds_md5(tmp_path, (1, 2, 11)), "11")
+    with pytest.raises(SystemExit, match="outside --seeds"):
+        seeds_run(d, seeds_md5(tmp_path, (1, 2, 11)))
+
+
+@pytest.mark.parametrize("bad", ["", "0", "11,11", "x"])
+def test_bad_seeds_fail_loud(gate, bad):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    with pytest.raises(SystemExit, match="--seeds"):
+        seeds_run(d, cm, bad)
+
+
+def test_extension_read_may_omit_the_twin_but_the_filed_read_may_not(gate, tmp_path):
+    d, ck, _ = gate
+    fill_seeds(d, ck, (11, 12), 1.8)
+    cm = seeds_md5(tmp_path, (11, 12))
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", P, "--checkpoint-md5", cm, "--cotenancy", "off"]
+    for f in os.listdir(d):
+        if f"__{T}_" in f:
+            os.remove(os.path.join(d, f))
+    res = G.main(args + ["--seeds", "11,12"])
+    assert res["F2"]["MP"] == G.NO_TWIN_EXT and res["F2"]["holm_family"] == 0
+
+
+def test_filed_read_still_needs_the_twin(gate):
+    d, ck, cm = gate
+    fill(d, ck, 1.8)
+    args = ["--gate", d, "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "pin1234",
+            "--primary", P, "--checkpoint-md5", cm, "--cotenancy", "off"]
+    with pytest.raises(SystemExit, match="--twin is required"):
+        G.main(args)
