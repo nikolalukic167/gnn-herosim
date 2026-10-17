@@ -19,7 +19,9 @@ if _OUT:
               "work_mismatch": 0, "builder_mismatch": 0, "builder_graphs": 0, "max_count": 0, "max_work": 0.0, "mismatches": []}
 
     def _dump():
-        json.dump(_TALLY, open(_OUT, "w"), indent=1)
+        # one file per process (the gate's parent process loads this hook too); only a process that saw decisions, or failed to install, leaves a tally
+        if _TALLY["decisions"] or _TALLY.get("install_error"):
+            json.dump(_TALLY, open(f"{_OUT}.{os.getpid()}", "w"), indent=1)
 
     atexit.register(_dump)
 
