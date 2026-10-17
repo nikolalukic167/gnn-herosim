@@ -301,6 +301,40 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Arm 2 and K0 co-tenancy verdict (Note B, node:931; SCIENTIST's paper audit item 2): both stay F1 MIXED, MP NOT-SEPARATED with `--cotenancy required`. K0 keeps 3 of 4 Holm-significant under co-tenancy** (S6). Gate read. The lineage stays open while the user decides on the next arm.
+  - **Identity.**
+    - Chain: G4 `69354280` → G7 `c40313c0` (the `_kr` tag for the Arm 2 / K0 kinds) → W-A2′ `12c736ea` (742eaf97's w, unchanged) → W-A2k `60fee04d` (adds `k_cotenancy` 1.468 = max(1.468, r_gnn_arm2 1.164), job 883255). Branch `s6/g7-arm2-kr`.
+    - Cells: 883268–883271 on os-cpu-slurm-13..16 (exclusive, idle-checked, EPYC 9335, SMT off, 64 cores; PAR 60, 16G).
+      - 768 Arm 2 cells (`final/cells_arm2_g7`) and 768 K0 cells (`final/cells_arm2k0_g7`): gnn + twin × `_k100` + `_kr`.
+      - Same SELECT, split, slate, topologies, seeds, windows and rungs as 883174/5. All COMPLETED; 1,536 summaries, 0 failed.
+    - Inputs: `final/in_arm2`, `final/in_arm2k0`; checkpoint md5 files `uncut_arm2_ckpt_md5_c54eb078.json` (a938969e) and `uncut_arm2k0_ckpt_md5_c54eb078.json` (a170c61d).
+  - **Determinism check before any read.** All 768 `_k100` cells at 60fee04d equal their 742eaf97 cells exactly on averageElapsedTime, the after-360 s mean and num_tasks (0 differ, 0 missing). File `final_reads/determinism_g7.json`, md5 1ba170be3e18f8a958fd048392af8ce6.
+    - The new reads' frozen blocks also equal `read_arm2_7af86191.json` and `read_k0_7af86191.json` key for key, so the frozen verdicts filed earlier stand unchanged.
+  - **Read.** Job 883293, `uncut_arm_gate_read.py` at reference-physics `56541440` (reader md5 d60406b7, file identical to 7af86191).
+    - Flags: `--cotenancy required`; gate changes bf79865a, e8c87702, 114cc0e7, 69354280, c40313c0; w-pins 12c736ea, 60fee04d.
+    - Bar: 869828 at d6ae87c2. Topology sha256 553ef17d…
+    - Health: 0 collapses, 0 wall-infeasible, 0 other failures.
+    - Files: `final_reads/read_arm2_g7_cot_56541440.json` (md5 ce7811438bc80f6966e654974db4273f) and `read_k0_g7_cot_56541440.json` (md5 fe9b8f2bf934dfbb8e31424e10b22eb3).
+  - **F1 vs `cd_ib0`, Holm over 4.** Median change (topologies faster / 12, p_holm), in the order moderate whole / moderate after360 / heavy whole / heavy after360:
+
+    | arm | frozen w (`_k100`) | co-tenancy (`_kr`, k 1.468) | combined |
+    |---|---|---|---|
+    | Arm 2 gnn | −5.82 % (10, .015) / −8.09 % (10, .010) / +1.26 % (3, .18) / −1.84 % (9, .10) | −6.28 % (10, .015) / −8.90 % (10, .010) / +2.61 % (2, .085) / +0.51 % (5, .85) | MIXED |
+    | K0 gnn | −5.99 % (10, .010) / −8.39 % (11, .006) / −1.63 % (10, .092) / −9.40 % (10, .014) | −5.48 % (10, .015) / −8.01 % (10, .010) / −1.18 % (8, .52) / −7.20 % (8, .042) | MIXED |
+
+  - **MP vs the twin**, same order:
+
+    | arm | frozen | `_kr` | label |
+    |---|---|---|---|
+    | Arm 2 | −1.71 % (10, .037) / −1.38 % (9, .16) / −1.30 % (7, 1.0) / +0.57 % (6, 1.0) | −1.36 % (11, .004) / −1.48 % (8, .063) / +1.55 % (4, .60) / −0.25 % (6, .62) | NOT-SEPARATED |
+    | K0 | −1.53 % (11, .010) / −1.57 % (10, .10) / −0.24 % (7, 1.0) / +0.37 % (5, 1.0) | −1.41 % (12, .002) / −1.48 % (12, .002) / +0.55 % (3, .38) / +2.31 % (5, .26) | NOT-SEPARATED |
+
+  - **Reading.**
+    - Charging 1.468× the frozen w changes neither label.
+    - The moderate wins hold at about −5.5 to −6.3 % whole and −8 to −9 % after360.
+    - Arm 2's heavy after360 moves from −1.84 % to +0.51 %; it was not significant under either charge.
+    - K0's heavy after360 shrinks from −9.40 % to −7.20 % and stays Holm-significant.
+    - Vs `cd` (`_kr`): Arm 2 −10.83 / −14.57 / −0.82 / −11.12 %; K0 −10.23 / −13.92 / −5.28 / −14.78 %.
 - 2026-10-17 — **Felt charge share F_L on the final-read cells (SCIENTIST's paper audit: the record defines the decision share as felt F, and the final reads reported only the pooled share)** (S6). Descriptive. It changes no verdict.
   - **Method.** `uncut_interim_share.py` (5c8c959e, md5 f0229b97) per arm kind, with w from the cells' own pin. Arm 1 `b3ec1fdc`, Arm 1b `59798c41`, Arm 3 `1847a484` and Arm 2 / K0 `742eaf97`.
     - The `_kr` sets are charged k_cotenancy (1.468) × w.
