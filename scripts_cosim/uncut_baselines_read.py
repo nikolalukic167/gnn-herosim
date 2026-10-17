@@ -19,7 +19,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tools", required=True)
     ap.add_argument("--cells", required=True)
-    ap.add_argument("--bar", required=True)
+    ap.add_argument("--bar", required=True, help="comma list of directories holding the bar cells")
+    ap.add_argument("--bar-kind", default="cd_ib0", help="the bar kind without the _k100 suffix (cd_ib0, or cd_ib0_inflight for the in-flight bar)")
     ap.add_argument("--row", action="append", required=True)
     ap.add_argument("--out")
     a = ap.parse_args(argv)
@@ -27,11 +28,11 @@ def main(argv=None):
     import uncut_arm_gate_read as R
 
     cells, failed = R.load(a.cells + "," + a.bar, "_k100")
-    topos = sorted({k[2] for k in cells if k[0] == "cd_ib0"})
+    topos = sorted({k[2] for k in cells if k[0] == a.bar_kind})
     if len(topos) != 12:
         raise SystemExit(f"FAIL LOUD: the bar has {len(topos)} topologies, not 12")
-    out = {"label": "DESCRIPTIVE reference rows (no label, no family)", "bar": "cd_ib0_k100 (869828)", "topologies": topos, "rows": {}}
-    print("DESCRIPTIVE reference rows vs cd_ib0_k100 (869828): per-topology median over 4 windows of % (arm - bar)/bar, then median / mean over topologies, topologies ahead of n; negative = faster than the bar")
+    out = {"label": "DESCRIPTIVE reference rows (no label, no family)", "bar": a.bar_kind + "_k100", "topologies": topos, "rows": {}}
+    print(f"DESCRIPTIVE reference rows vs {a.bar_kind}_k100: per-topology median over 4 windows of % (arm - bar)/bar, then median / mean over topologies, topologies ahead of n; negative = faster than the bar")
     for spec in a.row:
         name, kind, seeds = spec.split(":")
         sd = [int(x) for x in seeds.split(",")]
@@ -39,7 +40,7 @@ def main(argv=None):
         out["rows"][name] = {"kind": kind, "seeds": sd, "failed_cells": [f"{w}{r}_s{s}@{t}" for (w, r, s), t in ((x, k[2]) for x in bad for k in failed if k[0] == kind and (k[3], k[4], k[1]) == x)], "cells": {}}
         for r in R.RUNGS:
             for s in R.STATS:
-                c = R.contrast(cells, kind, sd, "cd_ib0", [0], r, topos, s)
+                c = R.contrast(cells, kind, sd, a.bar_kind, [0], r, topos, s)
                 v = list(c["per_topology"].values())
                 out["rows"][name]["cells"][f"{r}/{s}"] = {"median_pct": c["median_pct"], "mean_pct": st.mean(v) if v else None, "ahead": c["faster"], "n_topologies": c["n_topologies"], "n_cells": c["n_cells"], "p_unadjusted": c["p"], "per_topology": c["per_topology"]}
                 m = f"{c['median_pct']:+.2f}" if c["median_pct"] is not None else "n/a"
@@ -47,6 +48,10 @@ def main(argv=None):
         tails = [c.get("endTime", 0.0) - (c.get("arrival_end") or {}).get("last_arrival_s", 0.0) for k, c in cells.items() if k[0] == kind]
         out["rows"][name]["median_seconds_after_last_arrival"] = st.median(tails) if tails else None
         print(f"  {name}: median (end of run - last arrival) {st.median(tails):.0f} s over {len(tails)} cells" if tails else f"  {name}: no cells")
+        mod = {f"{s}": out["rows"][name]["cells"][f"moderate/{s}"]["p_unadjusted"] for s in R.STATS}
+        adj = R.holm(mod)
+        out["rows"][name]["p_holm_over_2_moderate_tests"] = adj
+        print(f"  {name}: Holm over the 2 moderate tests: " + ", ".join(f"{k} {v:.4g}" for k, v in adj.items()))
         nf = len([k for k in failed if k[0] == kind])
         print(f"  {name}: failed cells (watchdog) {nf}")
         out["rows"][name]["n_failed"] = nf
