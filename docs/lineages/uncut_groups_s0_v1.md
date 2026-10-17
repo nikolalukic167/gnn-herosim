@@ -301,6 +301,35 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-17 — **Felt charge share F_L on the final-read cells (SCIENTIST's paper audit: the record defines the decision share as felt F, and the final reads reported only the pooled share)** (S6). Descriptive. It changes no verdict.
+  - **Method.** `uncut_interim_share.py` (5c8c959e, md5 f0229b97) per arm kind, with w from the cells' own pin. Arm 1 `b3ec1fdc`, Arm 1b `59798c41`, Arm 3 `1847a484` and Arm 2 / K0 `742eaf97`.
+    - The `_kr` sets are charged k_cotenancy (1.468) × w.
+    - Arms 1, 1b and 3 use the exact one-plan-per-task path. Arm 2 and K0 use `--evals-per-task-from-buckets`, which is **APPROXIMATE**.
+    - Arm 3's cells are S4's (`final/cells_arm3`).
+    - File `uncut_groups_s0_v1/final_reads/felt_share_final.json`, md5 2843a55fa4884c0531bf51e92f895c67. It also holds by-bucket values, the worst cell's name and the pooled share.
+  - **F_L, moderate / heavy (worst cell in brackets):**
+
+    | arm | frozen w (`_k100`) | co-tenancy (`_kr`) |
+    |---|---|---|
+    | Arm 1 gnn | 1.018 / 1.219 % (1.323 / 1.676) | 1.495 / 1.792 % (1.964 / 2.496) |
+    | Arm 1 twin | 0.843 / 1.095 % (1.114 / 1.540) | 1.231 / 1.599 % (1.629 / 2.307) |
+    | Arm 1 mlp | 0.813 / 1.008 % (1.096 / 1.400) | 1.195 / 1.481 % (1.603 / 2.091) |
+    | Arm 1b gnn | 1.003 / 1.236 % (1.349 / 1.698) | 1.469 / 1.799 % (1.971 / 2.504) |
+    | Arm 1b twin | 0.857 / 1.075 % (1.142 / 1.485) | 1.255 / 1.561 % (1.679 / 2.200) |
+    | Arm 1b mlp | 0.780 / 1.074 % (1.037 / 1.505) | 1.143 / 1.580 % (1.557 / 2.339) |
+    | Arm 3 gnn | 1.011 / 1.252 % (1.371 / 1.725) | 1.484 / 1.836 % (2.019 / 2.638) |
+    | Arm 2 gnn (approx.) | 2.081 / 2.469 % (2.771 / 3.330) | — |
+    | Arm 2 twin (approx.) | 1.127 / 1.373 % (1.463 / 1.947) | — |
+    | K0 gnn (approx.) | 2.084 / 2.674 % (2.652 / 3.757) | — |
+    | K0 twin (approx.) | 1.164 / 1.431 % (1.559 / 1.919) | — |
+
+    - By bucket (≤ 10 / 11–50 / 51–100 / 101–256), the frozen-w gnn rows run from about 0.7 % to 5 % (Arms 1, 1b and 3) and from about 1.1 % to 7–10 % (Arm 2 and K0). The largest groups carry the largest felt share.
+    - The pooled share on the same cells is 0.07–0.12 % (Arms 1, 1b and 3) and 0.10–0.22 % (Arm 2 and K0).
+  - **The hand bar's felt F, confirmed** (`uncut_charge_share.py felt` at 19a2fbd2, `--fit fit_evals_n.json --k 1.468`, on the 869828 bar cells), moderate / heavy:
+    - `cd_ib0`: F 0.131 / 0.195 %, worst cell 0.168 / 0.257 %, hand-bias bound F × (1 − 1/k) 0.042 / 0.062 % (worst cell 0.054 / 0.082 %).
+    - `cd`: F 0.134 / 0.186 %, worst cell 0.173 / 0.238 %, bias 0.043 / 0.059 %.
+    - These match the 871538 filing: 0.131 / 0.195 % and a pooled bound ≤ 0.062 %.
+    - Files `final_reads/felt_hand_cd_ib0.json` (7ddcbc1f) and `felt_hand_cd.json` (c0ee418e).
 - 2026-10-17 — **Final-read linearity check for Arm 1 and Arm 1b (registered check (2)): no queueing amplification; per-cell linearity cannot be resolved because per-cell scatter is several times larger than the predicted shift** (S6). Descriptive. It changes no verdict. The lineage stays open while the user decides on the next arm.
   - **Method.** For each frozen-w cell (`_k100`) and its co-tenancy twin (`_kr`, k 1.468), same arm, seed, topology, window and rung:
     - observed = 100 (mean_kr − mean_k100) / mean_k100 (whole-run averageElapsedTime);
