@@ -301,6 +301,30 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-18 — **FL confirmation: prerequisites P1–P3 merged (reference-physics `4441fa39`, full suite rc 0); the frozen reader is `4441fa39`.** (S6; filed before any confirmation cell exists, and before the smoke.)
+  - **Frozen reader:** `scripts_cosim/uncut_arm_gate_read.py` at `4441fa39` (blob `9de44286…`, byte-identical to P3 `1489415f`'s). The confirmation reads use exactly this file.
+  - **The cell chain:** `--pin a459dd98 --gate-change 095948ea,f6818d09 --w-pins 74ddf70e`. Learned cells run at `74ddf70e`, bar cells at `a459dd98`.
+    - **P2 is a child of P1, not of `a8681537`** (accepted by the expert). `w_pin_chain` admits gate changes only as a chain of children from `--pin`, each touching exactly the two gate files, and every w-only pin comes after the last gate change. A gate change on top of `a8681537` cannot sit in that chain.
+    - The gate code at `a8681537` equals G8b `095948ea`'s: W-FAST and W-COMB change only the w file.
+  - **P1, gate change G9 `f6818d09`** (child of G8b `095948ea`; changes the gate file and its test only).
+    - `split_dc` serves `<kind>_kr` at k = the w file's `k_cotenancy` for exactly `ra_gnn_eng_combfl_nosplit` and `ra_mlp_same_combfl_nosplit`, and fails loud without `k_cotenancy` ≥ 1. Every other `_kr` stays an unknown arm, as before.
+    - The combined-lever chain never carried `bf79865a`'s `_kr` code: it is not an ancestor of G8.
+    - **Listing proof** (job 884657, S4's `listing_proof.py`): the 095948ea and f6818d09 outputs are byte-identical (md5 `f3c65346…`, 19 listings, 6,528 cells). At P2, each new `_kr` kind lists 192 cells on the 12 gate topologies.
+  - **P2, w-only pin W-CONF `74ddf70e`** (child of P1; changes `decision_cost_w.json` only).
+    - Its content is `a8681537`'s w file plus `k_cotenancy` 1.468 (the program's frozen value, as filed at `59798c41`) and `_source_k_cotenancy`. Every other key is byte-identical.
+    - `w_pin_chain(a459dd98, 095948ea,f6818d09, [74ddf70e])` passes.
+    - **Test-only defect at `74ddf70e`:** `test_comb_kr_serves_fl_gnn_and_the_fl_mlp_at_the_frozen_cotenancy_k` (P1's own test) fails at P2 itself. Its "no k_cotenancy" case copies the real w file, which carries `k_cotenancy` from P2 on, so nothing raises. The expert fixed it in the merge (`4441fa39`: the case pops `k_cotenancy` after loading). Gate and reader code are unaffected.
+  - **P3, reader `1489415f`.**
+    - (b) With `--w-pins`, a learned kind in `--gate` that is not one of the read's arms gets the full learned-cell asserts (w-pin chain, k × w charge, checkpoint md5, host block, warmth equal to the read's; any failed cell of it fails loud). It is then left out of everything the read computes and writes.
+    - (a) `--confirm`:
+      - FL gnn, with `--mlp` the FL MLP, and no twin; both verdicts; `cd_ib0_inflightfull`; seeds 1 and 2.
+      - Topologies disjoint from 19537–19548 and 19554–19589.
+      - B6 is lifted for this family only. The label is CONFIRMED iff the combined F1 is program-level under `f1_label` (which carries the program's anchor clause, as for every filed read), else NOT-CONFIRMED with the reader's label.
+    - (c) `--stage primary` computes F1 under both verdicts only. The MLP's cells are checked as another learned kind, and no F2-MC, MLP health or descriptive block is computed. The output is written once (tmp + rename), and any failure exits non-zero with no file.
+    - `--stage secondary` runs only once the primary read's full md5 is in this node at `--record` on `--filed-ref`, and only if its recomputed primary parts equal the filed ones. It adds F2-MC (Holm 4, the MODEL-CLASS rule, corpus "11,073 states, 49 topologies, simulator labels") and the descriptive block.
+  - **B3** (job 884663): the 7 filed reads are byte-identical at P3: Arm 1 `93b46aa9`, Arm 1b `301b11c3`, Arm 2 off `f8e7f97c`, K0 off `1f5b4bf6`, Arm 2 G7 `ce781143`, K0 G7 `fe9b8f2b`, Arm 3 `7acc051f`. So is `read_combfl` (`50cb302a`), from the FL-only view and from the full four-kind `comb/cells_comb`.
+  - Tests at P3: 207 reader tests, 446 across the reader, extension, comb-gate, gate-stage and hygiene suites.
+
 - 2026-10-18 — **FL confirmation on fresh topologies: REGISTERED before any topology is minted and before any cell exists** (SCIENTIST drafted, for the expert's signature; S5 mints, S6 runs and reads. The expert approved the confirmation and its F2-MC option, and did not approve new FL seeds 3–6.) Purpose: FL gnn's primary read is WIN-ARM-ONLY only because of the B6 cap. This family tests the same two checkpoints on topologies that no checkpoint, w, bar, reader or look has seen. A pass is the only route to a program-level label for FL.
   - **Disclosure.** Designed after the FL primary read, the TE3 family and every descriptive contrast in the entry below, including both early looks at them. The new topologies are fresh, and nothing about them is known.
   - **Arms and checkpoints.** FL gnn (`ra_gnn_eng_combfl_nosplit`) seeds 1 and 2, and the FL MLP (`ra_mlp_same_combfl_nosplit`) seeds 1 and 2: the filed `-final.pt` files, unchanged, staged from `comb/md5_comball.json` and checked by md5 at staging. No training.
