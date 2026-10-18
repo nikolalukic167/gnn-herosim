@@ -301,6 +301,55 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-18 — **FL confirmation 2 (new seeds 3–6, fresh topologies): REGISTERED before any topology is minted and before any confirmation-2 cell exists.** (S6 drafted at the expert's instruction, after the user's GO on FL seeds 3–6 and a second confirmation; SCIENTIST signs; S5 mints; S6 trains, runs and reads.) Purpose: the first FL confirmation (filed 2026-10-18, primary read md5 `83fa5b8e`) was NOT-CONFIRMED on one per-seed clause: seed 1 heavy whole −0.70 % under `_kr`. This family tests whether FL gnn's win holds for new, independently trained seeds of the exact same model on topologies no checkpoint, w, bar, reader or look has seen. The first confirmation is not re-read or amended; its label stands as filed.
+  - **Disclosure.** Designed after the first confirmation's primary and secondary reads, the FL primary read, TE3 and every descriptive contrast, including the paper figure-data extraction (`paper_figdata/`, 2026-10-18). It is a second registered family on the same lever, motivated by a near-miss on one seed. The new seeds and topologies are unseen, and nothing about them is known.
+  - **Training (started before this registration, which only fixes how they are read; no checkpoint is read or served before the registration is signed).** FL gnn (`uncut_comb_fl_gnn_eng`) seeds 3, 4, 5, 6 with the exact recipe of seeds 1–2:
+    - pin `f9a41cce`; the same config; corpus 11,073 states; split sha256 `613c8cbb…`; simulator labels (sha256 `5ae45a56…`); `partial_state_v6`.
+    - 100 epochs, CPU, 6 threads, 0 workers, 12 CPUs = 6 cores on one socket (`-m block:block`; CPU_IDs 64–75 checked), SMT off, one run per idle node (13, 14, 15, 16), `-final.pt` served.
+    - Jobs 885140–885143, sbatch `uncut_comb_train.sbatch` unchanged. The trainer determinism and in-flight tests at the pin: 27 passed (885139). W&B on every run, and a `.contract.json` with every `.pt`.
+    - **Device.** CPU, as seeds 1–2. The L40S one-epoch check (885138) could not start (both L40S nodes were full with Arm 2; the earliest start was about 03:25 the next day) and was cancelled. The filed speed test of this trainer (2026-10-17) had L40S 356 s/epoch vs CPU 347 s, which is not > 1.5×. So there is no device change, and the recipe is identical.
+    - No fine-tuning: every seed trains from scratch. No data or recipe change.
+    - **No seed 3–6 checkpoint, curve or val metric is read for selection. `-final.pt` is served whatever the curves show.**
+    - **If any of seeds 3–6 fails or aborts,** it is fixed, merged and rerun from scratch with the same recipe. A second failure of the same check is reported, and the family is not read on 3 seeds.
+  - **Topologies: 24 ids by TE3's literal rule**: the lowest run of 24 consecutive free ids above 19730, by S5's token scan rerun just before filing.
+    - **Disjoint from:** the training corpus and every capture/state list of the Arm 1 corpus; 16251–16270; the gate ids 19537–19548; TE3 19554–19589; the first confirmation's 19707–19730; the 57 `accel_replica_v1` test ids; the smoke id 19461; and every scan token.
+    - Mint, admission, shortfall: exactly as the first confirmation (`big_groups_inputs.sbatch` at `f8814905`, same recipe, g0–g3, a new root, at most 4 replacements). The ids, their list's sha256 and the MD5SUMS are filed in the mint's Record line before any cell.
+  - **Arms and cells** (one venue: CPU-amd, EPYC 9335, SMT off, `--exclusive`, PAR 60, 1 thread, CELL_MEM 16G, LIMIT 14400; at least 4 nodes chosen by `sinfo` load, never os-cpu-slurm-21):
+    - Bar: `cd_ib0_inflightfull_k100` and `cd_k100`, seed 0, at `a459dd98` (192 cells each).
+    - **Primary:** FL gnn seeds 3–6, `_k100` and `_kr` (k = 1.468), at the P2 pin `74ddf70e` (1,536 cells).
+    - **Descriptive only:** FL gnn seeds 1–2 and FL MLP seeds 1–2 (the filed `-final.pt` files), `_k100` and `_kr`, at `74ddf70e` (768 cells each). They are in a separate gate directory from the primary, so the primary read never sees them.
+    - In all, 3,456 cells. The checkpoints are staged from a new md5 file (seeds 3–6 from their training logs, seeds 1–2 and the MLP from `comb/md5_comball.json`) and checked at staging.
+  - **Primary family (Holm k = 4 per charge).** FL gnn vs `cd_ib0_inflightfull_k100`, moderate and heavy × whole and after-360, the reader's statistic on the 24 new topologies only, never pooled with any other set.
+    - The cell is the mean of seeds 3–6; the topology value is the median over the 4 windows; the test is an exact two-sided Wilcoxon.
+  - **Win rule, as filed for the program and the first confirmation.**
+    - Median ≤ −2 % and Holm p < .025 on all four (pooled over seeds 3–6).
+    - **Each of seeds 3, 4, 5, 6 alone ≤ −1 % on all four.**
+    - Collapses ≤ the bar's at each rung.
+    - Read under `_k100` and `_kr`, combined by `weaker_f1`: a win must hold under both.
+  - **Labels.**
+    - **CONFIRMED (program-level):** the win rule holds under both charges. The B6 cap on FL gnn is then lifted, for FL gnn and this family only. The first confirmation and the 12-topology read stay as filed.
+    - **NOT-CONFIRMED:** any other outcome. The reader's own label is reported, and FL stays WIN-ARM-ONLY.
+  - **Descriptive, never a label and never pooled into the primary:**
+    - (a) seeds 1–2 vs the bar on these 24 topologies;
+    - (b) F2-MC: FL gnn (seeds 3–6) vs FL MLP (seeds 1–2), the four tests per charge with p unadjusted. It is labelled DESCRIPTIVE because no new MLP seeds were trained, and the seed sets differ;
+    - (c) gap attribution by bucket, the per-task mean over seeds 3–6.
+  - **Prerequisite (P4, reader; code with tests, before any cell).** The frozen reader `4441fa39` cannot read this family: `--confirm` requires `--seeds 1,2`, `gap_attribution` averages exactly two seeds, F2-MC uses one seed set for both arms, and the used-topology guard lacks 19707–19730.
+    - P4 adds `--confirm2`: `--seeds 3,4,5,6`, the guard extended by 19707–19730 and 19461, an MLP seed set for the descriptive F2-MC, and a gap attribution averaging all seeds.
+    - It leaves every filed read byte-identical. This is proven by B3 on read_combfl (50cb302a), the Arm 1b read (301b11c3), both first-confirmation reads (83fa5b8e, 2d60fba3) and the seed-extension reads, in their filed `--gate` order.
+    - The reader is then frozen at the reference-physics commit carrying P4, filed in its own line before any cell.
+    - No gate change is expected: P1 serves `_kr` by kind, not seed. Whether the stager serves seeds 3–6 from the new md5 file is not yet verified. The smoke on 19461 g0 heavy (one seed-3 cell per charge) checks it before any confirmation cell; any change it needs is a separate, filed prerequisite.
+  - **Process.** As the first confirmation:
+    - (1) Smoke on 19461 only.
+    - (2) One read script, written locally and copied.
+    - (3) B3 on the filed reads before the primary.
+    - (4) The primary stage runs alone and stops non-zero on failure. Nothing secondary or descriptive is computed until the primary md5 is filed.
+    - (5) One read; any void is disclosed with what it printed.
+    - (6) Rule 6: the label stands as read.
+  - **Cost (estimate, from the first confirmation's cells).**
+    - Training: 4 × about 10.5 h CPU on 6 cores, in parallel.
+    - Cells: about 1,536 + 1,536 learned at about 8 core-min, plus 384 bar at 5.5 core-min, ≈ 445 core-h, about 2–3 h wall on 6 exclusive nodes.
+    - The mint is about 40 s.
+
 - 2026-10-18 — **FL confirmation, primary read filed: NOT-CONFIRMED. Secondary stage: F2-MC MODEL-CLASS-DIRECTION.** FL gnn's B6 cap stays (WIN-ARM-ONLY on the 12-topology read, as filed). (S6 read; filed by the expert before any secondary stage.) Read job 884680, frozen reader `4441fa39`, `--confirm --stage primary`, 24 topologies 19707–19730, cells 884674–884679 (1,536 learned + 384 bar, 0 failed). File `/share/nikola.lukic/uncut_groups/conf/reads/read_conf_primary.json`, md5 `83fa5b8e9405f58e29d0650624b654ab`.
   - **Verdict.** "CONFIRMATION NOT-CONFIRMED (reader: MIXED; weaker of frozen 'WIN' and co-tenancy 'MIXED'; NOT-COTENANCY-ROBUST)". Frozen `_k100`: WIN. Co-tenancy `_kr`: MIXED. The only failing clause is the per-seed rule: seed 1's heavy whole-run result is −0.70 % under `_kr`, above the −1 % line; under `_k100` it is −1.02 %.
   - **F1, FL gnn vs `cd_ib0_inflightfull_k100`** (median %, topologies ahead of 24, Holm k = 4). `_k100`: moderate whole −5.73 (22, 5.2e-5), moderate after-360 −6.94 (22, 9.0e-5), heavy whole −2.11 (19, .0048), heavy after-360 −4.31 (19, .00075). `_kr`: −5.47 (22, 8.1e-5), −6.21 (22, 2.7e-4), −2.69 (19, .0019), −4.58 (20, .0025).
