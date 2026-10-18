@@ -15,6 +15,12 @@ w-only pins (pre-registered amendment, 2026-10-14): a learned cell may instead r
 --pin -> W1 -> W2 whose every `git diff --name-only --pin..Wi` is exactly scripts_cosim/decision_cost_w.json; every key already in the w file
 is identical at the next pin (frozen once committed), every added key is an Arm 1 learned arm's (ARM1_W_KINDS, in w_ms_per_plan /
 w_ms_per_plan_by_bucket, or a top-level _source_<kind> note), and an Arm 1 learned cell's own w key exists at its pin; hand cells stay at --pin; sha256 of the comma-joined --topos equals --topos-sha256;
+with --w-pins, cells of a learned kind that is not one of the read's arms (several kinds in one cell directory) pass the same learned-cell
+asserts (w-pin chain, w charge, checkpoint md5, host block, warmth) and are then left out of everything the read computes and writes;
+--confirm (FL confirmation, registered 2026-10-18): FL gnn [+ the FL MLP], both verdicts, fresh topologies only, B6 lifted for this family:
+CONFIRMED iff the combined F1 is a program-level WIN. --stage primary computes F1 under both verdicts only (the MLP's cells are checked as
+another learned kind) and writes once; --stage secondary adds F2-MC (FL gnn vs FL MLP, Holm 4, MODEL-CLASS rule) and the descriptive block
+only once the primary read's md5 is in the lineage node at --record on --filed-ref, and only if its primary parts equal the filed ones;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -551,6 +557,10 @@ def verdict(cells, failed, a, topos, prog_allowed=True, closed_why=FIXED_SEQ_WHY
         res["F2"] = {"holm_family": len(f2), "tests": f2, "MP": "MP-" + f2_label(f2[:4], prog)}
         if a.mlp:
             res["F2"]["MODEL-CLASS"] = f"MODEL-CLASS-{f2_label(f2[4:], prog)} (corpus: {a.corpus})"
+    elif a.mlp and getattr(a, "confirm", False):
+        # F2-MC (FL confirmation): FL gnn vs FL MLP, its own Holm family of 4, no twin; ATTRIBUTED needs the primary program-level WIN
+        mc = family(four(cells, a.primary, SEEDS, a.mlp, SEEDS, topos))
+        res["F2"] = {"holm_family": len(mc), "tests": mc, "MP": NO_TWIN_COMB, "MODEL-CLASS": f"MODEL-CLASS-{f2_label(mc, prog)} (corpus: {a.corpus})"}
     else:
         res["F2"] = {"holm_family": 0, "tests": [], "MP": NO_TWIN_COMB if a.primary in COMB_W_KINDS else NO_TWIN if SEEDS == (1, 2) else NO_TWIN_EXT}
     res["descriptive"] = {"gap_attribution": gap_attribution(cells, a.primary, topos)}
@@ -631,6 +641,53 @@ def combine(main, cot, a):
     return out
 
 
+# FL confirmation (uncut_groups_s0_v1, registered 2026-10-18): FL gnn on fresh topologies, never pooled with the 12 gate or the 36 TE3 ids
+CONFIRM_PRIMARY, CONFIRM_MLP = "ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit"
+CONFIRM_USED_TOPOS = frozenset(range(19537, 19549)) | frozenset(range(19554, 19590))
+CONFIRM_CORPUS = "11,073 states, 49 topologies, simulator labels"
+CONFIRM_WHY = ("FL confirmation: CONFIRMED (program-level, B6 lifted for FL gnn and this family only) iff the program's win rule holds under "
+               "both verdicts; else NOT-CONFIRMED and FL stays WIN-ARM-ONLY")
+
+
+def confirm_args(a):
+    """--confirm: the registered read's fixed arms, both verdicts, a staged read, fresh topologies only."""
+    if a.primary != CONFIRM_PRIMARY or a.twin or a.mlp not in ("", CONFIRM_MLP) or a.reference or a.compare or a.after_read:
+        raise SystemExit(f"FAIL LOUD: --confirm reads --primary {CONFIRM_PRIMARY} [--mlp {CONFIRM_MLP}], no twin, reference, compare or after-read")
+    if a.cotenancy != "required" or a.bar != "cd_ib0_inflightfull" or a.stage == "full" or a.seeds != "1,2":
+        raise SystemExit("FAIL LOUD: --confirm needs --cotenancy required, --bar cd_ib0_inflightfull, --seeds 1,2 and --stage primary or secondary")
+    if a.corpus not in ("uncut_arm1, 12,000 states", CONFIRM_CORPUS):
+        raise SystemExit(f"FAIL LOUD: --confirm names the corpus {CONFIRM_CORPUS!r}")
+    a.corpus = CONFIRM_CORPUS
+    used = sorted(set(int(x) for x in a.topos.split(",")) & CONFIRM_USED_TOPOS)
+    if used:
+        raise SystemExit(f"FAIL LOUD: --confirm topologies must be fresh; {used[:6]} are gate or TE3 ids")
+    if a.stage == "secondary" and not (a.primary_read and a.record and a.repo and a.mlp):
+        raise SystemExit("FAIL LOUD: --stage secondary needs --primary-read, --record, --repo and --mlp")
+    if a.stage == "primary" and (a.primary_read or a.record):
+        raise SystemExit("FAIL LOUD: --primary-read / --record belong to --stage secondary")
+
+
+def check_against_filed_primary(a, res, node="docs/lineages/uncut_groups_s0_v1.md"):
+    """--stage secondary: the primary read's full md5 is in the lineage node at --record, --record is on --filed-ref, and this run's primary
+    parts (F1 under both verdicts, the combined F1, the confirmation label) equal the filed primary read's."""
+    m = md5(a.primary_read)
+    body = git(a.repo, "show", f"{a.record}:{node}")
+    if m not in body:
+        raise SystemExit(f"FAIL LOUD: the primary read {a.primary_read} (md5 {m}) is not filed in {node} at {a.record}")
+    if subprocess.run(["git", "-C", a.repo, "merge-base", "--is-ancestor", a.record, a.filed_ref]).returncode:
+        raise SystemExit(f"FAIL LOUD: {a.record} is not on {a.filed_ref}: the primary read is not filed")
+    with open(a.primary_read) as fh:
+        p = json.load(fh)
+    if p.get("confirmation", {}).get("stage") != "primary":
+        raise SystemExit(f"FAIL LOUD: {a.primary_read} is not a primary-stage confirmation read")
+    same = lambda x, y: json.dumps(x, sort_keys=True, default=str) == json.dumps(y, sort_keys=True, default=str)
+    pairs = [(res["F1"], p["F1"]), (res["cotenancy"]["F1"], p["cotenancy"]["F1"]), (res["combined"]["F1"], p["combined"]["F1"]),
+             (res["confirmation"]["label"], p["confirmation"]["label"]), (res["topos"], p["topos"])]
+    if not all(same(x, y) for x, y in pairs):
+        raise SystemExit(f"FAIL LOUD: the secondary run's primary parts differ from the filed primary read {a.primary_read}")
+    res["confirmation"]["primary_read"] = {"path": os.path.abspath(a.primary_read), "md5": m, "record": a.record}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -654,8 +711,21 @@ def main(argv=None):
     ap.add_argument("--seeds", default="1,2", help="the learned arms' checkpoint seeds (seed extension: 11-18 or 11-16; the pooled line lists all)")
     ap.add_argument("--cotenancy", choices=("required", "off"), default="required",
                     help="required (the gate read): the learned arms' <arm>_kr cells give the second verdict; off only for smokes")
+    ap.add_argument("--confirm", action="store_true",
+                    help="the FL confirmation (registered 2026-10-18): FL gnn on fresh topologies, both verdicts, B6 lifted for this family only")
+    ap.add_argument("--stage", choices=("full", "primary", "secondary"), default="full",
+                    help="primary: F1 under both verdicts only; secondary: F2-MC and the descriptive block, only after the primary read is filed")
+    ap.add_argument("--primary-read", default="", help="--stage secondary: the primary-stage read JSON")
+    ap.add_argument("--record", default="", help="--stage secondary: the commit whose lineage node files the primary read's md5")
+    ap.add_argument("--filed-ref", default="origin/reference-physics", help="--stage secondary: --record must be an ancestor of this ref")
     a = ap.parse_args(argv)
     global SEEDS, BAR
+    if a.confirm:
+        confirm_args(a)
+    elif a.stage != "full":
+        raise SystemExit("FAIL LOUD: --stage primary / secondary is the FL confirmation's (--confirm)")
+    if a.stage == "primary":
+        a.mlp = ""  # F2-MC is a secondary output: its cells are checked as another learned kind in --gate, nothing of it is computed
     if a.bar not in ("cd_ib0", "cd_ib0_inflightfull"):
         raise SystemExit(f"FAIL LOUD: --bar {a.bar!r}: cd_ib0 (the filed bar) or cd_ib0_inflightfull (the combined lever's)")
     BAR = a.bar
@@ -677,6 +747,8 @@ def main(argv=None):
     ckpt = ckpt_md5s(a.checkpoint_md5)
     # B6 for the combined lever (every COMB kind, the FAST arms included): never a program-level label
     prog_allowed, closed_why = (False, COMB_B6_WHY) if a.primary in COMB_W_KINDS else (True, FIXED_SEQ_WHY)
+    if a.confirm:
+        prog_allowed, closed_why = True, CONFIRM_WHY
     tags = {ckpt_tag(x) for x in (a.primary, a.twin) if x}
     if len(tags) > 1 or "arm3" in tags and a.mlp:
         raise SystemExit("FAIL LOUD: --primary and --twin must be one trainer's (Arm 3 has no MLP comparator)")
@@ -702,6 +774,23 @@ def main(argv=None):
         if not a.repo:
             raise SystemExit("FAIL LOUD: --w-pins needs --repo, a git checkout holding --pin and every w-only pin")
         w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","), a.gate_change)
+    # A learned kind in --gate that is not one of this read's arms (e.g. F, L and the MLP beside FL in one cell directory) is checked as a
+    # learned cell at the w-pin chain (pin, w charge, checkpoint md5, host block) and then left out of everything the read computes.
+    base_kind = lambda k: k[:-len(KR)] if k.endswith(KR) else k
+    others = sorted({base_kind(k[0]) for k in list(cells) + list(failed)
+                     if base_kind(k[0]) in LEARNED_W_KINDS + ARM2_W_KINDS and base_kind(k[0]) not in learned}) if w_pins else []
+    oth_warmth = set()
+    if others:
+        print(f"other learned kinds in --gate, checked at the w-pin chain and not read: {others}")
+        bad_failed = sorted(k for k in failed if base_kind(k[0]) in others)
+        if bad_failed:
+            raise SystemExit(f"FAIL LOUD: failed cells of the other learned kinds in --gate: {bad_failed[:4]}")
+        oth = {k: v for k, v in cells.items() if k[0] in others}
+        oth_kr = {(k[0][:-len(KR)],) + k[1:]: v for k, v in cells.items() if k[0].endswith(KR) and base_kind(k[0]) in others}
+        oth_warmth.add(asserts(oth, a.pin, others, ckpt, w_pins))
+        if oth_kr:
+            oth_warmth.add(asserts(oth_kr, a.pin, others, ckpt, w_pins, kr=True))
+        cells = {k: v for k, v in cells.items() if base_kind(k[0]) not in others}
     kr_keys = [k for k in list(cells) + list(failed) if k[0].endswith(KR)]
     bad = sorted({k[0] for k in kr_keys if k[0][:-len(KR)] not in learned})
     if bad:
@@ -713,6 +802,8 @@ def main(argv=None):
     if a.cotenancy == "required" and not (cells_kr or failed_kr):
         raise SystemExit("FAIL LOUD: no co-tenancy (_kr) cells; the pre-registered read needs both verdicts")
     warmth = asserts(cells, a.pin, learned, ckpt, w_pins)
+    if oth_warmth and oth_warmth != {warmth}:
+        raise SystemExit(f"FAIL LOUD: the other learned kinds in --gate record HEROSIM_WARMTH_PHYSICS {sorted(oth_warmth)}, the read's {warmth}")
     if cells_kr:
         if asserts(cells_kr, a.pin, learned, ckpt, w_pins, kr=True) != warmth:
             raise SystemExit("FAIL LOUD: the co-tenancy cells record another HEROSIM_WARMTH_PHYSICS")
@@ -737,16 +828,34 @@ def main(argv=None):
         res["cotenancy"] = "OFF (not the gate read)"
         lab, why, f2 = res["F1"]["label"], res["F1"]["why"], res["F2"]
     f1 = res["F1"]["tests"]
+    if a.confirm:
+        res["confirmation"] = {"label": "CONFIRMED" if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage,
+                               "rule": CONFIRM_WHY}
+        if a.stage == "primary":
+            for v in (res, res["cotenancy"]):
+                v.pop("descriptive", None)
+        else:
+            check_against_filed_primary(a, res)
     txt = json.dumps(res, indent=1, default=str)
     if a.out:
-        with open(a.out, "w") as fh:
+        if a.confirm and os.path.exists(a.out):
+            raise SystemExit(f"FAIL LOUD: {a.out} exists; a confirmation read is written once")
+        with open(a.out + ".tmp", "w") as fh:
             fh.write(txt)
-    print(f"F1 {lab} ({why}); F2 {f2['MP']}" + (f"; {f2['MODEL-CLASS']}" if a.mlp else ""))
+        os.replace(a.out + ".tmp", a.out)
+    if a.confirm:
+        print(f"CONFIRMATION {res['confirmation']['label']} (reader: {lab}; {why})" + (f"; {f2['MODEL-CLASS']}" if a.mlp else ""))
+    else:
+        print(f"F1 {lab} ({why}); F2 {f2['MP']}" + (f"; {f2['MODEL-CLASS']}" if a.mlp else ""))
     for e in f1:
         print(f"  F1 {e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
-    for r in RUNGS:
-        g = res["descriptive"]["gap_attribution"][r]
-        print(f"  {r}: gap {g['gap_seconds']:.1f} s, share in groups > 10 {g['share_gt10']}, opening {g['opening_share']} -> {g['label']}")
+    if a.confirm:
+        for e in res["cotenancy"]["F1"]["tests"]:
+            print(f"  F1 _kr {e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
+    if "descriptive" in res:
+        for r in RUNGS:
+            g = res["descriptive"]["gap_attribution"][r]
+            print(f"  {r}: gap {g['gap_seconds']:.1f} s, share in groups > 10 {g['share_gt10']}, opening {g['opening_share']} -> {g['label']}")
     return res
 
 
