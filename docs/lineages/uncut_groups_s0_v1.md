@@ -301,6 +301,25 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-18 — **FL size-64, primary read filed: NOT-CONFIRMED.** (S6 read; the frozen reader `4132de68`, blob `ab8a1e1e`, `--confirm-size64 --stage primary`; 12 topologies 30129–30140 at 64 servers.) Every pooled test clears the win line under both charges. The failing clause is the per-seed rule: **seed 1 heavy whole is −0.66 % (`_k100`) and +0.02 % (`_kr`)** against the −1 % line, the same clause and seed as confirmation 1. File `/share/nikola.lukic/uncut_groups/size64/reads/read_size64_primary.json`, md5 `99de7fac6278e308763fe13b0d20193a`.
+  - **Before the read.**
+    - Serving check (logs only): FL's `[PREFIX SERVING]` / `[QUEUE FEATURES]` lines are identical to the 24-server cell (`platform_cap=0`), and both arms log "Nodes: 160 clients, 64 servers".
+    - The slate rule is proven by the gate's own check: a learned cell whose sidecar `candidate_slate` differs from `R1A_SLATE` fails, FL's sidecar records `declared_pruning_v1_uncapped`, and all 384 FL cells completed. S5's shard logs do not print it.
+    - B3, job 885459 at `4132de68`: all 13 reads of record byte-identical.
+  - **Read.** Job 885460, 0:0. Cells: bar 192, learned 384, 0 failed; the R1 grid (576) is exact and every cell records servers = 64. Verdict line: "CONFIRMATION NOT-CONFIRMED (reader: MIXED; weaker of frozen 'MIXED' and co-tenancy 'MIXED')"; why, under both: "WIN line met but seeds_alone_ok=False collapse_ok=True".
+  - **F1, FL gnn vs `cd_ib0_inflightfull_k100` at 64 servers** (median %, topologies ahead of 12, Holm k = 4):
+
+    | charge | moderate whole | moderate after-360 | heavy whole | heavy after-360 |
+    |---|---|---|---|---|
+    | `_k100` | −21.47 (12, .0020) | −32.89 (12, .0020) | −4.29 (11, .0049) | −27.27 (12, .0020) |
+    | `_kr` | −21.94 (12, .0020) | −33.26 (12, .0020) | −4.59 (9, .0068) | −28.34 (12, .0020) |
+
+  - **Seeds alone** (moderate whole / after-360 / heavy whole / heavy after-360):
+    - `_k100`: seed 1 −19.78 / −33.70 / **−0.66 (8/12)** / −28.59; seed 2 −23.62 / −31.39 / −7.61 / −26.52.
+    - `_kr`: seed 1 −19.24 / −32.95 / **+0.02 (6/12)** / −27.52; seed 2 −23.93 / −33.33 / −7.04 / −26.90.
+  - **Health.** 0 collapses in every arm and rung; 48 cells per rung per arm, none missing; anchor OK at both rungs (decision share FL 0.13 / 0.09 %, bar 0.011 / 0.013 %); robust vs `cd` −27.6 / −40.6 / −19.0 / −41.4 % (12/12, Holm .002).
+  - **Reading.** Under the registered rule this is NOT-CONFIRMED, with no re-read and no rule change; it is a claim about 64 servers only and changes nothing at 24 servers. The secondary (k = 0, FL MLP and reactive rows) waits until this md5 is filed; its MLP lines are never quoted as unseen evidence (the freeze line's caveat).
+
 - 2026-10-18 — **FL size-64: the reader is frozen at reference-physics `4132de68`** (`scripts_cosim/uncut_arm_gate_read.py` blob `ab8a1e1e`; P5 `--confirm-size64` with the per-cell servers = 64 check; filed before any size-64 read). Every size-64 read runs from this commit (datalab worktree `s6_reader_4132de68`). Any change to the blob before the read voids the freeze. Full suite at `4132de68`: 2,851 passed, 115 skipped. B3 885413 at `3fe81b5f` (the same blob): the 13 reads of record are byte-identical (output md5 `5a950655`). The seal holds until this line is filed: no size-64 summary, npy or result file has been opened. Signed: SCIENTIST, 2026-10-18 — FL size-64 reader frozen at reference-physics 4132de68 (uncut_arm_gate_read.py blob ab8a1e1e; P5 + servers = 64 check; B3 885413: 13 reads of record byte-identical). (SCIENTIST's caveat: the post-registration MLP pilot and size_decomp looks are not yet in the Record; until the disclosure line is resolved, the secondary's size-64 MLP lines are not quoted as unseen evidence. The primary read does not depend on it.)
 
 - 2026-10-18 — **Size-64 topologies minted: ids 30129–30140** (S5; minted after the size-64 registration merged at `4d9833e2`, filed before any size-64 cell output is read). The sha256 of the comma-joined id list is `61ab0ba8f5241b130a6e5bb126e54fb772ba35bab1fac67b7e0a32b0e6eaf744`; `ids.txt` md5 96849484.
