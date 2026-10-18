@@ -25,6 +25,9 @@ only once the primary read's md5 is in the lineage node at --record on --filed-r
 program threshold Holm < .0125 (alpha split over the two confirmation families), topologies also fresh of confirmation 1 and the smoke id, and
 no MLP cell in --gate; --stage secondary reads --desc-gate (FL gnn seeds 1-2 and the FL MLP seeds 1-2, checked as learned cells) for the
 descriptive seeds-1-2-vs-bar line and F2-MC, FL gnn s3-6 vs FL MLP s1-2, p unadjusted and labelled DESCRIPTIVE (never a label);
+--confirm-size64 (FL size-64, registered 2026-10-18): as --confirm2's staging and grid, but FL gnn seeds 1-2 (--seeds 1,2) on 64-server topologies,
+Holm < .025, the guard also fresh of confirmation 2 and the pilot 30011-30123, label SIZE-64-CONFIRMED; --stage secondary reads --desc-gate (the
+uncharged k = 0 cells of FL gnn s1-2 and the bar as bare kinds, the FL MLP s1-2 _k100) and --reactive-gate (reactive s0), descriptive only;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -294,9 +297,10 @@ def charge_check(key, s, w, k):
         raise SystemExit(f"FAIL LOUD: {key} served decision cost {got!r}, not k = {k} x its frozen w")
 
 
-def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
+def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False, k0=False):
     """w_pins: {full sha: w file} from w_pin_chain, --pin's own entry first; None without --w-pins (every cell at --pin).
-    kr: these are the co-tenancy cells, charged at the pin's k_cotenancy instead of 1."""
+    kr: these are the co-tenancy cells, charged at the pin's k_cotenancy instead of 1. k0: uncharged cells (the bare kind), which must
+    serve no decision-cost rate at all."""
     warmth = {}
     base = pin if w_pins is None else next(iter(w_pins))
     for key, s in cells.items():
@@ -309,7 +313,11 @@ def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False):
                              + (f" or a w-only pin" if allowed != [base] else ""))
         if w_pins and key[0] in LEARNED_W_KINDS + ARM2_W_KINDS and key[0] not in w_pins[at].get("w_ms_per_plan", {}):
             raise SystemExit(f"FAIL LOUD: {key} ran at {at}, whose {W_FILE} has no calibrated w for {key[0]}")
-        if w_pins and key[0] in LEARNED_W_KINDS + ARM2_W_KINDS:
+        if k0:
+            env = s.get("env") or {}
+            if env.get("HEROSIM_DECISION_COST_MS") or env.get("HEROSIM_DECISION_COST_MS_BY_BUCKET"):
+                raise SystemExit(f"FAIL LOUD: {key} is a k = 0 cell but served a decision-cost rate")
+        elif w_pins and key[0] in LEARNED_W_KINDS + ARM2_W_KINDS:
             k = w_pins[at].get("k_cotenancy") if kr else 1.0
             if k is None:
                 raise SystemExit(f"FAIL LOUD: {key} is a co-tenancy cell at {at}, whose {W_FILE} has no k_cotenancy")
@@ -669,17 +677,27 @@ CONFIRM2_WHY = ("FL confirmation 2: " + CONFIRM2_YES + " iff the program's win r
                 + ", each of seeds 3-6 alone <= -1 % on all four; else NOT-CONFIRMED and FL stays WIN-ARM-ONLY")
 
 
+# FL size-64 (registered 2026-10-18): FL gnn seeds 1-2, trained at 24 servers, against the in-flight bar at 64 servers
+SIZE64_USED_TOPOS = CONFIRM2_USED_TOPOS | frozenset(range(19953, 19977)) | frozenset(range(30011, 30124))
+SIZE64_YES = "SIZE-64-CONFIRMED (size chosen after an exploratory pilot)"
+SIZE64_WHY = ("FL size-64: " + SIZE64_YES + " iff the program's win rule (Holm < .025, each seed alone <= -1 %, collapses <= the bar's) holds "
+              "under both verdicts; else NOT-CONFIRMED. A claim about 64 servers only; nothing at 24 servers changes")
+SIZE64_REACTIVE = "reactive"
+
+
 def confirm_args(a):
     """--confirm: the registered read's fixed arms, both verdicts, a staged read, fresh topologies only. --confirm2 as --confirm, at seeds
     3-6 only, fresh of confirmation 1 and the smoke id too; the MLP is not in --gate but in --desc-gate (--stage secondary)."""
-    if a.confirm and a.confirm2:
-        raise SystemExit("FAIL LOUD: --confirm and --confirm2 are two families; pass one")
+    if sum(map(bool, (a.confirm, a.confirm2, a.confirm_size64))) > 1:
+        raise SystemExit("FAIL LOUD: --confirm, --confirm2 and --confirm-size64 are separate families; pass one")
+    if a.reactive_gate and not (a.confirm_size64 and a.stage == "secondary"):
+        raise SystemExit("FAIL LOUD: --reactive-gate belongs to --confirm-size64 --stage secondary")
     if a.confirm2:
         if a.seeds != ",".join(map(str, CONFIRM2_SEEDS)):
             raise SystemExit(f"FAIL LOUD: --confirm2 reads seeds {list(CONFIRM2_SEEDS)} only (--seeds 3,4,5,6), not {a.seeds!r}")
         a.seeds = "1,2"  # the shared checks below; restored after them
-    elif a.desc_gate:
-        raise SystemExit("FAIL LOUD: --desc-gate belongs to --confirm2 --stage secondary")
+    elif a.desc_gate and not a.confirm_size64:
+        raise SystemExit("FAIL LOUD: --desc-gate belongs to --confirm2 / --confirm-size64 --stage secondary")
     if a.primary != CONFIRM_PRIMARY or a.twin or a.mlp not in ("", CONFIRM_MLP) or a.reference or a.compare or a.after_read:
         raise SystemExit(f"FAIL LOUD: --confirm reads --primary {CONFIRM_PRIMARY} [--mlp {CONFIRM_MLP}], no twin, reference, compare or after-read")
     if a.cotenancy != "required" or a.bar != "cd_ib0_inflightfull" or a.stage == "full" or a.seeds != "1,2":
@@ -687,10 +705,16 @@ def confirm_args(a):
     if a.corpus not in ("uncut_arm1, 12,000 states", CONFIRM_CORPUS):
         raise SystemExit(f"FAIL LOUD: --confirm names the corpus {CONFIRM_CORPUS!r}")
     a.corpus = CONFIRM_CORPUS
-    used = sorted(set(int(x) for x in a.topos.split(",")) & (CONFIRM2_USED_TOPOS if a.confirm2 else CONFIRM_USED_TOPOS))
+    guard = SIZE64_USED_TOPOS if a.confirm_size64 else CONFIRM2_USED_TOPOS if a.confirm2 else CONFIRM_USED_TOPOS
+    used = sorted(set(int(x) for x in a.topos.split(",")) & guard)
     if used:
-        raise SystemExit(f"FAIL LOUD: --confirm{'2' if a.confirm2 else ''} topologies must be fresh; {used[:6]} are gate, TE3"
-                         + (", confirmation 1 or smoke ids" if a.confirm2 else " ids"))
+        raise SystemExit(f"FAIL LOUD: --confirm{'-size64' if a.confirm_size64 else '2' if a.confirm2 else ''} topologies must be fresh; {used[:6]} are gate, TE3"
+                         + (", confirmation, smoke or pilot ids" if a.confirm_size64 else ", confirmation 1 or smoke ids" if a.confirm2 else " ids"))
+    if a.confirm_size64:
+        if a.stage == "secondary" and not (a.desc_gate and a.reactive_gate):
+            raise SystemExit("FAIL LOUD: --confirm-size64 --stage secondary needs --desc-gate (k = 0 cells, FL MLP) and --reactive-gate")
+        if a.stage == "primary" and a.desc_gate:
+            raise SystemExit("FAIL LOUD: --desc-gate is not read before the primary md5 is filed (seal)")
     if a.confirm2:
         a.seeds = ",".join(map(str, CONFIRM2_SEEDS))
         if a.stage == "secondary" and not a.desc_gate:
@@ -766,6 +790,32 @@ def desc_confirm2(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth, mlp):
                                      "tests": four(withm, a.primary, SEEDS, mlp, CONFIRM2_MLP_SEEDS, topos)}
 
 
+def desc_size64(a, res, cells, topos, ckpt, w_pins, warmth, mlp):
+    """--confirm-size64 --stage secondary: --desc-gate holds exactly the uncharged k = 0 cells (FL gnn s1-2 and the bar, bare kinds) and the
+    FL MLP s1-2 _k100 (480 cells for 12 topologies), --reactive-gate exactly reactive s0; each passes the cell asserts, then descriptive lines
+    (p unadjusted, never a label): k = 0 FL vs k = 0 bar; FL MLP vs the bar and FL gnn vs FL MLP (_k100); reactive vs the bar."""
+    dc, df = load(a.desc_gate, a.suffix)
+    for key, s in dc.items():
+        charged = re.search(r"__.+_(k\d+|kr)_s\d+\.summary\.json$", os.path.basename(s["_path"]))
+        if (key[0] == mlp) != bool(charged and charged.group(1) == a.suffix[1:]):
+            raise SystemExit(f"FAIL LOUD: --desc-gate cell {os.path.basename(s['_path'])}: the k = 0 cells are bare kinds and the MLP is {a.suffix}")
+    res["confirmation"]["desc_grid_cells"] = grid_or_void(dc, df, [(a.primary, SEEDS), (BAR, (0,)), (mlp, SEEDS)], topos, "--desc-gate")
+    k0 = {k: v for k, v in dc.items() if k[0] != mlp}
+    mc = {k: v for k, v in dc.items() if k[0] == mlp}
+    if asserts(k0, a.pin, [a.primary], ckpt, w_pins, k0=True) != warmth or asserts(mc, a.pin, [mlp], ckpt, w_pins) != warmth:
+        raise SystemExit("FAIL LOUD: the --desc-gate cells record another HEROSIM_WARMTH_PHYSICS")
+    rc, rf = load(a.reactive_gate, a.suffix)
+    res["confirmation"]["reactive_grid_cells"] = grid_or_void(rc, rf, [(SIZE64_REACTIVE, (0,))], topos, "--reactive-gate")
+    if asserts(rc, a.pin, [], ckpt, w_pins) != warmth:
+        raise SystemExit("FAIL LOUD: the --reactive-gate cells record another HEROSIM_WARMTH_PHYSICS")
+    withm = {**cells, **mc}
+    note = "descriptive, p unadjusted, never a label"
+    res["descriptive"]["k0_fl_vs_bar"] = {"note": note + "; both arms uncharged (k = 0)", "tests": four(k0, a.primary, SEEDS, BAR, (0,), topos)}
+    res["descriptive"]["mlp_vs_bar"] = {"note": note + "; _k100", "tests": four(withm, mlp, SEEDS, BAR, (0,), topos)}
+    res["descriptive"]["fl_vs_mlp"] = {"note": note + "; _k100", "tests": four(withm, a.primary, SEEDS, mlp, SEEDS, topos)}
+    res["descriptive"]["reactive_vs_bar"] = {"note": note + "; reactive uncharged, the bar _k100", "tests": four({**cells, **rc}, SIZE64_REACTIVE, (0,), BAR, (0,), topos)}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -793,6 +843,9 @@ def main(argv=None):
                     help="the FL confirmation (registered 2026-10-18): FL gnn on fresh topologies, both verdicts, B6 lifted for this family only")
     ap.add_argument("--confirm2", action="store_true",
                     help="FL confirmation 2 (registered 2026-10-18 at 2ea36408): FL gnn seeds 3-6 on fresh topologies, Holm < .0125, both verdicts")
+    ap.add_argument("--confirm-size64", action="store_true",
+                    help="FL size-64 (registered 2026-10-18): FL gnn seeds 1-2 on 64-server topologies against the in-flight bar, Holm < .025, both verdicts")
+    ap.add_argument("--reactive-gate", default="", help="--confirm-size64 --stage secondary: the reactive (admission) cells, read as a descriptive row")
     ap.add_argument("--desc-gate", default="", help="--confirm2 --stage secondary: the descriptive cells (FL gnn s1-2, FL MLP s1-2), read after the primary is filed")
     ap.add_argument("--stage", choices=("full", "primary", "secondary"), default="full",
                     help="primary: F1 under both verdicts only; secondary: F2-MC and the descriptive block, only after the primary read is filed")
@@ -802,14 +855,16 @@ def main(argv=None):
     a = ap.parse_args(argv)
     global SEEDS, BAR, PROG_ALPHA
     PROG_ALPHA = PROG_ALPHA_FILED
-    if a.confirm or a.confirm2:
+    if a.confirm or a.confirm2 or a.confirm_size64:
         confirm_args(a)
     elif a.stage != "full":
         raise SystemExit("FAIL LOUD: --stage primary / secondary is the FL confirmation's (--confirm)")
-    confirm2, mlp2 = a.confirm2, ""
-    if confirm2:
-        a.confirm, PROG_ALPHA = True, CONFIRM2_ALPHA
-        mlp2, a.mlp = a.mlp, ""  # confirmation 2's MLP lives in --desc-gate, read descriptively after the verdicts
+    confirm2, size64, mlp2 = a.confirm2, a.confirm_size64, ""
+    staged = confirm2 or size64
+    if staged:
+        a.confirm = True
+        PROG_ALPHA = CONFIRM2_ALPHA if confirm2 else PROG_ALPHA_FILED
+        mlp2, a.mlp = a.mlp, ""  # the family's MLP lives in --desc-gate, read descriptively after the verdicts
     if a.stage == "primary":
         a.mlp = ""  # F2-MC is a secondary output: its cells are checked as another learned kind in --gate, nothing of it is computed
     if a.bar not in ("cd_ib0", "cd_ib0_inflightfull"):
@@ -824,10 +879,10 @@ def main(argv=None):
         raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
     topos = [int(x) for x in a.topos.split(",")]
     cells, failed = load(a.gate, a.suffix)
-    if confirm2:
+    if staged:
         mc = sorted({k for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) == CONFIRM_MLP})
         if mc:
-            raise SystemExit(f"FAIL LOUD: --confirm2 --gate holds FL MLP cells {mc[:3]}; they belong in --desc-gate (C3)")
+            raise SystemExit(f"FAIL LOUD: --confirm{'-size64' if size64 else '2'} --gate holds FL MLP cells {mc[:3]}; they belong in --desc-gate (C3)")
         grid_n = grid_or_void(cells, failed, [(a.primary, SEEDS), (a.primary + KR, SEEDS), (a.bar, (0,)), (CD, (0,))], topos, "--gate")
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
     stray = sorted({(k[0], k[1]) for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) in (a.primary, a.twin, a.mlp) and k[1] not in SEEDS})
@@ -919,7 +974,10 @@ def main(argv=None):
         res["cotenancy"] = "OFF (not the gate read)"
         lab, why, f2 = res["F1"]["label"], res["F1"]["why"], res["F2"]
     f1 = res["F1"]["tests"]
-    if confirm2:
+    if size64:
+        res["confirmation"] = {"label": SIZE64_YES if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage,
+                               "rule": SIZE64_WHY, "family": "FL size-64", "grid_cells": grid_n}
+    elif confirm2:
         res["confirmation"] = {"label": CONFIRM2_YES if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage,
                                "rule": CONFIRM2_WHY, "alpha": CONFIRM2_ALPHA_LINE, "family": "confirmation 2", "grid_cells": grid_n}
     elif a.confirm:
@@ -933,6 +991,8 @@ def main(argv=None):
             check_against_filed_primary(a, res)
             if confirm2:  # C3: --desc-gate is opened only after the primary read is shown to be filed
                 desc_confirm2(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth, mlp2)
+            if size64:  # the seal: --desc-gate and --reactive-gate are opened only after the primary read is shown to be filed
+                desc_size64(a, res, cells, topos, ckpt, w_pins, warmth, mlp2)
     txt = json.dumps(res, indent=1, default=str)
     if a.out:
         if a.confirm and os.path.exists(a.out):
