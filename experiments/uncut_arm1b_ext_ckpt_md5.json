@@ -1,0 +1,133 @@
+{
+  "_ckpt_dir": "/share/nikola.lukic/uncut_arm1/models_ext",
+  "_provenance": {
+    "gnn_eng|s11": {
+      "job": "883459",
+      "host": "os-cpu-slurm-21",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed11-final.pt",
+      "links": [
+        {
+          "job": "883459",
+          "host": "os-cpu-slurm-21",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "s5an4dp4"
+    },
+    "gnn_eng|s12": {
+      "job": "883460",
+      "host": "os-cpu-slurm-21",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed12-final.pt",
+      "links": [
+        {
+          "job": "883460",
+          "host": "os-cpu-slurm-21",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "jbqjx606"
+    },
+    "gnn_eng|s13": {
+      "job": "883461",
+      "host": "os-cpu-slurm-22",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed13-final.pt",
+      "links": [
+        {
+          "job": "883461",
+          "host": "os-cpu-slurm-22",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "duk9q17v"
+    },
+    "gnn_eng|s14": {
+      "job": "883462",
+      "host": "os-cpu-slurm-22",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed14-final.pt",
+      "links": [
+        {
+          "job": "883462",
+          "host": "os-cpu-slurm-22",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "sifhu0z8"
+    },
+    "gnn_eng|s15": {
+      "job": "883463",
+      "host": "os-cpu-slurm-22",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed15-final.pt",
+      "links": [
+        {
+          "job": "883463",
+          "host": "os-cpu-slurm-22",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "6oewjgfv"
+    },
+    "gnn_eng|s16": {
+      "job": "883464",
+      "host": "os-cpu-slurm-22",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed16-final.pt",
+      "links": [
+        {
+          "job": "883464",
+          "host": "os-cpu-slurm-22",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "gpb01r7c"
+    },
+    "gnn_eng|s17": {
+      "job": "883465",
+      "host": "os-cpu-slurm-23",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed17-final.pt",
+      "links": [
+        {
+          "job": "883465",
+          "host": "os-cpu-slurm-23",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "31hxbw92"
+    },
+    "gnn_eng|s18": {
+      "job": "883466",
+      "host": "os-cpu-slurm-23",
+      "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)",
+      "file": "uncut-arm1b-gnn-eng-seed18-final.pt",
+      "links": [
+        {
+          "job": "883466",
+          "host": "os-cpu-slurm-23",
+          "cpu": "AMD EPYC 9335 32-Core Processor (lscpu of the node by a one-minute job, 2026-10-18; nodes 21, 22 and 23 all report it)"
+        }
+      ],
+      "submission": "arm1b-ext-s11-18@c94b9459",
+      "wandb_id": "tyjuvq8p"
+    }
+  },
+  "gnn_eng|s11": "1b59c09c8058ec841617ae1c6e4e96af",
+  "gnn_eng|s12": "bdd68b4c7ae7e3d0bc4f57971c594323",
+  "gnn_eng|s13": "3396e0d776ec3d50c5cb7341c679e3d1",
+  "gnn_eng|s14": "8aa6ef001d0abeab7e996b331db63bd5",
+  "gnn_eng|s15": "08323a114d5850e34bce2f37a8920381",
+  "gnn_eng|s16": "d3696c49c9e2f8c5a41f6f01883643b6",
+  "gnn_eng|s17": "942c200e3d3d7c97d8695ba5ac4958b1",
+  "gnn_eng|s18": "88a5657abb6c67447faeeb96d9846f71"
+}
