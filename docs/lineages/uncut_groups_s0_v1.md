@@ -308,6 +308,27 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Mint.** `big_groups_inputs.sbatch` at `f8814905`, job 884670 (43 s, 8 CPUs, os-cpu-slurm-9): accel 160 × 24, p 0.6, single origin, `x1_uncut`, `M_MODERATE` 11.6139, `M_HEAVY` 27.622665025860204, `REPLICA_RULE` fastest_compatible, BASECFG `cc40s16345.json`; new root `/share/nikola.lukic/uncut_groups/gate_inputs_fl`. All 24 ids admitted, no replacement used (0 of 4). The mint's own checks pass: cfg and windows for g0–g3 at both rungs; rates 12.7173 / 12.7172 / 12.7173 / 12.7048 (heavy g0–g3) and 5.3470 / 5.3469 / 5.3470 / 5.3417 (moderate), g0 maximum group 199; these equal the 12-topology and TE3 mints, the windows being the same.
   - **Whole-group tree.** `uncut_groups_group_inputs.py`, job 884671: 48 cell cfgs rewritten 10 → "group", 58 files. `md5sum -c` passes on both trees with 0 differences. `inputs/MD5SUMS` md5 `a4d9671b9709d6f37ab893f5ba64e4c3`; `inputs_group/MD5SUMS` md5 `f523cf4a3635029a356cc79367c68e4a`. The tree to serve is `/share/nikola.lukic/uncut_groups/gate_inputs_fl/inputs_group`. Selection file `/share/nikola.lukic/uncut_groups/fl_selected.json` (the `arm1_selected.json` keys, topologies 19707–19730).
   - **Incident, disclosed.** My first rerun of the name scan wrote into the same directory as TE3's filed scan files, briefly emptying `tok_share.txt` there. I restored TE3's `tok_share.txt`, `tok_simdata_names.txt`, `tok_git.txt`, `prov_seeds.json` and `ids.txt` from my copies; their md5s are again the ones TE3 filed (58f3c80d, 15956e84, 460a3445, 99914b93, 9433a460). The rerun's own files are in `fl/`.
+- 2026-10-18 — **FL confirmation smoke (process step 1): SMOKE OK on 19461 g0 heavy, which is not a confirmation topology.** (S6; before any confirmation cell; no confirmation id was read.)
+  - **Cells.** Job 884667 on os-cpu-slurm-10 (the lowest-load idle node, not 21; exclusive, PAR 4), at P2 `74ddf70e`, 3 min 28 s.
+    - 4 cells, 0 failed: FL gnn and FL MLP, seed 1, `_k100` and `_kr`, on 19461 g0 heavy.
+    - Inputs `comb/in_smoke_conf`: the `e2738e37` windows, `hand_selected.json`, and the FL / MLP s1 checkpoints (md5 `a670eb0c…` / `d05ff3f1…`).
+    - Scripts: `comb/conf_smoke.sh` (md5 `294f9eb2…`) and `comb/smoke_check.sh` (md5 `39b3c0a7…`).
+  - **Check** (job 884673, frozen reader `4441fa39`):
+    - The learned-cell asserts at the confirmation chain (`a459dd98` / `095948ea,f6818d09` / `74ddf70e`) pass on `_k100` and on `_kr`: w-pin, checkpoint md5, host block, 1 thread, warmth `node_disk_v2`.
+    - The `_k100` charge equals the frozen w per bucket, and the `_kr` charge equals 1.468 × w per bucket, for both kinds.
+    - Plans differ under `_kr`:
+
+      | kind | `tasks.npy` md5 (k100 / kr) | tasks with a different completion time | mean latency, s (k100 / kr) | plan evals (k100 / kr) |
+      |---|---|---|---|---|
+      | FL gnn | `60b3992e` / `d86dd237` | 49,579 of 50,000 | 2.0329 / 1.9739 | 50,002 / 50,011 |
+      | FL MLP | `8df7c91e` / `88a699d8` | 49,517 of 50,000 | 1.9714 / 1.9994 | 50,009 / 50,002 |
+
+    - FL gnn's `_kr` cell is faster than its `_k100` cell despite the higher charge. It is one cell on one window, and no test reads it.
+  - **Void check runs, disclosed.**
+    1. Job 884668: the datalab clone had not fetched `4441fa39`, so the check could not create its reader worktree and ran no check (`FAIL LOUD: reader HEAD`). Log: `comb/logs/void_s6-conf-smoke-check-884668.out`.
+    2. Job 884672: the asserts and FL gnn's charges passed. The plan-diff test then compared completion times row by row, but the two cells' `.tasks_bsz.npy` hold the same 50,000 task ids in different row orders, so the test returned −1 and failed loud before the MLP lines printed. Log: `comb/logs/void_s6-conf-smoke-check-884672.out`.
+    - The check was fixed to align by task id, as the reader's `per_task` does, and only the check was rerun as 884673, on the same 4 cells. The expert ruled 884672 the check's first real failure, since 884668 never reached a check.
+
 - 2026-10-18 — **FL confirmation: prerequisites P1–P3 merged (reference-physics `4441fa39`, full suite rc 0); the frozen reader is `4441fa39`.** (S6; filed before any confirmation cell exists, and before the smoke.)
   - **Frozen reader:** `scripts_cosim/uncut_arm_gate_read.py` at `4441fa39` (blob `9de44286…`, byte-identical to P3 `1489415f`'s). The confirmation reads use exactly this file.
   - **The cell chain:** `--pin a459dd98 --gate-change 095948ea,f6818d09 --w-pins 74ddf70e`. Learned cells run at `74ddf70e`, bar cells at `a459dd98`.
