@@ -26,7 +26,7 @@ program threshold Holm < .0125 (alpha split over the two confirmation families),
 no MLP cell in --gate; --stage secondary reads --desc-gate (FL gnn seeds 1-2 and the FL MLP seeds 1-2, checked as learned cells) for the
 descriptive seeds-1-2-vs-bar line and F2-MC, FL gnn s3-6 vs FL MLP s1-2, p unadjusted and labelled DESCRIPTIVE (never a label);
 --confirm-size64 (FL size-64, registered 2026-10-18): as --confirm2's staging and grid, but FL gnn seeds 1-2 (--seeds 1,2) on 64-server topologies,
-Holm < .025, the guard also fresh of confirmation 2, the pilot 30011-30123 and the retired 20021-20032, label SIZE-64-CONFIRMED; --stage secondary reads --desc-gate (the
+Holm < .025, the guard also fresh of confirmation 2, the pilot 30011-30123 and the retired 20021-20032, label SIZE-64-CONFIRMED, every loaded cell recording servers = 64; --stage secondary reads --desc-gate (the
 uncharged k = 0 cells of FL gnn s1-2 and the bar as bare kinds, the FL MLP s1-2 _k100) and --reactive-gate (reactive s0), descriptive only;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
@@ -684,6 +684,14 @@ SIZE64_YES = "SIZE-64-CONFIRMED (size chosen after an exploratory pilot)"
 SIZE64_WHY = ("FL size-64: " + SIZE64_YES + " iff the program's win rule (Holm < .025, each seed alone <= -1 %, collapses <= the bar's) holds "
               "under both verdicts; else NOT-CONFIRMED. A claim about 64 servers only; nothing at 24 servers changes")
 SIZE64_REACTIVE = "reactive"
+SIZE64_SERVERS = 64
+
+
+def servers_or_fail(cells, where):
+    """--confirm-size64 (SCIENTIST): every loaded cell records servers = 64 in its summary; another count or none fails loud."""
+    bad = sorted((k, s.get("servers")) for k, s in cells.items() if s.get("servers") != SIZE64_SERVERS or type(s.get("servers")) is not int)
+    if bad:
+        raise SystemExit(f"FAIL LOUD: {where}: {len(bad)} cell(s) do not record servers = {SIZE64_SERVERS}, e.g. {bad[:3]}")
 
 
 def confirm_args(a):
@@ -796,6 +804,7 @@ def desc_size64(a, res, cells, topos, ckpt, w_pins, warmth, mlp):
     FL MLP s1-2 _k100 (480 cells for 12 topologies), --reactive-gate exactly reactive s0; each passes the cell asserts, then descriptive lines
     (p unadjusted, never a label): k = 0 FL vs k = 0 bar; FL MLP vs the bar and FL gnn vs FL MLP (_k100); reactive vs the bar."""
     dc, df = load(a.desc_gate, a.suffix)
+    servers_or_fail(dc, "--desc-gate")
     for key, s in dc.items():
         charged = re.search(r"__.+_(k\d+|kr)_s\d+\.summary\.json$", os.path.basename(s["_path"]))
         if (key[0] == mlp) != bool(charged and charged.group(1) == a.suffix[1:]):
@@ -806,6 +815,7 @@ def desc_size64(a, res, cells, topos, ckpt, w_pins, warmth, mlp):
     if asserts(k0, a.pin, [a.primary], ckpt, w_pins, k0=True) != warmth or asserts(mc, a.pin, [mlp], ckpt, w_pins) != warmth:
         raise SystemExit("FAIL LOUD: the --desc-gate cells record another HEROSIM_WARMTH_PHYSICS")
     rc, rf = load(a.reactive_gate, a.suffix)
+    servers_or_fail(rc, "--reactive-gate")
     res["confirmation"]["reactive_grid_cells"] = grid_or_void(rc, rf, [(SIZE64_REACTIVE, (0,))], topos, "--reactive-gate")
     if asserts(rc, a.pin, [], ckpt, w_pins) != warmth:
         raise SystemExit("FAIL LOUD: the --reactive-gate cells record another HEROSIM_WARMTH_PHYSICS")
@@ -885,6 +895,8 @@ def main(argv=None):
         if mc:
             raise SystemExit(f"FAIL LOUD: --confirm{'-size64' if size64 else '2'} --gate holds FL MLP cells {mc[:3]}; they belong in --desc-gate (C3)")
         grid_n = grid_or_void(cells, failed, [(a.primary, SEEDS), (a.primary + KR, SEEDS), (a.bar, (0,)), (CD, (0,))], topos, "--gate")
+        if size64:
+            servers_or_fail(cells, "--gate")
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
     stray = sorted({(k[0], k[1]) for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) in (a.primary, a.twin, a.mlp) and k[1] not in SEEDS})
     if stray:
