@@ -1349,6 +1349,9 @@ def s64(tmp_path, monkeypatch):
                              env={"HEROSIM_DECISION_COST_MS": repr(wr)} if k0_charged else None, servers=64)
                         cell(str(dd), mlp, sd, t, w, r, 1.9 - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=64)
 
+        for f in rd.glob("*.tasks_bsz.npy"):  # the per-arrival reactive path writes no groupSize / servedBatchSize (P5.1)
+            _unset_batch_fields(f)
+
     def read(stage, out, **kw):
         args = ["--gate", str(d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
                 "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
@@ -1468,4 +1471,47 @@ def test_size64_fails_loud_on_any_cell_not_at_64_servers(s64, where, servers):
     sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": pr, "record": s64["file"](pr), "filed-ref": "HEAD", "desc-gate": str(s64["dd"]),
                                      "reactive-gate": str(s64["rd"])})
     with pytest.raises(SystemExit, match=f"--{where}-gate: 1 cell"):
+        s64["read"]("secondary", "s.json", **sec)
+
+
+def _unset_batch_fields(p, rows=None):
+    a = np.load(p)
+    a[:, 3] = -1
+    a[:, 4] = -1
+    np.save(p, a if rows is None else a[:rows])
+
+
+@pytest.mark.parametrize("case", ["reactive_unset_passes", "reactive_rowcount_fails", "reactive_no_sidecar_fails", "reactive_filled_fails",
+                                  "mlp_unset_fails", "bar_unset_fails"])
+def test_size64_per_arrival_reactive_row_and_batched_cells(s64, case):
+    """P5.1 (job 885487 failed on the reactive sidecar): reactive places per arrival and writes no groupSize / servedBatchSize; batched
+    learned and bar cells are still held to both under every gate."""
+    s64["fill"]()
+    rd, dd = s64["rd"], s64["dd"]
+    r = rd / "cc40s4__g1heavy__reactive_s0.tasks_bsz.npy"
+    if case == "reactive_rowcount_fails":
+        _unset_batch_fields(r, rows=3)
+    elif case == "reactive_no_sidecar_fails":
+        r.unlink()
+    elif case == "reactive_filled_fails":
+        a = np.load(r)
+        a[1, 4] = 3
+        np.save(r, a)
+    elif case == "mlp_unset_fails":
+        _unset_batch_fields(dd / f"cc40s4__g1heavy__{G.CONFIRM_MLP}_k100_s1.tasks_bsz.npy")
+    elif case == "bar_unset_fails":
+        _unset_batch_fields(s64["d"] / "cc40s4__g1heavy__cd_ib0_inflightfull_k100_s0.tasks_bsz.npy")
+        with pytest.raises(SystemExit, match="groupSize/servedBatchSize"):
+            s64["read"]("primary", "p.json")
+        return
+    s64["read"]("primary", "p.json")
+    p = str(s64["tmp"] / "p.json")
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": s64["file"](p), "filed-ref": "HEAD", "desc-gate": str(dd), "reactive-gate": str(rd)})
+    if case == "reactive_unset_passes":
+        assert len(s64["read"]("secondary", "s.json", **sec)["descriptive"]["reactive_vs_bar"]["tests"]) == 4
+        return
+    match = {"reactive_rowcount_fails": "one row per task", "reactive_no_sidecar_fails": "no per-task batch-size sidecar",
+             "reactive_filled_fails": "a batched path served it",
+             "mlp_unset_fails": "groupSize/servedBatchSize"}[case]
+    with pytest.raises(SystemExit, match=match):
         s64["read"]("secondary", "s.json", **sec)
