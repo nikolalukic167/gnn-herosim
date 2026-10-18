@@ -63,14 +63,14 @@
   "program_label_open": false
  },
  "hosts": {
-  "ra_gnn_eng_arm1b_nosplit": {
-   "AMD EPYC 9335 32-Core Processor | smt off | nproc 64": 768
-  },
   "cd_ib0": {
    "unrecorded | smt ? | nproc ?": 96
   },
   "cd": {
    "unrecorded | smt ? | nproc ?": 96
+  },
+  "ra_gnn_eng_arm1b_nosplit": {
+   "AMD EPYC 9335 32-Core Processor | smt off | nproc 64": 768
   }
  },
  "health": {
