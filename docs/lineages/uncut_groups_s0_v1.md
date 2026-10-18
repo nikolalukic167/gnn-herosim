@@ -301,6 +301,86 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-18 — **FL size-64 (FL gnn, trained at 24 servers, against the in-flight bar at 64 servers): REGISTERED before any size-64 topology is minted and before any size-64 cell exists.** (The user's GO, relayed by the expert; S6 drafted and reads; S5 mints and runs the cells; SCIENTIST signs; SCIENTIST's five conditions and the expert's seal rule are in the text.) **Claim, and its only claim:** "FL, trained at 24 servers, beats the in-flight bar at 64 servers." It does not touch confirmation 1 (NOT-CONFIRMED, `83fa5b8e`), confirmation 2 (registered `2ea36408`, running) or FL's B6 label at 24 servers.
+  - **Disclosure: the size was chosen after an exploratory pilot** (S5, undocumented, `topo_explore/pilot/`, read file `read_size.txt`). Every look, all with FL gnn, `cd_ib0_inflightfull_k100` and reactive cells:
+    - sizes 16 (`cells_v1_s16`, 30011–30013), 40 (`cells_v2_s40`, 30021–30023), 40 rerun (`cells_v2r_s40`, 30101–30103), 56 (`cells_v56_s56`, 30111–30113) and 64 (`cells_v64_s64`, 30121–30123), plus the A / B / L sets (`cells_A` 30031–30063, `cells_B` 30081–30093, `cells_L` 30071–30073);
+    - the variant inputs V1–V7 (including `in_v3_scarce`, `in_v4_bw05`, `in_v5_p03`), and S5's topology explorer (`topo_explore.txt`, `topo_table.json`).
+    - At 64 servers (3 topologies, g0, scaled rate) FL beat the bar by −25.7 % / −14.3 % whole run; the results at the other sizes and variants were seen too.
+    - The cost check below reads only the decision wall times of the 64-server pilot cells.
+    - **Every pilot id, 30011–30123, is excluded.** The label line carries "(size chosen after an exploratory pilot)".
+  - **Registered prior (SCIENTIST, verbatim):** P ≈ 0.80, expected −15 to −20 % moderate and −8 to −12 % heavy.
+  - **Topologies: 12 fresh ids by TE3's literal rule**: the lowest run of 12 consecutive free ids above 30123, by S5's token scan rerun just before filing.
+    - **Disjoint from:** the training corpus and every capture or state list of the Arm 1 corpus; 16251–16270; the gate ids 19537–19548; TE3 19554–19589; confirmation 1's 19707–19730; confirmation 2's 19953–19976; the smoke id 19461; the pilot's 30011–30123; the 57 `accel_replica_v1` test ids; every scan token.
+    - **Mint (frozen by hash):** S5's recipe (`big_groups_inputs.sbatch` at `f8814905`, the confirmation recipe) with **servers = 64** and the arrival multipliers scaled by **64 / 24**: `M_MODERATE` 11.6139 × 64/24, `M_HEAVY` 27.622665025860204 × 64/24. **The group arrival rate is scaled, never the group size.** Windows g0–g3, both rungs, whole-group `inputs_group` tree, a new root.
+    - The generator cfg and the sbatch are frozen by md5 in the mint's Record line, together with the ids, the list's sha256 and the MD5SUMS, before any cell. Admission checks are the mint's own (cfg and window files, window rates scaled by 64/24).
+  - **Admissibility, per cell (SCIENTIST's condition 2).** Reactive (`reactive`, the fixed in-flight `knative_network`, seed 0, at `a459dd98`) runs first, alone, on the 12 × 4 × 2 = 96 cells.
+    - A topology is admitted only if every one of its 8 reactive cells has queue share ≤ 0.80. **Unknown is not a pass:** a missing, failed or watchdog-killed reactive cell, or one without the field, fails it.
+    - A failed topology is replaced by the lowest free id above the run (S5's shortfall rule): re-scanned, minted, admitted, filed in its own line before any other cell on it. At most 4 replacements; beyond that the family stops and is reported. No id is dropped for an outcome.
+    - **The admission script reads only the reactive cells' queue share field** and prints pass or fail per topology. It is the one exception to the seal.
+  - **Cells** (one venue: CPU-amd, EPYC 9335, SMT off, `--exclusive`, PAR 60, 1 thread, CELL_MEM 16G, LIMIT 14400; ≥ 4 nodes by `sinfo` load, never os-cpu-slurm-21), after admission:
+    - **Bar** (`size64/cells_bar`): `cd_ib0_inflightfull_k100` and `cd_k100`, seed 0, at the G8 base pin `a459dd98` (192 cells).
+    - **Primary** (`size64/cells_learned`): FL gnn (`ra_gnn_eng_combfl_nosplit`) seeds 1 and 2, the filed `-final.pt` (md5 from `comb/md5_comball.json`, no retraining), `_k100` and `_kr` (k = 1.468), at the P2 pin `74ddf70e` (384 cells).
+    - **Descriptive** (`size64/cells_desc`, never in the primary read):
+      - the k = 0 (no-charge) cells of both arms: FL gnn seeds 1–2 as the bare kind at `74ddf70e` (192) and `cd_ib0_inflightfull` at `a459dd98` (96);
+      - FL MLP (`ra_mlp_same_combfl_nosplit`) seeds 1–2, `_k100`, at `74ddf70e` (192).
+    - Reactive (`size64/cells_reactive`, 96) is the admission set.
+    - In all, 1,152 cells.
+  - **Primary family (Holm k = 4 per charge).** FL gnn vs `cd_ib0_inflightfull_k100`, moderate and heavy × whole and after-360, the reader's statistic on the 12 size-64 topologies only, never pooled with any 24-server set.
+    - The cell is the mean of seeds 1 and 2; the topology value is the median over the 4 windows of the paired %; the test is an exact two-sided Wilcoxon.
+  - **Win rule, as filed for the program:**
+    - median ≤ −2 % and Holm p < .025 on all four;
+    - each of seeds 1 and 2 alone ≤ −1 % on all four;
+    - collapses ≤ the bar's, per seed (the reader's count, the worse seed's), at each rung;
+    - the anchor clause as filed.
+    - Read under `_k100` AND `_kr`, combined by `weaker_f1`: the win must hold under both (SCIENTIST's condition 3).
+  - **Labels.**
+    - **SIZE-64-CONFIRMED (size chosen after an exploratory pilot):** the win rule holds under both charges. It is a claim about 64 servers only and lifts nothing at 24 servers.
+    - **NOT-CONFIRMED:** any other outcome; the reader's own label is reported.
+  - **Exact grid or VOID (SCIENTIST's condition 2, as R1).**
+    - The primary read stops "VOID" unless `--gate` (`cells_bar`, `cells_learned`) is exactly the registered grid (FL s1–2 × `_k100` / `_kr` × 12 × g0–g3 × 2 rungs, plus the two bars: 576 cells) with 0 failed and nothing extra.
+    - The secondary stops "VOID" unless `--desc-gate` is exactly its 480 cells.
+    - A watchdog kill is a failed cell and is never rerun.
+  - **Decision cost at 64 servers (SCIENTIST's condition 3; the measured number replaces the w caveat).** w was calibrated on 24-server batches. Decision wall time only, from existing cells (confirmation 1's 24-server cells; the pilot's 64-server cells, 12 FL and 6 bar), EPYC 9335, SMT off; median ms per plan evaluation by batch-size bucket:
+
+    | | ≤ 10 | 11–50 | > 50 |
+    |---|---|---|---|
+    | FL, 24 servers | 6.16 | 1.76 | 1.81 |
+    | FL, 64 servers | 5.76 | 1.98 | 2.17 |
+    | FL, 64 / 24 | 0.94× | 1.12× | **1.20×** |
+    | bar, 24 servers | 0.0094 | 0.0097 | 0.0096 |
+    | bar, 64 servers | 0.0074 | 0.0085 | 0.0086 |
+    | bar, 64 / 24 | 0.79× | 0.88× | 0.90× |
+
+    - FL's per-evaluation cost at 64 servers is at most 1.20× its 24-server cost; the bar's is 0.79–0.90×.
+    - So the 24-server w undercharges FL at 64 by up to 20 % and overcharges the bar by 10–21 %. **Both biases favour FL.** Their size is bounded: FL's decision share at 24 servers is 0.11–0.19 % (so about 0.03 pp of latency), the bar's about 0.01 %, and the k = 0 cells remove the charge entirely.
+  - **Serving check before any read (SCIENTIST's condition 4; logs only, never a summary or npy).**
+    - From one FL and one bar cell log of the new mint, grep only the serving lines (`[PREFIX SERVING]`, the contract source, `[QUEUE FEATURES]`, the slate rule): FL at 64 hits no candidate cap, truncation, size-free-block or sidecar-contract difference from 24 (`platform_cap=0`, the same contract and queue-feature lines).
+    - Both arms serve the same candidate rule (`R1A_SLATE=declared_pruning_v1_uncapped`, no cap).
+    - A pilot log pair (30121 at 64 vs 19707 at 24) already shows identical serving lines.
+  - **Seal (the expert's rule).** Until the P5 freeze line below is filed, nobody opens any size-64 cell summary, npy or result file. Only job states and file counts are checked, against the registered grid. The exceptions are the admission script (reactive queue share only) and the serving check (serving log lines only). The read runs only on the frozen P5 reader.
+  - **Descriptive, never a label and never pooled into the primary (secondary stage, after the primary md5 is filed):**
+    - (a) k = 0: FL gnn vs `cd_ib0_inflightfull`, both uncharged;
+    - (b) FL MLP vs the bar, and FL gnn vs FL MLP, p unadjusted;
+    - (c) gap attribution by bucket;
+    - (d) reactive as a row.
+  - **Prerequisite P5 (reader; code with tests, before any read).** The frozen reader `13c9343d` cannot read this family: in plain mode the B6 cap closes FL's program-level label, and there is no grid check or staged descriptive gate. P5 adds `--confirm-size64`:
+    - seeds exactly 1,2; FL primary; Holm < .025;
+    - the labels above;
+    - the topology guard extended by 19707–19730, 19953–19976, 19461 and 30011–30123;
+    - the R1 grid check on `--gate`;
+    - a staged primary and secondary read, with `--desc-gate` in the secondary only (k = 0 cells loaded as bare kinds, the FL MLP `_k100`).
+    - It touches only the new mode's path and is proven by B3 on all 13 reads of record, in their filed `--gate` order.
+    - The reader is frozen at the reference-physics commit carrying P5, in its own line, signed, before any read.
+  - **Process:**
+    - (1) mint, then the reactive admission cells and admission, then every other cell;
+    - (2) the serving check;
+    - (3) one read script, written locally and copied;
+    - (4) B3 at the frozen P5 reader before the primary;
+    - (5) the primary stage runs alone and stops non-zero on failure (VOID included); nothing descriptive is computed until its md5 is filed;
+    - (6) one read; any void is disclosed with what it printed;
+    - (7) Rule 6: the label stands as read.
+  - **Cost (estimate).** Mint about 1 min; reactive about 96 cells × 1–3 min; the other 1,056 cells about 2–3 h wall on 4 exclusive nodes (64-server cells run longer than 24-server ones); P5 about 1–2 h, in parallel with the cells; the read about 1 min.
+
 - 2026-10-18 — **Seed extension K0 and Arm 2 s11–16 CANCELLED by the user before completion (not result-driven; no checkpoint or curve read for selection). E3/E4 will not be read.** (Filed by S6 at the expert's instruction.) The user cancelled the runs at about 21:00, and the expert issued scancel on 883527–883532 (Arm 2 gnn, L40S), 883549–883553 and 885002 (K0 gnn), all mid-training. No checkpoint from them is read, served or relaunched. Nothing else changes: the filed Arm 1b and Arm 3 extension reads and E1 stand, and FL gnn seeds 3–6 (885140–885143, FL confirmation 2) are untouched.
 
 - 2026-10-18 — **FL confirmation 2: the reader is frozen at reference-physics `13c9343d`** (`scripts_cosim/uncut_arm_gate_read.py` blob `60592d2d`; P4 `c3366a26` + R1 `7ee2149c`; filed before any confirmation-2 cell). Every confirmation-2 read runs from this commit (datalab worktree `s6_reader_13c9343d`). Any change to the blob before the read voids the freeze. Full suite at `a74cd83b`: 2,829 passed, 115 skipped; B3 885150 / 885155: the 11 two-seed filed reads byte-identical, the two extension reads corrected per ruling (A). Signed: SCIENTIST, 2026-10-18 — FL confirmation 2 reader frozen at reference-physics 13c9343d (uncut_arm_gate_read.py blob 60592d2d; P4 + R1; B3 885150/885155: 11 two-seed filed reads byte-identical, extension reads corrected per ruling (A)).
