@@ -327,6 +327,7 @@ def test_comb_kr_serves_fl_gnn_and_the_fl_mlp_at_the_frozen_cotenancy_k(tmp_path
     for k in G.COMB_KR_KINDS:
         assert G.split_dc(f"{k}_k100") == (k, 1.0)
     w = json.load(open(G.DC_W_FILE))
+    w.pop("k_cotenancy", None)
     f = tmp_path / "w.json"
     monkeypatch.setattr(G, "DC_W_FILE", str(f))
     for bad in (None, 0.9, True, "1.2"):
