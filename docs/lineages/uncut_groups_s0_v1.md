@@ -302,6 +302,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 ## Record (newest first)
 
 - 2026-10-18 — **FL size-64 (FL gnn, trained at 24 servers, against the in-flight bar at 64 servers): REGISTERED before any size-64 topology is minted and before any size-64 cell exists.** (The user's GO, relayed by the expert; S6 drafted and reads; S5 mints and runs the cells; SCIENTIST signs; SCIENTIST's five conditions and the expert's seal rule are in the text.) **Claim, and its only claim:** "FL, trained at 24 servers, beats the in-flight bar at 64 servers." It does not touch confirmation 1 (NOT-CONFIRMED, `83fa5b8e`), confirmation 2 (registered `2ea36408`, running) or FL's B6 label at 24 servers.
+  - Signed: SCIENTIST, 2026-10-18, against 1c7f551a (the five conditions, the seal rule and the registered prior in the text). Merged by the expert.
   - **Disclosure: the size was chosen after an exploratory pilot** (S5, undocumented, `topo_explore/pilot/`, read file `read_size.txt`). Every look, all with FL gnn, `cd_ib0_inflightfull_k100` and reactive cells:
     - sizes 16 (`cells_v1_s16`, 30011–30013), 40 (`cells_v2_s40`, 30021–30023), 40 rerun (`cells_v2r_s40`, 30101–30103), 56 (`cells_v56_s56`, 30111–30113) and 64 (`cells_v64_s64`, 30121–30123), plus the A / B / L sets (`cells_A` 30031–30063, `cells_B` 30081–30093, `cells_L` 30071–30073);
     - the variant inputs V1–V7 (including `in_v3_scarce`, `in_v4_bw05`, `in_v5_p03`), and S5's topology explorer (`topo_explore.txt`, `topo_table.json`).
