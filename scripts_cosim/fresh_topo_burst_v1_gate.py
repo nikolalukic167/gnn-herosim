@@ -273,7 +273,22 @@ def comb_trainer_check(base_kind: str, side: str) -> None:
         raise SystemExit(f"FAIL LOUD: {side} partial_state_contract is {sc.get('partial_state_contract')!r}; {base_kind} needs {comb_contract(base_kind)}")
 
 
+# FL confirmation (uncut_groups_s0_v1, registered 2026-10-18, P1): "<kind>_kr" serves FL gnn or the FL MLP at k = the decision_cost_w.json
+# top-level "k_cotenancy" (frozen with the learned w on a w-only pin). Only these two kinds; any other "_kr" is an unknown arm, as before.
+DC_KR = "kr"
+COMB_KR_KINDS = ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit")
+
+
+def cotenancy_k() -> float:
+    k = json.load(open(DC_W_FILE)).get("k_cotenancy")
+    if type(k) not in (int, float) or not k >= 1.0:
+        raise SystemExit(f"FAIL LOUD: {DC_W_FILE} has no k_cotenancy >= 1 (got {k!r}); the _kr cells serve only after it is frozen")
+    return float(k)
+
+
 def split_dc(kind: str) -> Tuple[str, Optional[float]]:
+    if kind.endswith("_" + DC_KR) and kind[:-len(DC_KR) - 1] in COMB_KR_KINDS:
+        return kind[:-len(DC_KR) - 1], cotenancy_k()
     for tag, k in DC_K.items():
         if kind.endswith("_" + tag):
             return kind[:-len(tag) - 1], k
