@@ -26,7 +26,7 @@ program threshold Holm < .0125 (alpha split over the two confirmation families),
 no MLP cell in --gate; --stage secondary reads --desc-gate (FL gnn seeds 1-2 and the FL MLP seeds 1-2, checked as learned cells) for the
 descriptive seeds-1-2-vs-bar line and F2-MC, FL gnn s3-6 vs FL MLP s1-2, p unadjusted and labelled DESCRIPTIVE (never a label);
 --confirm-size64 (FL size-64, registered 2026-10-18): as --confirm2's staging and grid, but FL gnn seeds 1-2 (--seeds 1,2) on 64-server topologies,
-Holm < .025, the guard also fresh of confirmation 2 and the pilot 30011-30123, label SIZE-64-CONFIRMED; --stage secondary reads --desc-gate (the
+Holm < .025, the guard also fresh of confirmation 2, the pilot 30011-30123 and the retired 20021-20032, label SIZE-64-CONFIRMED; --stage secondary reads --desc-gate (the
 uncharged k = 0 cells of FL gnn s1-2 and the bar as bare kinds, the FL MLP s1-2 _k100) and --reactive-gate (reactive s0), descriptive only;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
@@ -678,7 +678,8 @@ CONFIRM2_WHY = ("FL confirmation 2: " + CONFIRM2_YES + " iff the program's win r
 
 
 # FL size-64 (registered 2026-10-18): FL gnn seeds 1-2, trained at 24 servers, against the in-flight bar at 64 servers
-SIZE64_USED_TOPOS = CONFIRM2_USED_TOPOS | frozenset(range(19953, 19977)) | frozenset(range(30011, 30124))
+# 20021-20032: the first size-64 mint, rejected (floor 19976, not the registered 30123) and retired unread
+SIZE64_USED_TOPOS = CONFIRM2_USED_TOPOS | frozenset(range(19953, 19977)) | frozenset(range(30011, 30124)) | frozenset(range(20021, 20033))
 SIZE64_YES = "SIZE-64-CONFIRMED (size chosen after an exploratory pilot)"
 SIZE64_WHY = ("FL size-64: " + SIZE64_YES + " iff the program's win rule (Holm < .025, each seed alone <= -1 %, collapses <= the bar's) holds "
               "under both verdicts; else NOT-CONFIRMED. A claim about 64 servers only; nothing at 24 servers changes")

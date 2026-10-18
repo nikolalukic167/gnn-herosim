@@ -1375,7 +1375,7 @@ def test_size64_not_confirmed_when_fl_does_not_clear_the_line(s64):
     assert s64["read"]("primary", "p.json")["confirmation"]["label"] == "NOT-CONFIRMED"
 
 
-@pytest.mark.parametrize("t", [19953, 19976, 30011, 30123, 19707, 19461, 19537])
+@pytest.mark.parametrize("t", [19953, 19976, 30011, 30123, 20021, 20032, 19707, 19461, 19537])
 def test_size64_refuses_every_guarded_topology(s64, t):
     tops = f"{t},1"
     with pytest.raises(SystemExit, match="fresh"):
