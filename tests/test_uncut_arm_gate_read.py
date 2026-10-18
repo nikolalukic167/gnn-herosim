@@ -15,7 +15,7 @@ TOPS = ",".join(map(str, TOPOS))
 P, T, M = "uncut_arm1_gnn_eng", "uncut_arm1_twin_eng", "ra_mlp_same"
 
 
-def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2", commit="pin1234abcd", sfx="_k100", env=None):
+def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2", commit="pin1234abcd", sfx="_k100", env=None, servers=None):
     name = f"cc40s{t}__{w}{r}__{arm}{sfx}_s{seed}"
     s = {"averageElapsedTime": mean, "steady_state": {"after_360s": {"mean": mean}}, "num_tasks": 4,
          "endTime": 100.0, "arrival_end": {"last_arrival_s": 99.0}, "code": {"commit": commit, "dirty": False},
@@ -23,6 +23,8 @@ def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth=
          "python_env": {"torch_num_threads": 1}, "host": {"cpu_model": "AMD EPYC 9335", "smt_control": "off", "nproc": 64}}
     if ckpt:
         s["env"]["GNN_MODEL_PATH"] = ckpt
+    if servers is not None:
+        s["servers"] = servers
     s["env"].update(env or {})
     with open(os.path.join(d, name + ".summary.json"), "w") as fh:
         json.dump(s, fh)
@@ -1336,16 +1338,16 @@ def s64(tmp_path, monkeypatch):
                 for r in G.RUNGS:
                     jit = 0.001 * t
                     wr = {"heavy": 6.5, "moderate": 6.9}[r]
-                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base)
-                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base)
-                    cell(str(dd), "cd_ib0_inflightfull", 0, t, w, r, 1.99, busy=0.1, commit=base, sfx="")
-                    cell(str(rd), "reactive", 0, t, w, r, 5.0, busy=0.1, commit=base, sfx="")
+                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=64)
+                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=64)
+                    cell(str(dd), "cd_ib0_inflightfull", 0, t, w, r, 1.99, busy=0.1, commit=base, sfx="", servers=64)
+                    cell(str(rd), "reactive", 0, t, w, r, 5.0, busy=0.1, commit=base, sfx="", servers=64)
                     for sd in (1, 2):
-                        cell(str(d), fl, sd, t, w, r, fl_mean - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)})
-                        cell(str(d), fl, sd, t, w, r, fl_mean - jit, str(ck), commit=w1, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)})
+                        cell(str(d), fl, sd, t, w, r, fl_mean - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=64)
+                        cell(str(d), fl, sd, t, w, r, fl_mean - jit, str(ck), commit=w1, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)}, servers=64)
                         cell(str(dd), fl, sd, t, w, r, fl_mean - 0.01 - jit, str(ck), commit=w1, sfx="",
-                             env={"HEROSIM_DECISION_COST_MS": repr(wr)} if k0_charged else None)
-                        cell(str(dd), mlp, sd, t, w, r, 1.9 - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)})
+                             env={"HEROSIM_DECISION_COST_MS": repr(wr)} if k0_charged else None, servers=64)
+                        cell(str(dd), mlp, sd, t, w, r, 1.9 - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=64)
 
     def read(stage, out, **kw):
         args = ["--gate", str(d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
@@ -1438,10 +1440,32 @@ def test_size64_secondary_gates_fail_loud(s64, case):
     elif case == "reactive_missing":
         _drop(str(s64["rd"]), "cc40s8__g0moderate__reactive_s0.")
     elif case == "mlp_bare":
-        cell(str(s64["dd"]), G.CONFIRM_MLP, 3, 3, "g0", "heavy", 1.9, sfx="")  # a bare MLP cell (a distinct key, seed 3)
+        cell(str(s64["dd"]), G.CONFIRM_MLP, 3, 3, "g0", "heavy", 1.9, sfx="", servers=64)  # a bare MLP cell (a distinct key, seed 3)
     sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": s64["file"](p), "filed-ref": "HEAD", "desc-gate": str(s64["dd"]),
                                      "reactive-gate": str(s64["rd"])})
     match = {"k0_charged": "k = 0 cell but served", "desc_missing": "VOID: --desc-gate", "reactive_missing": "VOID: --reactive-gate",
              "mlp_bare": "bare kinds and the MLP"}[case]
     with pytest.raises(SystemExit, match=match):
+        s64["read"]("secondary", "s.json", **sec)
+
+
+@pytest.mark.parametrize("where,servers", [("gate", 24), ("gate", None), ("desc", 24), ("reactive", 40)])
+def test_size64_fails_loud_on_any_cell_not_at_64_servers(s64, where, servers):
+    s64["fill"]()
+    fl = G.CONFIRM_PRIMARY
+    d, name = {"gate": (s64["d"], f"cc40s6__g3heavy__{fl}_kr_s1"), "desc": (s64["dd"], f"cc40s6__g3heavy__{G.CONFIRM_MLP}_k100_s2"),
+               "reactive": (s64["rd"], "cc40s6__g3heavy__reactive_s0")}[where]
+    p = d / f"{name}.summary.json"
+    x = json.loads(p.read_text())
+    x.pop("servers") if servers is None else x.update(servers=servers)
+    p.write_text(json.dumps(x))
+    if where == "gate":
+        with pytest.raises(SystemExit, match="servers = 64"):
+            s64["read"]("primary", "p.json")
+        return
+    s64["read"]("primary", "p.json")
+    pr = str(s64["tmp"] / "p.json")
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": pr, "record": s64["file"](pr), "filed-ref": "HEAD", "desc-gate": str(s64["dd"]),
+                                     "reactive-gate": str(s64["rd"])})
+    with pytest.raises(SystemExit, match=f"--{where}-gate: 1 cell"):
         s64["read"]("secondary", "s.json", **sec)
