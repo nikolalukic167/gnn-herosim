@@ -913,6 +913,53 @@ def test_comb_kinds_are_w_charged_and_may_be_added_by_a_w_only_pin(tmp_path):
         G.asserts(cells, base, ["ra_gnn_eng_combf_nosplit"], {}, ws)
 
 
+def test_other_learned_kinds_in_gate_are_checked_at_their_w_pin_and_left_out_of_the_read(tmp_path):
+    """FL read from a directory that also holds F (both at the w-only pin) writes the same bytes as from an FL-only directory; F's cells
+    still pass the learned-cell asserts (a wrong checkpoint or a failed F cell fails loud) instead of being held to --pin as hand cells."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, f = "ra_gnn_eng_combfl_nosplit", "ra_gnn_eng_combf_nosplit"
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: w_with(W0, (fl, f))}, "comb w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (fl, f) for s in (1, 2)}))
+    only, both = tmp_path / "only", tmp_path / "both"
+    only.mkdir()
+    both.mkdir()
+    for d in (only, both):
+        for t in TOPOS:
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    cell(str(d), "cd_ib0", 0, t, w, r, 2.0, busy=0.1, commit=base)
+                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base)
+                    wr = {"heavy": "6.5", "moderate": "6.9"}[r]
+                    for sd in (1, 2):
+                        cell(str(d), fl, sd, t, w, r, 1.8 - 0.001 * t, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": wr})
+                        if d == both:
+                            cell(str(d), f, sd, t, w, r, 2.5, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": wr})
+
+    def read(d, out, ckm=cm):
+        return G.main(["--gate", str(d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
+                       "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--checkpoint-md5", str(ckm), "--cotenancy", "off",
+                       "--out", str(tmp_path / out)])
+
+    read(only, "only.json")
+    read(both, "both.json")
+    assert (tmp_path / "only.json").read_bytes() == (tmp_path / "both.json").read_bytes()
+    bad = tmp_path / "ck_bad.json"
+    bad.write_text(json.dumps({**json.loads(cm.read_text()), f"{f}|s1": "0" * 32}))
+    with pytest.raises(SystemExit, match="checkpoint"):
+        read(both, "bad.json", bad)
+    with open(both / f"cc40s{TOPOS[0]}__g0heavy__{f}_k100_s1.failed.json", "w") as fh:
+        json.dump({"why": "x"}, fh)
+    os.remove(both / f"cc40s{TOPOS[0]}__g0heavy__{f}_k100_s1.summary.json")
+    with pytest.raises(SystemExit, match="failed cells of the other learned kinds"):
+        read(both, "failed.json")
+
+
 def test_comb_primary_reads_without_a_twin(gate, tmp_path):
     d, ck, _ = gate
     k = "ra_gnn_eng_a3lft_nosplit"
@@ -971,3 +1018,108 @@ def test_combine_keeps_a_no_twin_label_for_a_seed_extension_arm_under_both_verdi
         assert out["MP"] == lab
     mixed = G.combine({"F1": f1, "F2": {"MP": "MP-NOT-SEPARATED"}}, {"F1": f1, "F2": {"MP": "MP-DIRECTION"}}, types.SimpleNamespace(mlp=""))
     assert "NOT-SEPARATED" in mixed["MP"]          # the twin-bearing path is unchanged: the weaker of the two
+
+
+@pytest.fixture
+def conf(tmp_path, monkeypatch):
+    """An FL confirmation gate: FL gnn and the FL MLP (_k100 and _kr) at a w-only pin carrying k_cotenancy, the bars at the base pin."""
+    monkeypatch.setattr(G, "BAR", G.BAR)  # main() sets these module globals; restore them for the tests that follow
+    monkeypatch.setattr(G, "SEEDS", G.SEEDS)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, mlp = G.CONFIRM_PRIMARY, G.CONFIRM_MLP
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}}, "conf w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (fl, mlp) for s in (1, 2)}))
+    d = tmp_path / "cells"
+    d.mkdir()
+
+    def fill(fl_mean=1.8, mlp_mean=1.9, fl_kr=None):
+        for t in TOPOS:
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base)
+                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base)
+                    wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                    for sd in (1, 2):
+                        for arm, m in ((fl, fl_mean), (mlp, mlp_mean)):
+                            jit = 0.001 * t
+                            cell(str(d), arm, sd, t, w, r, m - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)})
+                            mk = (fl_kr if (arm == fl and fl_kr is not None) else m) - jit
+                            cell(str(d), arm, sd, t, w, r, mk, str(ck), commit=w1, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)})
+
+    def read(stage, out, **kw):
+        args = ["--gate", str(d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
+                "--confirm", "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}", v]
+        return G.main(args)
+
+    return {"repo": repo, "d": d, "fill": fill, "read": read, "tmp": tmp_path, "cm": cm, "fl": fl, "mlp": mlp}
+
+
+def test_confirm_primary_stage_reads_f1_only_and_lifts_b6(conf):
+    conf["fill"]()
+    res = conf["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    assert res["confirmation"]["label"] == "CONFIRMED" and res["combined"]["F1"] == "WIN"
+    assert "MODEL-CLASS" not in res["combined"] and "MODEL-CLASS" not in res["F2"] and "descriptive" not in res
+    assert G.CONFIRM_MLP not in res["health"] and G.CONFIRM_MLP not in json.dumps(res["F1"])
+    with pytest.raises(SystemExit, match="written once"):
+        conf["read"]("primary", "p.json")
+
+
+def test_confirm_not_confirmed_when_the_cotenancy_verdict_fails(conf):
+    conf["fill"](fl_kr=2.05)
+    res = conf["read"]("primary", "p.json")
+    assert res["confirmation"]["label"] == "NOT-CONFIRMED" and res["F1"]["label"] == "WIN" and res["cotenancy"]["F1"]["label"] != "WIN"
+
+
+def test_confirm_primary_failure_writes_nothing(conf):
+    conf["fill"]()
+    bad = conf["tmp"] / "bad.json"
+    bad.write_text(json.dumps({**json.loads(conf["cm"].read_text()), f"{G.CONFIRM_MLP}|s2": "0" * 32}))
+    with pytest.raises(SystemExit, match="checkpoint"):
+        conf["read"]("primary", "p.json", **{"checkpoint-md5": str(bad)})
+    assert not (conf["tmp"] / "p.json").exists() and not (conf["tmp"] / "p.json.tmp").exists()
+
+
+def test_confirm_secondary_needs_the_primary_filed_and_reproduces_it(conf):
+    conf["fill"]()
+    conf["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    p = str(conf["tmp"] / "p.json")
+    repo = conf["repo"]
+    head = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": head, "filed-ref": "HEAD"})
+    with pytest.raises(SystemExit, match="not filed"):
+        conf["read"]("secondary", "s.json", **sec)
+    rec = commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(p)}`\n"}, "file the primary")
+    sec["record"] = rec
+    res = conf["read"]("secondary", "s.json", **sec)
+    assert res["combined"]["MODEL-CLASS"] == f"MODEL-CLASS-ATTRIBUTED (corpus: {G.CONFIRM_CORPUS})"
+    assert res["F2"]["holm_family"] == 4 and res["confirmation"]["primary_read"]["md5"] == G.md5(p) and "descriptive" in res
+    q = json.loads(open(p).read())
+    q["combined"]["F1"] = "MIXED"
+    open(p, "w").write(json.dumps(q))
+    rec2 = commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(p)}`\n"}, "refile")
+    with pytest.raises(SystemExit, match="differ from the filed primary"):
+        conf["read"]("secondary", "s2.json", **dict(sec, record=rec2))
+
+
+def test_confirm_arguments_fail_loud(conf):
+    conf["fill"]()
+    with pytest.raises(SystemExit, match="fresh"):
+        G.main(["--gate", str(conf["d"]), "--topos", "19537,1", "--topos-sha256", hashlib.sha256(b"19537,1").hexdigest(), "--pin", "x",
+                "--primary", G.CONFIRM_PRIMARY, "--checkpoint-md5", str(conf["cm"]), "--bar", "cd_ib0_inflightfull", "--confirm", "--stage", "primary"])
+    for kw in ({"cotenancy": "off"}, {"twin": "ra_twin_eng_arm1_nosplit"}, {"primary": "ra_gnn_eng_combf_nosplit"}):
+        with pytest.raises(SystemExit, match="--confirm"):
+            conf["read"]("primary", "x.json", **kw)
+    with pytest.raises(SystemExit, match="--stage secondary needs"):
+        conf["read"]("secondary", "x.json")
+    with pytest.raises(SystemExit, match="FL confirmation's"):
+        G.main(["--gate", str(conf["d"]), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "x",
+                "--primary", G.CONFIRM_PRIMARY, "--checkpoint-md5", str(conf["cm"]), "--stage", "primary"])
