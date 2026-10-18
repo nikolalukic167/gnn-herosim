@@ -1270,3 +1270,41 @@ def test_confirm2_secondary_opens_the_desc_gate_only_after_the_primary_is_filed(
 def test_gap_attribution_two_seed_mean_is_unchanged_bit_for_bit():
     a, b = 1.2345678901234567, 2.3456789012345678
     assert sum([a, b]) / len([a, b]) == (a + b) / 2.0
+
+
+def _drop(d, pattern):
+    hits = [f for f in os.listdir(d) if f.startswith(pattern)]
+    assert hits, pattern
+    for f in hits:
+        os.remove(os.path.join(d, f))
+
+
+@pytest.mark.parametrize("case", ["missing_seed", "missing_window", "failed_cell", "extra_cell"])
+def test_confirm2_is_void_unless_the_gate_is_the_full_registered_grid(conf2, case):
+    conf2["fill"](desc=False)
+    d, fl = str(conf2["d"]), G.CONFIRM_PRIMARY
+    if case == "missing_seed":
+        _drop(d, f"cc40s3__g1heavy__{fl}_kr_s5.")
+    elif case == "missing_window":
+        _drop(d, "cc40s7__g2moderate__cd_ib0_inflightfull_k100_s0.")
+    elif case == "failed_cell":
+        _drop(d, f"cc40s4__g0heavy__{fl}_k100_s6.summary.json")
+        (conf2["d"] / f"cc40s4__g0heavy__{fl}_k100_s6.failed.json").write_text(json.dumps({"why": "watchdog: projected wall"}))
+    else:
+        cell(d, "cd", 0, 13, "g0", "heavy", 2.0)
+    with pytest.raises(SystemExit, match="VOID") as e:
+        conf2["read"]("primary", "p.json")
+    assert not (conf2["tmp"] / "p.json").exists()
+    if case == "failed_cell":
+        assert "1 failed" in str(e.value)
+
+
+def test_confirm2_grid_counts_and_desc_gate_must_be_complete(conf2):
+    conf2["fill"]()
+    res = conf2["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    assert res["confirmation"]["grid_cells"] == len(TOPOS) * 4 * 2 * (4 * 2 + 2)  # seeds 3-6 x both charges, plus the two bars
+    p = str(conf2["tmp"] / "p.json")
+    _drop(str(conf2["dd"]), f"cc40s9__g3heavy__{G.CONFIRM_MLP}_kr_s2.")
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": conf2["file"](p), "filed-ref": "HEAD", "desc-gate": str(conf2["dd"])})
+    with pytest.raises(SystemExit, match="VOID: --desc-gate"):
+        conf2["read"]("secondary", "s.json", **sec)
