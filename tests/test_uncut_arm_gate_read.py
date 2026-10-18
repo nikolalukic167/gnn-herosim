@@ -15,7 +15,7 @@ TOPS = ",".join(map(str, TOPOS))
 P, T, M = "uncut_arm1_gnn_eng", "uncut_arm1_twin_eng", "ra_mlp_same"
 
 
-def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2", commit="pin1234abcd", sfx="_k100", env=None):
+def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth="node_disk_v2", commit="pin1234abcd", sfx="_k100", env=None, servers=None):
     name = f"cc40s{t}__{w}{r}__{arm}{sfx}_s{seed}"
     s = {"averageElapsedTime": mean, "steady_state": {"after_360s": {"mean": mean}}, "num_tasks": 4,
          "endTime": 100.0, "arrival_end": {"last_arrival_s": 99.0}, "code": {"commit": commit, "dirty": False},
@@ -23,6 +23,8 @@ def cell(d, arm, seed, t, w, r, mean, ckpt=None, lat_big=None, busy=1.0, warmth=
          "python_env": {"torch_num_threads": 1}, "host": {"cpu_model": "AMD EPYC 9335", "smt_control": "off", "nproc": 64}}
     if ckpt:
         s["env"]["GNN_MODEL_PATH"] = ckpt
+    if servers is not None:
+        s["servers"] = servers
     s["env"].update(env or {})
     with open(os.path.join(d, name + ".summary.json"), "w") as fh:
         json.dump(s, fh)
@@ -1308,3 +1310,162 @@ def test_confirm2_grid_counts_and_desc_gate_must_be_complete(conf2):
     sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": conf2["file"](p), "filed-ref": "HEAD", "desc-gate": str(conf2["dd"])})
     with pytest.raises(SystemExit, match="VOID: --desc-gate"):
         conf2["read"]("secondary", "s.json", **sec)
+
+
+@pytest.fixture
+def s64(tmp_path, monkeypatch):
+    """An FL size-64 gate: FL gnn seeds 1-2 (_k100 and _kr) with the bars in --gate; the uncharged k = 0 cells (bare kinds) of FL gnn s1-2 and the
+    bar plus the FL MLP s1-2 _k100 in --desc-gate; reactive s0 in --reactive-gate."""
+    for g in ("BAR", "SEEDS", "PROG_ALPHA"):
+        monkeypatch.setattr(G, g, getattr(G, g))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, mlp = G.CONFIRM_PRIMARY, G.CONFIRM_MLP
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}}, "conf w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (fl, mlp) for s in (1, 2)}))
+    d, dd, rd = tmp_path / "cells", tmp_path / "desc", tmp_path / "reactive"
+    for x in (d, dd, rd):
+        x.mkdir()
+
+    def fill(fl_mean=1.8, k0_charged=False):
+        for t in TOPOS:
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    jit = 0.001 * t
+                    wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=64)
+                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=64)
+                    cell(str(dd), "cd_ib0_inflightfull", 0, t, w, r, 1.99, busy=0.1, commit=base, sfx="", servers=64)
+                    cell(str(rd), "reactive", 0, t, w, r, 5.0, busy=0.1, commit=base, sfx="", servers=64)
+                    for sd in (1, 2):
+                        cell(str(d), fl, sd, t, w, r, fl_mean - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=64)
+                        cell(str(d), fl, sd, t, w, r, fl_mean - jit, str(ck), commit=w1, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)}, servers=64)
+                        cell(str(dd), fl, sd, t, w, r, fl_mean - 0.01 - jit, str(ck), commit=w1, sfx="",
+                             env={"HEROSIM_DECISION_COST_MS": repr(wr)} if k0_charged else None, servers=64)
+                        cell(str(dd), mlp, sd, t, w, r, 1.9 - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=64)
+
+    def read(stage, out, **kw):
+        args = ["--gate", str(d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
+                "--confirm-size64", "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}"] + ([] if v is None else [v])
+        return G.main(args)
+
+    def file_primary(p):
+        return commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(p)}`\n"}, "file the primary")
+
+    return {"d": d, "dd": dd, "rd": rd, "fill": fill, "read": read, "tmp": tmp_path, "cm": cm, "file": file_primary, "repo": repo}
+
+
+def test_size64_primary_reads_seeds_1_2_at_the_program_alpha_and_lifts_b6(s64):
+    s64["fill"]()
+    res = s64["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    assert res["confirmation"]["label"] == G.SIZE64_YES and res["confirmation"]["family"] == "FL size-64"
+    assert G.PROG_ALPHA == G.PROG_ALPHA_FILED and sorted(res["F1"]["seeds_alone"]) == [1, 2]
+    assert res["confirmation"]["grid_cells"] == len(TOPOS) * 4 * 2 * (2 * 2 + 2)
+    assert "descriptive" not in res and "descriptive" not in res["cotenancy"]
+
+
+def test_size64_not_confirmed_when_fl_does_not_clear_the_line(s64):
+    s64["fill"](fl_mean=1.99)
+    assert s64["read"]("primary", "p.json")["confirmation"]["label"] == "NOT-CONFIRMED"
+
+
+@pytest.mark.parametrize("t", [19953, 19976, 30011, 30123, 20021, 20032, 19707, 19461, 19537])
+def test_size64_refuses_every_guarded_topology(s64, t):
+    tops = f"{t},1"
+    with pytest.raises(SystemExit, match="fresh"):
+        G.main(["--gate", str(s64["d"]), "--topos", tops, "--topos-sha256", hashlib.sha256(tops.encode()).hexdigest(), "--pin", "x",
+                "--primary", G.CONFIRM_PRIMARY, "--checkpoint-md5", str(s64["cm"]), "--bar", "cd_ib0_inflightfull", "--confirm-size64",
+                "--stage", "primary"])
+
+
+def test_size64_arguments_fail_loud(s64):
+    s64["fill"]()
+    with pytest.raises(SystemExit, match="--seeds 1,2"):
+        s64["read"]("primary", "x.json", seeds="3,4,5,6")
+    with pytest.raises(SystemExit, match="separate families"):
+        s64["read"]("primary", "x.json", confirm2=None)
+    with pytest.raises(SystemExit, match="seal"):
+        s64["read"]("primary", "x.json", **{"desc-gate": str(s64["dd"])})
+    with pytest.raises(SystemExit, match="reactive-gate belongs"):
+        s64["read"]("primary", "x.json", **{"reactive-gate": str(s64["rd"])})
+
+
+def test_size64_is_void_unless_the_gate_is_the_registered_grid(s64):
+    s64["fill"]()
+    _drop(str(s64["d"]), f"cc40s5__g2moderate__{G.CONFIRM_PRIMARY}_kr_s2.")
+    with pytest.raises(SystemExit, match="VOID: --gate"):
+        s64["read"]("primary", "p.json")
+
+
+def test_size64_secondary_reads_k0_mlp_and_reactive_only_after_the_primary_is_filed(s64):
+    s64["fill"]()
+    s64["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    p = str(s64["tmp"] / "p.json")
+    head = subprocess.run(["git", "-C", str(s64["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    broken = s64["tmp"] / "broken"
+    broken.mkdir()
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": head, "filed-ref": "HEAD", "desc-gate": str(broken), "reactive-gate": str(broken)})
+    with pytest.raises(SystemExit, match="not filed"):
+        s64["read"]("secondary", "s.json", **sec)
+    sec["record"] = s64["file"](p)
+    with pytest.raises(SystemExit, match="needs --desc-gate"):
+        s64["read"]("secondary", "s.json", **{k: v for k, v in sec.items() if k != "reactive-gate"})
+    sec.update({"desc-gate": str(s64["dd"]), "reactive-gate": str(s64["rd"])})
+    res = s64["read"]("secondary", "s.json", **sec)
+    d = res["descriptive"]
+    assert res["confirmation"]["desc_grid_cells"] == len(TOPOS) * 4 * 2 * (2 + 1 + 2)
+    assert res["confirmation"]["reactive_grid_cells"] == len(TOPOS) * 4 * 2
+    for k in ("k0_fl_vs_bar", "mlp_vs_bar", "fl_vs_mlp", "reactive_vs_bar"):
+        assert len(d[k]["tests"]) == 4 and all("p_holm" not in e for e in d[k]["tests"])
+    assert all(e["median_pct"] < 0 for e in d["k0_fl_vs_bar"]["tests"] + d["fl_vs_mlp"]["tests"])
+    assert all(e["median_pct"] > 0 for e in d["reactive_vs_bar"]["tests"])
+    assert res["confirmation"]["label"] == G.SIZE64_YES and "MODEL-CLASS" not in res["combined"]
+
+
+@pytest.mark.parametrize("case", ["k0_charged", "desc_missing", "reactive_missing", "mlp_bare"])
+def test_size64_secondary_gates_fail_loud(s64, case):
+    s64["fill"](k0_charged=(case == "k0_charged"))
+    s64["read"]("primary", "p.json")
+    p = str(s64["tmp"] / "p.json")
+    if case == "desc_missing":
+        _drop(str(s64["dd"]), f"cc40s2__g1heavy__cd_ib0_inflightfull_s0.")
+    elif case == "reactive_missing":
+        _drop(str(s64["rd"]), "cc40s8__g0moderate__reactive_s0.")
+    elif case == "mlp_bare":
+        cell(str(s64["dd"]), G.CONFIRM_MLP, 3, 3, "g0", "heavy", 1.9, sfx="", servers=64)  # a bare MLP cell (a distinct key, seed 3)
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": s64["file"](p), "filed-ref": "HEAD", "desc-gate": str(s64["dd"]),
+                                     "reactive-gate": str(s64["rd"])})
+    match = {"k0_charged": "k = 0 cell but served", "desc_missing": "VOID: --desc-gate", "reactive_missing": "VOID: --reactive-gate",
+             "mlp_bare": "bare kinds and the MLP"}[case]
+    with pytest.raises(SystemExit, match=match):
+        s64["read"]("secondary", "s.json", **sec)
+
+
+@pytest.mark.parametrize("where,servers", [("gate", 24), ("gate", None), ("desc", 24), ("reactive", 40)])
+def test_size64_fails_loud_on_any_cell_not_at_64_servers(s64, where, servers):
+    s64["fill"]()
+    fl = G.CONFIRM_PRIMARY
+    d, name = {"gate": (s64["d"], f"cc40s6__g3heavy__{fl}_kr_s1"), "desc": (s64["dd"], f"cc40s6__g3heavy__{G.CONFIRM_MLP}_k100_s2"),
+               "reactive": (s64["rd"], "cc40s6__g3heavy__reactive_s0")}[where]
+    p = d / f"{name}.summary.json"
+    x = json.loads(p.read_text())
+    x.pop("servers") if servers is None else x.update(servers=servers)
+    p.write_text(json.dumps(x))
+    if where == "gate":
+        with pytest.raises(SystemExit, match="servers = 64"):
+            s64["read"]("primary", "p.json")
+        return
+    s64["read"]("primary", "p.json")
+    pr = str(s64["tmp"] / "p.json")
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": pr, "record": s64["file"](pr), "filed-ref": "HEAD", "desc-gate": str(s64["dd"]),
+                                     "reactive-gate": str(s64["rd"])})
+    with pytest.raises(SystemExit, match=f"--{where}-gate: 1 cell"):
+        s64["read"]("secondary", "s.json", **sec)
