@@ -1,0 +1,17 @@
+[TE3] charge k100: 36 new topologies, 0 failed cells
+[TE3]   arm3/heavy/whole: median -1.36 % n 36 ahead 23 p 0.08255 holm 0.1651 -> UNRESOLVED
+[TE3]   arm3/heavy/after360: median -3.63 % n 36 ahead 24 p 0.0308 holm 0.09239 -> UNRESOLVED
+[TE3]   arm1b/heavy/whole: median +0.54 % n 36 ahead 16 p 0.8951 holm 0.8951 -> UNRESOLVED
+[TE3]   arm1b/heavy/after360: median -4.92 % n 36 ahead 23 p 0.02005 holm 0.08021 -> UNRESOLVED
+[TE3]   k0/heavy/whole: median -3.11 % n 36 ahead 28 p 0.0003115 holm 0.001558 -> CLAIM
+[TE3]   k0/heavy/after360: median -9.28 % n 36 ahead 32 p 4.881e-07 holm 2.929e-06 -> CLAIM
+[TE3] charge kr: 36 new topologies, 0 failed cells
+[TE3]   arm3/heavy/whole: median -0.12 % n 36 ahead 18 p 0.2387 holm 0.3425 -> UNRESOLVED
+[TE3]   arm3/heavy/after360: median -2.53 % n 36 ahead 25 p 0.009023 holm 0.02707 -> CLAIM
+[TE3]   arm1b/heavy/whole: median -1.03 % n 36 ahead 21 p 0.1713 holm 0.3425 -> UNRESOLVED
+[TE3]   arm1b/heavy/after360: median -5.33 % n 36 ahead 29 p 0.0001168 holm 0.0005838 -> CLAIM
+[TE3]   k0/heavy/whole: median -3.30 % n 36 ahead 24 p 0.005119 holm 0.02048 -> CLAIM
+[TE3]   k0/heavy/after360: median -10.14 % n 36 ahead 30 p 4.4e-06 holm 2.64e-05 -> CLAIM
+[TE3] combined arm3: whole UNRESOLVED, after360 UNRESOLVED, heavy rung UNRESOLVED
+[TE3] combined arm1b: whole UNRESOLVED, after360 UNRESOLVED, heavy rung UNRESOLVED
+[TE3] combined k0: whole CLAIM, after360 CLAIM, heavy rung CLAIM
