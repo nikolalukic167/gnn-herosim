@@ -1123,3 +1123,150 @@ def test_confirm_arguments_fail_loud(conf):
     with pytest.raises(SystemExit, match="FL confirmation's"):
         G.main(["--gate", str(conf["d"]), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "x",
                 "--primary", G.CONFIRM_PRIMARY, "--checkpoint-md5", str(conf["cm"]), "--stage", "primary"])
+
+
+@pytest.fixture
+def conf2(tmp_path, monkeypatch):
+    """An FL confirmation-2 gate: FL gnn seeds 3-6 (_k100 and _kr) in --gate with the bars; FL gnn and FL MLP seeds 1-2 in --desc-gate."""
+    for g in ("BAR", "SEEDS", "PROG_ALPHA"):  # main() sets these module globals; restore them for the tests that follow
+        monkeypatch.setattr(G, g, getattr(G, g))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, mlp = G.CONFIRM_PRIMARY, G.CONFIRM_MLP
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}}, "conf w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({**{f"{fl}|s{s}": hashlib.md5(b"weights").hexdigest() for s in range(1, 7)},
+                              **{f"{mlp}|s{s}": hashlib.md5(b"weights").hexdigest() for s in (1, 2)}}))
+    d, dd = tmp_path / "cells", tmp_path / "desc"
+    d.mkdir()
+    dd.mkdir()
+
+    def put(where, arm, sd, t, w, r, m):
+        wr = {"heavy": 6.5, "moderate": 6.9}[r]
+        cell(str(where), arm, sd, t, w, r, m, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)})
+        cell(str(where), arm, sd, t, w, r, m, str(ck), commit=w1, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)})
+
+    def fill(seed_mean=None, desc=True):
+        seed_mean = seed_mean or {}
+        for t in TOPOS:
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base)
+                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base)
+                    jit = 0.001 * t
+                    for sd in G.CONFIRM2_SEEDS:
+                        put(d, fl, sd, t, w, r, seed_mean.get(sd, 1.8) - jit)
+                    if desc:
+                        for sd in (1, 2):
+                            put(dd, fl, sd, t, w, r, 1.85 - jit)
+                            put(dd, mlp, sd, t, w, r, 1.9 - jit)
+
+    def read(stage, out, gate=None, **kw):
+        args = ["--gate", str(gate or d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
+                "--seeds", "3,4,5,6", "--confirm2", "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}"] + ([] if v is None else [v])
+        return G.main(args)
+
+    def file_primary(p):
+        return commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(p)}`\n"}, "file the primary")
+
+    return {"repo": repo, "d": d, "dd": dd, "fill": fill, "read": read, "tmp": tmp_path, "cm": cm, "fl": fl, "mlp": mlp, "file": file_primary}
+
+
+def test_confirm2_primary_reads_seeds_3_to_6_at_the_split_alpha(conf2):
+    conf2["fill"]()
+    res = conf2["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    assert res["confirmation"]["label"] == G.CONFIRM2_YES and res["confirmation"]["alpha"] == G.CONFIRM2_ALPHA_LINE
+    assert res["seeds"] == [3, 4, 5, 6] and sorted(res["F1"]["seeds_alone"]) == [3, 4, 5, 6]
+    assert G.PROG_ALPHA == 0.0125 and "descriptive" not in res and "descriptive" not in res["cotenancy"]
+    assert G.CONFIRM_MLP not in res["health"] and res["F2"]["tests"] == []
+
+
+def test_confirm2_one_seed_above_minus_one_percent_is_not_confirmed(conf2):
+    conf2["fill"](seed_mean={5: 1.99})
+    res = conf2["read"]("primary", "p.json")
+    assert res["confirmation"]["label"] == "NOT-CONFIRMED" and "seeds_alone_ok=False" in res["F1"]["why"]
+
+
+def test_split_alpha_turns_a_holm_p_between_0125_and_025_into_arm_only(monkeypatch):
+    f1 = [{"median_pct": -3.0, "p_holm": 0.02} for _ in range(4)]
+    h = {r: {"collapse_any": 0} for r in G.RUNGS}
+    args = (f1, {3: f1}, h, h, {r: True for r in G.RUNGS}, f1)
+    assert G.f1_label(*args)[0] == "WIN"
+    monkeypatch.setattr(G, "PROG_ALPHA", G.CONFIRM2_ALPHA)
+    lab, why = G.f1_label(*args)
+    assert lab == "WIN-ARM-ONLY" and "0.0125" in why
+
+
+@pytest.mark.parametrize("seeds", ["1,2", "3,4,5", "3,4,5,6,7", "4,3,5,6", "3,4,5,7"])
+def test_confirm2_refuses_any_seed_set_but_3_to_6(conf2, seeds):
+    conf2["fill"](desc=False)
+    with pytest.raises(SystemExit, match="seeds"):
+        conf2["read"]("primary", "x.json", seeds=seeds)
+
+
+@pytest.mark.parametrize("t", [19707, 19730, 19461, 19537, 19560])
+def test_confirm2_refuses_every_guarded_topology(conf2, t):
+    tops = f"{t},1"
+    with pytest.raises(SystemExit, match="fresh"):
+        G.main(["--gate", str(conf2["d"]), "--topos", tops, "--topos-sha256", hashlib.sha256(tops.encode()).hexdigest(), "--pin", "x",
+                "--primary", G.CONFIRM_PRIMARY, "--checkpoint-md5", str(conf2["cm"]), "--bar", "cd_ib0_inflightfull", "--seeds", "3,4,5,6",
+                "--confirm2", "--stage", "primary"])
+
+
+def test_confirm_still_needs_seeds_1_2_and_confirmation_1_topologies_stay_legal_for_it(conf2):
+    conf2["fill"](desc=False)
+    with pytest.raises(SystemExit, match="--seeds 1,2"):
+        G.main(["--gate", str(conf2["d"]), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", "x",
+                "--primary", G.CONFIRM_PRIMARY, "--checkpoint-md5", str(conf2["cm"]), "--bar", "cd_ib0_inflightfull", "--seeds", "3,4,5,6",
+                "--confirm", "--stage", "primary"])
+    assert not (set(range(19707, 19731)) & G.CONFIRM_USED_TOPOS)
+    with pytest.raises(SystemExit, match="one"):
+        conf2["read"]("primary", "x.json", confirm=None)
+
+
+def test_confirm2_keeps_mlp_cells_out_of_the_gate(conf2):
+    conf2["fill"]()
+    with pytest.raises(SystemExit, match="desc-gate"):
+        conf2["read"]("primary", "x.json", gate=f"{conf2['d']},{conf2['dd']}")
+    with pytest.raises(SystemExit, match="C3"):
+        conf2["read"]("primary", "x.json", **{"desc-gate": str(conf2["dd"])})
+
+
+def test_confirm2_secondary_opens_the_desc_gate_only_after_the_primary_is_filed(conf2):
+    conf2["fill"]()
+    conf2["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    p = str(conf2["tmp"] / "p.json")
+    head = subprocess.run(["git", "-C", str(conf2["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    broken = conf2["tmp"] / "broken"
+    broken.mkdir()
+    (broken / "cc40s1__g0heavy__ra_mlp_same_combfl_nosplit_k100_s9.summary.json").write_text("{}")
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": head, "filed-ref": "HEAD", "desc-gate": str(broken)})
+    with pytest.raises(SystemExit, match="not filed"):  # the unfiled primary stops the read before the (broken) desc gate is opened
+        conf2["read"]("secondary", "s.json", **sec)
+    sec["record"] = conf2["file"](p)
+    with pytest.raises(SystemExit, match="outside FL gnn / FL MLP seeds 1-2"):
+        conf2["read"]("secondary", "s.json", **sec)
+    with pytest.raises(SystemExit, match="needs --desc-gate"):
+        conf2["read"]("secondary", "s.json", **{k: v for k, v in sec.items() if k != "desc-gate"})
+    sec["desc-gate"] = str(conf2["dd"])
+    res = conf2["read"]("secondary", "s.json", **sec)
+    for v in (res, res["cotenancy"]):
+        mc, s12 = v["descriptive"]["F2_MC"], v["descriptive"]["seeds_1_2_vs_bar"]
+        assert mc["label"] == G.CONFIRM2_MC and len(mc["tests"]) == 4 and all(e["a_seeds"] == [3, 4, 5, 6] for e in mc["tests"])
+        assert all(e["median_pct"] < 0 and "p_holm" not in e for e in mc["tests"])
+        assert len(s12["tests"]) == 4 and all(e["a_seeds"] == [1, 2] and e["median_pct"] < 0 for e in s12["tests"])
+    assert "MODEL-CLASS" not in res["combined"] and res["confirmation"]["label"] == G.CONFIRM2_YES
+    g = res["descriptive"]["gap_attribution"]["heavy"]  # mean over the four served seeds: (1.8 - jit) - 2.0 per task
+    assert abs(g["gap_seconds"] - sum(4 * 4 * (1.8 - 0.001 * t - 2.0) for t in TOPOS)) < 1e-9
+
+
+def test_gap_attribution_two_seed_mean_is_unchanged_bit_for_bit():
+    a, b = 1.2345678901234567, 2.3456789012345678
+    assert sum([a, b]) / len([a, b]) == (a + b) / 2.0

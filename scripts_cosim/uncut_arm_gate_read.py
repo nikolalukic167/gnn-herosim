@@ -21,6 +21,10 @@ asserts (w-pin chain, w charge, checkpoint md5, host block, warmth) and are then
 CONFIRMED iff the combined F1 is a program-level WIN. --stage primary computes F1 under both verdicts only (the MLP's cells are checked as
 another learned kind) and writes once; --stage secondary adds F2-MC (FL gnn vs FL MLP, Holm 4, MODEL-CLASS rule) and the descriptive block
 only once the primary read's md5 is in the lineage node at --record on --filed-ref, and only if its primary parts equal the filed ones;
+--confirm2 (FL confirmation 2, registered 2026-10-18 at 2ea36408): as --confirm, but FL gnn seeds 3-6 only (--seeds 3,4,5,6, nothing else), the
+program threshold Holm < .0125 (alpha split over the two confirmation families), topologies also fresh of confirmation 1 and the smoke id, and
+no MLP cell in --gate; --stage secondary reads --desc-gate (FL gnn seeds 1-2 and the FL MLP seeds 1-2, checked as learned cells) for the
+descriptive seeds-1-2-vs-bar line and F2-MC, FL gnn s3-6 vs FL MLP s1-2, p unadjusted and labelled DESCRIPTIVE (never a label);
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -84,6 +88,7 @@ STATS = ("whole", "after360")
 BAR, CD = "cd_ib0", "cd"
 SEEDS = (1, 2)
 WIN_MED, SEED_MED, ALPHA, PROG_ALPHA = -2.0, -1.0, 0.05, 0.025
+PROG_ALPHA_FILED = PROG_ALPHA
 COLLAPSE_X, TAIL_S, OPEN_T = 3.0, 120.0, 360.0
 BUCKETS = (("le10", 0, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("gt100", 101, 10 ** 9))
 W_FILE = "scripts_cosim/decision_cost_w.json"
@@ -468,11 +473,12 @@ def gap_attribution(cells, primary, topos):
                 bs = cells.get((BAR, 0, t, w, r))
                 if any(x is None for x in ps) or bs is None:
                     continue
-                p1, p2, bb = per_task(ps[0]), per_task(ps[1]), per_task(bs)
-                if not (p1.keys() == p2.keys() == bb.keys()):
+                pts, bb = [per_task(x) for x in ps], per_task(bs)
+                if any(pt.keys() != bb.keys() for pt in pts):
                     raise SystemExit(f"FAIL LOUD: task ids differ between {primary} seeds and {BAR} at {t} {w} {r}")
                 for tid, (lb, arr, g) in bb.items():
-                    d = (p1[tid][0] + p2[tid][0]) / 2.0 - lb
+                    # the mean over every served seed; for two seeds (0 + a) + b == a + b, so the filed two-seed reads are unchanged
+                    d = sum(pt[tid][0] for pt in pts) / len(pts) - lb
                     tot += d
                     for name, lo, hi in BUCKETS:
                         if lo <= g <= hi:
@@ -505,6 +511,8 @@ def f1_label(f1, seeds_alone, h_primary, h_bar, anchor_ok, robust, prog_allowed=
             base = ("WIN-ROBUST" if win_four(robust, WIN_MED, PROG_ALPHA if prog else ALPHA) else "WIN-OVER-BRITTLE-BAR") + ("" if prog else " (ARM-ONLY)")
         if not prog_allowed:
             return base, closed_why
+        if PROG_ALPHA != PROG_ALPHA_FILED:
+            return base, f"program-level (Holm < {PROG_ALPHA:g} on all four)" if prog else f"clears .05 but not {PROG_ALPHA:g}: never quoted as the program result"
         return base, "program-level (Holm < .025 on all four)" if prog else "clears .05 but not .025: never quoted as the program result"
     sig = [e for e in f1 if e["p_holm"] < ALPHA]
     if not sig:
@@ -649,8 +657,29 @@ CONFIRM_WHY = ("FL confirmation: CONFIRMED (program-level, B6 lifted for FL gnn 
                "both verdicts; else NOT-CONFIRMED and FL stays WIN-ARM-ONLY")
 
 
+# FL confirmation 2 (registered 2026-10-18, 2ea36408; SCIENTIST's C1-C4): new seeds 3-6, alpha split over the two confirmation families
+CONFIRM2_SEEDS = (3, 4, 5, 6)
+CONFIRM2_MLP_SEEDS = (1, 2)
+CONFIRM2_ALPHA = 0.0125
+CONFIRM2_USED_TOPOS = CONFIRM_USED_TOPOS | frozenset(range(19707, 19731)) | frozenset({19461})
+CONFIRM2_YES = "CONFIRMED (second registered confirmation; the first, 83fa5b8e, was NOT-CONFIRMED on one per-seed clause)"
+CONFIRM2_ALPHA_LINE = "Holm < .0125 (\u03b1 split over two confirmation families)"
+CONFIRM2_MC = "DESCRIPTIVE, unequal and different seeds (GNN s3\u20136 vs MLP s1\u20132)"
+CONFIRM2_WHY = ("FL confirmation 2: " + CONFIRM2_YES + " iff the program's win rule holds under both verdicts at " + CONFIRM2_ALPHA_LINE
+                + ", each of seeds 3-6 alone <= -1 % on all four; else NOT-CONFIRMED and FL stays WIN-ARM-ONLY")
+
+
 def confirm_args(a):
-    """--confirm: the registered read's fixed arms, both verdicts, a staged read, fresh topologies only."""
+    """--confirm: the registered read's fixed arms, both verdicts, a staged read, fresh topologies only. --confirm2 as --confirm, at seeds
+    3-6 only, fresh of confirmation 1 and the smoke id too; the MLP is not in --gate but in --desc-gate (--stage secondary)."""
+    if a.confirm and a.confirm2:
+        raise SystemExit("FAIL LOUD: --confirm and --confirm2 are two families; pass one")
+    if a.confirm2:
+        if a.seeds != ",".join(map(str, CONFIRM2_SEEDS)):
+            raise SystemExit(f"FAIL LOUD: --confirm2 reads seeds {list(CONFIRM2_SEEDS)} only (--seeds 3,4,5,6), not {a.seeds!r}")
+        a.seeds = "1,2"  # the shared checks below; restored after them
+    elif a.desc_gate:
+        raise SystemExit("FAIL LOUD: --desc-gate belongs to --confirm2 --stage secondary")
     if a.primary != CONFIRM_PRIMARY or a.twin or a.mlp not in ("", CONFIRM_MLP) or a.reference or a.compare or a.after_read:
         raise SystemExit(f"FAIL LOUD: --confirm reads --primary {CONFIRM_PRIMARY} [--mlp {CONFIRM_MLP}], no twin, reference, compare or after-read")
     if a.cotenancy != "required" or a.bar != "cd_ib0_inflightfull" or a.stage == "full" or a.seeds != "1,2":
@@ -658,9 +687,16 @@ def confirm_args(a):
     if a.corpus not in ("uncut_arm1, 12,000 states", CONFIRM_CORPUS):
         raise SystemExit(f"FAIL LOUD: --confirm names the corpus {CONFIRM_CORPUS!r}")
     a.corpus = CONFIRM_CORPUS
-    used = sorted(set(int(x) for x in a.topos.split(",")) & CONFIRM_USED_TOPOS)
+    used = sorted(set(int(x) for x in a.topos.split(",")) & (CONFIRM2_USED_TOPOS if a.confirm2 else CONFIRM_USED_TOPOS))
     if used:
-        raise SystemExit(f"FAIL LOUD: --confirm topologies must be fresh; {used[:6]} are gate or TE3 ids")
+        raise SystemExit(f"FAIL LOUD: --confirm{'2' if a.confirm2 else ''} topologies must be fresh; {used[:6]} are gate, TE3"
+                         + (", confirmation 1 or smoke ids" if a.confirm2 else " ids"))
+    if a.confirm2:
+        a.seeds = ",".join(map(str, CONFIRM2_SEEDS))
+        if a.stage == "secondary" and not a.desc_gate:
+            raise SystemExit("FAIL LOUD: --confirm2 --stage secondary needs --desc-gate (FL gnn s1-2 and FL MLP s1-2)")
+        if a.stage == "primary" and a.desc_gate:
+            raise SystemExit("FAIL LOUD: --desc-gate is not read before the primary md5 is filed (C3)")
     if a.stage == "secondary" and not (a.primary_read and a.record and a.repo and a.mlp):
         raise SystemExit("FAIL LOUD: --stage secondary needs --primary-read, --record, --repo and --mlp")
     if a.stage == "primary" and (a.primary_read or a.record):
@@ -688,6 +724,35 @@ def check_against_filed_primary(a, res, node="docs/lineages/uncut_groups_s0_v1.m
     res["confirmation"]["primary_read"] = {"path": os.path.abspath(a.primary_read), "md5": m, "record": a.record}
 
 
+def desc_confirm2(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth, mlp):
+    """--confirm2 --stage secondary: --desc-gate's FL gnn s1-2 and FL MLP s1-2 cells (both charges) pass the learned-cell asserts, then two
+    descriptive lines per verdict: FL gnn s1-2 vs the bar, and F2-MC (FL gnn s3-6 vs FL MLP s1-2). p unadjusted; never a label."""
+    dc, df = load(a.desc_gate, a.suffix)
+    if df:
+        raise SystemExit(f"FAIL LOUD: failed cells in --desc-gate: {sorted(df)[:4]}")
+    want = {(a.primary, sd) for sd in CONFIRM2_MLP_SEEDS} | {(mlp, sd) for sd in CONFIRM2_MLP_SEEDS}
+    base_kind = lambda k: k[:-len(KR)] if k.endswith(KR) else k
+    bad = sorted({(k[0], k[1]) for k in dc if (base_kind(k[0]), k[1]) not in want})
+    if bad:
+        raise SystemExit(f"FAIL LOUD: --desc-gate holds cells outside FL gnn / FL MLP seeds 1-2: {bad[:4]}")
+    d100 = {k: v for k, v in dc.items() if not k[0].endswith(KR)}
+    dkr = {(k[0][:-len(KR)],) + k[1:]: v for k, v in dc.items() if k[0].endswith(KR)}
+    if not d100 or not dkr:
+        raise SystemExit("FAIL LOUD: --desc-gate needs both _k100 and _kr cells")
+    for part, kr in ((d100, False), (dkr, True)):
+        if asserts(part, a.pin, [a.primary, mlp], ckpt, w_pins, kr=kr) != warmth:
+            raise SystemExit("FAIL LOUD: the --desc-gate cells record another HEROSIM_WARMTH_PHYSICS")
+    for v, base in ((res, cells), (res["cotenancy"], cells_kr)):
+        dd = d100 if v is res else dkr
+        merged = {**base, **{k: x for k, x in dd.items() if k[0] == a.primary}}
+        withm = {**base, **{k: x for k, x in dd.items() if k[0] == mlp}}
+        v.setdefault("descriptive", {})
+        v["descriptive"]["seeds_1_2_vs_bar"] = {"note": "descriptive, p unadjusted; FL gnn seeds 1-2 on the confirmation-2 topologies",
+                                                "tests": four(merged, a.primary, CONFIRM2_MLP_SEEDS, BAR, (0,), topos)}
+        v["descriptive"]["F2_MC"] = {"label": CONFIRM2_MC, "note": "p unadjusted, never a label",
+                                     "tests": four(withm, a.primary, SEEDS, mlp, CONFIRM2_MLP_SEEDS, topos)}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -713,17 +778,25 @@ def main(argv=None):
                     help="required (the gate read): the learned arms' <arm>_kr cells give the second verdict; off only for smokes")
     ap.add_argument("--confirm", action="store_true",
                     help="the FL confirmation (registered 2026-10-18): FL gnn on fresh topologies, both verdicts, B6 lifted for this family only")
+    ap.add_argument("--confirm2", action="store_true",
+                    help="FL confirmation 2 (registered 2026-10-18 at 2ea36408): FL gnn seeds 3-6 on fresh topologies, Holm < .0125, both verdicts")
+    ap.add_argument("--desc-gate", default="", help="--confirm2 --stage secondary: the descriptive cells (FL gnn s1-2, FL MLP s1-2), read after the primary is filed")
     ap.add_argument("--stage", choices=("full", "primary", "secondary"), default="full",
                     help="primary: F1 under both verdicts only; secondary: F2-MC and the descriptive block, only after the primary read is filed")
     ap.add_argument("--primary-read", default="", help="--stage secondary: the primary-stage read JSON")
     ap.add_argument("--record", default="", help="--stage secondary: the commit whose lineage node files the primary read's md5")
     ap.add_argument("--filed-ref", default="origin/reference-physics", help="--stage secondary: --record must be an ancestor of this ref")
     a = ap.parse_args(argv)
-    global SEEDS, BAR
-    if a.confirm:
+    global SEEDS, BAR, PROG_ALPHA
+    PROG_ALPHA = PROG_ALPHA_FILED
+    if a.confirm or a.confirm2:
         confirm_args(a)
     elif a.stage != "full":
         raise SystemExit("FAIL LOUD: --stage primary / secondary is the FL confirmation's (--confirm)")
+    confirm2, mlp2 = a.confirm2, ""
+    if confirm2:
+        a.confirm, PROG_ALPHA = True, CONFIRM2_ALPHA
+        mlp2, a.mlp = a.mlp, ""  # confirmation 2's MLP lives in --desc-gate, read descriptively after the verdicts
     if a.stage == "primary":
         a.mlp = ""  # F2-MC is a secondary output: its cells are checked as another learned kind in --gate, nothing of it is computed
     if a.bar not in ("cd_ib0", "cd_ib0_inflightfull"):
@@ -738,6 +811,10 @@ def main(argv=None):
         raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
     topos = [int(x) for x in a.topos.split(",")]
     cells, failed = load(a.gate, a.suffix)
+    if confirm2:
+        mc = sorted({k for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) == CONFIRM_MLP})
+        if mc:
+            raise SystemExit(f"FAIL LOUD: --confirm2 --gate holds FL MLP cells {mc[:3]}; they belong in --desc-gate (C3)")
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
     stray = sorted({(k[0], k[1]) for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) in (a.primary, a.twin, a.mlp) and k[1] not in SEEDS})
     if stray:
@@ -828,14 +905,20 @@ def main(argv=None):
         res["cotenancy"] = "OFF (not the gate read)"
         lab, why, f2 = res["F1"]["label"], res["F1"]["why"], res["F2"]
     f1 = res["F1"]["tests"]
-    if a.confirm:
+    if confirm2:
+        res["confirmation"] = {"label": CONFIRM2_YES if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage,
+                               "rule": CONFIRM2_WHY, "alpha": CONFIRM2_ALPHA_LINE, "family": "confirmation 2"}
+    elif a.confirm:
         res["confirmation"] = {"label": "CONFIRMED" if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage,
                                "rule": CONFIRM_WHY}
+    if a.confirm:
         if a.stage == "primary":
             for v in (res, res["cotenancy"]):
                 v.pop("descriptive", None)
         else:
             check_against_filed_primary(a, res)
+            if confirm2:  # C3: --desc-gate is opened only after the primary read is shown to be filed
+                desc_confirm2(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth, mlp2)
     txt = json.dumps(res, indent=1, default=str)
     if a.out:
         if a.confirm and os.path.exists(a.out):
