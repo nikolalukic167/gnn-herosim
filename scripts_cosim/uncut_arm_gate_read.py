@@ -62,7 +62,7 @@ Arm 3 (the expected move-regret lever, gate change G6): --primary ra_gnn_eng_arm
   was conceived after interim looks, so the program-level label is never open: at best WIN-ARM-ONLY. With no MP-OFF twin trained (wave 2 held) the read omits --twin: F1 against the bar is read as filed, F2 is skipped and says so ('no MP attribution'). Its checkpoints come from its own md5 file (arm3=<path>); its w
   (ARM3_W_KINDS) must sit within W_GUARD_X of Arm 1b's same arm at every pin. The gate changes are --gate-change <...>,8dfd7e0c,<G6>.
 Descriptive: UNCUT-ATTRIBUTED (share of the task-weighted primary - cd_ib0 latency gap carried by tasks whose original group > 10, from the per-task
-  sidecars, tasks matched by taskId, the primary per task = the mean of its two seeds; >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
+  sidecars, tasks matched by taskId, the primary per task = the mean of its seeds (every served seed; through 4441fa39 only the first two); >= 50 % UNCUT-ATTRIBUTED else WIN-NOT-UNCUT; by bucket),
   OPENING share (tasks dispatched at t < 360 s; dispatchedTime is the arrival proxy), collapse (per seed cell, > 3 x cd's mean, either statistic; the arm's count is the worse seed's), tail flag
   (end - last arrival > 120 s), WALL-INFEASIBLE, decision share ((sched_queue_wait + sched_busy) / tasks / mean), and the training effect
   (primary vs the slate_fix_v1 reference).
@@ -724,17 +724,30 @@ def check_against_filed_primary(a, res, node="docs/lineages/uncut_groups_s0_v1.m
     res["confirmation"]["primary_read"] = {"path": os.path.abspath(a.primary_read), "md5": m, "record": a.record}
 
 
+def grid_or_void(cells, failed, arms, topos, where):
+    """--confirm2 (R1, the registration's VOID rule): the cell set is exactly the registered grid, every (kind, seed) of arms x topos x
+    g0-g3 x both rungs present as a summary, nothing failed and nothing else in the directory; else the family is VOID and the read stops."""
+    want = {(k, sd, t, w, r) for k, seeds in arms for sd in seeds for t in topos for w in WINDOWS for r in RUNGS}
+    have = set(cells)
+    missing, extra = sorted(want - have), sorted(have - want)
+    if failed or missing or extra:
+        raise SystemExit(f"FAIL LOUD: VOID: {where} is not the registered grid ({len(want)} cells): {len(have & want)} present, "
+                         f"{len(missing)} missing e.g. {missing[:3]}, {len(failed)} failed e.g. {sorted(failed)[:3]}, {len(extra)} extra e.g. {extra[:3]}")
+    return len(want)
+
+
 def desc_confirm2(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth, mlp):
     """--confirm2 --stage secondary: --desc-gate's FL gnn s1-2 and FL MLP s1-2 cells (both charges) pass the learned-cell asserts, then two
     descriptive lines per verdict: FL gnn s1-2 vs the bar, and F2-MC (FL gnn s3-6 vs FL MLP s1-2). p unadjusted; never a label."""
     dc, df = load(a.desc_gate, a.suffix)
-    if df:
-        raise SystemExit(f"FAIL LOUD: failed cells in --desc-gate: {sorted(df)[:4]}")
     want = {(a.primary, sd) for sd in CONFIRM2_MLP_SEEDS} | {(mlp, sd) for sd in CONFIRM2_MLP_SEEDS}
     base_kind = lambda k: k[:-len(KR)] if k.endswith(KR) else k
     bad = sorted({(k[0], k[1]) for k in dc if (base_kind(k[0]), k[1]) not in want})
     if bad:
         raise SystemExit(f"FAIL LOUD: --desc-gate holds cells outside FL gnn / FL MLP seeds 1-2: {bad[:4]}")
+    two = CONFIRM2_MLP_SEEDS
+    res["confirmation"]["desc_grid_cells"] = grid_or_void(dc, df, [(a.primary, two), (a.primary + KR, two), (mlp, two), (mlp + KR, two)],
+                                                          topos, "--desc-gate")
     d100 = {k: v for k, v in dc.items() if not k[0].endswith(KR)}
     dkr = {(k[0][:-len(KR)],) + k[1:]: v for k, v in dc.items() if k[0].endswith(KR)}
     if not d100 or not dkr:
@@ -815,6 +828,7 @@ def main(argv=None):
         mc = sorted({k for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) == CONFIRM_MLP})
         if mc:
             raise SystemExit(f"FAIL LOUD: --confirm2 --gate holds FL MLP cells {mc[:3]}; they belong in --desc-gate (C3)")
+        grid_n = grid_or_void(cells, failed, [(a.primary, SEEDS), (a.primary + KR, SEEDS), (a.bar, (0,)), (CD, (0,))], topos, "--gate")
     learned = [x for x in (a.primary, a.twin, a.mlp, a.reference) if x]
     stray = sorted({(k[0], k[1]) for k in list(cells) + list(failed) if (k[0][:-len(KR)] if k[0].endswith(KR) else k[0]) in (a.primary, a.twin, a.mlp) and k[1] not in SEEDS})
     if stray:
@@ -907,7 +921,7 @@ def main(argv=None):
     f1 = res["F1"]["tests"]
     if confirm2:
         res["confirmation"] = {"label": CONFIRM2_YES if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage,
-                               "rule": CONFIRM2_WHY, "alpha": CONFIRM2_ALPHA_LINE, "family": "confirmation 2"}
+                               "rule": CONFIRM2_WHY, "alpha": CONFIRM2_ALPHA_LINE, "family": "confirmation 2", "grid_cells": grid_n}
     elif a.confirm:
         res["confirmation"] = {"label": "CONFIRMED" if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage,
                                "rule": CONFIRM_WHY}
