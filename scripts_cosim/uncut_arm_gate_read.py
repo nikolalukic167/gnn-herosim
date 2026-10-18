@@ -297,10 +297,16 @@ def charge_check(key, s, w, k):
         raise SystemExit(f"FAIL LOUD: {key} served decision cost {got!r}, not k = {k} x its frozen w")
 
 
+# P5.1 (job 885487): the per-arrival reactive arm (knative_network) writes no groupSize / servedBatchSize to its sidecar (every task < 0)
+PER_ARRIVAL_KINDS = ("reactive",)
+
+
 def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False, k0=False):
     """w_pins: {full sha: w file} from w_pin_chain, --pin's own entry first; None without --w-pins (every cell at --pin).
     kr: these are the co-tenancy cells, charged at the pin's k_cotenancy instead of 1. k0: uncharged cells (the bare kind), which must
-    serve no decision-cost rate at all."""
+    serve no decision-cost rate at all. A per-arrival kind (PER_ARRIVAL_KINDS) is not held to groupSize / servedBatchSize, which it never
+    writes; its sidecar must still exist with 5 columns and one row per task, with both fields unset on every row (a filled one means a
+    batched path served it), and every other assert holds."""
     warmth = {}
     base = pin if w_pins is None else next(iter(w_pins))
     for key, s in cells.items():
@@ -326,7 +332,12 @@ def asserts(cells, pin, learned, ckpt, w_pins=None, kr=False, k0=False):
         if not os.path.exists(bsz):
             raise SystemExit(f"FAIL LOUD: {key} has no per-task batch-size sidecar {bsz}")
         a = np.load(bsz)
-        if a.ndim != 2 or a.shape[1] != 5 or (a[:, 3] < 0).any() or (a[:, 4] < 0).any():
+        if key[0] in PER_ARRIVAL_KINDS:
+            if a.ndim != 2 or a.shape[1] != 5 or a.shape[0] != int(s["num_tasks"]):
+                raise SystemExit(f"FAIL LOUD: {key} per-task sidecar is not 5 columns x one row per task ({a.shape}, num_tasks {s.get('num_tasks')})")
+            if (a[:, 3] >= 0).any() or (a[:, 4] >= 0).any():
+                raise SystemExit(f"FAIL LOUD: {key} is a per-arrival cell but its sidecar has a filled groupSize/servedBatchSize (a batched path served it)")
+        elif a.ndim != 2 or a.shape[1] != 5 or (a[:, 3] < 0).any() or (a[:, 4] < 0).any():
             raise SystemExit(f"FAIL LOUD: {key} per-task sidecar lacks groupSize/servedBatchSize on some task")
         banner = log_banner(s["_path"].replace(".summary.json", ".log"))
         if banner is None or pin_match(banner[0], [at]) is None or banner[1] != "False":
