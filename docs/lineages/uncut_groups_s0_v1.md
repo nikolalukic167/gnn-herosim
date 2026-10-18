@@ -301,6 +301,76 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-18 — **Combined lever, primary read: FL gnn (in-flight features + simulator labels) vs `cd_ib0_inflightfull_k100` is F1 = WIN-ARM-ONLY. All four tests clear the win rule: moderate −6.38 % / −7.67 %, heavy −3.44 % / −4.95 % (whole / after-360), Holm ≤ .0024, every seed alone ≤ −1 %, 0 collapses. The TE3 heavy family (36 topologies, k = 2) is CLAIM on both statistics.** (S6; B6: the lever was conceived after interim looks, so it has no share of the program α and its best label is WIN-ARM-ONLY, applied by the reader. The program-level label stays closed, and F2 is skipped: no MP-OFF twin was trained, so this is not a message-passing result.)
+  - **Training.** All runs: seeds 1 and 2, 100 epochs, CPU, 6 threads, SMT off, `0 failure(s)` on every task. Each served `-final.pt` md5 equals the md5 its training log printed.
+
+    | arm | job | config | pin | node | wall (s1 / s2) | `-final.pt` md5 (s1 / s2) |
+    |---|---|---|---|---|---|---|
+    | F gnn | 883951 | `uncut_comb_f_gnn_eng` | `b7c0fcbc` | os-cpu-slurm-24 | 10 h 18 min / 11 h 17 min | `0f3a14bf…` / `00b907a3…` |
+    | L gnn | 884196 | `uncut_comb_l_gnn_eng` | `f9a41cce` | 16 | 10 h 19 min / 11 h 17 min | `6e513e82…` / `eed839e4…` |
+    | FL gnn | 884197 | `uncut_comb_fl_gnn_eng` | `f9a41cce` | 17 | 10 h 22 min / 11 h 18 min | `a670eb0c…` / `78c09cc0…` |
+    | FL MLP | 884198 | `uncut_comb_fl_mlp_same` | `f9a41cce` | 18 | 7 h 15 min / 7 h 59 min | `d05ff3f1…` / `94b6f4be…` |
+
+    Staged by `comb/stage_comb.py` into `comb/in_comball`, all 8 copies checked by md5 (`comb/md5_comball.json`, md5 `078f4c01…`).
+  - **w.** S7's frozen w, from node B only (the entry below). The cells ran at `a8681537` (`s6/wcomb-wonly`, merged as `7336f4c5`), a child of W-FAST `cb944177` that changes only `scripts_cosim/decision_cost_w.json`. Its blob `a6bcf73f` is byte-identical to the one in S7's `756e738c`. The extra pin exists because `756e738c` also edits this node, and the reader's w-only rule (`w_pin_chain`: every w pin differs from the last gate change only in the w file) refuses it. The reader was not changed.
+  - **Cells.** At `a8681537`, `_k100`, seeds 1 and 2, PAR 60, CELL_MEM 16G, LIMIT 14400; inputs, selection, split and slate as the G8 bar run (`comb/cells_bar_g8`). Script `comb/comb_cells.sh` (TE3: `comb/te3_fl_cells.sh`). 0 failed in both sets.
+    - **Main:** 768 cells (F, L and FL gnn and the FL MLP × the 12 topologies 19537–19548 × g0–g3 × moderate / heavy). Jobs 884607–884610 on os-cpu-slurm-13, 15, 16 and 17 (exclusive, 28–31 min); node 21 left out (the expert's rule after its H3 stop).
+    - **TE3:** 288 FL gnn heavy cells on the 36 TE3 topologies 19554–19589 (sha256 `643e8b39…`). Jobs 884611–884614 on os-cpu-slurm-18, 20, 22 and 23 (13 min). Inputs `gate_inputs_ext`, `ext_selected.json` and the same split, as S5's TE3 cells; input dir `comb/in_te3_combfl`.
+  - **Primary read** (job 884637, reader at reference-physics `54e1ad78`):
+    - Command: `--pin a459dd98 --gate-change 095948ea --w-pins cb944177,a8681537 --bar cd_ib0_inflightfull --cotenancy off --primary ra_gnn_eng_combfl_nosplit --checkpoint-md5 comb/md5_comball.json`.
+    - Gate: `comb/cells_bar_g8` and `comb/cells_comb_fl`, a symlink view of the 192 FL cells. The reader holds any `--gate` kind that is not one of the read's arms to the gate pin, as a hand cell.
+    - Topology sha256 `553ef17d…`. Output `comb/reads/read_combfl.json`, md5 `50cb302a4c76c0db3c015bdae7885843`.
+
+    | rung | statistic | median % | faster | p | Holm | seed 1 | seed 2 |
+    |---|---|---|---|---|---|---|---|
+    | moderate | whole | −6.38 | 12/12 | .00049 | .00195 | −5.96 | −6.78 |
+    | moderate | after-360 | −7.67 | 12/12 | .00049 | .00195 | −8.20 | −7.90 |
+    | heavy | whole | −3.44 | 11/12 | .00244 | .00244 | −1.95 (9/12) | −7.32 |
+    | heavy | after-360 | −4.95 | 12/12 | .00049 | .00195 | −6.06 | −6.46 |
+
+    - **Health:** 0 collapses on either seed at either rung (bar 0); tail flags 2 / 2 (bar 4 / 4).
+    - **Anchor:** OK at both rungs; decision share 0.109 % / 0.135 % (bar 0.006 % / 0.010 %).
+    - **Robust bar `cd`:** −12.7, −16.3, −12.3 and −17.1 %, 12/12 each.
+    - **Gap attribution:** UNCUT-ATTRIBUTED at both rungs.
+    - Every Holm p is below .025, so without B6 this read would have met the program-level rule. It is reported as WIN-ARM-ONLY, never as the program result.
+    - **B3, same job:** the filed Arm 1b read is byte-identical, md5 `301b11c37f3cda559ff392234303e53d`.
+  - **What the label means.** The combined lever is the first learned arm whose label clears all four tests against the program's in-flight bar. That covers heavy whole-run, where every earlier arm tied or lost: A3-L −1.55 % (not separated), A3-L-ft +1.03 %, the filed arms +2.9 to +5.9 %. Its components, read descriptively below:
+    - F alone loses at heavy whole: +6.02 %, 1/12.
+    - L alone ties at heavy whole: −1.37 %, 7/12.
+    - Each is ahead at moderate. Of the two, only L is also ahead at heavy after-360: −4.27 %, 9/12, unadjusted p .016.
+
+    So the in-flight features and the simulator labels pay together, not apart. The FL MLP on the same inputs and labels is also ahead of the bar but does not separate at heavy whole (−1.71 %, 9/12), and FL gnn is ahead of it by 0.4–3.2 % (descriptive). The lever has two seeds and 12 topologies (TE3 adds 36 at heavy), and no MP-OFF twin. It shows that this learned GNN beats the hand bar; it does not show that message passing does.
+  - **TE3 heavy family** (Holm, k = 2; the seed extension's per-test labels: CLAIM / REVERSED / CLEAN-NEGATIVE / UNRESOLVED, margin 1 %, sign-test 95 % interval). FL gnn s1–2 vs `cd_ib0_inflightfull_k100` heavy on the 36 TE3 topologies, the bar's cells `ext_cells/cells_bar_inflightfull` (job 883747, at `634cbd8d`). Statistic: the reader's `contrast`, computed in the read job; `comb/reads/te3_combfl.json`, md5 `7918e49b…`.
+    - heavy whole −2.52 % (28/36, p 2.1e-5, Holm 4.2e-5), **CLAIM**, interval [−4.18, −1.83];
+    - heavy after-360 −2.98 % (28/36, p 5.8e-4, Holm 5.8e-4), **CLAIM**, interval [−5.64, −1.99].
+    - The FL cells sit at `a8681537`, the bar's at `634cbd8d`. G8 `a459dd98` reproduces that bar byte-identically on the 12 gate topologies (`comb/bar_identity.json`), but that check was not repeated on the 36 TE3 topologies.
+  - **Secondary, descriptive.** No label, p unadjusted, frozen cells. Arm 1b's cells are on the d6ae87c2 chain, so these are cross-pin. Values are moderate whole, moderate after-360, heavy whole, heavy after-360; output `comb/reads/desc_comb.json`, md5 `26db4a56…`.
+
+    | contrast | median % (topologies faster of 12) |
+    |---|---|
+    | FL vs Arm 1b gnn s1–2 | −3.12 (12), −2.21 (11), −8.16 (12), −4.88 (10) |
+    | FL vs Arm 1b gnn s11–18 | −3.32 (12), −2.10 (12), −8.86 (12), −4.39 (12) |
+    | F vs Arm 1b gnn s1–2 | −0.15 (7), −0.58 (7), +0.57 (5), +2.53 (2) |
+    | L vs Arm 1b gnn s1–2 | −3.09 (12), −1.64 (11), −4.91 (12), −1.82 (10) |
+    | FL gnn vs FL MLP | −0.44 (9), −0.93 (10), −3.15 (11), −2.04 (9) |
+    | F vs the in-flight bar | −3.51 (9), −5.81 (12), +6.02 (1), +0.95 (5) |
+    | L vs the in-flight bar | −6.83 (12), −8.45 (11), −1.37 (7), −4.27 (9) |
+    | FL MLP vs the in-flight bar | −5.13 (12), −6.68 (12), −1.71 (9), −2.54 (11) |
+
+  - **Problems met, disclosed.**
+    1. **Read 884604 (void).** It ran on the first cell sets at `756e738c` (884592–884595; TE3 884600–884603; all 0 failed) and wrote no FL read. Two causes:
+       - the reader's w-only rule refused `756e738c` (above);
+       - my descriptive/TE3 block lost its quotes to the `ssh` quoting and raised a `NameError`.
+
+       I fixed the script, and now write it locally and copy it over. The cells were rerun at `a8681537`, with the expert's approval of a mechanical rerun. The first cell sets are kept as `comb/cells_comb_756e738c` and `comb/cells_te3_combfl_756e738c`.
+    2. **Identity check** (job 884616, before any read; the expert's rule was to stop on any difference). The `a8681537` cells equal the `756e738c` cells: 2,304 + 864 `.npy`, 0 differ by md5, and every summary has the same mean latency and task count (`comb/reads/identity_a8681537_vs_756e738c.json`).
+       - The same job's primary read failed on the gate-pin rule above. That is how the FL-only view came about.
+       - Its B3, TE3 and descriptive blocks ran, and their outputs are the ones cited here.
+       - Its log is kept in `comb/reads/void_884616/`.
+    3. **Misplaced TE3 shards.** The first TE3 submission (884596–884599) went to the four nodes the main shards had just taken, because `sinfo` did not yet show them busy. I cancelled it while still pending (no cell ran) and resubmitted on other nodes.
+    4. **Smoke peek, as reported to the expert:** "smoke-testing the fixed block, I ran it on the void 756e738c cells, and it printed the TE3 family (CLAIM on both heavy statistics) and three FL vs Arm 1b s1–2 lines before failing. I have NOT seen the FL primary. The read is mechanical and unchanged by this, and the identity check ties the new cells to the old ones."
+    5. **Read 884615** was cancelled while pending and resubmitted as 884616. The identity check had to stop the job before any read, and sbatch keeps the script it was given at submit.
+
 - 2026-10-18 — **Combined lever: frozen w for F, L, FL and the FL MLP, node B only (expert ruling (a)); H3 drift stop FIRED on node A** (S7, for S6; w-only pin, child of W-FAST `cb944177`). Changes only the four comb kinds' scalar and per-bucket w in `scripts_cosim/decision_cost_w.json`; every earlier key is byte-identical.
   - **Series.** Job 884584 on A = os-cpu-slurm-21 and B = os-cpu-slurm-22: AMD EPYC 9335 32-Core, SMT off, exclusive. 27 min 37 s, rc 0, 12/12 steps, 0 failed cells. Recipe as the learned series 882799: 19461 g0, both rungs, k = 0, seed 1, PAR 1, 1 torch thread, through `cot_calib_v2.sbatch` called by `cot_comb_smt.sbatch` and `cot_comb_steps.sh` (all in `cotenancy/`). Steps per node: H3pre (`cd_ib0`, `114cc0e7`), the four kinds at `cb944177`, H3end. Inputs are `comb/calib_in_comb{f,l,fl,flmlp}` (S6's staged models, md5s re-checked, with the `gate_inputs_e2738e37` windows, because the arm1 gate windows have no 19461). A first submission (884579) failed loud on the missing 19461 window and was resubmitted.
   - **Drift stop** (`uncut_charge_share.py drift`, 2 %): **A STOP** (H3pre to H3end heavy −2.99 %, moderate +0.09 %; H3start 871538 to H3end heavy +2.42 %, moderate +2.17 %). B OK (pre to end heavy −0.27 %, moderate +0.54 %; against H3start −0.23 %, +1.08 %). Node A has now tripped in two series; the expert asks to keep it out of future calibration pairs.
