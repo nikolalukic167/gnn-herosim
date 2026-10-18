@@ -102,3 +102,20 @@ def test_old_seed_cells_in_the_new_set_fail_loud(tmp_path):
     cell(d, X.A3G, 1, 1, "g0", "heavy", 1.9)
     with pytest.raises(SystemExit, match="other seeds"):
         run(tmp_path, d, reads)
+
+
+def test_one_family_alone_needs_only_its_arms_and_matches_the_full_run(tmp_path):
+    d, reads = build(tmp_path, BASE)
+    full = run(tmp_path, d, reads)
+    e1 = [r for r in reads if os.path.basename(r) in (f"read_{X.A3G}.json", f"read_{X.A1BG}.json")]
+    alone = run(tmp_path, d, e1, families="E1")
+    assert alone["families_run"] == ["E1"] and sorted(alone["families"]) == ["E1"]
+    assert alone["families"]["E1"] == full["families"]["E1"] and alone["findings"]["E1"] == full["findings"]["E1"]
+    assert alone["families"]["E1"]["holm_family"] == 4
+    with pytest.raises(SystemExit, match="no extension read"):
+        run(tmp_path, d, e1[:1], families="E1")
+    with pytest.raises(SystemExit, match="not an arm of the families run"):
+        run(tmp_path, d, reads, families="E1")
+    for bad in ("E2", "E1,E1", ""):
+        with pytest.raises(SystemExit, match="--families"):
+            run(tmp_path, d, e1, families=bad)
