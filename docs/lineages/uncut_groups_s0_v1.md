@@ -308,6 +308,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Tests: reactive with both fields unset passes; reactive with a row-count mismatch, no sidecar, or one filled field fails; MLP or bar cells with unset fields fail.
     - B3, job 885490 at `55d01b46` (the same blob): the 13 reads of record byte-identical (output md5 `6e4cce64`). The primary re-run at P5.1 to a scratch path (job 885491) gives `99de7fac`, byte-identical to the filed primary. Full suite at `2b571f99`: 2,857 passed, 115 skipped.
     - P4 (`--confirm2`) loads no per-arrival kind and is unchanged.
+  - Signed: SCIENTIST, 2026-10-18 — FL size-64 reader re-frozen at reference-physics 2b571f99 (uncut_arm_gate_read.py blob 549643c8; P5.1: per-arrival reactive sidecar rule, fail-loud 885487 disclosed; B3 885490 13/13 identical; primary reproduces 99de7fac).
 
 - 2026-10-18 — **FL size-64, primary read filed: NOT-CONFIRMED.** (S6 read; the frozen reader `4132de68`, blob `ab8a1e1e`, `--confirm-size64 --stage primary`; 12 topologies 30129–30140 at 64 servers.) Every pooled test clears the win line under both charges. The failing clause is the per-seed rule: **seed 1 heavy whole is −0.66 % (`_k100`) and +0.02 % (`_kr`)** against the −1 % line, the same clause and seed as confirmation 1. File `/share/nikola.lukic/uncut_groups/size64/reads/read_size64_primary.json`, md5 `99de7fac6278e308763fe13b0d20193a`.
   - **Before the read.**
