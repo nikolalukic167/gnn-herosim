@@ -16,6 +16,8 @@ Labels per test (claimed direction: the first arm faster, except E4's Arm 2 - K0
   claimed-direction effect of 1 % or more (post-look margin). UNRESOLVED: otherwise.
 Combined per test: the frozen and co-tenancy labels if they agree, else UNRESOLVED. A rung's finding is a claim (clean negative) only if both of
 its statistics are. --pooled adds the same contrasts on seeds 1, 2 and the new seeds together: descriptive, no label, no Holm.
+--families (default all) computes only the named families; Holm stays within each family, so a family's k and labels do not depend on which
+others are run, and only the reads of the arms in the named families are required.
 """
 import argparse
 import hashlib
@@ -121,14 +123,18 @@ def combine(frozen, cot):
     return out, findings
 
 
-def check_reads(paths):
+def arms_of(fams):
+    return {x for f in fams for a, b, _, _ in FAMILIES[f] for x in (a, b) if x != G.BAR}
+
+
+def check_reads(paths, needed):
     seen = {}
     for p in paths:
         with open(p) as fh:
             r = json.load(fh)
         pr = r.get("primary")
-        if pr not in READS:
-            raise SystemExit(f"FAIL LOUD: {p} reads {pr!r}, not an extension arm")
+        if pr not in READS or pr not in needed:
+            raise SystemExit(f"FAIL LOUD: {p} reads {pr!r}, not an arm of the families run ({sorted(needed)})")
         if r.get("twin", "") != READS[pr]:
             raise SystemExit(f"FAIL LOUD: {p}: twin {r.get('twin')!r}, the extension reads {pr} with twin {READS[pr]!r}")
         if tuple(r.get("seeds") or ()) != SEEDS[pr]:
@@ -136,7 +142,7 @@ def check_reads(paths):
         if not isinstance(r.get("combined"), dict):
             raise SystemExit(f"FAIL LOUD: {p} is not a read under both verdicts (--cotenancy required)")
         seen[pr] = {"path": os.path.abspath(p), "md5": G.md5(p)}
-    missing = sorted(set(READS) - set(seen))
+    missing = sorted(needed - set(seen))
     if missing:
         raise SystemExit(f"FAIL LOUD: no extension read for {missing}")
     return seen
@@ -149,12 +155,17 @@ def main(argv=None):
     ap.add_argument("--topos", required=True)
     ap.add_argument("--topos-sha256", required=True)
     ap.add_argument("--pooled-gate", default="", help="cell directories holding seeds 1, 2 too: adds the pooled descriptive line")
+    ap.add_argument("--families", default=",".join(FAMILIES), help="comma-separated subset of the families (default all)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
+    fams = [x for x in a.families.split(",") if x]
+    if not fams or len(set(fams)) != len(fams) or set(fams) - set(FAMILIES):
+        raise SystemExit(f"FAIL LOUD: --families {a.families!r}: distinct names from {list(FAMILIES)}")
+    fams = [f for f in FAMILIES if f in fams]
     if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
         raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
     topos = [int(x) for x in a.topos.split(",")]
-    reads = check_reads([x for x in a.read.split(",") if x])
+    reads = check_reads([x for x in a.read.split(",") if x], arms_of(fams))
     cells, _ = G.load(a.gate, "_k100")
     frozen = {k: v for k, v in cells.items() if not k[0].endswith(G.KR)}
     cot = {(k[0][:-len(G.KR)],) + k[1:]: v for k, v in cells.items() if k[0].endswith(G.KR)}
@@ -163,8 +174,8 @@ def main(argv=None):
     if stray:
         raise SystemExit(f"FAIL LOUD: new-seed cell set holds other seeds: {stray[:6]}")
     res = {"registration": "uncut_groups_s0_v1 seed extension, 2026-10-17 (B6, post-look); filed verdicts unchanged", "reads": reads,
-           "seeds": {k: list(v) for k, v in SEEDS.items()}, "margin_pct": MARGIN, "families": {}, "findings": {}}
-    for fam in FAMILIES:
+           "seeds": {k: list(v) for k, v in SEEDS.items()}, "margin_pct": MARGIN, "families_run": fams, "families": {}, "findings": {}}
+    for fam in fams:
         f, c = family_tests(frozen, fam, topos), family_tests(cot, fam, topos)
         comb, findings = combine(f, c)
         res["families"][fam] = {"holm_family": len(f), "frozen": f, "cotenancy": c, "combined": comb}
@@ -172,7 +183,7 @@ def main(argv=None):
     if a.pooled_gate:
         pc, _ = G.load(a.pooled_gate, "_k100")
         pf = {k: v for k, v in pc.items() if not k[0].endswith(G.KR)}
-        res["pooled_descriptive"] = {fam: family_tests(pf, fam, topos, pooled=True) for fam in FAMILIES}
+        res["pooled_descriptive"] = {fam: family_tests(pf, fam, topos, pooled=True) for fam in fams}
     with open(a.out, "w") as fh:
         json.dump(res, fh, indent=1, sort_keys=True)
     for fam, fs in res["findings"].items():
