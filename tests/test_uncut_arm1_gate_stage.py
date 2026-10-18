@@ -319,3 +319,26 @@ def test_g8b_fast_kinds_check_lambda_and_the_recomputed_table(tmp_path):
     p.write_text(json.dumps(good))
     with pytest.raises(SystemExit, match="not a regret-lever run"):
         G.comb_trainer_check("ra_gnn_eng_combf", str(p))
+
+
+def test_comb_kr_serves_fl_gnn_and_the_fl_mlp_at_the_frozen_cotenancy_k(tmp_path, monkeypatch):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    assert G.COMB_KR_KINDS == ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit")
+    for k in G.COMB_KR_KINDS:
+        assert G.split_dc(f"{k}_k100") == (k, 1.0)
+    w = json.load(open(G.DC_W_FILE))
+    f = tmp_path / "w.json"
+    monkeypatch.setattr(G, "DC_W_FILE", str(f))
+    for bad in (None, 0.9, True, "1.2"):
+        f.write_text(json.dumps({**w, **({} if bad is None else {"k_cotenancy": bad})}))
+        with pytest.raises(SystemExit, match="k_cotenancy"):
+            G.split_dc("ra_gnn_eng_combfl_nosplit_kr")
+    w["w_ms_per_plan_by_bucket"]["ra_mlp_same_combfl_nosplit"] = {"heavy": {"le10": 2.0, "11_50": 1.0, "gt50": 1.5}}
+    f.write_text(json.dumps({**w, "k_cotenancy": 1.468}))
+    kind, k = G.split_dc("ra_mlp_same_combfl_nosplit_kr")
+    assert (kind, k) == ("ra_mlp_same_combfl_nosplit", 1.468)
+    env, val = G.dc_cost_ms(kind, k, "heavy")
+    assert env == G.DC_BUCKET_ENV and json.loads(val) == {"le10": 2.936, "11_50": 1.468, "gt50": 2.202}
+    # every other _kr stays an unknown arm, as before this change (the listing proof relies on it)
+    for other in ("ra_gnn_eng_combf_nosplit_kr", "ra_gnn_eng_combl_nosplit_kr", "ra_gnn_eng_a3l_nosplit_kr", "cd_ib0_inflightfull_kr", "ra_gnn_eng_arm1_nosplit_kr"):
+        assert G.split_dc(other) == (other, None)
