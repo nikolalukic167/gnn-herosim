@@ -958,3 +958,16 @@ def test_b6_cap_reasons_and_kinds():
     """The cap is keyed on COMB_W_KINDS membership; the Arm 1b / Arm 3 fixed-sequence reason is unchanged."""
     assert G.FIXED_SEQ_WHY.startswith("fixed sequence") and "B6" in G.COMB_B6_WHY
     assert not set(G.COMB_W_KINDS) & set(G.ARM1_W_KINDS + G.ARM1B_W_KINDS + G.ARM3_W_KINDS)
+
+
+def test_combine_keeps_a_no_twin_label_for_a_seed_extension_arm_under_both_verdicts():
+    """The seed extension reads an arm with no new-seed twin under --cotenancy required: both verdicts carry NO_TWIN_EXT and combine() must keep it (it raised StopIteration)."""
+    import types
+
+    f1 = {"label": "TIES"}
+    for lab in (G.NO_TWIN_EXT, G.NO_TWIN, G.NO_TWIN_COMB):
+        side = {"F1": f1, "F2": {"MP": lab}}
+        out = G.combine(side, dict(side), types.SimpleNamespace(mlp=""))
+        assert out["MP"] == lab
+    mixed = G.combine({"F1": f1, "F2": {"MP": "MP-NOT-SEPARATED"}}, {"F1": f1, "F2": {"MP": "MP-DIRECTION"}}, types.SimpleNamespace(mlp=""))
+    assert "NOT-SEPARATED" in mixed["MP"]          # the twin-bearing path is unchanged: the weaker of the two

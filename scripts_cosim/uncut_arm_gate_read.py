@@ -625,7 +625,7 @@ def combine(main, cot, a):
     mw, cw = f1_parts(m)[0] == "win", f1_parts(c)[0] == "win"
     flags = (["NOT-COTENANCY-ROBUST"] if mw and not cw else []) + (["COTENANCY-ANOMALY"] if cw and not mw else [])
     why = f"weaker of frozen {m!r} and co-tenancy {c!r}" + (f"; {', '.join(flags)}" if flags else "")
-    out = {"F1": f1, "why": why, "flags": flags, "MP": NO_TWIN if NO_TWIN in (main["F2"]["MP"], cot["F2"]["MP"]) else weaker(main["F2"]["MP"], cot["F2"]["MP"])}
+    out = {"F1": f1, "why": why, "flags": flags, "MP": next((x for x in (main["F2"]["MP"], cot["F2"]["MP"]) if x.startswith("F2 skipped")), None) or weaker(main["F2"]["MP"], cot["F2"]["MP"])}
     if a.mlp:
         out["MODEL-CLASS"] = weaker(main["F2"]["MODEL-CLASS"], cot["F2"]["MODEL-CLASS"])
     return out
