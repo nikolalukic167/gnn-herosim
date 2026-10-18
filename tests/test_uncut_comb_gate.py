@@ -75,7 +75,18 @@ def test_sidecheck_v6_arms_want_v6_and_v5_arms_refuse_it(tmp_path, monkeypatch):
     assert SC.check_ra(mlp, "ra_mlp_same_v6", split, "inf") == 0
 
 
-def test_comb_arm_without_its_own_w_fails_loud():
+def test_comb_arm_charges_its_own_frozen_w(tmp_path, monkeypatch):
+    for k in G.COMB_KINDS:
+        for rung in ("moderate", "heavy"):
+            env, val = G.dc_cost_ms(f"{k}_nosplit", 1.0, rung)
+            assert env == G.DC_BUCKET_ENV and all(v > 0 for v in json.loads(val).values())
+    f = json.load(open(G.DC_W_FILE))
+    for k in G.COMB_KINDS:
+        f["w_ms_per_plan"].pop(f"{k}_nosplit", None)
+        f.get("w_ms_per_plan_by_bucket", {}).pop(f"{k}_nosplit", None)
+    p = tmp_path / "w.json"
+    p.write_text(json.dumps(f))
+    monkeypatch.setattr(G, "DC_W_FILE", str(p))
     for k in G.COMB_KINDS:
         with pytest.raises(SystemExit, match="no calibrated w|null"):
             G.dc_cost_ms(f"{k}_nosplit", 1.0, "heavy")

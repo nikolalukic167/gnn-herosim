@@ -59,6 +59,22 @@
   "ra_gnn_eng_a3lft_nosplit": {
    "heavy": 2.951249,
    "moderate": 2.869762
+  },
+  "ra_gnn_eng_combf_nosplit": {
+   "heavy": 3.223457,
+   "moderate": 3.054273
+  },
+  "ra_gnn_eng_combl_nosplit": {
+   "heavy": 2.878144,
+   "moderate": 2.84081
+  },
+  "ra_gnn_eng_combfl_nosplit": {
+   "heavy": 3.106959,
+   "moderate": 3.019582
+  },
+  "ra_mlp_same_combfl_nosplit": {
+   "heavy": 2.429492,
+   "moderate": 2.379019
   }
  },
  "_source": "wall decision seconds / sched_plan_evals, k=0 cells: id/new (cd, cd_exactS, cd_exactS_ib0), id/new2 (nosplit), calib (cd_ib0, cd_exactS_ib0_prune, selfsearch, cdxapply); topologies 19405/19411 g0",
@@ -159,6 +175,54 @@
     "11_50": 1.06827,
     "gt50": 1.497269
    }
+  },
+  "ra_gnn_eng_combf_nosplit": {
+   "heavy": {
+    "le10": 4.207723,
+    "11_50": 1.454608,
+    "gt50": 1.665425
+   },
+   "moderate": {
+    "le10": 4.088804,
+    "11_50": 1.206209,
+    "gt50": 1.258348
+   }
+  },
+  "ra_gnn_eng_combl_nosplit": {
+   "heavy": {
+    "le10": 3.732825,
+    "11_50": 1.380581,
+    "gt50": 1.41524
+   },
+   "moderate": {
+    "le10": 3.749992,
+    "11_50": 1.204505,
+    "gt50": 1.313877
+   }
+  },
+  "ra_gnn_eng_combfl_nosplit": {
+   "heavy": {
+    "le10": 4.060664,
+    "11_50": 1.415414,
+    "gt50": 1.550823
+   },
+   "moderate": {
+    "le10": 4.010284,
+    "11_50": 1.201374,
+    "gt50": 1.452052
+   }
+  },
+  "ra_mlp_same_combfl_nosplit": {
+   "heavy": {
+    "le10": 3.126814,
+    "11_50": 1.153278,
+    "gt50": 1.372791
+   },
+   "moderate": {
+    "le10": 3.125672,
+    "11_50": 1.05085,
+    "gt50": 1.105336
+   }
   }
  },
  "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). IMPUTED: cd_exactS heavy and cd_expand heavy (their heavy smoke cells were watchdog-killed, WALL-INFEASIBLE) = the arm's heavy scalar w x its own moderate ratio to le10 (expert ruling 2026-10-13). Scalar w stands for cd and cd_ib0. The gate charges k x these by served batch-size bucket (HEROSIM_DECISION_COST_MS_BY_BUCKET); arms without an entry keep HEROSIM_DECISION_COST_MS. cd_exactS_ib0_prune: S6's prune smoke, job 864605 at c671281c (19461 g0, k = 0, both rungs finished: 4,551 s heavy, 3,900 s moderate wall), /share/nikola.lukic/uncut_groups/wnprune_c671281c, same rule (calibrated scalar x ratio to le10). LEARNED one-pass arms (narrow reopening, 2026-10-13): ra_gnn_eng_nosplit and ra_twin_eng_nosplit, pin 1929fd3c, k = 0, 19461 g0 both rungs, one cell per arm x rung, slate-fix-v1 seed 1; table /share/nikola.lukic/uncut_groups/wn_learned.json sha256 22494440c6197a70f8ddcd8983caba70b885558c4f94f5d9cfde2559a6ad0c86. Same rule (calibrated scalar x ratio to le10; ratios 0.29-0.50: per-plan cost FALLS with batch size, so every large bucket is outside the 1.5x line in the cheaper direction). nosplit uses its calibrated scalar; the twin has no calibration, so its scalar is this smoke's own measured le10 ms per plan (moderate 2.9736, heavy 3.48608; single cell).",
@@ -166,5 +230,9 @@
  "_source_cd_ib0_inflight": "uncut_groups_s0_v1 in-flight bar sensitivity (descriptive, registered 2026-10-17): cd_ib0's frozen w, UNCHANGED (key copied from cd_ib0, scalar). The extra inflight_remaining_seconds lookup has its own wall cost which is NOT recalibrated.",
  "_source_cd_ib0_inflightfull": "uncut_groups_s0_v1 in-flight bar sensitivity, complete variant (descriptive, registered 2026-10-17): cd_ib0's frozen w, UNCHANGED (key copied from cd_ib0, scalar). The per-candidate walk of platform.inflight has its own wall cost which is NOT recalibrated.",
  "_source_ra_gnn_eng_a3l_nosplit": "Arm 3's frozen w (ra_gnn_eng_arm3_nosplit) at pin 1847a484, copied unchanged: the FAST arms keep Arm 3's architecture and serving (combined-lever registration 56092996, disclosed, not recalibrated)",
- "_source_ra_gnn_eng_a3lft_nosplit": "Arm 3's frozen w (ra_gnn_eng_arm3_nosplit) at pin 1847a484, copied unchanged: the FAST arms keep Arm 3's architecture and serving (combined-lever registration 56092996, disclosed, not recalibrated)"
+ "_source_ra_gnn_eng_a3lft_nosplit": "Arm 3's frozen w (ra_gnn_eng_arm3_nosplit) at pin 1847a484, copied unchanged: the FAST arms keep Arm 3's architecture and serving (combined-lever registration 56092996, disclosed, not recalibrated)",
+ "_source_ra_gnn_eng_combf_nosplit": "Frozen w for the combined-lever kind, node B ONLY (expert ruling (a), 2026-10-18, as with HEFT): job 884584 at W-FAST cb944177 on os-cpu-slurm-21 (A) and os-cpu-slurm-22 (B), AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind on B. Scalar = sum decision seconds / sum plan evals; per-bucket = the same by served-batch bucket (uncut_charge_share.pooled_w). Table cotenancy/smt_series6_comb1/reads/freeze_w_comb_B.json md5 2e7974896edfc5d84d38c2b1bbe036ee. DISCLOSURE: the H3 drift stop (2 %, cd_ib0) FIRED on node A (H3pre to H3end heavy -2.99 %, moderate +0.09 %; H3start 871538 to H3end heavy +2.42 %, moderate +2.17 %); node B passed (heavy -0.27 %, moderate +0.54 %; against H3start -0.23 %, +1.08 %). The A+B pooled values (freeze_w_comb.json md5 ff5faf160797459ee5aa22698cbc91c6), moderate/heavy ms per plan: F 3.068328/3.230707, L 2.863859/2.875154, FL 3.053233/3.122059, FL-MLP 2.382763/2.46386; differences from B-only are at most 1.4 %. Kind ra_gnn_eng_combf_nosplit.",
+ "_source_ra_gnn_eng_combl_nosplit": "Frozen w for the combined-lever kind, node B ONLY (expert ruling (a), 2026-10-18, as with HEFT): job 884584 at W-FAST cb944177 on os-cpu-slurm-21 (A) and os-cpu-slurm-22 (B), AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind on B. Scalar = sum decision seconds / sum plan evals; per-bucket = the same by served-batch bucket (uncut_charge_share.pooled_w). Table cotenancy/smt_series6_comb1/reads/freeze_w_comb_B.json md5 2e7974896edfc5d84d38c2b1bbe036ee. DISCLOSURE: the H3 drift stop (2 %, cd_ib0) FIRED on node A (H3pre to H3end heavy -2.99 %, moderate +0.09 %; H3start 871538 to H3end heavy +2.42 %, moderate +2.17 %); node B passed (heavy -0.27 %, moderate +0.54 %; against H3start -0.23 %, +1.08 %). The A+B pooled values (freeze_w_comb.json md5 ff5faf160797459ee5aa22698cbc91c6), moderate/heavy ms per plan: F 3.068328/3.230707, L 2.863859/2.875154, FL 3.053233/3.122059, FL-MLP 2.382763/2.46386; differences from B-only are at most 1.4 %. Kind ra_gnn_eng_combl_nosplit.",
+ "_source_ra_gnn_eng_combfl_nosplit": "Frozen w for the combined-lever kind, node B ONLY (expert ruling (a), 2026-10-18, as with HEFT): job 884584 at W-FAST cb944177 on os-cpu-slurm-21 (A) and os-cpu-slurm-22 (B), AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind on B. Scalar = sum decision seconds / sum plan evals; per-bucket = the same by served-batch bucket (uncut_charge_share.pooled_w). Table cotenancy/smt_series6_comb1/reads/freeze_w_comb_B.json md5 2e7974896edfc5d84d38c2b1bbe036ee. DISCLOSURE: the H3 drift stop (2 %, cd_ib0) FIRED on node A (H3pre to H3end heavy -2.99 %, moderate +0.09 %; H3start 871538 to H3end heavy +2.42 %, moderate +2.17 %); node B passed (heavy -0.27 %, moderate +0.54 %; against H3start -0.23 %, +1.08 %). The A+B pooled values (freeze_w_comb.json md5 ff5faf160797459ee5aa22698cbc91c6), moderate/heavy ms per plan: F 3.068328/3.230707, L 2.863859/2.875154, FL 3.053233/3.122059, FL-MLP 2.382763/2.46386; differences from B-only are at most 1.4 %. Kind ra_gnn_eng_combfl_nosplit.",
+ "_source_ra_mlp_same_combfl_nosplit": "Frozen w for the combined-lever kind, node B ONLY (expert ruling (a), 2026-10-18, as with HEFT): job 884584 at W-FAST cb944177 on os-cpu-slurm-21 (A) and os-cpu-slurm-22 (B), AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind on B. Scalar = sum decision seconds / sum plan evals; per-bucket = the same by served-batch bucket (uncut_charge_share.pooled_w). Table cotenancy/smt_series6_comb1/reads/freeze_w_comb_B.json md5 2e7974896edfc5d84d38c2b1bbe036ee. DISCLOSURE: the H3 drift stop (2 %, cd_ib0) FIRED on node A (H3pre to H3end heavy -2.99 %, moderate +0.09 %; H3start 871538 to H3end heavy +2.42 %, moderate +2.17 %); node B passed (heavy -0.27 %, moderate +0.54 %; against H3start -0.23 %, +1.08 %). The A+B pooled values (freeze_w_comb.json md5 ff5faf160797459ee5aa22698cbc91c6), moderate/heavy ms per plan: F 3.068328/3.230707, L 2.863859/2.875154, FL 3.053233/3.122059, FL-MLP 2.382763/2.46386; differences from B-only are at most 1.4 %. Kind ra_mlp_same_combfl_nosplit."
 }
