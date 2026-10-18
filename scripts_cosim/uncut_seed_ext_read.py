@@ -6,7 +6,8 @@ host, warmth); this tool takes those reads (--read, one per arm) and the same ce
   E1 (a): Arm 3 gnn vs Arm 1b gnn, both rungs x both statistics (k = 4), seeds 11-18.
   E2 (b): WITHDRAWN 2026-10-17 by the user's direction ("stop all twin trainings") before any extension twin finished; no twin is read.
   E3 (c): heavy whole and heavy after-360 vs cd_ib0 for Arm 3, Arm 1b and K0 (k = 6); Arm 3 / 1b on 11-18, K0 on 11-16.
-  E4 (d): heavy Arm 2 gnn vs K0 gnn (K0 the claimed faster) and K0 gnn vs Arm 1 gnn (k = 4), seeds 11-16.
+  E4 (d): heavy Arm 2 gnn vs K0 gnn (K0 the claimed faster), k = 2, seeds 11-16. E4b (K0 gnn vs Arm 1 gnn) WITHDRAWN 2026-10-17: the user
+  cancelled the Arm 1 gnn extension runs before any finished, so Arm 1 has no new-seed read (amendment: "E4 is k = 2").
 Statistic: the reader's exactly (cell = mean over the seeds; per topology the median over windows of the paired %; exact two-sided Wilcoxon over
 topologies), Holm within each family, separately for the frozen-w cells (_k100) and the co-tenancy cells (_kr).
 Labels per test (claimed direction: the first arm faster, except E4's Arm 2 - K0, where K0 is the faster):
@@ -29,16 +30,16 @@ import uncut_arm_gate_read as G  # noqa: E402
 
 A3G = "ra_gnn_eng_arm3_nosplit"
 A1BG = "ra_gnn_eng_arm1b_nosplit"
-K0G, A2G, A1G = "ra_gnn_eng_arm2k0_nosplit", "ra_gnn_eng_arm2_nosplit", "ra_gnn_eng_arm1_nosplit"
+K0G, A2G = "ra_gnn_eng_arm2k0_nosplit", "ra_gnn_eng_arm2_nosplit"
 P1, P2 = tuple(range(11, 19)), tuple(range(11, 17))
-SEEDS = {A3G: P1, A1BG: P1, K0G: P2, A2G: P2, A1G: P2}
-READS = {A3G: "", A1BG: "", K0G: "", A2G: "", A1G: ""}  # primary -> twin in its own read (no extension twin: E2 withdrawn)
+SEEDS = {A3G: P1, A1BG: P1, K0G: P2, A2G: P2}
+READS = {A3G: "", A1BG: "", K0G: "", A2G: ""}  # primary -> twin in its own read (no extension twin: E2 withdrawn)
 MARGIN, ALPHA = 1.0, 0.05
 # (family, first arm, second arm, rungs, claimed sign): sign -1 = first arm faster (negative paired %), +1 = second arm faster
 FAMILIES = {
     "E1": [(A3G, A1BG, G.RUNGS, -1)],
     "E3": [(A3G, G.BAR, ("heavy",), -1), (A1BG, G.BAR, ("heavy",), -1), (K0G, G.BAR, ("heavy",), -1)],
-    "E4": [(A2G, K0G, ("heavy",), +1), (K0G, A1G, ("heavy",), -1)],
+    "E4": [(A2G, K0G, ("heavy",), +1)],
 }
 
 
@@ -143,8 +144,8 @@ def check_reads(paths):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--gate", required=True, help="every cell directory the five reads used (bar and new-seed cells, _k100 and _kr)")
-    ap.add_argument("--read", required=True, help="comma-separated: the reader's --seeds output for Arm 3, Arm 1b, K0, Arm 2 and Arm 1 gnn")
+    ap.add_argument("--gate", required=True, help="every cell directory the reads used (bar and new-seed cells, _k100 and _kr)")
+    ap.add_argument("--read", required=True, help="comma-separated: the reader's --seeds output for Arm 3, Arm 1b, K0 and Arm 2 gnn")
     ap.add_argument("--topos", required=True)
     ap.add_argument("--topos-sha256", required=True)
     ap.add_argument("--pooled-gate", default="", help="cell directories holding seeds 1, 2 too: adds the pooled descriptive line")
