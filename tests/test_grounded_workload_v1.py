@@ -174,7 +174,10 @@ def test_nested_levels_share_every_non_pair_draw_and_nest_their_pairs():
         assert m["peer_rule"]["partners"] == k and m["peer_rule"]["nested"] is True
         for i, j, _b in d["peer_exchange"]:
             assert d["events"][i]["peer_group"] == d["events"][j]["peer_group"]
-        assert m["partner_nested"]["realised_mean_degree"] == pytest.approx(2.0 * len(d["peer_exchange"]) / 320)
+        assert m["partner_nested"]["mean_degree_all_tasks"] == pytest.approx(2.0 * len(d["peer_exchange"]) / 320)
+        pn = m["partner_nested"]
+        assert pn["mean_distinct_partners_tasks_with_a_partner"] >= pn["mean_degree_all_tasks"] - 1e-12 and 0 <= pn["share_tasks_with_zero_partners"] < 1
+        assert 0 <= pn["share_bytes_in_groups_whose_pairs_differ_from_level2"] <= 1
 
 
 def test_nested_bytes_are_held_per_group_at_the_level_two_total():
@@ -198,3 +201,22 @@ def test_nested_needs_wf1_v1_and_a_valid_level():
                {"partners_nested": 2, "payload_sampler": "wf1_v1", "merge_k": 2}):
         with pytest.raises(SystemExit):
             M.mint(lib, base, seed=3, n_tasks=200, group_size=16, **kw)
+
+
+def test_shared_pairs_have_the_same_raw_bytes_at_every_level():
+    """R1: a pair in two levels differs across them only by its group's scale factor, and the factor is per group."""
+    L = _levels()
+    d2 = {(a, b): x for a, b, x in L[2][0]["peer_exchange"]}
+    ev = L[2][0]["events"]
+    for k in (1, 4, 8):
+        dk = {(a, b): x for a, b, x in L[k][0]["peer_exchange"]}
+        shared = set(d2) & set(dk)
+        assert shared
+        ratio = {}
+        for key in shared:
+            r = dk[key] / d2[key]
+            g = ev[key[0]]["peer_group"]
+            assert ratio.setdefault(g, r) == pytest.approx(r, rel=1e-12)
+    for k in (1, 4):
+        assert L[k][1]["partner_nested"]["share_bytes_in_groups_whose_pairs_differ_from_level2"] > 0
+    assert L[2][1]["partner_nested"]["share_bytes_in_groups_whose_pairs_differ_from_level2"] == 0
