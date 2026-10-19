@@ -709,7 +709,21 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - **k = 0, FL gnn vs `cd_ib0_inflightfull`, both uncharged** (median %, topologies ahead of 12, exact two-sided Wilcoxon p, unadjusted): moderate whole −21.49 (12, .0005), moderate after-360 −35.42 (12, .0005), heavy whole −5.33 (11, .0034), heavy after-360 −31.83 (12, .0005). Close to the charged primary (−21.47 / −32.89 / −4.29 / −27.27): the decision-cost charge moves the comparison little, consistent with the registered cost check.
     - **Reactive (uncharged) vs `cd_ib0_inflightfull_k100`:** moderate whole +181.5 (0, .0005), moderate after-360 +317.0 (0, .0005), heavy whole +179.5 (0, .0005), heavy after-360 +654.2 (0, .0005).
     - **Gap attribution, FL vs the bar (`_k100`):** moderate share in groups > 10 = 0.570, opening 0.195 → UNCUT-ATTRIBUTED; heavy share 0.699, opening −0.214 → UNCUT-ATTRIBUTED.
-    - The FL MLP descriptive rows are in the filed file and are not quotable as unseen evidence (per the freeze-line caveat).
+    - **FL MLP rows: descriptive, p unadjusted, never a label; piloted first, never confirmation evidence.** (Added 2026-10-19 after the user's reversal, relayed by the expert, and SCIENTIST's wording. Quoted from the filed secondary `c69ed865`; nothing was recomputed. They replace this entry's earlier "not quotable" sentence.)
+      - **Disclosure: the FL MLP (seeds 1–2, `_k100`) was piloted at sizes 16–64 on the excluded pilot ids 30011–30123 after the size-64 registration and before its cells ran** (S4's size-pilot entry, 2026-10-19).
+        - File times, CEST: the registration was committed at 23:03 on 2026-10-18. The MLP pilot cells were written 23:18–23:20, its read at 23:20 and `size_decomp` at 23:26. The first size-64 learned / descriptive cell files appeared at 23:33 and the first bar file at 23:46.
+        - The size-64 reactive admission cells had started at 23:18. They read only the admission field.
+      - The registered claim is FL gnn vs the bar only. These rows are `_k100` only, the one MLP charge registered; the cell is the mean of seeds 1–2, the topology value the median over g0–g3 of the paired %, n = 12.
+      - **FL MLP vs `cd_ib0_inflightfull_k100`** (median %, topologies ahead of 12, p):
+        - moderate whole −20.84 (12, .0005), moderate after-360 −27.64 (12, .0005);
+        - heavy whole −6.78 (10, .0024), heavy after-360 −24.66 (12, .0005).
+      - **FL gnn vs FL MLP:**
+        - moderate whole −3.07 (10, .012), moderate after-360 −8.57 (12, .0005);
+        - heavy whole +0.23 (6, .57), heavy after-360 −4.98 (12, .0005).
+      - **Read next to the pilot's 64-server row** (S4's entry: g0 only, n = 3 topologies 30121–30123, mean of per-topology %, a direction only):
+        - FL MLP vs the bar: −20.37 / −25.61 / −13.74 / −36.68 %.
+        - FL gnn vs FL MLP: −6.67 / −9.12 / −0.50 / −3.02 %.
+        - The size-64 rows keep the pilot's direction: the GNN's edge over the MLP is at moderate and at heavy after-360, and heavy whole does not separate. No MP-OFF twin was run, so no message-passing claim follows.
 
 - 2026-10-18 — **FL size-64: the reader is frozen at reference-physics `4132de68`** (`scripts_cosim/uncut_arm_gate_read.py` blob `ab8a1e1e`; P5 `--confirm-size64` with the per-cell servers = 64 check; filed before any size-64 read). Every size-64 read runs from this commit (datalab worktree `s6_reader_4132de68`). Any change to the blob before the read voids the freeze. Full suite at `4132de68`: 2,851 passed, 115 skipped. B3 885413 at `3fe81b5f` (the same blob): the 13 reads of record are byte-identical (output md5 `5a950655`). The seal holds until this line is filed: no size-64 summary, npy or result file has been opened. Signed: SCIENTIST, 2026-10-18 — FL size-64 reader frozen at reference-physics 4132de68 (uncut_arm_gate_read.py blob ab8a1e1e; P5 + servers = 64 check; B3 885413: 13 reads of record byte-identical). (SCIENTIST's caveat: the post-registration MLP pilot and size_decomp looks are not yet in the Record; until the disclosure line is resolved, the secondary's size-64 MLP lines are not quoted as unseen evidence. The primary read does not depend on it.)
 
