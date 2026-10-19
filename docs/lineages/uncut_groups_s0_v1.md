@@ -303,6 +303,63 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **Server-count ladder above 64 servers: scratch descriptive read filed. The pre-filed reading rule is NOT MET under its conservative reading; it would pass under a lenient one. No larger-size confirmation is registered from this ladder.** Direction only: no registration, no test, no Holm, no label. Whether to register a 128-server confirmation is the user's decision; no paper edit follows from this. (S6 read, with the scratch reader `ladder/ladder_read.py` md5 `064f846396d8406720814dc454aae73b` and config `ladder/ladder_cfg.json` md5 `be2a57a3`; job 888676, 0:0.) Files `/share/nikola.lukic/uncut_groups/ladder/read_v1/ladder_read.txt` md5 `b1e33b1995d351571c8ac23ae70fdf15` and `ladder_read.json` md5 `6da33ae073d74a4bdeaef6655f0eb0f1`.
+  - **SCIENTIST's reading, signed (verbatim):** "Server-count ladder (3 topologies per size, one arrival window, the 24-server checkpoints served unchanged). At moderate load the GNN is ahead of the hand rule by 18–32 % at every size and on every topology. Against the same-input MLP it is ahead by 1.6–2.7 % (mean over topologies) in five of six configurations: 96, 128, 192 and 256 servers with 160 clients, and 128 with 320. At 256 servers with 320 clients they tie (−0.03 %), within the decision-charge error. After the first 360 s the GNN trails the MLP at 192 servers on all three topologies (+3.7 %). At heavy load the 256-server cells are excluded (reactive baseline saturated); at 96–192 servers the GNN-vs-MLP sign varies by size and window. No row approaches the 3-topology 64-server pilot's −6.7 %, consistent with the 12-topology −3.1 %. The pre-filed reading rule is not met under its conservative reading, so no larger-size confirmation is registered from this ladder."
+  - **Both readings of the rule** ("the moderate gnn-vs-MLP gap negative at both 128 and 256 servers on ≥ 2 of 3 topologies, with no single confound accounting for it"):
+    - **Conservative (SCIENTIST's ruling): NOT MET.** Every tested configuration at a size must pass. At 256×320 the gap (−0.03 %) is smaller than FL gnn's decision-charge miss over the MLP (+0.046 pp), so that confound accounts for it.
+    - **Lenient: it would pass.** Topology counts are 3/3 and 3/3 at 128, and 2/3 and 2/3 at 256. At 256×160 the gap (−2.55 %) is far larger than the miss difference (about +0.03 pp).
+  - **Cells.**
+    - S5: bar, reactive and FL gnn s1–2 in `topo_explore/ladder/cells_s*_c*`, 24 per row.
+    - S4: FL MLP s1–2 in `mlp_cells_s*_c*`, 12 per row, jobs 888639–888644, 0 failed.
+    - All cells are g0, both rungs, `_k100`, on 3 fresh topologies per row (30222–30239).
+    - The reader fails loud on a servers / clients mismatch, a missing or failed cell, or a stray seed; none fired.
+  - **What the rows differ in** (the check: job 888677, `ladder/wl_compare.py` md5 `5186b265`, every row's g0 workload at both rungs compared event by event with 96×160): same groups, arrival rate scaled with servers/24.
+    - The same 50,000 events have the same peer group, application, demand scale and QoS, and the same 74,147 peer-exchange pairs and bytes.
+    - Every timestamp is exactly ×96/servers.
+    - The 320-client rows refold the same single-origin clients 16 ways instead of 8: at most 449 / at least 28 tasks per client, against 663 / 86.
+  - **Admission and saturation (rule 6; admission rung moderate).**
+    - Every moderate cell passes (reactive queue share ≤ 0.119).
+    - **At 256 servers the servers/24 rate scaling saturates the reactive baseline at heavy load, so the 256-server rows are moderate-only.** Their six heavy cells are excluded from every comparison and listed: 256×160 30231 0.828, 30232 0.807, 30233 0.842; 256×320 30237 0.827, 30238 0.840, 30239 0.828.
+    - 192×160 heavy stays in, with shares 30228 0.366, 30229 0.223, 30230 0.630.
+  - **FL gnn vs FL MLP, moderate** (mean over topologies of the per-topology %, seed means; gnn faster / 3; per topology in brackets):
+
+    | row | whole | after-360 |
+    |---|---|---|
+    | 96×160 | −2.30 (2/3) [−2.75, −5.38, +1.23] | −10.87 (2/3) |
+    | 128×160 | −1.60 (3/3) [−1.10, −2.34, −1.35] | −2.82 (3/3) |
+    | 192×160 | −2.13 (2/3) [+1.83, −4.76, −3.46] | +3.72 (0/3) |
+    | 256×160 | −2.55 (2/3) [+0.16, −5.76, −2.04] | −3.20 (2/3) |
+    | 128×320 | −2.70 (3/3) [−1.68, −1.21, −5.22] | −9.99 (3/3) |
+    | 256×320 | −0.03 (2/3) [−1.57, −0.48, +1.96] | −0.72 (2/3) |
+
+    - Anchor: the 12-topology size-64 row, −3.07 % (`c69ed865`, 10/12). The pilot's −6.67 % (n = 3) is not the anchor.
+    - FL gnn vs the bar at moderate: −18.1 to −32.4 % whole, 3/3 on every row.
+  - **Heavy (descriptive).** FL gnn vs FL MLP, whole and after-360:
+    - 96×160: −7.21 / +0.20;
+    - 128×160: +0.40 / +8.55 (1/3);
+    - 128×320: −1.14 / −9.00;
+    - 192×160: +2.48 / +20.61 (0/3).
+  - **Confound: 192 heavy after-360, listed and not excluded.**
+    - Per topology: 30228 +22.3 (share 0.366), 30229 +0.2 (0.223), 30230 +39.3 (0.630).
+    - Heavy after-360 swings ±20–40 % per topology at n = 3 elsewhere too: 30225 +25.8 (128×160), 30235 −21.1 (128×320).
+    - FL gnn lock-wait max per topology there:
+      - seed 1: 30228 761 s, 30229 117 s, 30230 270 s;
+      - seed 2: 204 / 105 / 95 s;
+      - FL MLP s1–2: 89 / 148, 93 / 74, 79 / 111 s.
+    - The 761 s pile-up is FL gnn seed 1 on 30228, the topology with the +22.3.
+  - **Confound (a): client spread is untested.** Groups span 0 % of client nodes and 0 % of access classes on every row, because the single-origin rule moved every group to one client. Before remapping, 9,013 of the 9,443 groups spanned clients. 9,255 groups have partners.
+  - **Confound (b): what the lead is made of.**
+    - At moderate, FL gnn's lead over the MLP is lock wait (−0.11 to −0.23 s per task at 128–256 servers, −0.08 at 96) and exchange (−0.04 to −0.10 s per task).
+    - It pays more in pull (9–10 % of latency, against 6–7 %) and in cold starts (+80 to +130 per cell) on every row.
+    - Collapses: 0 on every seed and row.
+  - **Decision-charge disclosure.**
+    - Every cell is charged with the frozen 24-server w.
+    - Measured decision time over charged grows with size: FL gnn 1.7 at 96 servers to 5.4 at 256×320; FL MLP to 5.7 at 256.
+    - The uncharged excess is at most 0.33 % of latency (max +0.327 pp, FL gnn at 256×320), under the 0.5 pp flag everywhere.
+    - The hand rule's ratio is 0.67–0.72, so it is overcharged rather than under.
+    - Peak RSS upper bound (shard-job MaxRSS) is ≤ 10.5 GB.
+  - **Reader change before the read.** The expert's saturation ruling was added to the scratch reader (md5 `4d0dfc9f` → `064f8463`): the header lines and the exclude-and-list for a wholly saturated rung. Smoke 888645 forced heavy saturation on size-64 cells: the rung was excluded and listed, and the other rows were unchanged.
+  - **Twin rows:** a second pass of the same reader and the same config hash, once the twin cells exist.
 - 2026-10-19 — **Exchange-model sensitivity, secondary read filed (descriptive; p unadjusted, never a label).** The label stays EXCHANGE-TREND, as filed. **The registered ×0 prediction does not hold.** At zero payload FL gnn is not within 1 % of the bar on any of the four tests. It loses at moderate (+1.24 / +2.89 %) and wins at heavy (−1.59 % at 10/12, p .034 unadjusted; −2.04 % at 9/12). By the registration's own reading, a learned-arm win at ×0 means the heavy-rung gain is not only exchange. (S6 read, at the frozen P10 reader `03d648c5`, blob `99892613`, with `--stage secondary --primary-read xs/reads/read_xs_primary.json --record cbcd25c5` and the primary's flags. The reader confirmed that the primary md5 `c3cb21f6` is in this node at `cbcd25c5`, that `cbcd25c5` is on origin/reference-physics, and that the recomputed primary parts equal the filed ones.) File `/share/nikola.lukic/uncut_groups/xs/reads/read_xs_secondary.json`, md5 `f14317183ec9e2f5e81bc1e20cf6cb81` (script `xs/xs_read_secondary.sh` md5 `82adc935`). Job 888598, os-cpu-slurm-11, 0:0. The exact grid holds for ×0, tier0 and azblob: 480 cells each, 12 / 12 ids admitted.
   - **FL gnn vs `cd_ib0_inflightfull_k100`** (median %, topologies where FL gnn is faster / 12, exact Wilcoxon p unadjusted):
 
