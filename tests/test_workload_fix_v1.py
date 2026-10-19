@@ -434,3 +434,75 @@ def test_platform_charges_the_direction_of_travel():
     # cell -> wire leaves the cellular node at 4 MB/s; wire -> cell enters it at 75 MB/s, so 117 does not bind
     assert seconds("cell", "wire") == pytest.approx(2 * payload / (4.0 * mb))
     assert seconds("wire", "cell") == pytest.approx(2 * payload / (75.0 * mb))
+
+
+# --- exchange-sensitivity parameters (scale, heavy_share, azblob): defaults are today's wf1_v1, byte for byte ---
+
+import math as _math  # noqa: E402
+
+
+def _reference_wf1_v1(rng):
+    """The sampler exactly as it was before the parameters existed."""
+    heavy = rng.random() < 0.10
+    u = rng.random()
+    if heavy:
+        return _math.exp(_math.log(50e6) + u * (_math.log(500e6) - _math.log(50e6)))
+    return 4e6 * _math.exp(1.2 * WP._norm_ppf(u))
+
+
+def test_sampler_defaults_are_bit_identical_to_the_original():
+    r1, r2 = WP.payload_rng(11), WP.payload_rng(11)
+    assert [WP.sample_payload_bytes(r1) for _ in range(5000)] == [_reference_wf1_v1(r2) for _ in range(5000)]
+    pairs = [[i, i + 1, 1.0] for i in range(300)]
+    r3 = WP.payload_rng(5)
+    assert WP.resample_peer_exchange(pairs, 5) == [[i, i + 1, _reference_wf1_v1(r3)] for i in range(300)]
+    assert WP.payload_sampler_meta() == {"sampler": "wf1_v1", "median_bytes": 4e6, "sigma": 1.2, "heavy_share": 0.10,
+                                         "heavy_low_bytes": 50e6, "heavy_high_bytes": 500e6}
+
+
+def test_scale_multiplies_and_zero_gives_zero_bytes():
+    pairs = [[i, i + 1, 1.0] for i in range(200)]
+    base = WP.resample_peer_exchange(pairs, 3)
+    assert [p[2] for p in WP.resample_peer_exchange(pairs, 3, scale=0.0)] == [0.0] * 200
+    assert [p[2] for p in WP.resample_peer_exchange(pairs, 3, scale=0.3)] == [b[2] * 0.3 for b in base]
+    assert WP.payload_sampler_meta(scale=0.3)["scale"] == 0.3 and "scale" not in WP.payload_sampler_meta()
+
+
+def test_heavy_share_zero_keeps_the_body_draws_and_drops_the_heavy_tier():
+    pairs = [[i, i + 1, 1.0] for i in range(2000)]
+    base, t0 = WP.resample_peer_exchange(pairs, 9), WP.resample_peer_exchange(pairs, 9, heavy_share=0.0)
+    r = WP.payload_rng(9)
+    n_heavy = 0
+    for b, t in zip(base, t0):
+        tier_draw, u = r.random(), r.random()          # the same two draws per pair, replayed
+        if tier_draw >= 0.10:
+            assert t[2] == b[2]                        # body pair: byte-identical to the default
+        else:
+            n_heavy += 1
+            assert t[2] == 4e6 * _math.exp(1.2 * WP._norm_ppf(u))   # formerly heavy: the body value of the same u
+            assert t[2] != b[2]
+    assert n_heavy > 0
+    assert WP.payload_sampler_meta(heavy_share=0.0)["heavy_share"] == 0.0
+
+
+def test_azblob_sampler_is_seeded_two_draws_and_interpolates(tmp_path):
+    import json as _json
+    p = tmp_path / "t.json"
+    p.write_text(_json.dumps({"quantiles": [0.0, 10.0, 20.0, 100.0], "source_sha256": "x"}))
+    table = WP.load_azblob_table(str(p))
+    assert table["table_sha256"]
+    class _R:
+        def __init__(self, v): self.v = list(v); self.n = 0
+        def random(self): self.n += 1; return self.v.pop(0)
+    r = _R([0.9, 0.5]); assert WP.sample_azblob_bytes(r, table) == 15.0 and r.n == 2          # u = 0.5 -> 1.5 steps -> halfway 10..20
+    assert WP.sample_azblob_bytes(_R([0.0, 0.0]), table) == 0.0 and WP.sample_azblob_bytes(_R([0.0, 1.0]), table) == 100.0
+    assert WP.sample_azblob_bytes(_R([0.0, 0.5]), table, scale=2.0) == 30.0
+    pairs = [[i, i + 1, 1.0] for i in range(50)]
+    a = WP.resample_peer_exchange(pairs, 4, "azblob", azblob_table=table)
+    assert a == WP.resample_peer_exchange(pairs, 4, "azblob", azblob_table=table) and a != WP.resample_peer_exchange(pairs, 5, "azblob", azblob_table=table)
+    with pytest.raises(ValueError, match="quantile table"):
+        WP.resample_peer_exchange(pairs, 4, "azblob")
+    p.write_text(_json.dumps({"quantiles": [5.0, 1.0, 2.0]}))
+    with pytest.raises(ValueError, match="non-decreasing"):
+        WP.load_azblob_table(str(p))
+    assert WP.payload_sampler_meta("azblob", azblob_table=table)["sampler"] == "azblob"
