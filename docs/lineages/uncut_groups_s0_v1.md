@@ -315,6 +315,18 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
       - It applies to 3,118 of the 9,745 train graphs. Val and test carry no move cost.
       - The MLP uses the same term, with no code change. Its smoke logged a non-zero `[REGRET]` (0.0066).
     - Jobs 887337 / 887338 (GNN + λ seeds 1 / 2, os-cpu-slurm-13 / 14) and 887339 / 887340 (MLP + λ seeds 1 / 2, -15 / -16). From scratch, 100 epochs, FL's corpus, split, simulator labels and `partial_state_v6`. W&B on every run.
+    - **Venue and trainer, controls and λ arms side by side (SCIENTIST's condition; host lines from each training log, sacct partition CPU-amd for all eight).** The filed FL checkpoints' `.contract.json` records none of device, dtype or TF32, so the venue is proven from these lines, not from the sidecar.
+
+      | arm | seed | job | node | trainer commit | host line |
+      |---|---|---|---|---|---|
+      | FL gnn (control) | 1 / 2 | 884197 (tasks 0 / 1) | os-cpu-slurm-17 | `f9a41cce` | cpus 6, smt off |
+      | FL MLP (control) | 1 / 2 | 884198 (tasks 0 / 1) | os-cpu-slurm-18 | `f9a41cce` | cpus 6, smt off |
+      | FL + λ | 1 / 2 | 887337 / 887338 | os-cpu-slurm-13 / 14 | `75579c0f` | cpus 6, smt off |
+      | FL MLP + λ | 1 / 2 | 887339 / 887340 | os-cpu-slurm-15 / 16 | `75579c0f` | cpus 6, smt off |
+
+      - `git diff --stat f9a41cce 75579c0f` touches only the two new yamls. So no file in the trainer path (`train_near_rtt.py`, `batched_tf.py`, `arm_models.py` or any other) differs between the controls' pin and the λ pin.
+      - Each λ yaml differs from its control's (`uncut_comb_fl_gnn_eng.yaml`, `uncut_comb_fl_mlp_same.yaml`) only in a header comment, `lineage`, `run_name`, `tags` and the two keys `NEAR_RTT_REGRET_LAMBDA` / `NEAR_RTT_MOVE_REGRET_PATH`.
+      - Whether the regret term consumes RNG, and so shifts batch order relative to the control, is not checked; init is set by the seed before training.
     - **`-final.pt` is served whatever the curves show; no val selection.** No curve, val metric or W&B value is read for any decision. The md5s of all four `-final.pt` are filed in a new md5 file before any cell. If any of the four runs cannot finish, the family is VOID: it is never read on fewer seeds, and no seed is replaced.
   - **Arms (⟦A⟧: one CPU recipe for all four learned arms).**
     - **FL + λ:** `ra_gnn_eng_flreg_nosplit`, stem `uncut-flreg-gnn-eng`, seeds 1–2.
@@ -338,8 +350,8 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - The cell value is the mean of seeds 1 and 2. The topology value is the median over the 4 windows of the paired %. The test is an exact two-sided Wilcoxon.
   - **Win rule (the program's):**
     - median ≤ −2 % and Holm p < .025 on all four;
-    - each of FL + λ seeds 1 and 2 alone ≤ −1 % on all four (seed s alone vs the control's seed mean);
-    - FL + λ's collapses ≤ FL's, per seed (the reader's count, the worse seed's) at each rung;
+    - **seed-matched per-seed clause:** FL + λ seed s alone vs FL seed s, ≤ −1 % on all four, for s = 1 and s = 2. Each λ run shares its control's recipe, corpus, seed and trainer path and differs only in λ; the cell and pooled tests stay on seed means;
+    - **seed-matched collapses:** FL + λ seed s ≤ FL seed s at each rung (the reader's count);
     - the anchor clause as filed;
     - read under `_k100` and `_kr` and combined by `weaker_f1`: a win must hold under both.
   - **No B6 cap.** The topologies are fresh and the family is registered before any cell, so a win is program-level.
@@ -350,13 +362,16 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Secondary, descriptive only.** Never a label, never pooled into the primary, p unadjusted; computed after the primary md5 is filed:
     - (a) FL + λ vs `cd_ib0_inflightfull_k100`, and vs `cd_k100`;
     - (b) FL MLP + λ vs FL MLP;
-    - (c) FL + λ vs FL MLP + λ, a model-class contrast under λ (no MP-OFF twin, so no MP claim).
-  - **Registered prior (SCIENTIST, before any FL + λ output or topology).** P ≈ 0.25 that FL + λ beats FL at heavy whole by ≥ 1 pt. P ≈ 0.35 that FL MLP + λ is within 0.5 pt of FL gnn + λ.
+    - (c) FL + λ vs FL MLP + λ, a model-class contrast under λ (no MP-OFF twin, so no MP claim);
+    - (d) FL MLP + λ vs FL gnn (λ = 0), `_k100`: does the cost term let the pointwise model catch the current GNN?
+  - **Registered prior (SCIENTIST, before any FL + λ output or topology).**
+    - P ≈ 0.25 that FL + λ beats FL at heavy whole by ≥ 1 pt.
+    - P ≈ 0.35 that FL MLP + λ is within 0.5 pt of FL gnn (λ = 0) at heavy whole, i.e. that the cost term lets the pointwise model catch the current GNN.
   - **Prerequisites (each filed in its own line before any learned cell).**
-    - **P6, gate change:** adds the kinds `ra_gnn_eng_flreg_nosplit` and `ra_mlp_same_flreg_nosplit` (stems above). Each cell checks the sidecar: batched loss, λ 2.0, the table sha256 `0117cbd2…`. The `.contract.json` of the filed FL checkpoints records none of device, dtype or TF32. So under venue A the venue is proven from each training log's host line (CPU-amd node, "smt off", 6 CPUs) and filed in the md5 file's provenance, not taken from the sidecar. It touches only the gate file and its tests, proven by listing equality against the parent with the new kinds removed.
+    - **P6, gate change:** adds the kinds `ra_gnn_eng_flreg_nosplit` and `ra_mlp_same_flreg_nosplit` (stems above). Each cell checks the sidecar: batched loss, λ 2.0, the table sha256 `0117cbd2…`. It touches only the gate file and its tests, proven by listing equality against the parent with the new kinds removed.
     - **P7, w-only pin:** the frozen decision-cost w of the two new kinds, calibrated by the filed recipe on one exclusive node pair. The commit changes only the w file. FL's and the FL MLP's w are unchanged, so their cells at P7 serve as at `74ddf70e`.
     - **P8, reader:** `--confirm-fl-lambda`, on the frozen-reader pattern of P4 / P5:
-      - the primary contrast is learned vs learned (FL + λ vs FL), not vs the bar, with collapses compared to the control;
+      - the primary contrast is learned vs learned (FL + λ vs FL), not vs the bar, with the per-seed clause and collapses seed-matched to the control;
       - seeds exactly 1, 2; Holm < .025;
       - every cell records servers = 24;
       - the topology guard extended by every list above;
