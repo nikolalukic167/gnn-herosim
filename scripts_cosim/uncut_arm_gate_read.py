@@ -39,6 +39,20 @@ reactive cells record queue_share <= 0.80 (unknown fails); each variant's cells 
 its admitted ids, servers = 24; the primary is Page's L of the paired FL gnn vs bar % over x0.1 < x0.3 < x1 < x3 on the ids admitted at every
 trend level (x3 dropped if > 4 fail; VOID if x0.1 / x0.3 / x1 loses > 4), exact by convolution (normal approximation if a topology ties),
 one-sided upper, Holm 4; EXCHANGE-TREND iff Holm < .025 on both moderate tests; the secondary adds the descriptive rows;
+--confirm-size128 (FL size-128, registered 2026-10-19 with SCIENTIST's addendum B): --stage primary is F1 exactly as --confirm-size64 (FL gnn s1-2 vs
+cd_ib0_inflightfull, Holm 4 per charge, the program's win rule under both verdicts) with every cell at servers = 128, label SIZE-128-CONFIRMED (size
+chosen after an exploratory pilot) or NOT-CONFIRMED; --stage secondary (after F1's md5 is filed) reads --mlp-gate (FL MLP s1-2, _k100 and _kr),
+--desc-gate (the uncharged k = 0 FL gnn s1-2 and bar) and --reactive-gate, then F2 (FL gnn vs FL MLP, Holm 4 per charge): GNN-AHEAD-OF-MLP-128 iff
+median < 0 and Holm < .025 on all four under both charges and, per test, the median over topologies of (gap_t + d_t) < 0, d_t the median over
+windows of the seed-mean decision-charge miss (measured - charged decision seconds, % of task latency; whole run) of FL gnn minus FL MLP; else
+DIRECTION-ONLY; plus a decision-charge row per charged cell (flag > 0.5 pp) and the descriptive rows;
+--confirm-degree-trend (partner structure, registered 2026-10-19 with SCIENTIST's addendum B): --deg-root holds k1 k2 k4 k8, each with
+inputs_group/wf1_<rung>/wl/grounded_<window>_n50000.json and cells_reactive, cells_bar, cells_learned (24 servers); VOID unless every level's
+workloads carry the signed mint's grounded_workload_v1.partner_nested with the level's k (= peer_rule.partners), the minted nonpair_sha256 and the
+built {rps, duration, events} hash are each equal across levels and every group holds its k = 2 bytes; admission as
+P10 (a rung saturated on every topology is excluded and listed); the primary is Page's L of the paired FL gnn vs FL MLP % over k = 1 < 2 < 4 < 8 at
+moderate, whole and after-360, Holm 2, on the ids admitted at every level (VOID if a level loses > 4); DEGREE-TREND iff Holm < .025 on both;
+the secondary adds per-level descriptive rows (vs the bar, realised structure, exchange saved / net gained, decision-charge miss per arm);
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -1277,6 +1291,474 @@ def read_exchange_trend(a):
     return res
 
 
+# FL size-128 (uncut_groups_s0_v1, registered 2026-10-19 with SCIENTIST's addendum B): FL gnn s1-2, trained at 24 servers, vs the in-flight bar at 128
+S128_SERVERS = 128
+# every id the uncut_groups node names at reference-physics 0f3d0de1 (5-digit tokens and ranges <= 120 wide in 19000-30999, md5/hex fragments
+# excluded, minus the two runs it names as free, 30163-30174 and 30175-30186), extracted by script, not typed (SCIENTIST's ruling (e)); a superset
+S128_NODE_IDS = frozenset().union(*(range(a, b + 1) for a, b in (
+    (19206, 19217), (19300, 19305), (19400, 19432), (19440, 19452), (19461, 19549), (19553, 19590), (19627, 19627), (19635, 19658), (19692, 19692),
+    (19695, 19695), (19707, 19730), (19800, 19805), (19807, 19807), (19815, 19815), (19820, 19820), (19843, 19843), (19855, 19855), (19862, 19862),
+    (19868, 19868), (19879, 19879), (19884, 19884), (19898, 19898), (19953, 19976), (20021, 20032), (20118, 20158), (20182, 20182), (20400, 20439),
+    (20450, 20461), (24617, 24617), (24890, 24890), (25845, 25868), (28090, 28090), (30011, 30124), (30128, 30141), (30147, 30160), (30162, 30163),
+    (30175, 30188), (30200, 30205), (30212, 30213), (30221, 30239), (30253, 30253), (30258, 30258))))
+S128_USED_TOPOS = (SIZE64_USED_TOPOS | frozenset(range(30129, 30141)) | frozenset(range(30149, 30161)) | frozenset(range(30176, 30188))
+                   | frozenset(range(30200, 30240)) | S128_NODE_IDS)
+S128_YES = "SIZE-128-CONFIRMED (size chosen after an exploratory pilot)"
+S128_WHY = ("FL size-128: " + S128_YES + " iff the program's win rule (median <= -2 % and Holm < .025 on all four, each seed alone <= -1 %, collapses "
+            "<= the bar's, the anchor clause) holds under both verdicts; else NOT-CONFIRMED. A claim about 128 servers only")
+S128_F2_YES, S128_F2_NO = "GNN-AHEAD-OF-MLP-128", "DIRECTION-ONLY"
+S128_F2_WHY = (S128_F2_YES + " iff, under both charges, FL gnn vs FL MLP has median < 0 and Holm < .025 (Holm 4 per charge) on all four, and on every "
+               "test the median over topologies of (gap_t + d_t) < 0, d_t = the median over windows of the seed-mean decision-charge miss of FL gnn minus "
+               "FL MLP in pp; else " + S128_F2_NO + ". Never 'message passing'")
+S128_MISS_FLAG_PP = 0.5
+S128_MISS_NOTE = ("decisionTiming is recorded for the whole run only, so the whole-run miss is used for both statistics; the charge is the 24-server "
+                  "per-evaluation w, unchanged at 128 servers")
+
+
+def s128_args(a):
+    if a.confirm or a.confirm2 or a.confirm_size64 or a.confirm_fl_lambda or a.confirm_exchange_trend or a.confirm_degree_trend:
+        raise SystemExit("FAIL LOUD: --confirm-size128 is its own family; pass no other --confirm flag")
+    if a.primary != CONFIRM_PRIMARY or a.twin or a.reference or a.compare or a.after_read or a.xs_root:
+        raise SystemExit(f"FAIL LOUD: --confirm-size128 reads --primary {CONFIRM_PRIMARY}; no twin, reference, compare, after-read or xs-root")
+    if a.cotenancy != "required" or a.bar != "cd_ib0_inflightfull" or a.stage not in ("primary", "secondary") or a.seeds != "1,2" or a.suffix != "_k100":
+        raise SystemExit("FAIL LOUD: --confirm-size128 needs --cotenancy required, --bar cd_ib0_inflightfull, --seeds 1,2, --suffix _k100 and --stage primary or secondary")
+    if not (a.repo and a.w_pins):
+        raise SystemExit("FAIL LOUD: --confirm-size128 needs --repo and --w-pins (the 24-server frozen w chain)")
+    used = sorted(set(int(x) for x in a.topos.split(",")) & S128_USED_TOPOS)
+    if used:
+        raise SystemExit(f"FAIL LOUD: --confirm-size128 topologies must be fresh; {used[:6]} are ids another family, scan or token in the node uses")
+    if a.stage == "primary" and (a.desc_gate or a.reactive_gate or a.mlp_gate or a.mlp or a.primary_read or a.record):
+        raise SystemExit("FAIL LOUD: --mlp / --mlp-gate / --desc-gate / --reactive-gate / --primary-read / --record belong to --stage secondary (seal)")
+    if a.stage == "secondary" and not (a.mlp == CONFIRM_MLP and a.mlp_gate and a.desc_gate and a.reactive_gate and a.primary_read and a.record):
+        raise SystemExit(f"FAIL LOUD: --confirm-size128 --stage secondary needs --mlp {CONFIRM_MLP}, --mlp-gate, --desc-gate, --reactive-gate, --primary-read and --record")
+
+
+def charge_miss(s, where):
+    """One charged cell: the simulated decision seconds it was charged (its served rate(s) x plan evaluations, by bucket when served by bucket),
+    the measured decision wall (decisionTiming.total_s), and the excess as % of the cell's task latency (num_tasks x mean)."""
+    dt, env = s.get("decisionTiming") or {}, s.get("env") or {}
+    bb = dt.get("by_bucket") or {}
+    if type(dt.get("total_s")) not in (int, float) or not bb:
+        raise SystemExit(f"FAIL LOUD: {where} has no decisionTiming total_s / by_bucket")
+    if env.get("HEROSIM_DECISION_COST_MS_BY_BUCKET"):
+        rates = json.loads(env["HEROSIM_DECISION_COST_MS_BY_BUCKET"])
+        if not set(bb) <= set(rates):
+            raise SystemExit(f"FAIL LOUD: {where} timed buckets {sorted(bb)} the served rates {sorted(rates)} do not cover")
+        charged = sum(float(rates[b]) * int(v.get("plan_evals", 0)) for b, v in bb.items()) / 1e3
+    elif env.get("HEROSIM_DECISION_COST_MS"):
+        charged = float(env["HEROSIM_DECISION_COST_MS"]) * sum(int(v.get("plan_evals", 0)) for v in bb.values()) / 1e3
+    else:
+        raise SystemExit(f"FAIL LOUD: {where} is a charged cell but served no decision-cost rate")
+    measured, lat = float(dt["total_s"]), int(s["num_tasks"]) * float(s["averageElapsedTime"])
+    return {"charged_s": charged, "measured_s": measured, "excess_pp": 100.0 * (measured - charged) / lat}
+
+
+def topo_pct(cells, a, a_seeds, b, b_seeds, rung, stat, topos):
+    """{topology: median over g0-g3 of 100 (a - b) / b}, unrounded (the per-topology value contrast() rounds for display); every window present."""
+    out = {}
+    for t in topos:
+        v = []
+        for w in WINDOWS:
+            ma, mb = cell_mean(cells, a, a_seeds, t, w, rung), cell_mean(cells, b, b_seeds, t, w, rung)
+            if ma is None or mb is None:
+                raise SystemExit(f"FAIL LOUD: {t}{w}{rung} has no {a} or {b} cell mean")
+            v.append(100.0 * (ma[stat] - mb[stat]) / mb[stat])
+        out[t] = st.median(v)
+    return out
+
+
+def s128_f2(cells, a, b, topos):
+    """One charge: F2 (FL gnn vs FL MLP, Holm 4) and the signed decision-charge clause per test."""
+    tests = family(four(cells, a, SEEDS, b, SEEDS, topos))
+    miss = lambda arm, t, w, r: sum(charge_miss(cells[(arm, sd, t, w, r)], f"{arm} s{sd} {t}{w}{r}")["excess_pp"] for sd in SEEDS) / len(SEEDS)
+    for e in tests:
+        gap = topo_pct(cells, a, SEEDS, b, SEEDS, e["rung"], e["stat"], topos)
+        d = {t: st.median([miss(a, t, w, e["rung"]) - miss(b, t, w, e["rung"]) for w in WINDOWS]) for t in topos}
+        corr = [gap[t] + d[t] for t in topos]
+        e["charge_clause"] = {"median_corrected_pct": st.median(corr), "median_miss_diff_pp": st.median(d.values()),
+                              "holds": st.median(corr) < 0, "per_topology_miss_diff_pp": {str(t): round(d[t], 4) for t in topos}}
+    ok = all(e["median_pct"] is not None and e["median_pct"] < 0 and e["p_holm"] < PROG_ALPHA and e["charge_clause"]["holds"] for e in tests)
+    return {"tests": tests, "all_clauses": ok}
+
+
+def s128_charge_rows(cells_by_charge):
+    """Per charged cell: charged, measured, excess (pp of latency), flagged above 0.5 pp; and per arm x charge the measured/charged range."""
+    rows, by = [], {}
+    for charge, cells in cells_by_charge:
+        for key in sorted(cells):
+            s = cells[key]
+            m = charge_miss(s, f"{key}")
+            rows.append({"cell": os.path.basename(s["_path"]), "charge": charge, **m, "flag_over_0_5pp": m["excess_pp"] > S128_MISS_FLAG_PP})
+            f = m["measured_s"] / m["charged_s"] if m["charged_s"] else None
+            by.setdefault(f"{key[0]} {charge}", []).append((m["excess_pp"], f))
+    summ = {k: {"cells": len(v), "excess_pp_max": max(x[0] for x in v), "excess_pp_median": st.median(x[0] for x in v),
+                "measured_over_charged_min": min(x[1] for x in v if x[1] is not None), "measured_over_charged_max": max(x[1] for x in v if x[1] is not None)}
+            for k, v in sorted(by.items())}
+    return {"note": S128_MISS_NOTE, "flag_pp": S128_MISS_FLAG_PP, "flagged": sum(r["flag_over_0_5pp"] for r in rows), "by_arm": summ, "cells": rows}
+
+
+def s128_secondary(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth):
+    """--stage secondary, opened only after the primary md5 is shown filed: --mlp-gate is exactly FL MLP s1-2 _k100 and _kr (384), --desc-gate
+    exactly the uncharged k = 0 cells (FL gnn s1-2 and the bar, bare kinds; 288), --reactive-gate exactly reactive s0 (96); every cell at
+    servers = 128 and through the asserts. Then F2 with its label, the per-cell decision-charge rows and the descriptive rows."""
+    mlp = a.mlp
+    mc, mf = load(a.mlp_gate, a.suffix)
+    servers_eq(mc, S128_SERVERS, "--mlp-gate")
+    res["confirmation"]["mlp_grid_cells"] = grid_or_void(mc, mf, [(mlp, SEEDS), (mlp + KR, SEEDS)], topos, "--mlp-gate")
+    m100, mkr = split_kr(mc)
+    if asserts(m100, a.pin, [mlp], ckpt, w_pins) != warmth or asserts(mkr, a.pin, [mlp], ckpt, w_pins, kr=True) != warmth:
+        raise SystemExit("FAIL LOUD: the --mlp-gate cells record another HEROSIM_WARMTH_PHYSICS")
+    dc, df = load(a.desc_gate, a.suffix)
+    servers_eq(dc, S128_SERVERS, "--desc-gate")
+    for key, s in dc.items():
+        if re.search(r"__.+_(k\d+|kr)_s\d+\.summary\.json$", os.path.basename(s["_path"])):
+            raise SystemExit(f"FAIL LOUD: --desc-gate cell {os.path.basename(s['_path'])}: the k = 0 cells are bare kinds")
+    res["confirmation"]["desc_grid_cells"] = grid_or_void(dc, df, [(a.primary, SEEDS), (BAR, (0,))], topos, "--desc-gate")
+    if asserts(dc, a.pin, [a.primary], ckpt, w_pins, k0=True) != warmth:
+        raise SystemExit("FAIL LOUD: the --desc-gate cells record another HEROSIM_WARMTH_PHYSICS")
+    rc, rf = load(a.reactive_gate, a.suffix)
+    servers_eq(rc, S128_SERVERS, "--reactive-gate")
+    res["confirmation"]["reactive_grid_cells"] = grid_or_void(rc, rf, [(SIZE64_REACTIVE, (0,))], topos, "--reactive-gate")
+    if asserts(rc, a.pin, [], ckpt, w_pins) != warmth:
+        raise SystemExit("FAIL LOUD: the --reactive-gate cells record another HEROSIM_WARMTH_PHYSICS")
+    f100, fkr = s128_f2({**cells, **m100}, a.primary, mlp, topos), s128_f2({**cells_kr, **mkr}, a.primary, mlp, topos)
+    res["F2_size128"] = {"family": "FL gnn vs FL MLP (model class), Holm 4 per charge, outside F1's Holm set", "rule": S128_F2_WHY, "miss_note": S128_MISS_NOTE,
+                         "label": S128_F2_YES if f100["all_clauses"] and fkr["all_clauses"] else S128_F2_NO, "frozen": f100, "cotenancy": fkr}
+    learned_bar = lambda c: {k: v for k, v in c.items() if k[0] in (a.primary, BAR, CD)}
+    res["decision_charge"] = s128_charge_rows([("_k100", learned_bar(cells)), ("_k100", m100), ("_kr", {k: v for k, v in cells_kr.items() if k[0] == a.primary}),
+                                               ("_kr", mkr)])
+    note = "descriptive, p unadjusted, never a label"
+    withm = {**cells, **m100}
+    res["descriptive"]["k0_fl_vs_bar"] = {"note": note + "; both arms uncharged (k = 0)", "tests": four(dc, a.primary, SEEDS, BAR, (0,), topos)}
+    res["descriptive"]["mlp_vs_bar"] = {"note": note + "; _k100", "tests": four(withm, mlp, SEEDS, BAR, (0,), topos)}
+    res["descriptive"]["reactive_vs_bar"] = {"note": note + "; reactive uncharged, the bar _k100", "tests": four({**cells, **rc}, SIZE64_REACTIVE, (0,), BAR, (0,), topos)}
+
+
+def read_size128(a):
+    """--confirm-size128: --stage primary = F1 under both verdicts (FL gnn vs the in-flight bar, the size-64 rule at servers = 128); --stage secondary
+    = F2 (FL gnn vs FL MLP) with its label, the per-cell decision-charge rows and the descriptive block, after F1's md5 is filed."""
+    global SEEDS, BAR, PROG_ALPHA
+    s128_args(a)
+    SEEDS, BAR, PROG_ALPHA = (1, 2), a.bar, PROG_ALPHA_FILED
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
+    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
+        raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
+    topos = [int(x) for x in a.topos.split(",")]
+    cells, failed = load(a.gate, a.suffix)
+    mc = sorted({k[0] for k in list(cells) + list(failed) if k[0].removesuffix(KR) == CONFIRM_MLP})
+    if mc:
+        raise SystemExit(f"FAIL LOUD: --confirm-size128 --gate holds FL MLP cells {mc[:3]}; they belong in --mlp-gate (seal)")
+    grid_n = grid_or_void(cells, failed, [(a.primary, SEEDS), (a.primary + KR, SEEDS), (BAR, (0,)), (CD, (0,))], topos, "--gate")
+    servers_eq(cells, S128_SERVERS, "--gate")
+    ckpt = ckpt_md5s(a.checkpoint_md5)
+    w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","), a.gate_change)
+    learned = [a.primary]
+    cells, cells_kr = split_kr(cells)
+    warmth = asserts(cells, a.pin, learned, ckpt, w_pins)
+    if asserts(cells_kr, a.pin, learned, ckpt, w_pins, kr=True) != warmth:
+        raise SystemExit("FAIL LOUD: the co-tenancy cells record another HEROSIM_WARMTH_PHYSICS")
+    cells_kr.update({k: v for k, v in cells.items() if k[0] not in learned})
+    v = argparse.Namespace(**{**vars(a), "mlp": "", "twin": "", "reference": "", "compare": "", "confirm": True})
+    res = {"filed": FILED, "family": "FL size-128", "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth,
+           "primary": a.primary, "seeds": list(SEEDS), "bar": BAR, "servers": S128_SERVERS,
+           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in w_pins.items()},
+           "hosts": hosts({**cells, **{(k[0] + KR,) + k[1:]: x for k, x in cells_kr.items() if k[0] in learned}})}
+    res.update(verdict(cells, {}, v, topos, True, CONFIRM_WHY))
+    res["cotenancy"] = verdict(cells_kr, {}, v, topos, True, CONFIRM_WHY)
+    res["combined"] = combine(res, res["cotenancy"], v)
+    lab = res["combined"]["F1"]
+    res["confirmation"] = {"label": S128_YES if prog_win(lab) else "NOT-CONFIRMED", "reader_label": lab, "stage": a.stage, "rule": S128_WHY,
+                           "family": "FL size-128", "grid_cells": grid_n}
+    if a.stage == "primary":
+        for x in (res, res["cotenancy"]):
+            x.pop("descriptive", None)
+    else:
+        check_against_filed_primary(a, res)
+        s128_secondary(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth)
+    txt = json.dumps(res, indent=1, default=str)
+    if a.out:
+        if os.path.exists(a.out):
+            raise SystemExit(f"FAIL LOUD: {a.out} exists; a confirmation read is written once")
+        with open(a.out + ".tmp", "w") as fh:
+            fh.write(txt)
+        os.replace(a.out + ".tmp", a.out)
+    print(f"SIZE-128 {res['confirmation']['label']} (reader: {lab}; {res['combined']['why']})")
+    for tag, x in (("", res), ("_kr ", res["cotenancy"])):
+        for e in x["F1"]["tests"]:
+            print(f"  F1 {tag}{e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
+    if "F2_size128" in res:
+        f2 = res["F2_size128"]
+        print(f"F2 {f2['label']} ({S128_MISS_NOTE})")
+        for tag in ("frozen", "cotenancy"):
+            for e in f2[tag]["tests"]:
+                c = e["charge_clause"]
+                print(f"  F2 {tag:9s} {e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} holm {e['p_holm']} "
+                      f"miss diff {c['median_miss_diff_pp']:+.4f} pp corrected {c['median_corrected_pct']:+.3f} holds {c['holds']}")
+        dcg = res["decision_charge"]
+        print(f"  decision charge: {dcg['flagged']} cell(s) > {S128_MISS_FLAG_PP} pp; " + "; ".join(
+            f"{k} max {x['excess_pp_max']:+.3f} pp, measured/charged {x['measured_over_charged_min']:.2f}-{x['measured_over_charged_max']:.2f}" for k, x in dcg["by_arm"].items()))
+    return res
+
+
+# Partner structure (uncut_groups_s0_v1, registered 2026-10-19 with SCIENTIST's addendum B): FL gnn vs FL MLP over partners drawn per task k
+DEG_LEVELS = ("k1", "k2", "k4", "k8")
+DEG_K = {"k1": 1, "k2": 2, "k4": 4, "k8": 8}
+DEG_TOPOS_SHA256 = "dd359919d7fc42c5e0bec1f40d934edb6192b0993fa542cd08608b56e59cceb7"
+DEG_META = "grounded_workload_v1"
+DEG_BIG_BYTES = 50e6
+DEG_YES, DEG_NO = "DEGREE-TREND", "NO-TREND"
+DEG_WHY = (DEG_YES + " iff Page's L (one-sided upper over k = 1 < 2 < 4 < 8, the GNN's lead over the MLP growing with k; Holm 2) has Holm < .025 on both "
+           "moderate tests; else " + DEG_NO + "; VOID if any level loses > 4 ids (a partially saturated heavy rung still removes topologies under P10's "
+           "rule) or the levels' workloads are not identical apart from the pairs, or a group's bytes differ from its k = 2 total. Both "
+           "models were trained at k = 2: k = 4 and 8 are out of distribution, which biases against the registered direction. Neither label says "
+           "'message passing'")
+DEG_IDENTITY = ("the mint's own grounded_workload_v1.partner_nested.nonpair_sha256 equal across the four levels (mint time), and the built file's "
+                "{rps, duration, events} hashed with the minter's serialization (json.dumps sort_keys, default separators) equal across them (build "
+                "time); the builder rewrites events (rate scale, task mix, single origin, client remap), so the built hash is not the minted one")
+DEG_BYTES_RTOL = 1e-9
+
+
+def deg_args(a):
+    if a.confirm or a.confirm2 or a.confirm_size64 or a.confirm_fl_lambda or a.confirm_exchange_trend or a.confirm_size128:
+        raise SystemExit("FAIL LOUD: --confirm-degree-trend is its own family; pass no other --confirm flag")
+    if a.primary != CONFIRM_PRIMARY or a.mlp != CONFIRM_MLP or a.twin or a.reference or a.compare or a.after_read or a.reactive_gate or a.desc_gate \
+            or a.mlp_gate or a.xs_root:
+        raise SystemExit(f"FAIL LOUD: --confirm-degree-trend reads --primary {CONFIRM_PRIMARY} --mlp {CONFIRM_MLP}; the levels' cells come from --deg-root")
+    if a.bar != "cd_ib0_inflightfull" or a.stage not in ("primary", "secondary") or a.seeds != "1,2" or a.suffix != "_k100":
+        raise SystemExit("FAIL LOUD: --confirm-degree-trend needs --bar cd_ib0_inflightfull, --seeds 1,2, --suffix _k100 and --stage primary or secondary")
+    if not (a.repo and a.w_pins and a.deg_root):
+        raise SystemExit("FAIL LOUD: --confirm-degree-trend needs --repo, --w-pins and --deg-root")
+    if a.topos_sha256 != DEG_TOPOS_SHA256:
+        raise SystemExit("FAIL LOUD: --confirm-degree-trend reads the exchange-study ids 30176-30187 (sha256 dd359919...) only")
+    if a.stage == "primary" and (a.primary_read or a.record):
+        raise SystemExit("FAIL LOUD: --primary-read / --record belong to --stage secondary (seal)")
+    if a.stage == "secondary" and not (a.primary_read and a.record):
+        raise SystemExit("FAIL LOUD: --confirm-degree-trend --stage secondary needs --primary-read and --record")
+
+
+def deg_workload(path):
+    """One level's built workload: the signed mint's fields (grounded_workload_v1.partner_nested: level, connector_pairs, nonpair_sha256;
+    peer_rule.partners), the build-time identity hash, the bytes per group and the realised structure."""
+    with open(path) as fh:
+        w = json.load(fh)
+    g = w.get(DEG_META)
+    pn = (g or {}).get("partner_nested")
+    if not isinstance(pn, dict) or type(pn.get("level")) is not int or type(pn.get("connector_pairs")) is not int \
+            or not isinstance(pn.get("nonpair_sha256"), str) or (g.get("peer_rule") or {}).get("partners") != pn["level"]:
+        raise SystemExit(f"FAIL LOUD: {path} has no {DEG_META}.partner_nested (integer level and connector_pairs, nonpair_sha256) with "
+                         f"peer_rule.partners equal to its level")
+    built = hashlib.sha256(json.dumps({k: w[k] for k in ("rps", "duration", "events")}, sort_keys=True).encode()).hexdigest()
+    ev = w["events"]
+    n = len(ev)
+    nb, pairs, total, big, by_group = {}, set(), 0.0, 0.0, {}
+    for p in w["peer_exchange"]:
+        i, j, b = int(p[0]), int(p[1]), float(p[2])
+        e = (min(i, j), max(i, j))
+        if i == j or e in pairs:
+            raise SystemExit(f"FAIL LOUD: {path} peer_exchange has a self or duplicate pair {e}")
+        if ev[i]["peer_group"] != ev[j]["peer_group"]:
+            raise SystemExit(f"FAIL LOUD: {path} peer_exchange pair {e} crosses groups")
+        pairs.add(e)
+        nb.setdefault(i, set()).add(j)
+        nb.setdefault(j, set()).add(i)
+        total += b
+        big += b if b > DEG_BIG_BYTES else 0.0
+        by_group[ev[i]["peer_group"]] = by_group.get(ev[i]["peer_group"], 0.0) + b
+    size = {}
+    for e in ev:
+        size[e["peer_group"]] = size.get(e["peer_group"], 0) + 1
+    k = pn["level"]
+    return {"minted": pn["nonpair_sha256"], "built": built, "bytes_by_group": by_group}, {
+        "k": k, "connector_pairs": pn["connector_pairs"], "pairs": len(pairs), "pairs_per_task": len(pairs) / n,
+        "mean_partners_per_task_with_partners": sum(len(v) for v in nb.values()) / len(nb) if nb else 0.0,
+        "share_tasks_no_partner": (n - len(nb)) / n, "byte_share_over_50MB": big / total if total else None,
+        "share_tasks_in_groups_le_k_plus_1": sum(1 for e in ev if size[e["peer_group"]] <= k + 1) / n, "total_bytes": total}
+
+
+def deg_structure(a):
+    """Every level's workloads (both rungs x g0-g3): the mint's level is the directory's, the minted and the built identity hashes are each
+    equal across the four levels, and every group carries its k = 2 bytes at every level; else VOID."""
+    ids, out = {}, {}
+    for lv in DEG_LEVELS:
+        rows = {}
+        for r in RUNGS:
+            for w in WINDOWS:
+                p = os.path.join(a.deg_root, lv, "inputs_group", f"wf1_{r}", "wl", f"grounded_{w}_n50000.json")
+                if not os.path.exists(p):
+                    raise SystemExit(f"FAIL LOUD: VOID: level {lv} has no workload {p}")
+                h, s = deg_workload(p)
+                if s["k"] != DEG_K[lv]:
+                    raise SystemExit(f"FAIL LOUD: VOID: {p} records level {s['k']}, the directory is {lv}")
+                ids.setdefault((r, w), {})[lv] = h
+                rows[f"{r}/{w}"] = s
+        agg = {f: st.mean(x[f] for x in rows.values()) for f in ("pairs_per_task", "mean_partners_per_task_with_partners", "share_tasks_no_partner",
+                                                                    "byte_share_over_50MB", "share_tasks_in_groups_le_k_plus_1")}
+        out[lv] = {"mean_over_workloads": agg, "connector_pairs_total": sum(x["connector_pairs"] for x in rows.values()), "per_workload": rows}
+    for kind in ("minted", "built"):
+        bad = sorted(f"{r}/{w}" for (r, w), h in ids.items() if len({x[kind] for x in h.values()}) != 1)
+        if bad:
+            raise SystemExit(f"FAIL LOUD: VOID: the levels' {kind} identity hashes differ at {bad[:4]} ({DEG_IDENTITY})")
+    for (r, w), h in ids.items():
+        ref = h["k2"]["bytes_by_group"]
+        for lv in DEG_LEVELS:
+            got = h[lv]["bytes_by_group"]
+            off = [gid for gid in set(ref) | set(got) if abs(got.get(gid, 0.0) - ref.get(gid, 0.0)) > DEG_BYTES_RTOL * max(1.0, abs(ref.get(gid, 0.0)))]
+            if off:
+                raise SystemExit(f"FAIL LOUD: VOID: {lv} {r}/{w}: {len(off)} group(s) do not carry their k = 2 bytes, e.g. group {sorted(off)[0]} "
+                                 f"({got.get(sorted(off)[0], 0.0):.6g} vs {ref.get(sorted(off)[0], 0.0):.6g}); was the build's payload sampler legacy?")
+    return {"identity": DEG_IDENTITY, "minted_nonpair_sha256": {f"{r}/{w}": h["k2"]["minted"] for (r, w), h in sorted(ids.items())},
+            "built_sha256": {f"{r}/{w}": h["k2"]["built"] for (r, w), h in sorted(ids.items())},
+            "bytes_per_group_held_at_k2": True, "levels": out}
+
+
+def deg_admission(rc, rf, topos):
+    """P10's per-topology admission over every reactive cell (queue_share <= 0.80; unknown fails), except that a rung saturated on every topology is
+    excluded and listed, and admission is then read on the other rung's cells."""
+    sat = lambda t, w, r: type((rc.get((XS_REACTIVE, 0, t, w, r)) or {}).get("queue_share")) not in (int, float) \
+        or rc[(XS_REACTIVE, 0, t, w, r)]["queue_share"] > XS_QUEUE_MAX
+    whole = [r for r in RUNGS if all(any(sat(t, w, r) for w in WINDOWS) for t in topos)]
+    rungs = [r for r in RUNGS if r not in whole]
+    bad = {}
+    for t in topos:
+        why = [f"{w}{r}={'failed' if (XS_REACTIVE, 0, t, w, r) in rf else (rc.get((XS_REACTIVE, 0, t, w, r)) or {}).get('queue_share')}"
+               for w in WINDOWS for r in rungs if sat(t, w, r)]
+        if why or not rungs:
+            bad[t] = why or ["every rung saturated"]
+    return [t for t in topos if t not in bad], bad, whole
+
+
+def deg_load_level(a, lv, topos, ckpt, w_pins):
+    d = os.path.join(a.deg_root, lv)
+    rc, rf = load(os.path.join(d, "cells_reactive"), a.suffix) if os.path.isdir(os.path.join(d, "cells_reactive")) else ({}, {})
+    stray = sorted({k[0] for k in list(rc) + list(rf) if k[0] != XS_REACTIVE or k[1] != 0})
+    if stray:
+        raise SystemExit(f"FAIL LOUD: {lv}/cells_reactive holds cells other than reactive s0: {stray[:3]}")
+    servers_eq(rc, FLL_SERVERS, f"{lv}/cells_reactive")
+    admitted, bad, whole = deg_admission(rc, rf, topos)
+    out = {"admitted": admitted, "failing": {str(t): x for t, x in sorted(bad.items())}, "rungs_wholly_saturated_excluded": whole,
+           "reactive_cells": len(rc), "reactive_failed": len(rf)}
+    if not admitted:
+        return out, None
+    paths = [os.path.join(d, x) for x in ("cells_bar", "cells_learned")]
+    if not all(os.path.isdir(p) for p in paths):
+        raise SystemExit(f"FAIL LOUD: VOID: level {lv} has admitted ids but no cells_bar / cells_learned")
+    cells, failed = load(",".join(paths), a.suffix)
+    out["grid_cells"] = grid_or_void(cells, failed, [(BAR, (0,)), (CONFIRM_PRIMARY, SEEDS), (CONFIRM_MLP, SEEDS)], admitted, f"level {lv} (its admitted ids)")
+    servers_eq(cells, FLL_SERVERS, f"level {lv}")
+    out["warmth"] = asserts(cells, a.pin, [CONFIRM_PRIMARY, CONFIRM_MLP], ckpt, w_pins)
+    rz = [k for k, s in cells.items() if float(s.get("totalPeerRendezvousWait", 0.0)) != 0.0]
+    out["rendezvous_check"] = {"cells_with_rendezvous_wait": len(rz), "e_g": [list(k) for k in rz[:3]], "holds": not rz}
+    return out, cells
+
+
+def deg_gap(cells, arm, topos):
+    ex = tot = 0.0
+    for t in topos:
+        for w in WINDOWS:
+            for r in RUNGS:
+                b = cells[(BAR, 0, t, w, r)]
+                for sd in SEEDS:
+                    f = cells[(arm, sd, t, w, r)]
+                    ex += (float(b["totalPeerExchangeTime"]) - float(f["totalPeerExchangeTime"])) / len(SEEDS)
+                    tot += (float(b["averageElapsedTime"]) * int(b["num_tasks"]) - float(f["averageElapsedTime"]) * int(f["num_tasks"])) / len(SEEDS)
+    return {"exchange_seconds_saved": ex, "total_latency_seconds_gained": tot, "share": ex / tot if tot else None}
+
+
+def read_degree_trend(a):
+    """--confirm-degree-trend: primary = the structure check, admission and Page's L of FL gnn vs FL MLP over k = 1 < 2 < 4 < 8 (moderate, Holm 2);
+    secondary = the per-level descriptive rows, after the primary read's md5 is filed."""
+    global SEEDS, BAR, PROG_ALPHA
+    deg_args(a)
+    SEEDS, BAR, PROG_ALPHA = (1, 2), a.bar, PROG_ALPHA_FILED
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
+    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
+        raise SystemExit("FAIL LOUD: the topology list hash differs from the filed one")
+    topos = [int(x) for x in a.topos.split(",")]
+    if sorted(set(os.listdir(a.deg_root)) & set(DEG_LEVELS)) != sorted(DEG_LEVELS):
+        raise SystemExit(f"FAIL LOUD: --deg-root must hold every level directory {list(DEG_LEVELS)}")
+    structure = deg_structure(a)
+    ckpt = ckpt_md5s(a.checkpoint_md5)
+    w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","), a.gate_change)
+    adm, cells_by = {}, {}
+    for lv in DEG_LEVELS:
+        adm[lv], cells_by[lv] = deg_load_level(a, lv, topos, ckpt, w_pins)
+    warm = {adm[lv]["warmth"] for lv in DEG_LEVELS if "warmth" in adm[lv]}
+    if len(warm) > 1:
+        raise SystemExit(f"FAIL LOUD: the levels record different HEROSIM_WARMTH_PHYSICS {sorted(warm)}")
+    fails = {lv: len(adm[lv]["failing"]) for lv in DEG_LEVELS}
+    res = {"filed": FILED, "family": "partner structure", "pin": a.pin, "gate_change": a.gate_change, "topos": topos,
+           "topologies_note": "topologies already read in the exchange study (30176-30187)", "primary": CONFIRM_PRIMARY, "mlp": CONFIRM_MLP,
+           "bar": BAR, "seeds": list(SEEDS), "servers": FLL_SERVERS,
+           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in w_pins.items()},
+           "structure": structure, "admission": adm}
+    if any(v > XS_DROP_OVER for v in fails.values()):
+        res["trend"] = {"label": "VOID", "why": f"a level lost more than {XS_DROP_OVER} ids: {fails}", "failing_per_level": fails}
+    elif "moderate" in set().union(*(adm[lv]["rungs_wholly_saturated_excluded"] for lv in DEG_LEVELS)):
+        res["trend"] = {"label": "VOID", "why": "the moderate rung is saturated on every topology at a level", "failing_per_level": fails}
+    else:
+        ids = sorted(set.intersection(*[set(adm[lv]["admitted"]) for lv in DEG_LEVELS]))
+        tests = []
+        for stat in STATS:
+            vals = {lv: topo_pct(cells_by[lv], CONFIRM_PRIMARY, SEEDS, CONFIRM_MLP, SEEDS, "moderate", stat, ids) for lv in DEG_LEVELS}
+            pt = page_trend([[vals[lv][t] for lv in DEG_LEVELS] for t in ids])
+            pt.update({"rung": "moderate", "stat": stat, "levels": list(DEG_LEVELS), "median_pct_by_level": {lv: st.median(vals[lv].values()) for lv in DEG_LEVELS},
+                       "per_topology": {str(t): {lv: round(vals[lv][t], 3) for lv in DEG_LEVELS} for t in ids}})
+            tests.append(pt)
+        family(tests)
+        yes = all(e["p_holm"] < PROG_ALPHA for e in tests)
+        res["trend"] = {"label": DEG_YES if yes else DEG_NO, "why": "Holm < .025 on both moderate tests" if yes else "not Holm < .025 on both moderate tests",
+                        "failing_per_level": fails, "trend_ids": ids, "n": len(ids), "tests": tests}
+    rz = sum(adm[lv].get("rendezvous_check", {}).get("cells_with_rendezvous_wait", 0) for lv in DEG_LEVELS)
+    res["confirmation"] = {"label": res["trend"]["label"], "stage": a.stage, "family": "partner structure", "rule": DEG_WHY,
+                           "rendezvous": f"rendezvous nonzero in {rz} cells" if rz else "R_rendezvous = 0 in every cell read"}
+    if a.stage == "secondary":
+        m = md5(a.primary_read)
+        node = "docs/lineages/uncut_groups_s0_v1.md"
+        if m not in git(a.repo, "show", f"{a.record}:{node}"):
+            raise SystemExit(f"FAIL LOUD: the primary read {a.primary_read} (md5 {m}) is not filed in {node} at {a.record}")
+        if subprocess.run(["git", "-C", a.repo, "merge-base", "--is-ancestor", a.record, a.filed_ref]).returncode:
+            raise SystemExit(f"FAIL LOUD: {a.record} is not on {a.filed_ref}: the primary read is not filed")
+        with open(a.primary_read) as fh:
+            p = json.load(fh)
+        same = lambda x, y: json.dumps(x, sort_keys=True, default=str) == json.dumps(y, sort_keys=True, default=str)
+        if p.get("confirmation", {}).get("stage") != "primary" or not all(same(res[k], p[k]) for k in ("trend", "admission", "topos", "structure")) \
+                or res["confirmation"]["label"] != p["confirmation"]["label"]:
+            raise SystemExit(f"FAIL LOUD: the secondary run's primary parts differ from the filed primary read {a.primary_read}")
+        res["confirmation"]["primary_read"] = {"path": os.path.abspath(a.primary_read), "md5": m, "record": a.record}
+        note, desc = "descriptive, p unadjusted, never a label", {}
+        for lv in DEG_LEVELS:
+            cells, ids = cells_by[lv], adm[lv]["admitted"]
+            if cells is None:
+                desc[lv] = {"note": "no cells read: no admitted id"}
+                continue
+            keep = [r for r in RUNGS if r not in adm[lv]["rungs_wholly_saturated_excluded"]]
+            pick = lambda es: [e for e in es if e["rung"] in keep]
+            miss = {}
+            for arm, sd in ((CONFIRM_PRIMARY, SEEDS), (CONFIRM_MLP, SEEDS), (BAR, (0,))):
+                v = [charge_miss(s, str(k))["excess_pp"] for k, s in cells.items() if k[0] == arm and k[4] in keep]
+                miss[arm] = {"cells": len(v), "excess_pp_median": st.median(v), "excess_pp_max": max(v), "flagged_over_0_5pp": sum(x > S128_MISS_FLAG_PP for x in v)}
+            desc[lv] = {"k": DEG_K[lv], "n_topologies": len(ids), "note": note, "rungs_excluded": adm[lv]["rungs_wholly_saturated_excluded"],
+                        "fl_vs_bar": pick(four(cells, CONFIRM_PRIMARY, SEEDS, BAR, (0,), ids)), "mlp_vs_bar": pick(four(cells, CONFIRM_MLP, SEEDS, BAR, (0,), ids)),
+                        "fl_vs_mlp": pick(four(cells, CONFIRM_PRIMARY, SEEDS, CONFIRM_MLP, SEEDS, ids)),
+                        "gap_fl": deg_gap(cells, CONFIRM_PRIMARY, ids), "gap_mlp": deg_gap(cells, CONFIRM_MLP, ids), "charge_miss": miss,
+                        "structure": structure["levels"][lv]["mean_over_workloads"], "connector_pairs_total": structure["levels"][lv]["connector_pairs_total"]}
+        res["descriptive"] = desc
+    txt = json.dumps(res, indent=1, default=str)
+    if a.out:
+        if os.path.exists(a.out):
+            raise SystemExit(f"FAIL LOUD: {a.out} exists; a confirmation read is written once")
+        with open(a.out + ".tmp", "w") as fh:
+            fh.write(txt)
+        os.replace(a.out + ".tmp", a.out)
+    tr = res["trend"]
+    rz = sum(adm[lv].get("rendezvous_check", {}).get("cells_with_rendezvous_wait", 0) for lv in DEG_LEVELS)
+    print(f"PARTNER STRUCTURE {tr['label']} ({tr['why']})" + (f"; rendezvous nonzero in {rz} cells" if rz else ""))
+    for e in tr.get("tests", []):
+        print(f"  Page {e['rung']:8s} {e['stat']:8s} L {e['L']} k {e['k']} n {e['n']} p {e['p']:.3g} holm {e['p_holm']:.3g} ({e['method']}) "
+              f"medians {', '.join(f'{v} {m_:+.2f}' for v, m_ in e['median_pct_by_level'].items())}")
+    return res
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -1318,7 +1800,19 @@ def main(argv=None):
     ap.add_argument("--confirm-exchange-trend", action="store_true",
                     help="exchange-model sensitivity (registered 2026-10-19): Page's trend of FL gnn vs the bar over payload variants under --xs-root")
     ap.add_argument("--xs-root", default="", help="--confirm-exchange-trend: the directory holding one subdirectory per payload variant")
+    ap.add_argument("--confirm-size128", action="store_true",
+                    help="FL size-128 (registered 2026-10-19): F1 FL gnn vs the in-flight bar at servers = 128; secondary F2 FL gnn vs FL MLP with the charge clause")
+    ap.add_argument("--mlp-gate", default="", help="--confirm-size128 --stage secondary: the FL MLP s1-2 cells, _k100 and _kr")
+    ap.add_argument("--confirm-degree-trend", action="store_true",
+                    help="partner structure (registered 2026-10-19): Page's trend of FL gnn vs FL MLP over partners drawn per task k = 1 < 2 < 4 < 8 under --deg-root")
+    ap.add_argument("--deg-root", default="", help="--confirm-degree-trend: the directory holding k1 k2 k4 k8")
     a = ap.parse_args(argv)
+    if a.confirm_size128:
+        return read_size128(a)
+    if a.confirm_degree_trend:
+        return read_degree_trend(a)
+    if a.mlp_gate or a.deg_root:
+        raise SystemExit("FAIL LOUD: --mlp-gate belongs to --confirm-size128 and --deg-root to --confirm-degree-trend")
     if a.confirm_fl_lambda:
         return read_fl_lambda(a)
     if a.confirm_exchange_trend:
