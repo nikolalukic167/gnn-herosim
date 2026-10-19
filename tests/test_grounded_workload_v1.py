@@ -131,3 +131,70 @@ def test_corpus_mint_must_not_overlap_the_gate_windows(tmp_path):
     later.write_text(json.dumps({"grounded_workload_v1": {"n_groups": 10, "start_group": 95, "library_source": {"md5": "abc"}}}))
     with pytest.raises(SystemExit, match="overlap"):
         M.check_disjoint(50, 50, "abc", [str(later)])
+
+
+def _golden(group_size=0, sampler="legacy"):
+    """Digest of the mint at the registered rule, taken from origin/reference-physics (0f3d0de1) before the nested-partner knob existed."""
+    import hashlib
+    lib, base = _lib_base()
+    doc, meta = M.mint(lib, base, seed=3, n_tasks=200, group_size=group_size, payload_sampler=sampler)
+    return hashlib.sha256(json.dumps([doc, meta], sort_keys=True).encode()).hexdigest()
+
+
+GOLDEN_DEFAULT = {("legacy", 0): "5304e8c2a6a76b61b634f91f055cc025f3fef953fbe0a154f6c3a24858ea3465",
+                  ("legacy", 16): "a4822a1af5c5e0f1f4643346b490672e1663e2dbba7011f9af7a1cf9cb6f4809",
+                  ("wf1_v1", 16): "325f10f2582999658eba6e22ff8bb5f049ab1b3305c3813a847dde50a5d8509c"}
+
+
+@pytest.mark.parametrize("sampler,gs", sorted(GOLDEN_DEFAULT))
+def test_default_mint_is_the_old_mint_byte_for_byte(sampler, gs):
+    assert _golden(gs, sampler) == GOLDEN_DEFAULT[(sampler, gs)]
+    lib, base = _lib_base()
+    _doc, meta = M.mint(lib, base, seed=3, n_tasks=200, group_size=gs, payload_sampler=sampler, partners_nested=0)
+    assert "partner_nested" not in meta and meta["peer_rule"]["partners"] == 2
+
+
+def _levels(n_events=400, n_tasks=320):
+    lib, base = _lib_base(200, n_events)
+    return {k: M.mint(lib, base, seed=3, n_tasks=n_tasks, group_size=16, payload_sampler="wf1_v1", partners_nested=k) for k in (1, 2, 4, 8)}
+
+
+def test_nested_levels_share_every_non_pair_draw_and_nest_their_pairs():
+    L = _levels()
+    shas = {m["partner_nested"]["nonpair_sha256"] for _d, m in L.values()}
+    assert len(shas) == 1
+    assert len({json.dumps({k: v for k, v in d.items() if k not in ("peer_exchange",)}, sort_keys=True) for d, _m in L.values()}) == 1
+    plan = [(0, [0] * 16)] * 20
+    new_idx = {i: i for i in range(320)}
+    events = [{"peer_group": i // 16} for i in range(320)]
+    pk = {k: set(M._nested_pairs(plan, new_idx, events, 3, k, False)["pairs"]) for k in (1, 2, 4, 8)}
+    assert pk[1] <= pk[2] <= pk[4] <= pk[8] and len(pk[1]) < len(pk[2]) < len(pk[4]) < len(pk[8])
+    assert all(L[k][1]["partner_nested"]["connector_pairs"] >= 0 for k in L)
+    for k, (d, m) in L.items():
+        assert m["peer_rule"]["partners"] == k and m["peer_rule"]["nested"] is True
+        for i, j, _b in d["peer_exchange"]:
+            assert d["events"][i]["peer_group"] == d["events"][j]["peer_group"]
+        assert m["partner_nested"]["realised_mean_degree"] == pytest.approx(2.0 * len(d["peer_exchange"]) / 320)
+
+
+def test_nested_bytes_are_held_per_group_at_the_level_two_total():
+    L = _levels()
+    def per_group(d):
+        out = {}
+        for i, j, b in d["peer_exchange"]:
+            g = d["events"][i]["peer_group"]; out[g] = out.get(g, 0.0) + b
+        return out
+    ref = per_group(L[2][0])
+    for k in (1, 4, 8):
+        got = per_group(L[k][0])
+        assert set(got) == set(ref)
+        assert all(got[g] == pytest.approx(ref[g], rel=1e-9) for g in ref)
+    assert L[4][1]["partner_nested"]["total_bytes"] == pytest.approx(L[2][1]["partner_nested"]["total_bytes"], rel=1e-9)
+
+
+def test_nested_needs_wf1_v1_and_a_valid_level():
+    lib, base = _lib_base()
+    for kw in ({"partners_nested": 3, "payload_sampler": "legacy"}, {"partners_nested": 9, "payload_sampler": "wf1_v1"},
+               {"partners_nested": 2, "payload_sampler": "wf1_v1", "merge_k": 2}):
+        with pytest.raises(SystemExit):
+            M.mint(lib, base, seed=3, n_tasks=200, group_size=16, **kw)
