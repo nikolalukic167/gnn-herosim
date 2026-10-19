@@ -33,6 +33,12 @@ lambda = 0 control FL (ra_gnn_eng_combfl_nosplit), seeds 1-2, Holm < .025, both 
 servers = 24), --gate exactly the bars, FL + lambda and FL (both charges); the per-seed clause and the collapse clause are seed-matched (FL + lambda
 seed s vs FL seed s); label LAMBDA-WIN or NOT-WIN; --stage secondary reads --desc-gate (FL MLP + lambda and the FL MLP, both charges) for the
 descriptive rows (FL + lambda vs the bars, MLP + lambda vs MLP, FL + lambda vs MLP + lambda, MLP + lambda vs FL gnn under _k100), never a label;
+--confirm-exchange-trend (exchange-model sensitivity, registered 2026-10-19 at 4721d545): --xs-root holds one directory per payload variant
+(x0 x0p1 x0p3 x1 x3 tier0 azblob), each with cells_reactive, cells_bar and cells_learned; a topology is admitted for a variant iff all 8 of its
+reactive cells record queue_share <= 0.80 (unknown fails); each variant's cells must be exactly the bar s0 and FL gnn / FL MLP s1-2 (_k100) on
+its admitted ids, servers = 24; the primary is Page's L of the paired FL gnn vs bar % over x0.1 < x0.3 < x1 < x3 on the ids admitted at every
+trend level (x3 dropped if > 4 fail; VOID if x0.1 / x0.3 / x1 loses > 4), exact by convolution (normal approximation if a topology ties),
+one-sided upper, Holm 4; EXCHANGE-TREND iff Holm < .025 on both moderate tests; the secondary adds the descriptive rows;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -1007,6 +1013,270 @@ def read_fl_lambda(a):
     return res
 
 
+# Exchange-model sensitivity (uncut_groups_s0_v1, registered 2026-10-19, signed against 4721d545): FL gnn vs the in-flight bar across payload variants
+XS_VARIANTS = ("x0", "x0p1", "x0p3", "x1", "x3", "tier0", "azblob")
+XS_TREND = ("x0p1", "x0p3", "x1", "x3")
+XS_LABEL = {"x0": "x0 (zero payload; latency and rendezvous remain)", "x0p1": "x0.1", "x0p3": "x0.3", "x1": "x1", "x3": "x3",
+            "tier0": "heavy-tier 0 % at x1", "azblob": "azblob (per-access blob size as a proxy, not function-to-function exchange)"}
+XS_FL, XS_MLP, XS_REACTIVE = CONFIRM_PRIMARY, CONFIRM_MLP, "reactive"
+XS_QUEUE_MAX, XS_DROP_OVER = 0.80, 4
+XS_USED_TOPOS = FLL_USED_TOPOS | frozenset(range(30149, 30161))
+XS_YES, XS_NO = "EXCHANGE-TREND", "NO-TREND"
+
+
+def xs_args(a):
+    if a.confirm or a.confirm2 or a.confirm_size64 or a.confirm_fl_lambda:
+        raise SystemExit("FAIL LOUD: --confirm-exchange-trend is its own family; pass no other --confirm flag")
+    if a.primary != XS_FL or a.twin or a.reference or a.compare or a.after_read or a.reactive_gate or a.desc_gate or a.mlp:
+        raise SystemExit(f"FAIL LOUD: --confirm-exchange-trend reads --primary {XS_FL} only; the variants' cells come from --xs-root")
+    if a.bar != "cd_ib0_inflightfull" or a.stage not in ("primary", "secondary") or a.seeds != "1,2" or a.suffix != "_k100":
+        raise SystemExit("FAIL LOUD: --confirm-exchange-trend needs --bar cd_ib0_inflightfull, --seeds 1,2, --suffix _k100 and --stage primary or secondary")
+    if not (a.repo and a.w_pins and a.xs_root):
+        raise SystemExit("FAIL LOUD: --confirm-exchange-trend needs --repo, --w-pins and --xs-root")
+    used = sorted(set(int(x) for x in a.topos.split(",")) & XS_USED_TOPOS)
+    if used:
+        raise SystemExit(f"FAIL LOUD: --confirm-exchange-trend topologies must be fresh; {used[:6]} are used ids")
+    if a.stage == "primary" and (a.primary_read or a.record):
+        raise SystemExit("FAIL LOUD: --primary-read / --record belong to --stage secondary (seal)")
+    if a.stage == "secondary" and not (a.primary_read and a.record):
+        raise SystemExit("FAIL LOUD: --confirm-exchange-trend --stage secondary needs --primary-read and --record")
+
+
+def xs_admission(rc, rf, topos):
+    """Per topology: admitted iff all 8 reactive cells (g0-g3 x both rungs) are summaries whose queue_share is a number <= 0.80; a missing or
+    failed cell, or one without the field, fails it. Returns (admitted ids, {id: reasons})."""
+    bad = {}
+    for t in topos:
+        why = []
+        for w in WINDOWS:
+            for r in RUNGS:
+                s = rc.get((XS_REACTIVE, 0, t, w, r))
+                q = None if s is None else s.get("queue_share")
+                if type(q) not in (int, float) or q > XS_QUEUE_MAX:
+                    why.append(f"{w}{r}={'failed' if (XS_REACTIVE, 0, t, w, r) in rf else q}")
+        if why:
+            bad[t] = why
+    return [t for t in topos if t not in bad], bad
+
+
+def xs_topo_values(cells, rung, stat, topos):
+    """{topology: median over g0-g3 of 100 (FL gnn seed mean - bar) / bar}, unrounded; every window must be present (the grid is exact)."""
+    out = {}
+    for t in topos:
+        v = []
+        for w in WINDOWS:
+            ma, mb = cell_mean(cells, XS_FL, SEEDS, t, w, rung), cell_mean(cells, BAR, (0,), t, w, rung)
+            if ma is None or mb is None:
+                raise SystemExit(f"FAIL LOUD: {t}{w}{rung} has no FL gnn or bar cell mean")
+            v.append(100.0 * (ma[stat] - mb[stat]) / mb[stat])
+        out[t] = st.median(v)
+    return out
+
+
+def _midranks(x):
+    order = sorted(range(len(x)), key=lambda i: x[i])
+    r = [0.0] * len(x)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and x[order[j + 1]] == x[order[i]]:
+            j += 1
+        for k in range(i, j + 1):
+            r[order[k]] = (i + j) / 2.0 + 1.0
+        i = j + 1
+    return r
+
+
+def page_trend(rows):
+    """Page's L for rows of k values in the hypothesised order (level 1 .. k); the registered direction is 'more negative as the level grows',
+    so within a row the most negative value gets the highest rank (ranks of -x). L = sum_j j * R_j. One-sided upper p: exact by convolution over
+    rows (each row's k! orderings equally likely) when no row ties; with any tie, midranks and the normal approximation from the per-row
+    permutation variance."""
+    import itertools
+    import math
+    k, n = len(rows[0]), len(rows)
+    ranks = [_midranks([-v for v in row]) for row in rows]
+    L = sum((j + 1) * r[j] for r in ranks for j in range(k))
+    tied = any(len(set(r)) < k for r in ranks)
+    if not tied:
+        one = {}
+        for perm in itertools.permutations(range(1, k + 1)):
+            s_ = sum((j + 1) * perm[j] for j in range(k))
+            one[s_] = one.get(s_, 0) + 1
+        dist = {0: 1}
+        for _ in range(n):
+            nxt = {}
+            for a_, ca in dist.items():
+                for b_, cb in one.items():
+                    nxt[a_ + b_] = nxt.get(a_ + b_, 0) + ca * cb
+            dist = nxt
+        total = math.factorial(k) ** n
+        p = sum(c for v, c in dist.items() if v >= round(L)) / total
+        method = "exact"
+    else:
+        jbar = (k + 1) / 2.0
+        mean = sum(k * jbar * (sum(r) / k) for r in ranks)
+        sjj = sum((j + 1 - jbar) ** 2 for j in range(k))
+        var = sum(sjj * sum((x - sum(r) / k) ** 2 for x in r) / (k - 1) for r in ranks)
+        z = (L - mean) / math.sqrt(var) if var > 0 else 0.0
+        p = 0.5 * math.erfc(z / math.sqrt(2.0))
+        method = "normal approximation (a topology ties; midranks)"
+    return {"L": L, "k": k, "n": n, "p": p, "method": method}
+
+
+def xs_load_variant(a, v, topos, ckpt, w_pins, open_cells):
+    """One variant: the reactive admission, and (open_cells) its bar and learned cells checked as the exact grid on its admitted ids."""
+    d = os.path.join(a.xs_root, v)
+    rc, rf = load(os.path.join(d, "cells_reactive"), a.suffix) if os.path.isdir(os.path.join(d, "cells_reactive")) else ({}, {})
+    stray = sorted({k[0] for k in list(rc) + list(rf) if k[0] != XS_REACTIVE or k[1] != 0})
+    if stray:
+        raise SystemExit(f"FAIL LOUD: {v}/cells_reactive holds cells other than reactive s0: {stray[:3]}")
+    servers_eq(rc, FLL_SERVERS, f"{v}/cells_reactive")
+    admitted, bad = xs_admission(rc, rf, topos)
+    out = {"admitted": admitted, "failing": {str(t): w for t, w in sorted(bad.items())}, "reactive_cells": len(rc), "reactive_failed": len(rf)}
+    if not open_cells or not admitted:
+        return out, None
+    paths = [os.path.join(d, x) for x in ("cells_bar", "cells_learned")]
+    if not all(os.path.isdir(p) for p in paths):
+        raise SystemExit(f"FAIL LOUD: VOID: variant {v} has admitted ids {admitted} but no cells_bar / cells_learned")
+    cells, failed = load(",".join(paths), a.suffix)
+    out["grid_cells"] = grid_or_void(cells, failed, [(BAR, (0,)), (XS_FL, SEEDS), (XS_MLP, SEEDS)], admitted, f"variant {v} (its admitted ids)")
+    servers_eq(cells, FLL_SERVERS, f"variant {v}")
+    out["warmth"] = asserts(cells, a.pin, [XS_FL, XS_MLP], ckpt, w_pins)
+    return out, cells
+
+
+def xs_trend_family(adm, cells_by_v):
+    """The registered trend: the levels kept (x3 dropped if > 4 fail), the trend ids, Page's L per rung x statistic, Holm 4, the label."""
+    fails = {v: len(adm[v]["failing"]) for v in XS_TREND}
+    levels = [v for v in XS_TREND if not (v == "x3" and fails[v] > XS_DROP_OVER)]
+    if any(fails[v] > XS_DROP_OVER for v in XS_TREND if v != "x3"):
+        return {"label": "VOID", "why": f"a trend level below x3 lost more than {XS_DROP_OVER} ids: {fails}", "failing_per_level": fails}
+    ids = sorted(set.intersection(*[set(adm[v]["admitted"]) for v in levels]))
+    tests = []
+    for r in RUNGS:
+        for stat in STATS:
+            vals = {v: xs_topo_values(cells_by_v[v], r, stat, ids) for v in levels}
+            pt = page_trend([[vals[v][t] for v in levels] for t in ids])
+            pt.update({"rung": r, "stat": stat, "levels": levels,
+                       "median_pct_by_level": {v: st.median(vals[v].values()) for v in levels},
+                       "per_topology": {str(t): {v: round(vals[v][t], 3) for v in levels} for t in ids}})
+            tests.append(pt)
+    family(tests)
+    mod = [e for e in tests if e["rung"] == "moderate"]
+    yes = all(e["p_holm"] < PROG_ALPHA for e in mod)
+    return {"label": XS_YES if yes else XS_NO, "why": "Holm < .025 on both moderate tests" if yes else "not Holm < .025 on both moderate tests",
+            "levels": levels, "x3_dropped": "x3" not in levels, "failing_per_level": fails, "trend_ids": ids, "n": len(ids), "tests": tests}
+
+
+def xs_gap(cells, topos):
+    """Descriptive mechanism row: pooled over the variant's cells, the exchange seconds FL gnn saves against the bar vs its total latency gain."""
+    ex = tot = 0.0
+    for t in topos:
+        for w in WINDOWS:
+            for r in RUNGS:
+                b = cells[(BAR, 0, t, w, r)]
+                for sd in SEEDS:
+                    f = cells[(XS_FL, sd, t, w, r)]
+                    ex += (float(b["totalPeerExchangeTime"]) - float(f["totalPeerExchangeTime"])) / len(SEEDS)
+                    tot += (float(b["averageElapsedTime"]) * int(b["num_tasks"]) - float(f["averageElapsedTime"]) * int(f["num_tasks"])) / len(SEEDS)
+    return {"exchange_seconds_saved": ex, "total_latency_seconds_gained": tot, "share": ex / tot if tot else None}
+
+
+def read_exchange_trend(a):
+    """--confirm-exchange-trend: primary = admission + the trend family only (the trend levels' cells opened); secondary = the descriptive rows
+    of every variant, after the primary read's md5 is filed."""
+    global SEEDS, BAR, PROG_ALPHA
+    xs_args(a)
+    SEEDS, BAR, PROG_ALPHA = (1, 2), a.bar, PROG_ALPHA_FILED
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
+    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
+        raise SystemExit("FAIL LOUD: the topology list hash differs from the filed one")
+    topos = [int(x) for x in a.topos.split(",")]
+    extra = sorted(set(os.listdir(a.xs_root)) & set(XS_VARIANTS)) != sorted(XS_VARIANTS)
+    if extra:
+        raise SystemExit(f"FAIL LOUD: --xs-root must hold every variant directory {list(XS_VARIANTS)}")
+    ckpt = ckpt_md5s(a.checkpoint_md5)
+    w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","), a.gate_change)
+    adm, cells_by_v = {}, {}
+    for v in XS_VARIANTS:
+        adm[v], _ = xs_load_variant(a, v, topos, ckpt, w_pins, open_cells=False)
+    fails = {v: len(adm[v]["failing"]) for v in XS_TREND}
+    trend_levels = [v for v in XS_TREND if not (v == "x3" and fails[v] > XS_DROP_OVER)]
+    void = any(fails[v] > XS_DROP_OVER for v in XS_TREND if v != "x3")
+    warm = set()
+    for v in ([] if void else trend_levels):
+        adm[v], cells_by_v[v] = xs_load_variant(a, v, topos, ckpt, w_pins, open_cells=True)
+        warm.add(adm[v]["warmth"])
+    if len(warm) > 1:
+        raise SystemExit(f"FAIL LOUD: the variants record different HEROSIM_WARMTH_PHYSICS {sorted(warm)}")
+    res = {"filed": FILED, "family": "exchange-model sensitivity", "pin": a.pin, "gate_change": a.gate_change, "topos": topos,
+           "primary": XS_FL, "bar": BAR, "seeds": list(SEEDS), "servers": FLL_SERVERS, "variant_labels": XS_LABEL,
+           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in w_pins.items()},
+           "admission": adm, "trend": xs_trend_family(adm, cells_by_v)}
+    res["confirmation"] = {"label": res["trend"]["label"], "stage": a.stage, "family": "exchange-model sensitivity",
+                           "rule": "EXCHANGE-TREND iff Page's L (one-sided upper, Holm 4) has Holm < .025 on both moderate tests; else NO-TREND; VOID if a trend level below x3 loses > 4 ids"}
+    if a.stage == "secondary":
+        m = md5(a.primary_read)
+        node = "docs/lineages/uncut_groups_s0_v1.md"
+        if m not in git(a.repo, "show", f"{a.record}:{node}"):
+            raise SystemExit(f"FAIL LOUD: the primary read {a.primary_read} (md5 {m}) is not filed in {node} at {a.record}")
+        if subprocess.run(["git", "-C", a.repo, "merge-base", "--is-ancestor", a.record, a.filed_ref]).returncode:
+            raise SystemExit(f"FAIL LOUD: {a.record} is not on {a.filed_ref}: the primary read is not filed")
+        with open(a.primary_read) as fh:
+            p = json.load(fh)
+        same = lambda x, y: json.dumps(x, sort_keys=True, default=str) == json.dumps(y, sort_keys=True, default=str)
+        if p.get("confirmation", {}).get("stage") != "primary" or not all(same(res[k], p[k]) for k in ("trend", "admission", "topos")) \
+                or res["confirmation"]["label"] != p["confirmation"]["label"]:
+            raise SystemExit(f"FAIL LOUD: the secondary run's primary parts differ from the filed primary read {a.primary_read}")
+        res["confirmation"]["primary_read"] = {"path": os.path.abspath(a.primary_read), "md5": m, "record": a.record}
+        desc, note = {}, "descriptive, p unadjusted, never a label"
+        for v in XS_VARIANTS:
+            if v in cells_by_v:
+                cells, ids = cells_by_v[v], adm[v]["admitted"]
+            elif adm[v]["admitted"] and len(adm[v]["failing"]) <= XS_DROP_OVER:
+                adm_v, cells = xs_load_variant(a, v, topos, ckpt, w_pins, open_cells=True)
+                if warm and adm_v["warmth"] not in warm:
+                    raise SystemExit(f"FAIL LOUD: variant {v} records another HEROSIM_WARMTH_PHYSICS")
+                cells_by_v[v], ids = cells, adm_v["admitted"]
+                desc.setdefault("_grid_cells", {})[v] = adm_v["grid_cells"]
+            else:
+                desc[v] = {"note": "no cells read: " + (f"more than {XS_DROP_OVER} ids failed admission (not queued; disclosed, never re-scaled)"
+                                                       if adm[v]["admitted"] else "no admitted id")}
+                continue
+            desc[v] = {"label": XS_LABEL[v], "n_topologies": len(ids), "note": note,
+                       "fl_vs_bar": four(cells, XS_FL, SEEDS, BAR, (0,), ids), "mlp_vs_bar": four(cells, XS_MLP, SEEDS, BAR, (0,), ids),
+                       "fl_vs_mlp": four(cells, XS_FL, SEEDS, XS_MLP, SEEDS, ids), "gap": xs_gap(cells, ids)}
+        if "x0" in cells_by_v:
+            meds = [e["median_pct"] for e in desc["x0"]["fl_vs_bar"]]
+            desc["x0_prediction"] = {"rule": "|median FL gnn vs bar| <= 1 % on all four (registered prediction, not a gate)",
+                                     "medians": meds, "holds": all(m_ is not None and abs(m_) <= 1.0 for m_ in meds)}
+        if "tier0" in cells_by_v and "x1" in cells_by_v:
+            ids = sorted(set(adm["tier0"]["admitted"]) & set(adm["x1"]["admitted"]))
+            rows = []
+            for r in RUNGS:
+                for stat in STATS:
+                    a0, a1 = xs_topo_values(cells_by_v["tier0"], r, stat, ids), xs_topo_values(cells_by_v["x1"], r, stat, ids)
+                    d_ = [a0[t] - a1[t] for t in ids]
+                    rows.append({"rung": r, "stat": stat, "n_topologies": len(ids), "median_pp_tier0_minus_x1": st.median(d_),
+                                 "tier0_more_negative": sum(1 for x in d_ if x < 0), "p": exact_wilcoxon(d_)})
+            desc["tier0_vs_x1"] = {"note": note + "; the paired FL gnn vs bar margin, tier0 minus x1, in percentage points", "tests": rows}
+        res["descriptive"] = desc
+    txt = json.dumps(res, indent=1, default=str)
+    if a.out:
+        if os.path.exists(a.out):
+            raise SystemExit(f"FAIL LOUD: {a.out} exists; a confirmation read is written once")
+        with open(a.out + ".tmp", "w") as fh:
+            fh.write(txt)
+        os.replace(a.out + ".tmp", a.out)
+    tr = res["trend"]
+    print(f"EXCHANGE {tr['label']} ({tr['why']})")
+    for e in tr.get("tests", []):
+        print(f"  Page {e['rung']:8s} {e['stat']:8s} L {e['L']} k {e['k']} n {e['n']} p {e['p']:.3g} holm {e['p_holm']:.3g} ({e['method']}) "
+              f"medians {', '.join(f'{v} {m_:+.2f}' for v, m_ in e['median_pct_by_level'].items())}")
+    return res
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -1045,9 +1315,14 @@ def main(argv=None):
     ap.add_argument("--filed-ref", default="origin/reference-physics", help="--stage secondary: --record must be an ancestor of this ref")
     ap.add_argument("--confirm-fl-lambda", action="store_true",
                     help="FL + lambda (registered 2026-10-19): FL + lambda vs its lambda = 0 control FL, seeds 1-2, Holm < .025, seed-matched clauses, both verdicts")
+    ap.add_argument("--confirm-exchange-trend", action="store_true",
+                    help="exchange-model sensitivity (registered 2026-10-19): Page's trend of FL gnn vs the bar over payload variants under --xs-root")
+    ap.add_argument("--xs-root", default="", help="--confirm-exchange-trend: the directory holding one subdirectory per payload variant")
     a = ap.parse_args(argv)
     if a.confirm_fl_lambda:
         return read_fl_lambda(a)
+    if a.confirm_exchange_trend:
+        return read_exchange_trend(a)
     global SEEDS, BAR, PROG_ALPHA
     PROG_ALPHA = PROG_ALPHA_FILED
     if a.confirm or a.confirm2 or a.confirm_size64:
