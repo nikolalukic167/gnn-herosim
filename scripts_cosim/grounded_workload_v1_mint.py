@@ -41,6 +41,8 @@ from src.placement.workload_payloads import (
 PARTNERS = 2
 X_SCALE_BYTES = 200e6
 LOG10_SPREAD = 1.0
+NESTED_MAX = 8
+BIG_PAIR_BYTES = 50e6
 
 
 def _sha(path: str) -> str:
@@ -90,8 +92,10 @@ def plan_groups(groups: List[dict], n_tasks: int) -> List[Tuple[int, List[int]]]
 
 
 def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
-         payload_sampler: str = "legacy", group_size: int = 0, start_group: int = 0) -> Tuple[dict, dict]:
+         payload_sampler: str = "legacy", group_size: int = 0, start_group: int = 0, partners_nested: int = 0) -> Tuple[dict, dict]:
     require_sampler(payload_sampler)
+    if partners_nested and (not 1 <= partners_nested <= NESTED_MAX or payload_sampler != "wf1_v1" or merge_k != 1):
+        raise SystemExit(f"FAIL LOUD: --partners-nested K needs 1 <= K <= {NESTED_MAX}, --payload-sampler wf1_v1 and --merge-k 1")
     if group_size and merge_k != 1:
         raise SystemExit("FAIL LOUD: --group-size and --merge-k are two ways to set the group size; give one")
     if start_group and (merge_k != 1 or group_size):
@@ -138,10 +142,16 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
     events = [raw[i] for i in order]
 
     pairs: Dict[Tuple[int, int], float] = {}
+    nested = None
+    if partners_nested:
+        nested = _nested_pairs(plan, new_idx, events, seed, partners_nested, bool(group_size))
+        pairs = nested["pairs"]
     k = 0
     for gi, (_t0, offs) in enumerate(plan):
         members = [new_idx[k + j] for j in range(len(offs))]
         k += len(offs)
+        if nested:
+            continue
         p = min(PARTNERS, len(members) - 1)
         for i in members:
             for j in (rng.sample([m for m in members if m != i], p) if p > 0 else []):
@@ -165,7 +175,9 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
                 pairs[key] = payload()
                 root[find(a)] = find(b)
 
-    if payload_rng_ is not None:
+    if nested:
+        pairs, nested_meta = _nested_bytes(nested, events, plan, seed, partners_nested)
+    elif payload_rng_ is not None:
         # sorted pair order = the order of the written `peer_exchange`, so resampling a legacy file with the same
         # seed (workload_payloads.resample_peer_exchange) gives these exact bytes
         for key in sorted(pairs):
@@ -192,9 +204,98 @@ def mint(lib: dict, base: dict, seed: int, n_tasks: int, merge_k: int = 1,
         meta["start_group"] = start_group
     if payload_sampler != "legacy":
         meta["payload_sampler"] = payload_sampler_meta()
+    if nested:
+        meta["peer_rule"] = {**meta["peer_rule"], "partners": partners_nested, "nested": True, "nested_max": NESTED_MAX,
+                             "bytes_rule": "wf1_v1 draws, each group scaled to its level-2 byte total", "x_scale_bytes": None}
+        meta["partner_nested"] = {**nested_meta, "level": partners_nested, "nonpair_sha256": nonpair_sha(
+            {"rps": base["rps"], "duration": base["duration"], "events": events})}
     doc = {"rps": base["rps"], "duration": base["duration"], "events": events,
            "peer_exchange": [[i, j, b] for (i, j), b in sorted(pairs.items())]}
     return doc, meta
+
+
+def nonpair_sha(doc: dict) -> str:
+    """Digest of a workload with `peer_exchange` (and the mint metadata) removed: equal across partner levels."""
+    body = {k: v for k, v in doc.items() if k not in ("peer_exchange", "grounded_workload_v1")}
+    return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+
+
+def _components_bridge(members: List[int], keys: Dict[Tuple[int, int], float], draw) -> int:
+    root = {m: m for m in members}
+
+    def find(x: int) -> int:
+        while root[x] != x:
+            root[x] = root[root[x]]
+            x = root[x]
+        return x
+    for (a, b) in keys:
+        if a in root and b in root:
+            root[find(a)] = find(b)
+    comps = sorted({find(m) for m in members})
+    added = 0
+    for a, b in zip(comps, comps[1:]):
+        keys[(min(a, b), max(a, b))] = draw()
+        root[find(a)] = find(b)
+        added += 1
+    return added
+
+
+def _nested_pairs(plan, new_idx, events, seed: int, level: int, bridge: bool) -> dict:
+    """Per task ONE ordered sample of min(NESTED_MAX, size - 1) partners from a stream of its own (the partner draws share
+    nothing with the payload draws); level k keeps the first min(k, size - 1). The sample depends on neither k nor the
+    payload sampler, so level k's pairs are a subset of level k+1's before the bridging step."""
+    rng = random.Random(seed * 1000003 + 8)
+    samples: List[List[Tuple[int, List[int]]]] = []
+    k = 0
+    for _t0, offs in plan:
+        members = [new_idx[k + j] for j in range(len(offs))]
+        k += len(offs)
+        m = min(NESTED_MAX, len(members) - 1)
+        samples.append([(i, rng.sample([x for x in members if x != i], m) if m > 0 else []) for i in members])
+    out = {}
+    for lv in sorted({2, level}):
+        pairs: Dict[Tuple[int, int], float] = {}
+        bridges = 0
+        for samp in samples:
+            members = [i for i, _ in samp]
+            gp: Dict[Tuple[int, int], float] = {}
+            for i, ps in samp:
+                for j in ps[:lv]:
+                    gp[(min(i, j), max(i, j))] = 0.0
+            if bridge and len(members) > 1:
+                bridges += _components_bridge(members, gp, lambda: 0.0)
+            pairs.update(gp)
+        out[lv] = (pairs, bridges)
+    return {"pairs": out[level][0], "by_level": out, "level": level}
+
+
+def _bytes_for(keys, seed: int) -> Dict[Tuple[int, int], float]:
+    r = payload_rng(seed)
+    return {key: sample_payload_bytes(r) for key in sorted(keys)}
+
+
+def _nested_bytes(nested: dict, events: List[dict], plan, seed: int, level: int):
+    """wf1_v1 bytes drawn as today over the level's sorted pairs, then every pair of a group is scaled by
+    (the group's byte total at level 2) / (its total at this level), so a group carries exactly its level-2 bytes."""
+    grp = lambda key: events[key[0]]["peer_group"]  # noqa: E731
+    ref = _bytes_for(nested["by_level"][2][0], seed)
+    cur = _bytes_for(nested["pairs"], seed)
+    tot2: Dict[int, float] = {}
+    totk: Dict[int, float] = {}
+    for key, b in ref.items():
+        tot2[grp(key)] = tot2.get(grp(key), 0.0) + b
+    for key, b in cur.items():
+        totk[grp(key)] = totk.get(grp(key), 0.0) + b
+    pairs = {key: b * (tot2[grp(key)] / totk[grp(key)]) if level != 2 else b for key, b in cur.items()}
+    n = len(events)
+    sizes = [len(offs) for _t, offs in plan]
+    total_bytes = sum(pairs.values())
+    meta = {"realised_mean_degree": 2.0 * len(pairs) / n, "pairs_per_task": len(pairs) / n,
+            "connector_pairs": nested["by_level"][level][1], "connector_pairs_level2": nested["by_level"][2][1],
+            "share_tasks_in_groups_le_k_plus_1": sum(s for s in sizes if s <= level + 1) / n,
+            "share_bytes_in_pairs_gt_50MB": sum(b for b in pairs.values() if b > BIG_PAIR_BYTES) / total_bytes,
+            "total_bytes": total_bytes, "total_bytes_level2": sum(tot2.values())}
+    return pairs, meta
 
 
 def consumed_groups(meta: dict) -> Tuple[int, int]:
@@ -237,6 +338,9 @@ def main() -> int:
                     help="fail loud when the minted task rate differs from the base window's by more than this fraction")
     ap.add_argument("--payload-sampler", choices=PAYLOAD_SAMPLERS, default="legacy",
                     help="legacy: 200 MB * 10**U(-1,1). wf1_v1: workload_fix_v1 W2 (log-normal 4 MB + heavy tier)")
+    ap.add_argument("--partners-nested", type=int, default=0, metavar="K",
+                    help="partner_structure_v1: K in 1..8 partners per task from one nested ordered draw (needs --payload-sampler wf1_v1); "
+                         "per-group bytes held at the K=2 total. 0 = off, the registered rule, byte-identical")
     a = ap.parse_args()
     if os.path.exists(a.out):
         raise SystemExit(f"FAIL LOUD: {a.out} exists; a gate workload is frozen once minted")
@@ -244,7 +348,7 @@ def main() -> int:
     base = json.load(open(a.base))
     if a.merge_k < 1:
         raise SystemExit("FAIL LOUD: --merge-k must be >= 1")
-    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k, a.payload_sampler, a.group_size, a.start_group)
+    doc, meta = mint(lib, base, a.seed, a.n_tasks, a.merge_k, a.payload_sampler, a.group_size, a.start_group, a.partners_nested)
     check_disjoint(a.start_group, meta["n_groups"], lib["source"]["md5"], a.exclude_mint)
     if abs(meta["rate_per_s"] / meta["base_rate_per_s"] - 1) > a.rate_tol:
         raise SystemExit(f"FAIL LOUD: minted rate {meta['rate_per_s']:.5f}/s differs from the base {meta['base_rate_per_s']:.5f}/s by more than {a.rate_tol:.0%}")
