@@ -325,7 +325,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Admissibility, per variant (point 3, amendment (c)).** Reactive (`reactive` at `a459dd98`) runs first. A topology is admitted for a variant only if all 8 of its reactive cells have queue share ≤ 0.80; unknown is not a pass.
     - ×3 is the risk: `payload_scale_v1` saturated reactive at ×3 in the old seat. **If ×3 fails on more than 4 topologies, ×3 is dropped and disclosed, never replaced by a milder scale.**
     - A failed or VOID variant is disclosed, never re-scaled.
-    - The trend reads the topologies admitted in all four trend variants.
+    - **The trend set, mechanically (SCIENTIST's ruling):**
+      - trend ids are those admitted at EVERY trend level, and a trend id is never replaced;
+      - if ×3 fails admission on more than 4 ids, ×3 is dropped (disclosed) and the trend runs on 3 levels, ×0.1 < ×0.3 < ×1, on the ids admitted at all three;
+      - otherwise the 4-level trend uses the ids admitted at all four (n ≥ 8, guaranteed by the ≤ 4 rule);
+      - if any of ×0.1 / ×0.3 / ×1 loses more than 4 ids, the trend family is VOID and reported;
+      - the non-trend variants (×0, heavy-tier 0 %, azblob) use their own admitted ids.
   - **Arms and cells (fact 3, point 8).** Per variant:
     - FL gnn (`ra_gnn_eng_combfl_nosplit`) s1–2 and FL MLP (`ra_mlp_same_combfl_nosplit`) s1–2, `_k100`, at the FL serving chain confirmation 2 used (w at `74ddf70e`); the filed `-final.pt`, no retraining.
     - The bar `cd_ib0_inflightfull_k100` at `a459dd98`; reactive at `a459dd98` for admission.
@@ -333,14 +338,14 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Size: 6 variants × 12 × g0–g3 × 2 rungs × (4 learned + bar + reactive) ≈ 3,460 cells, about 9 h on 4 nodes. If needed, cut ×0.3 or the MLP, never ×0.
   - **Smoke (amendment (b)).** One FL and one bar cell per variant on 19461 before the grid, ×0 above all. Completion status only.
   - **Seal (amendment (e)).** The cells may run before P10 is frozen. Until it is frozen and signed, only job states and file counts are checked; admission reads `queue_share` only. **(d)** The FL + λ / twin cells keep node priority. A sensitivity cell is rerun only for an infrastructure failure, and logged.
-  - **Registered primary: one trend family (point 4, amendment (a)).** The registered direction: the margin is more negative as the payload grows. Per rung × statistic (moderate / heavy × whole / after-360), on the topologies admitted in all four trend variants:
+  - **Registered primary: one trend family (point 4, amendment (a)).** The registered direction: the margin is more negative as the payload grows. Per rung × statistic (moderate / heavy × whole / after-360), on the trend ids (admission rule above):
     - **the per-topology value:** the paired FL gnn vs bar % per variant (the cell is the seed-1–2 mean; the topology value is the median over g0–g3 of the paired %);
-    - **the test:** Page's L across the ordered variants ×0.1 < ×0.3 < ×1 < ×3, one-sided in the registered direction (within a topology, the most negative % gets the highest rank);
-    - **the p-value:** exact, from the null distribution of L by convolution over topologies (each topology's 4! orderings equally likely). If a topology has tied values, midranks are used and the p comes from the normal approximation, disclosed;
+    - **the test:** Page's L across the ordered variants ×0.1 < ×0.3 < ×1 < ×3 (or ×0.1 < ×0.3 < ×1 if ×3 is dropped), one-sided upper in the registered direction (within a topology, the most negative % gets the highest rank);
+    - **the p-value:** exact, from the null distribution of L by convolution over topologies (each topology's k! orderings equally likely, k the number of trend levels). If a topology has tied values, midranks are used and the p comes from the normal approximation, disclosed;
     - **Holm k = 4** over the four tests.
     - ×0, heavy-tier 0 % and azblob are outside the trend.
   - **Labels.**
-    - **EXCHANGE-TREND:** Holm < .025 on both moderate tests (whole and after-360).
+    - **EXCHANGE-TREND:** Holm < .025 on BOTH moderate tests (whole and after-360). Heavy is not required, and is reported.
     - **NO-TREND:** any other outcome; the four tests are reported.
     - The label stands as read; there is no widening.
   - **Registered prediction, not a gate (point 5).** At ×0, |median FL gnn vs bar| ≤ 1 % on all four tests. A learned-arm win at ×0 would mean the gain is not only exchange, and it is reported prominently.
