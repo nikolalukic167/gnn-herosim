@@ -71,10 +71,30 @@ def probe(model):
             "disable_mp": bool(getattr(model, "_disable_mp", False))}
 
 
+PHYSICS_ENV_VARS = {"transfer_model": "HEROSIM_TRANSFER_MODEL", "replica_release": "HEROSIM_REPLICA_RELEASE", "scaleout": "HEROSIM_SCALEOUT",
+                    "inflight_capture": "HEROSIM_INFLIGHT_CAPTURE", "warmth_physics": "HEROSIM_WARMTH_PHYSICS"}
+
+
+def physics_from_sidecar(path):
+    """Serve under the physics the checkpoint records (the gate's cells must match it too, or the loader refuses them): the five environment
+    switches, and the replica placement rule through replica_rule.set_rule. A sidecar without physics_env fails loud."""
+    from src.placement import replica_rule
+
+    with open(path[:-3] + ".contract.json") as fh:
+        pe = json.load(fh).get("physics_env")
+    if not isinstance(pe, dict) or any(k not in pe for k in (*PHYSICS_ENV_VARS, "replica_placement_rule")):
+        raise SystemExit(f"FAIL LOUD: {path} sidecar has no complete physics_env ({pe!r})")
+    for k, var in PHYSICS_ENV_VARS.items():
+        os.environ[var] = str(pe[k])
+    replica_rule.set_rule(pe["replica_placement_rule"])
+    return pe
+
+
 def load(path, mp_off):
     from src.executesimulation import load_gnn_model
 
     os.environ.update(SERVE_ENV)
+    physics_from_sidecar(str(path))
     if mp_off:
         os.environ["GNN_DISABLE_MESSAGE_PASSING"] = "1"
     else:
