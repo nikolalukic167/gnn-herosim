@@ -304,6 +304,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **FL MP-OFF twin: the registered parity test PASSED on the filed checkpoints (before any twin cell).** (S6; registration item (a).) Job 888794 (os-cpu-slurm-5, 0:0) ran `scripts_cosim/mp_twin_parity.py` at `s6/twin-parity` `48998355` (merged `a2ce8bf0`), the script whose smoke 887486 is filed, unchanged. Script `twin/parity_run.sh` md5 `402f64e7`; output `twin/parity_run/parity.json` md5 `af5baa94`, log md5 `8e27dc9a`. Verdict "PARITY OK".
+  - **Served.** FL gnn s1–2 with message passing, and the twin s1–2 with `GNN_DISABLE_MESSAGE_PASSING=1`, the filed `-final.pt`, through the live serving loader under the gate's serving environment. Before loading, the run checks each file's md5 against the filed md5 files and stops on a mismatch: FL `a670eb0c` / `78c09cc0` (`comb/md5_comball.json`), twin `f7a5d76d` / `c96187ba` (`fl3/md5_twin.json` md5 `d294f97d`).
+  - **The test.** One fixed synthetic graph is encoded, then again with the features of tasks 1..n−1 permuted. A model with message passing must change task 0 or the platforms; a model without it must leave them bit-identical.
+
+    | checkpoint | served MP | task 0 max change | platform max change | parameters |
+    |---|---|---|---|---|
+    | FL gnn s1 | on | 0.0417 | 0.0202 | 505,217 |
+    | FL gnn s2 | on | 0.000528 | 0.00257 | 505,217 |
+    | twin s1 | off | 0 (exact) | 0 (exact) | 256,001 |
+    | twin s2 | off | 0 (exact) | 0 (exact) | 256,001 |
+
+  - **Disclosed:** FL gnn seed 2's neighbour sensitivity on this probe graph is about 80× smaller than seed 1's at task 0 (8× at the platforms). It is non-zero, which is all the registered test asks. It is not a measure of how much either seed uses message passing in serving, and nothing is read from it.
+  - The twin loads with `mp_off=True` and no bipartite convolution (256,001 parameters against FL's 505,217). The loader refused FL gnn served MP-off in smoke 887486.
 - 2026-10-20 — **FL + λ P7 and FL twin P7b: the w-only pins are cut, filed before any FL + λ or twin learned cell.**
   - **P7** = `s6/p7-flreg-w` `91269ec0171fd0362d2379c3f3102ad678aedc74`. Its parent is **G8d `05ec45c1`, not G8c** (G8d is a child of G8c and adds only the twin kind). It touches only `scripts_cosim/decision_cost_w.json` (blob `daa1a8dd`) and adds the scalar and by-bucket w of `ra_gnn_eng_flreg_nosplit` and `ra_mlp_same_flreg_nosplit`, with their `_source` notes.
   - **P7b** = `s6/p7b-twin-w` `f8a55ff07283c5b6159d3775a94e2ad8d0ee6bbc`, a child of P7. It touches only the w file (blob `69abe40f`) and adds `ra_twin_eng_combfl_nosplit`.
