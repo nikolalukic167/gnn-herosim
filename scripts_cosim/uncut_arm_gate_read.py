@@ -28,6 +28,11 @@ descriptive seeds-1-2-vs-bar line and F2-MC, FL gnn s3-6 vs FL MLP s1-2, p unadj
 --confirm-size64 (FL size-64, registered 2026-10-18): as --confirm2's staging and grid, but FL gnn seeds 1-2 (--seeds 1,2) on 64-server topologies,
 Holm < .025, the guard also fresh of confirmation 2, the pilot 30011-30123 and the retired 20021-20032, label SIZE-64-CONFIRMED, every loaded cell recording servers = 64; --stage secondary reads --desc-gate (the
 uncharged k = 0 cells of FL gnn s1-2 and the bar as bare kinds, the FL MLP s1-2 _k100) and --reactive-gate (reactive s0), descriptive only;
+--confirm-fl-lambda (FL + lambda, registered 2026-10-19): a learned-vs-learned family, FL + lambda (ra_gnn_eng_flreg_nosplit) against its matched
+lambda = 0 control FL (ra_gnn_eng_combfl_nosplit), seeds 1-2, Holm < .025, both verdicts, 24-server fresh topologies (every loaded cell records
+servers = 24), --gate exactly the bars, FL + lambda and FL (both charges); the per-seed clause and the collapse clause are seed-matched (FL + lambda
+seed s vs FL seed s); label LAMBDA-WIN or NOT-WIN; --stage secondary reads --desc-gate (FL MLP + lambda and the FL MLP, both charges) for the
+descriptive rows (FL + lambda vs the bars, MLP + lambda vs MLP, FL + lambda vs MLP + lambda, MLP + lambda vs FL gnn under _k100), never a label;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -102,7 +107,9 @@ ARM1B_W_KINDS = tuple(f"ra_{a}_arm1b_nosplit" for a in ("gnn_eng", "twin_eng", "
 ARM3_W_KINDS = tuple(f"ra_{a}_arm3_nosplit" for a in ("gnn_eng", "twin_eng"))
 # combined lever (G8 / G8b): F, L, FL, FL's MLP and the two FAST arms; their w sits at w-only pins on G8 / G8b, never on the older chains
 COMB_W_KINDS = tuple(f"{k}_nosplit" for k in ("ra_gnn_eng_combf", "ra_gnn_eng_combl", "ra_gnn_eng_combfl", "ra_mlp_same_combfl", "ra_gnn_eng_a3l", "ra_gnn_eng_a3lft"))
-LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS + COMB_W_KINDS
+# FL + lambda (G8c b8909f58): its two kinds' w enters a w-only pin on G8c; kept out of COMB_W_KINDS so the combined lever's B6 set is unchanged
+FLREG_W_KINDS = ("ra_gnn_eng_flreg_nosplit", "ra_mlp_same_flreg_nosplit")
+LEARNED_W_KINDS = ARM1_W_KINDS + ARM1B_W_KINDS + ARM3_W_KINDS + COMB_W_KINDS + FLREG_W_KINDS
 W_GUARD_X = 1.5
 # co-tenancy amendment (2026-10-14) and Arm 1b: the gate-code commits between --pin and the w-only pins (bf79865a the _kr tag, then the
 # Arm 1b kinds) each touch the gate and its test, nothing else
@@ -110,7 +117,10 @@ GATE_CHANGE_FILES = ("scripts_cosim/fresh_topo_burst_v1_gate.py", "tests/test_un
 # the K0 / Arm 2 chain (B3, the expert's ruling (c1), 2026-10-17): gate change G4 69354280 (the Arm 2-K0 kinds, ported from c34b17e3) touches
 # the gate, the sidecheck and its own test. That exact set is admitted for that one commit only; every other gate change keeps GATE_CHANGE_FILES.
 G4 = "6935428088592fad78ee2a786ad7d5fc1388e30b"
-GATE_CHANGE_FILES_BY_COMMIT = {G4: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_arm2_gate.py")}
+# G8d 05ec45c1 (the FL MP-OFF twin kind, on G8c, before P7): the gate, the sidecheck (its v6 twin arm) and the gate test; admitted for that commit only
+G8D = "05ec45c103214f7fa8d0617479a8aabeaeb2d444"
+GATE_CHANGE_FILES_BY_COMMIT = {G4: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_arm2_gate.py"),
+                               G8D: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_uncut_arm1_gate_stage.py")}
 # Arm 2 and Arm 2-K0 (read under ruling 2, on the G4 chain): their w keys may enter a w-only pin only on a chain through G4
 ARM2_W_KINDS = tuple(f"ra_{a}_eng_{k}_nosplit" for k in ("arm2", "arm2k0") for a in ("gnn", "twin"))
 COT_KEYS = ("k_cotenancy", "_source_k_cotenancy")
@@ -838,6 +848,160 @@ def desc_size64(a, res, cells, topos, ckpt, w_pins, warmth, mlp):
     res["descriptive"]["reactive_vs_bar"] = {"note": note + "; reactive uncharged, the bar _k100", "tests": four({**cells, **rc}, SIZE64_REACTIVE, (0,), BAR, (0,), topos)}
 
 
+# FL + lambda (uncut_groups_s0_v1, registered 2026-10-19, signed against b6c57aaa): FL + lambda vs its lambda = 0 control FL, seed-matched clauses
+FLL_PRIMARY, FLL_CONTROL = "ra_gnn_eng_flreg_nosplit", CONFIRM_PRIMARY
+FLL_MLP, FLL_MLP_CONTROL = "ra_mlp_same_flreg_nosplit", CONFIRM_MLP
+FLL_SEEDS = (1, 2)
+FLL_SERVERS = 24
+FLL_USED_TOPOS = SIZE64_USED_TOPOS | frozenset(range(30129, 30141))
+FLL_YES = "LAMBDA-WIN"
+FLL_WHY = ("FL + lambda: " + FLL_YES + " iff, under both verdicts, FL + lambda vs FL has median <= -2 % and Holm < .025 on all four, each seed s alone "
+           "(FL + lambda s vs FL s) <= -1 % on all four, FL + lambda's collapses <= FL's seed by seed at each rung, and the anchor clause holds; else NOT-WIN")
+FLL_ORDER = ("WIN", "MIXED", "TIES", "FL-FASTER")
+FLL_DESC = "descriptive, p unadjusted, never a label"
+
+
+def fll_args(a):
+    """--confirm-fl-lambda: the registered arms, both verdicts, seeds 1-2, a staged read, fresh 24-server topologies."""
+    if a.confirm or a.confirm2 or a.confirm_size64:
+        raise SystemExit("FAIL LOUD: --confirm-fl-lambda is its own family; pass no other --confirm flag")
+    if a.primary != FLL_PRIMARY or a.twin or a.reference or a.compare or a.after_read or a.reactive_gate:
+        raise SystemExit(f"FAIL LOUD: --confirm-fl-lambda reads --primary {FLL_PRIMARY}; no twin, reference, compare, after-read or reactive-gate")
+    if a.mlp not in ("", FLL_MLP):
+        raise SystemExit(f"FAIL LOUD: --confirm-fl-lambda's --mlp is {FLL_MLP} (secondary only)")
+    if a.cotenancy != "required" or a.bar != "cd_ib0_inflightfull" or a.stage not in ("primary", "secondary") or a.seeds != "1,2":
+        raise SystemExit("FAIL LOUD: --confirm-fl-lambda needs --cotenancy required, --bar cd_ib0_inflightfull, --seeds 1,2 and --stage primary or secondary")
+    if not (a.repo and a.w_pins):
+        raise SystemExit("FAIL LOUD: --confirm-fl-lambda needs --repo and --w-pins (the G8c chain)")
+    used = sorted(set(int(x) for x in a.topos.split(",")) & FLL_USED_TOPOS)
+    if used:
+        raise SystemExit(f"FAIL LOUD: --confirm-fl-lambda topologies must be fresh; {used[:6]} are gate, TE3, confirmation, smoke, pilot or size-64 ids")
+    if a.stage == "primary" and (a.desc_gate or a.primary_read or a.record or a.mlp):
+        raise SystemExit("FAIL LOUD: --desc-gate / --mlp / --primary-read / --record belong to --stage secondary (seal)")
+    if a.stage == "secondary" and not (a.desc_gate and a.primary_read and a.record and a.mlp == FLL_MLP):
+        raise SystemExit(f"FAIL LOUD: --confirm-fl-lambda --stage secondary needs --desc-gate, --primary-read, --record and --mlp {FLL_MLP}")
+
+
+def servers_eq(cells, n, where):
+    bad = sorted((k, s.get("servers")) for k, s in cells.items() if s.get("servers") != n or type(s.get("servers")) is not int)
+    if bad:
+        raise SystemExit(f"FAIL LOUD: {where}: {len(bad)} cell(s) do not record servers = {n}, e.g. {bad[:3]}")
+
+
+def split_kr(cells):
+    """(the _k100 cells, the _kr cells keyed by their base kind)."""
+    return ({k: v for k, v in cells.items() if not k[0].endswith(KR)},
+            {(k[0][:-len(KR)],) + k[1:]: v for k, v in cells.items() if k[0].endswith(KR)})
+
+
+def fll_label(f1, seeds_alone, h_p, h_c, anchor_ok):
+    """The registered win rule on FL + lambda vs FL; seed-matched per-seed and collapse clauses."""
+    if win_four(f1, WIN_MED, PROG_ALPHA):
+        seed_ok = all(e["median_pct"] is not None and e["median_pct"] <= SEED_MED for es in seeds_alone.values() for e in es)
+        col_ok = all(h_p[r]["per_seed"][sd]["collapse_any"] <= h_c[r]["per_seed"][sd]["collapse_any"] for r in RUNGS for sd in FLL_SEEDS)
+        if not (seed_ok and col_ok):
+            return "MIXED", f"WIN line met but seeds_alone_ok={seed_ok} collapse_ok={col_ok} (seed-matched)"
+        if not all(anchor_ok.values()):
+            return "MIXED", "WIN line met but the anchor clause fails: FL + lambda's decision share is below the bar's at a rung"
+        return "WIN", "every clause holds"
+    sig = [e for e in f1 if e["p_holm"] < PROG_ALPHA]
+    if not sig:
+        return "TIES", "no Holm-significant test"
+    if all(e["median_pct"] is not None and e["median_pct"] > 0 and e["p_holm"] < PROG_ALPHA for e in f1):
+        return "FL-FASTER", "FL (lambda = 0) Holm-faster on all four"
+    return "MIXED", "Holm-significant: " + ", ".join(f"{e['rung']}/{e['stat']} {e['median_pct']:+.2f}% p_holm={e['p_holm']:.3g}" for e in sig)
+
+
+def fll_verdict(cells, failed, topos):
+    """One charge: health, decision share, F1-lambda (Holm 4), the seed-matched seeds alone, robust rows are not part of this family."""
+    arms = [(FLL_PRIMARY, FLL_SEEDS), (FLL_CONTROL, FLL_SEEDS), (BAR, (0,)), (CD, (0,))]
+    res = {"health": {arm: health(cells, failed, arm, sd, topos) for arm, sd in arms},
+           "decision_share_pct": {arm: decision_share(cells, arm, sd, topos) for arm, sd in arms}}
+    f1 = family(four(cells, FLL_PRIMARY, FLL_SEEDS, FLL_CONTROL, FLL_SEEDS, topos))
+    seeds_alone = {sd: four(cells, FLL_PRIMARY, (sd,), FLL_CONTROL, (sd,), topos) for sd in FLL_SEEDS}
+    anchor = {r: (res["decision_share_pct"][FLL_PRIMARY][r] or 0) >= (res["decision_share_pct"][BAR][r] or 0) for r in RUNGS}
+    lab, why = fll_label(f1, seeds_alone, res["health"][FLL_PRIMARY], res["health"][FLL_CONTROL], anchor)
+    res["F1"] = {"contrast": f"{FLL_PRIMARY} vs {FLL_CONTROL} (seed-matched clauses)", "tests": f1, "seeds_alone": seeds_alone,
+                 "anchor_ok": anchor, "label": lab, "why": why}
+    return res
+
+
+def fll_desc(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth):
+    """--stage secondary: --desc-gate is exactly FL MLP + lambda and the FL MLP, seeds 1-2, both charges (R1); each passes the learned-cell
+    asserts; then the registered descriptive rows, p unadjusted, never a label."""
+    dc, df = load(a.desc_gate, a.suffix)
+    servers_eq(dc, FLL_SERVERS, "--desc-gate")
+    arms = [(k, FLL_SEEDS) for k in (FLL_MLP, FLL_MLP + KR, FLL_MLP_CONTROL, FLL_MLP_CONTROL + KR)]
+    res["confirmation"]["desc_grid_cells"] = grid_or_void(dc, df, arms, topos, "--desc-gate")
+    d100, dkr = split_kr(dc)
+    for part, kr in ((d100, False), (dkr, True)):
+        if asserts(part, a.pin, [FLL_MLP, FLL_MLP_CONTROL], ckpt, w_pins, kr=kr) != warmth:
+            raise SystemExit("FAIL LOUD: the --desc-gate cells record another HEROSIM_WARMTH_PHYSICS")
+    for v, base, dd in ((res, cells, d100), (res["cotenancy"], cells_kr, dkr)):
+        both = {**base, **dd}
+        v["descriptive"] = {
+            "fl_lambda_vs_bar": {"note": FLL_DESC, "tests": four(both, FLL_PRIMARY, FLL_SEEDS, BAR, (0,), topos)},
+            "fl_lambda_vs_cd": {"note": FLL_DESC, "tests": four(both, FLL_PRIMARY, FLL_SEEDS, CD, (0,), topos)},
+            "mlp_lambda_vs_mlp": {"note": FLL_DESC, "tests": four(both, FLL_MLP, FLL_SEEDS, FLL_MLP_CONTROL, FLL_SEEDS, topos)},
+            "fl_lambda_vs_mlp_lambda": {"note": FLL_DESC + "; model class under lambda, no MP-OFF twin, so no MP claim",
+                                        "tests": four(both, FLL_PRIMARY, FLL_SEEDS, FLL_MLP, FLL_SEEDS, topos)},
+            "health": {arm: health(both, {}, arm, FLL_SEEDS, topos) for arm in (FLL_MLP, FLL_MLP_CONTROL)}}
+    res["descriptive"]["mlp_lambda_vs_fl_gnn"] = {"note": FLL_DESC + "; _k100 only (SCIENTIST's prior 2: can the cost term let the pointwise model catch the current GNN)",
+                                                  "tests": four({**cells, **d100}, FLL_MLP, FLL_SEEDS, FLL_CONTROL, FLL_SEEDS, topos)}
+
+
+def read_fl_lambda(a):
+    """--confirm-fl-lambda: the registered FL + lambda read (primary stage: F1-lambda under both verdicts only; secondary: the descriptive rows)."""
+    global SEEDS, BAR, PROG_ALPHA
+    fll_args(a)
+    SEEDS, BAR, PROG_ALPHA = FLL_SEEDS, a.bar, PROG_ALPHA_FILED
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
+    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
+        raise SystemExit("FAIL LOUD: the gate topology list hash differs from the filed one")
+    topos = [int(x) for x in a.topos.split(",")]
+    cells, failed = load(a.gate, a.suffix)
+    mc = sorted({k[0] for k in list(cells) + list(failed) if k[0].removesuffix(KR) in (FLL_MLP, FLL_MLP_CONTROL)})
+    if mc:
+        raise SystemExit(f"FAIL LOUD: --confirm-fl-lambda --gate holds MLP cells {mc[:3]}; they belong in --desc-gate (seal)")
+    arms = [(FLL_PRIMARY, FLL_SEEDS), (FLL_PRIMARY + KR, FLL_SEEDS), (FLL_CONTROL, FLL_SEEDS), (FLL_CONTROL + KR, FLL_SEEDS), (BAR, (0,)), (CD, (0,))]
+    grid_n = grid_or_void(cells, failed, arms, topos, "--gate")
+    servers_eq(cells, FLL_SERVERS, "--gate")
+    ckpt = ckpt_md5s(a.checkpoint_md5)
+    w_pins = w_pin_chain(a.repo, a.pin, a.w_pins.split(","), a.gate_change)
+    learned = [FLL_PRIMARY, FLL_CONTROL]
+    cells, cells_kr = split_kr(cells)
+    warmth = asserts(cells, a.pin, learned, ckpt, w_pins)
+    if asserts(cells_kr, a.pin, learned, ckpt, w_pins, kr=True) != warmth:
+        raise SystemExit("FAIL LOUD: the co-tenancy cells record another HEROSIM_WARMTH_PHYSICS")
+    cells_kr.update({k: v for k, v in cells.items() if k[0] not in learned})
+    res = {"filed": FILED, "family": "FL + lambda", "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth,
+           "primary": FLL_PRIMARY, "control": FLL_CONTROL, "seeds": list(FLL_SEEDS), "bar": BAR, "servers": FLL_SERVERS,
+           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in w_pins.items()},
+           "hosts": hosts({**cells, **{(k[0] + KR,) + k[1:]: v for k, v in cells_kr.items() if k[0] in learned}})}
+    res.update(fll_verdict(cells, {}, topos))
+    res["cotenancy"] = fll_verdict(cells_kr, {}, topos)
+    m, c = res["F1"]["label"], res["cotenancy"]["F1"]["label"]
+    lab = max(m, c, key=FLL_ORDER.index)
+    res["combined"] = {"F1": lab, "why": f"weaker of frozen {m!r} and co-tenancy {c!r}"}
+    res["confirmation"] = {"label": FLL_YES if lab == "WIN" else "NOT-WIN", "reader_label": lab, "stage": a.stage, "rule": FLL_WHY,
+                           "family": "FL + lambda", "grid_cells": grid_n}
+    if a.stage == "secondary":
+        check_against_filed_primary(a, res)
+        fll_desc(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth)
+    txt = json.dumps(res, indent=1, default=str)
+    if a.out:
+        if os.path.exists(a.out):
+            raise SystemExit(f"FAIL LOUD: {a.out} exists; a confirmation read is written once")
+        with open(a.out + ".tmp", "w") as fh:
+            fh.write(txt)
+        os.replace(a.out + ".tmp", a.out)
+    print(f"FL + LAMBDA {res['confirmation']['label']} (reader: {lab}; {res['combined']['why']})")
+    for tag, v in (("", res), ("_kr ", res["cotenancy"])):
+        for e in v["F1"]["tests"]:
+            print(f"  F1-lambda {tag}{e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
+    return res
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -874,7 +1038,11 @@ def main(argv=None):
     ap.add_argument("--primary-read", default="", help="--stage secondary: the primary-stage read JSON")
     ap.add_argument("--record", default="", help="--stage secondary: the commit whose lineage node files the primary read's md5")
     ap.add_argument("--filed-ref", default="origin/reference-physics", help="--stage secondary: --record must be an ancestor of this ref")
+    ap.add_argument("--confirm-fl-lambda", action="store_true",
+                    help="FL + lambda (registered 2026-10-19): FL + lambda vs its lambda = 0 control FL, seeds 1-2, Holm < .025, seed-matched clauses, both verdicts")
     a = ap.parse_args(argv)
+    if a.confirm_fl_lambda:
+        return read_fl_lambda(a)
     global SEEDS, BAR, PROG_ALPHA
     PROG_ALPHA = PROG_ALPHA_FILED
     if a.confirm or a.confirm2 or a.confirm_size64:
