@@ -48,7 +48,8 @@ windows of the seed-mean decision-charge miss (measured - charged decision secon
 DIRECTION-ONLY; plus a decision-charge row per charged cell (flag > 0.5 pp) and the descriptive rows;
 --confirm-degree-trend (partner structure, registered 2026-10-19 with SCIENTIST's addendum B): --deg-root holds k1 k2 k4 k8, each with
 inputs_group/wf1_<rung>/wl/grounded_<window>_n50000.json and cells_reactive, cells_bar, cells_learned (24 servers); VOID unless every level's
-workloads carry partner_structure_v1 with the level's k and are identical apart from the pairs (sha256 of {rps, duration, events}); admission as
+workloads carry the signed mint's grounded_workload_v1.partner_nested with the level's k (= peer_rule.partners), the minted nonpair_sha256 and the
+built {rps, duration, events} hash are each equal across levels and every group holds its k = 2 bytes; admission as
 P10 (a rung saturated on every topology is excluded and listed); the primary is Page's L of the paired FL gnn vs FL MLP % over k = 1 < 2 < 4 < 8 at
 moderate, whole and after-360, Holm 2, on the ids admitted at every level (VOID if a level loses > 4); DEGREE-TREND iff Holm < .025 on both;
 the secondary adds per-level descriptive rows (vs the bar, realised structure, exchange saved / net gained, decision-charge miss per arm);
@@ -1292,8 +1293,16 @@ def read_exchange_trend(a):
 
 # FL size-128 (uncut_groups_s0_v1, registered 2026-10-19 with SCIENTIST's addendum B): FL gnn s1-2, trained at 24 servers, vs the in-flight bar at 128
 S128_SERVERS = 128
+# every id the uncut_groups node names at reference-physics 0f3d0de1 (5-digit tokens and ranges <= 120 wide in 19000-30999, md5/hex fragments
+# excluded, minus the two runs it names as free, 30163-30174 and 30175-30186), extracted by script, not typed (SCIENTIST's ruling (e)); a superset
+S128_NODE_IDS = frozenset().union(*(range(a, b + 1) for a, b in (
+    (19206, 19217), (19300, 19305), (19400, 19432), (19440, 19452), (19461, 19549), (19553, 19590), (19627, 19627), (19635, 19658), (19692, 19692),
+    (19695, 19695), (19707, 19730), (19800, 19805), (19807, 19807), (19815, 19815), (19820, 19820), (19843, 19843), (19855, 19855), (19862, 19862),
+    (19868, 19868), (19879, 19879), (19884, 19884), (19898, 19898), (19953, 19976), (20021, 20032), (20118, 20158), (20182, 20182), (20400, 20439),
+    (20450, 20461), (24617, 24617), (24890, 24890), (25845, 25868), (28090, 28090), (30011, 30124), (30128, 30141), (30147, 30160), (30162, 30163),
+    (30175, 30188), (30200, 30205), (30212, 30213), (30221, 30239), (30253, 30253), (30258, 30258))))
 S128_USED_TOPOS = (SIZE64_USED_TOPOS | frozenset(range(30129, 30141)) | frozenset(range(30149, 30161)) | frozenset(range(30176, 30188))
-                   | frozenset(range(30200, 30240)))
+                   | frozenset(range(30200, 30240)) | S128_NODE_IDS)
 S128_YES = "SIZE-128-CONFIRMED (size chosen after an exploratory pilot)"
 S128_WHY = ("FL size-128: " + S128_YES + " iff the program's win rule (median <= -2 % and Holm < .025 on all four, each seed alone <= -1 %, collapses "
             "<= the bar's, the anchor clause) holds under both verdicts; else NOT-CONFIRMED. A claim about 128 servers only")
@@ -1317,7 +1326,7 @@ def s128_args(a):
         raise SystemExit("FAIL LOUD: --confirm-size128 needs --repo and --w-pins (the 24-server frozen w chain)")
     used = sorted(set(int(x) for x in a.topos.split(",")) & S128_USED_TOPOS)
     if used:
-        raise SystemExit(f"FAIL LOUD: --confirm-size128 topologies must be fresh; {used[:6]} are size-64-guarded, FL + lambda, exchange or ladder ids")
+        raise SystemExit(f"FAIL LOUD: --confirm-size128 topologies must be fresh; {used[:6]} are ids another family, scan or token in the node uses")
     if a.stage == "primary" and (a.desc_gate or a.reactive_gate or a.mlp_gate or a.mlp or a.primary_read or a.record):
         raise SystemExit("FAIL LOUD: --mlp / --mlp-gate / --desc-gate / --reactive-gate / --primary-read / --record belong to --stage secondary (seal)")
     if a.stage == "secondary" and not (a.mlp == CONFIRM_MLP and a.mlp_gate and a.desc_gate and a.reactive_gate and a.primary_read and a.record):
@@ -1495,14 +1504,18 @@ def read_size128(a):
 DEG_LEVELS = ("k1", "k2", "k4", "k8")
 DEG_K = {"k1": 1, "k2": 2, "k4": 4, "k8": 8}
 DEG_TOPOS_SHA256 = "dd359919d7fc42c5e0bec1f40d934edb6192b0993fa542cd08608b56e59cceb7"
-DEG_META = "partner_structure_v1"
+DEG_META = "grounded_workload_v1"
 DEG_BIG_BYTES = 50e6
 DEG_YES, DEG_NO = "DEGREE-TREND", "NO-TREND"
 DEG_WHY = (DEG_YES + " iff Page's L (one-sided upper over k = 1 < 2 < 4 < 8, the GNN's lead over the MLP growing with k; Holm 2) has Holm < .025 on both "
-           "moderate tests; else " + DEG_NO + "; VOID if any level loses > 4 ids or the levels' workloads are not identical apart from the pairs. Both "
+           "moderate tests; else " + DEG_NO + "; VOID if any level loses > 4 ids (a partially saturated heavy rung still removes topologies under P10's "
+           "rule) or the levels' workloads are not identical apart from the pairs, or a group's bytes differ from its k = 2 total. Both "
            "models were trained at k = 2: k = 4 and 8 are out of distribution, which biases against the registered direction. Neither label says "
            "'message passing'")
-DEG_IDENTITY = "sha256 of the canonical JSON of {rps, duration, events}: every arrival, type, origin and group, i.e. the workload without peer_exchange and meta"
+DEG_IDENTITY = ("the mint's own grounded_workload_v1.partner_nested.nonpair_sha256 equal across the four levels (mint time), and the built file's "
+                "{rps, duration, events} hashed with the minter's serialization (json.dumps sort_keys, default separators) equal across them (build "
+                "time); the builder rewrites events (rate scale, task mix, single origin, client remap), so the built hash is not the minted one")
+DEG_BYTES_RTOL = 1e-9
 
 
 def deg_args(a):
@@ -1524,37 +1537,47 @@ def deg_args(a):
 
 
 def deg_workload(path):
-    """The identity hash, the mint meta and the realised structure of one level's workload file."""
+    """One level's built workload: the signed mint's fields (grounded_workload_v1.partner_nested: level, connector_pairs, nonpair_sha256;
+    peer_rule.partners), the build-time identity hash, the bytes per group and the realised structure."""
     with open(path) as fh:
         w = json.load(fh)
-    meta = w.get(DEG_META)
-    if not isinstance(meta, dict) or type(meta.get("k")) is not int or type(meta.get("connector_pairs")) is not int:
-        raise SystemExit(f"FAIL LOUD: {path} has no {DEG_META} block with integer k and connector_pairs")
-    ident = hashlib.sha256(json.dumps({k: w[k] for k in ("rps", "duration", "events")}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    n = len(w["events"])
-    nb, pairs, total, big = {}, set(), 0.0, 0.0
+    g = w.get(DEG_META)
+    pn = (g or {}).get("partner_nested")
+    if not isinstance(pn, dict) or type(pn.get("level")) is not int or type(pn.get("connector_pairs")) is not int \
+            or not isinstance(pn.get("nonpair_sha256"), str) or (g.get("peer_rule") or {}).get("partners") != pn["level"]:
+        raise SystemExit(f"FAIL LOUD: {path} has no {DEG_META}.partner_nested (integer level and connector_pairs, nonpair_sha256) with "
+                         f"peer_rule.partners equal to its level")
+    built = hashlib.sha256(json.dumps({k: w[k] for k in ("rps", "duration", "events")}, sort_keys=True).encode()).hexdigest()
+    ev = w["events"]
+    n = len(ev)
+    nb, pairs, total, big, by_group = {}, set(), 0.0, 0.0, {}
     for p in w["peer_exchange"]:
         i, j, b = int(p[0]), int(p[1]), float(p[2])
         e = (min(i, j), max(i, j))
         if i == j or e in pairs:
             raise SystemExit(f"FAIL LOUD: {path} peer_exchange has a self or duplicate pair {e}")
+        if ev[i]["peer_group"] != ev[j]["peer_group"]:
+            raise SystemExit(f"FAIL LOUD: {path} peer_exchange pair {e} crosses groups")
         pairs.add(e)
         nb.setdefault(i, set()).add(j)
         nb.setdefault(j, set()).add(i)
         total += b
         big += b if b > DEG_BIG_BYTES else 0.0
+        by_group[ev[i]["peer_group"]] = by_group.get(ev[i]["peer_group"], 0.0) + b
     size = {}
-    for e in w["events"]:
+    for e in ev:
         size[e["peer_group"]] = size.get(e["peer_group"], 0) + 1
-    k = meta["k"]
-    return ident, {"k": k, "connector_pairs": meta["connector_pairs"], "pairs": len(pairs), "pairs_per_task": len(pairs) / n,
-                   "mean_partners_per_task_with_partners": sum(len(v) for v in nb.values()) / len(nb) if nb else 0.0,
-                   "share_tasks_no_partner": (n - len(nb)) / n, "byte_share_over_50MB": big / total if total else None,
-                   "share_tasks_in_groups_le_k_plus_1": sum(1 for e in w["events"] if size[e["peer_group"]] <= k + 1) / n}
+    k = pn["level"]
+    return {"minted": pn["nonpair_sha256"], "built": built, "bytes_by_group": by_group}, {
+        "k": k, "connector_pairs": pn["connector_pairs"], "pairs": len(pairs), "pairs_per_task": len(pairs) / n,
+        "mean_partners_per_task_with_partners": sum(len(v) for v in nb.values()) / len(nb) if nb else 0.0,
+        "share_tasks_no_partner": (n - len(nb)) / n, "byte_share_over_50MB": big / total if total else None,
+        "share_tasks_in_groups_le_k_plus_1": sum(1 for e in ev if size[e["peer_group"]] <= k + 1) / n, "total_bytes": total}
 
 
 def deg_structure(a):
-    """Every level's workloads (both rungs x g0-g3): the mint meta's k is the level's, and the identity hash is equal across the four levels; else VOID."""
+    """Every level's workloads (both rungs x g0-g3): the mint's level is the directory's, the minted and the built identity hashes are each
+    equal across the four levels, and every group carries its k = 2 bytes at every level; else VOID."""
     ids, out = {}, {}
     for lv in DEG_LEVELS:
         rows = {}
@@ -1565,16 +1588,27 @@ def deg_structure(a):
                     raise SystemExit(f"FAIL LOUD: VOID: level {lv} has no workload {p}")
                 h, s = deg_workload(p)
                 if s["k"] != DEG_K[lv]:
-                    raise SystemExit(f"FAIL LOUD: VOID: {p} records k = {s['k']}, the level is {lv}")
+                    raise SystemExit(f"FAIL LOUD: VOID: {p} records level {s['k']}, the directory is {lv}")
                 ids.setdefault((r, w), {})[lv] = h
                 rows[f"{r}/{w}"] = s
         agg = {f: st.mean(x[f] for x in rows.values()) for f in ("pairs_per_task", "mean_partners_per_task_with_partners", "share_tasks_no_partner",
                                                                     "byte_share_over_50MB", "share_tasks_in_groups_le_k_plus_1")}
         out[lv] = {"mean_over_workloads": agg, "connector_pairs_total": sum(x["connector_pairs"] for x in rows.values()), "per_workload": rows}
-    bad = sorted(f"{r}/{w}" for (r, w), h in ids.items() if len(set(h.values())) != 1)
-    if bad:
-        raise SystemExit(f"FAIL LOUD: VOID: the levels' workloads differ apart from the pairs at {bad[:4]} ({DEG_IDENTITY})")
-    return {"identity": DEG_IDENTITY, "identity_sha256": {f"{r}/{w}": next(iter(h.values())) for (r, w), h in sorted(ids.items())}, "levels": out}
+    for kind in ("minted", "built"):
+        bad = sorted(f"{r}/{w}" for (r, w), h in ids.items() if len({x[kind] for x in h.values()}) != 1)
+        if bad:
+            raise SystemExit(f"FAIL LOUD: VOID: the levels' {kind} identity hashes differ at {bad[:4]} ({DEG_IDENTITY})")
+    for (r, w), h in ids.items():
+        ref = h["k2"]["bytes_by_group"]
+        for lv in DEG_LEVELS:
+            got = h[lv]["bytes_by_group"]
+            off = [gid for gid in set(ref) | set(got) if abs(got.get(gid, 0.0) - ref.get(gid, 0.0)) > DEG_BYTES_RTOL * max(1.0, abs(ref.get(gid, 0.0)))]
+            if off:
+                raise SystemExit(f"FAIL LOUD: VOID: {lv} {r}/{w}: {len(off)} group(s) do not carry their k = 2 bytes, e.g. group {sorted(off)[0]} "
+                                 f"({got.get(sorted(off)[0], 0.0):.6g} vs {ref.get(sorted(off)[0], 0.0):.6g}); was the build's payload sampler legacy?")
+    return {"identity": DEG_IDENTITY, "minted_nonpair_sha256": {f"{r}/{w}": h["k2"]["minted"] for (r, w), h in sorted(ids.items())},
+            "built_sha256": {f"{r}/{w}": h["k2"]["built"] for (r, w), h in sorted(ids.items())},
+            "bytes_per_group_held_at_k2": True, "levels": out}
 
 
 def deg_admission(rc, rf, topos):
@@ -1674,7 +1708,9 @@ def read_degree_trend(a):
         yes = all(e["p_holm"] < PROG_ALPHA for e in tests)
         res["trend"] = {"label": DEG_YES if yes else DEG_NO, "why": "Holm < .025 on both moderate tests" if yes else "not Holm < .025 on both moderate tests",
                         "failing_per_level": fails, "trend_ids": ids, "n": len(ids), "tests": tests}
-    res["confirmation"] = {"label": res["trend"]["label"], "stage": a.stage, "family": "partner structure", "rule": DEG_WHY}
+    rz = sum(adm[lv].get("rendezvous_check", {}).get("cells_with_rendezvous_wait", 0) for lv in DEG_LEVELS)
+    res["confirmation"] = {"label": res["trend"]["label"], "stage": a.stage, "family": "partner structure", "rule": DEG_WHY,
+                           "rendezvous": f"rendezvous nonzero in {rz} cells" if rz else "R_rendezvous = 0 in every cell read"}
     if a.stage == "secondary":
         m = md5(a.primary_read)
         node = "docs/lineages/uncut_groups_s0_v1.md"
@@ -1715,7 +1751,8 @@ def read_degree_trend(a):
             fh.write(txt)
         os.replace(a.out + ".tmp", a.out)
     tr = res["trend"]
-    print(f"PARTNER STRUCTURE {tr['label']} ({tr['why']})")
+    rz = sum(adm[lv].get("rendezvous_check", {}).get("cells_with_rendezvous_wait", 0) for lv in DEG_LEVELS)
+    print(f"PARTNER STRUCTURE {tr['label']} ({tr['why']})" + (f"; rendezvous nonzero in {rz} cells" if rz else ""))
     for e in tr.get("tests", []):
         print(f"  Page {e['rung']:8s} {e['stat']:8s} L {e['L']} k {e['k']} n {e['n']} p {e['p']:.3g} holm {e['p_holm']:.3g} ({e['method']}) "
               f"medians {', '.join(f'{v} {m_:+.2f}' for v, m_ in e['median_pct_by_level'].items())}")

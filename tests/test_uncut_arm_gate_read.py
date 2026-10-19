@@ -1951,7 +1951,8 @@ def test_size128_not_confirmed_when_fl_does_not_clear_the_line(s128):
     assert s128["read"]("primary", "p.json")["confirmation"]["label"] == "NOT-CONFIRMED"
 
 
-@pytest.mark.parametrize("t", [30200, 30222, 30239, 30176, 30187, 30129, 30140, 30149, 30160, 19953, 30011, 30123, 19707, 19461, 19537, 20021])
+@pytest.mark.parametrize("t", [30200, 30222, 30239, 30176, 30187, 30129, 30140, 30149, 30160, 19953, 30011, 30123, 19707, 19461, 19537, 20021,
+                               30141, 30147, 30148, 30162, 30163, 30175, 30188, 30212, 30221, 30253, 30258, 19300, 19815, 20118, 20450])
 def test_size128_refuses_every_guarded_topology(s128, t):
     tops = f"{t},1"
     with pytest.raises(SystemExit, match="fresh"):
@@ -2057,19 +2058,38 @@ def test_new_family_flags_are_refused_by_the_filed_modes():
 XS_TOPS = ",".join(map(str, range(30176, 30188)))
 
 
-def _deg_workload(path, k, n=12, connectors=0, shift_arrival=0.0):
-    """Groups of 4 tasks; per task the first min(k, 3) later-indexed group mates as partners; bytes 10 MB, one pair per group at 60 MB."""
-    events = [{"timestamp": 1.0 + i + shift_arrival * (i == 0), "application": {"name": "a"}, "node_name": "c0", "peer_group": i // 4} for i in range(n)]
-    pairs = set()
+def _deg_pairs(k, n):
+    """Groups of 4 tasks; per task the first min(k, 3) other group mates as partners; raw bytes 10 MB, the pair (0, 1) of a group 60 MB."""
+    pairs = {}
     for i in range(n):
         g0 = (i // 4) * 4
-        mates = [j for j in range(g0, g0 + 4) if j != i]
-        for j in mates[:min(k, 3)]:
-            pairs.add((min(i, j), max(i, j)))
-    pe = [[i, j, 60e6 if (i % 4, j % 4) == (0, 1) else 10e6] for i, j in sorted(pairs)]
+        for j in [m for m in range(g0, g0 + 4) if m != i][:min(k, 3)]:
+            pairs[(min(i, j), max(i, j))] = 60e6 if (i % 4, j % 4) in ((0, 1), (1, 0)) else 10e6
+    return pairs
+
+
+def _deg_workload(path, k, n=12, connectors=0, shift_arrival=0.0, partners=None, minted=None, unheld=False, cross=False):
+    """The signed mint's shape (a6d4a9cc): grounded_workload_v1.partner_nested {level, connector_pairs, nonpair_sha256}, peer_rule.partners = k;
+    each group's bytes scaled to its k = 2 total (unheld: not scaled); shift_arrival rewrites one event after the mint (a builder divergence)."""
+    events = [{"timestamp": 1.0 + i, "application": {"name": "a"}, "node_name": "c0", "peer_group": i // 4} for i in range(n)]
+    sha = hashlib.sha256(json.dumps({"rps": 150, "duration": 100.0, "events": events}, sort_keys=True).encode()).hexdigest()
+    pairs, ref = _deg_pairs(k, n), _deg_pairs(2, n)
+    if not unheld:
+        for g in range(n // 4):
+            tot = sum(v for (i, j), v in pairs.items() if i // 4 == g)
+            want = sum(v for (i, j), v in ref.items() if i // 4 == g)
+            for key in [x for x in pairs if x[0] // 4 == g]:
+                pairs[key] *= want / tot
+    if cross:
+        pairs[(3, 4)] = 1.0
+    if shift_arrival:
+        events[0]["timestamp"] += shift_arrival
+    gw = {"seed": 7400, "peer_rule": {"partners": k if partners is None else partners, "nested": True},
+          "partner_nested": {"level": k, "connector_pairs": connectors, "nonpair_sha256": minted or sha}}
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as fh:
-        json.dump({"rps": 150, "duration": 100.0, "events": events, "peer_exchange": pe, G.DEG_META: {"k": k, "connector_pairs": connectors}}, fh)
+        json.dump({"rps": 150, "duration": 100.0, "events": events, "peer_exchange": [[i, j, b] for (i, j), b in sorted(pairs.items())],
+                   G.DEG_META: gw, "workload_fix_v1": {"source_sha256": f"differs-per-level-{k}"}}, fh)
 
 
 @pytest.fixture
@@ -2091,14 +2111,15 @@ def deg(tmp_path, monkeypatch):
     root = tmp_path / "deg"
     topos = list(range(30176, 30188))
 
-    def fill(margins=None, fail=None, heavy_all=None, rendezvous=None, shift=None, meta_k=None):
+    def fill(margins=None, fail=None, heavy_all=None, rendezvous=None, shift=None, meta_k=None, wl=None):
         margins = {"k1": 0.0, "k2": -1.0, "k4": -2.0, "k8": -3.0, **(margins or {})}
         fail = fail or {}
         for lv in G.DEG_LEVELS:
             for r in G.RUNGS:
                 for w in G.WINDOWS:
                     _deg_workload(str(root / lv / "inputs_group" / f"wf1_{r}" / "wl" / f"grounded_{w}_n50000.json"),
-                                  (meta_k or {}).get(lv, G.DEG_K[lv]), connectors=1 if lv == "k1" else 0, shift_arrival=(shift or {}).get(lv, 0.0))
+                                  (meta_k or {}).get(lv, G.DEG_K[lv]), connectors=1 if lv == "k1" else 0, shift_arrival=(shift or {}).get(lv, 0.0),
+                                  **((wl or {}).get(lv, {}) if (r, w) == ("moderate", "g1") else {}))
             dr, db, dl = (root / lv / x for x in ("cells_reactive", "cells_bar", "cells_learned"))
             for x in (dr, db, dl):
                 x.mkdir(parents=True, exist_ok=True)
@@ -2167,13 +2188,28 @@ def test_deg_structure_is_read_from_the_workloads(deg):
     assert abs(s["k8"]["mean_over_workloads"]["mean_partners_per_task_with_partners"] - 3.0) < 1e-12
     assert s["k1"]["mean_over_workloads"]["share_tasks_in_groups_le_k_plus_1"] == 0.0 and s["k4"]["mean_over_workloads"]["share_tasks_in_groups_le_k_plus_1"] == 1.0
     assert s["k1"]["connector_pairs_total"] == 8 and s["k2"]["connector_pairs_total"] == 0
-    assert abs(s["k8"]["mean_over_workloads"]["byte_share_over_50MB"] - 60 / 110) < 1e-12
+    assert abs(s["k8"]["mean_over_workloads"]["byte_share_over_50MB"] - 60 / 110) < 1e-12 and abs(s["k1"]["mean_over_workloads"]["byte_share_over_50MB"] - 0.75) < 1e-12
+    tot = [x["total_bytes"] for lv in G.DEG_LEVELS for x in s[lv]["per_workload"].values()]
+    assert max(tot) - min(tot) <= 1e-9 * max(tot)  # each group holds its k = 2 bytes
 
 
-@pytest.mark.parametrize("case", ["identity", "meta_k"])
-def test_deg_is_void_unless_the_levels_differ_only_in_their_pairs(deg, case):
-    deg["fill"](shift={"k4": 0.5} if case == "identity" else None, meta_k={"k8": 4} if case == "meta_k" else None)
-    with pytest.raises(SystemExit, match="differ apart from the pairs" if case == "identity" else "records k = 4"):
+@pytest.mark.parametrize("case, match", [("built", "built identity hashes differ"), ("minted", "minted identity hashes differ"),
+                                         ("meta_k", "records level 4, the directory is k8"), ("partners", "peer_rule.partners equal to its level"),
+                                         ("unheld", "do not carry their k = 2 bytes"), ("cross", "crosses groups"), ("no_meta", "no grounded_workload_v1")])
+def test_deg_is_void_unless_the_levels_differ_only_in_their_pairs(deg, case, match):
+    if case == "built":
+        deg["fill"](shift={"k4": 0.5})
+    elif case == "meta_k":
+        deg["fill"](meta_k={"k8": 4})
+    else:
+        deg["fill"](wl={"k4": {"minted": {"minted": "0" * 64}, "partners": {"partners": 2}, "unheld": {"unheld": True}, "cross": {"cross": True},
+                               "no_meta": {}}[case]})
+        if case == "no_meta":
+            p = deg["root"] / "k4" / "inputs_group" / "wf1_moderate" / "wl" / "grounded_g1_n50000.json"
+            x = json.loads(p.read_text())
+            x.pop(G.DEG_META)
+            p.write_text(json.dumps(x))
+    with pytest.raises(SystemExit, match=match):
         deg["read"]("primary", "p.json")
 
 
@@ -2207,6 +2243,8 @@ def test_deg_secondary_reads_descriptive_rows_only_after_the_primary_is_filed(de
     deg["fill"](rendezvous="k2")
     res = deg["read"]("primary", "p.json")
     assert not res["admission"]["k2"]["rendezvous_check"]["holds"] and res["admission"]["k1"]["rendezvous_check"]["holds"]
+    n_rz = res["admission"]["k2"]["rendezvous_check"]["cells_with_rendezvous_wait"]
+    assert n_rz > 0 and res["confirmation"]["rendezvous"] == f"rendezvous nonzero in {n_rz} cells"
     p = str(deg["tmp"] / "p.json")
     head = subprocess.run(["git", "-C", str(deg["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
     with pytest.raises(SystemExit, match="not filed"):
@@ -2217,3 +2255,7 @@ def test_deg_secondary_reads_descriptive_rows_only_after_the_primary_is_filed(de
         assert len(d[lv]["fl_vs_bar"]) == 4 and len(d[lv]["fl_vs_mlp"]) == 4 and all("p_holm" not in e for e in d[lv]["fl_vs_bar"] + d[lv]["mlp_vs_bar"])
         assert d[lv]["gap_fl"]["exchange_seconds_saved"] > 0 and d[lv]["charge_miss"][G.CONFIRM_PRIMARY]["excess_pp_max"] == 0.0
     assert res["confirmation"]["primary_read"]["md5"] == G.md5(p)
+
+
+def test_size128_guard_keeps_the_free_runs_the_node_names_open():
+    assert not ({30164, 30170, 30174} & G.S128_USED_TOPOS) and not (set(range(30240, 30252)) & G.S128_USED_TOPOS)
