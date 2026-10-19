@@ -176,9 +176,13 @@ COMB_KINDS = tuple(COMB_STEMS)
 COMB_FAST = ("ra_gnn_eng_a3l", "ra_gnn_eng_a3lft")
 COMB_STEMS.update({"ra_gnn_eng_a3l": "uncut-a3l-gnn-eng", "ra_gnn_eng_a3lft": "uncut-a3lft-gnn-eng"})
 COMB_FAST_TABLE_SHA256 = "0117cbd2ee9af473ad14d0ab3e32b7d08cdd1d54df9ed631da9486628c78cdc2"
+# G8c (FL + lambda, registered 2026-10-19): FL gnn and the FL MLP retrained from scratch with the move-regret term at lambda 2.0 on the
+# table above; partial_state_v6 like FL. Kept out of COMB_KINDS and COMB_FAST so both kind sets are unchanged.
+COMB_FLREG = ("ra_gnn_eng_flreg", "ra_mlp_same_flreg")
+COMB_STEMS.update({"ra_gnn_eng_flreg": "uncut-flreg-gnn-eng", "ra_mlp_same_flreg": "uncut-flreg-mlp-same"})
 COMB_V6 = ("ra_gnn_eng_combf", "ra_gnn_eng_combfl", "ra_mlp_same_combfl")  # partial_state_v6; combl keeps partial_state_v5
-COMB_CHECK = {"ra_gnn_eng_a3l": "ra_gnn_eng", "ra_gnn_eng_a3lft": "ra_gnn_eng", "ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
-RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST
+COMB_CHECK = {"ra_gnn_eng_flreg": "ra_gnn_eng_v6", "ra_mlp_same_flreg": "ra_mlp_same_v6", "ra_gnn_eng_a3l": "ra_gnn_eng", "ra_gnn_eng_a3lft": "ra_gnn_eng", "ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST + COMB_FLREG
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
@@ -252,18 +256,18 @@ def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
 
 def comb_contract(base_kind: str) -> str:
     """The partial-state contract a learned RA cell serves: partial_state_v6 for the combined lever's in-flight kinds, partial_state_v5 otherwise."""
-    return "partial_state_v6" if base_kind in COMB_V6 else "partial_state_v5"
+    return "partial_state_v6" if base_kind in COMB_V6 + COMB_FLREG else "partial_state_v5"
 
 
 def comb_trainer_check(base_kind: str, side: str) -> None:
     """A combined-lever sidecar records the batched loss, its own contract (v6 for F, FL and the MLP; v5 for L) and no regret lever. Other kinds are
     not checked."""
-    if base_kind not in COMB_KINDS + COMB_FAST:
+    if base_kind not in COMB_KINDS + COMB_FAST + COMB_FLREG:
         return
     sc = json.load(open(side))
     if sc.get("batched_teacher_forced") is not True:
         raise SystemExit(f"FAIL LOUD: {side} batched_teacher_forced is {sc.get('batched_teacher_forced')!r}; {base_kind} needs true")
-    if base_kind in COMB_FAST:
+    if base_kind in COMB_FAST + COMB_FLREG:
         mr = sc.get("move_regret")
         if sc.get("regret_lambda") != 2.0 or not isinstance(mr, dict) or mr.get("sha256") != COMB_FAST_TABLE_SHA256 or float(mr.get("lambda", -1)) != 2.0:
             raise SystemExit(f"FAIL LOUD: {side} regret_lambda {sc.get('regret_lambda')!r} / move_regret {mr!r}: {base_kind} needs lambda 2.0 and the table {COMB_FAST_TABLE_SHA256}")
@@ -277,6 +281,7 @@ def comb_trainer_check(base_kind: str, side: str) -> None:
 # top-level "k_cotenancy" (frozen with the learned w on a w-only pin). Only these two kinds; any other "_kr" is an unknown arm, as before.
 DC_KR = "kr"
 COMB_KR_KINDS = ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit")
+FLREG_KR_KINDS = ("ra_gnn_eng_flreg_nosplit", "ra_mlp_same_flreg_nosplit")  # G8c: FL + lambda serves _kr like FL
 
 
 def cotenancy_k() -> float:
@@ -287,7 +292,7 @@ def cotenancy_k() -> float:
 
 
 def split_dc(kind: str) -> Tuple[str, Optional[float]]:
-    if kind.endswith("_" + DC_KR) and kind[:-len(DC_KR) - 1] in COMB_KR_KINDS:
+    if kind.endswith("_" + DC_KR) and kind[:-len(DC_KR) - 1] in COMB_KR_KINDS + FLREG_KR_KINDS:
         return kind[:-len(DC_KR) - 1], cotenancy_k()
     for tag, k in DC_K.items():
         if kind.endswith("_" + tag):
@@ -319,7 +324,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
 R1A_DIAG = (*OBS_ARMS, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
                *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS),
-               *COMB_KINDS, *COMB_FAST, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
+               *COMB_KINDS, *COMB_FAST, *COMB_FLREG, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST + COMB_FLREG))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS
 # (the bare uncut and combined-lever kinds sit here or in R1A_CDX only so the unset default stays r1_attribution_v1's registered grid)
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",
@@ -1126,8 +1131,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             # additionally refuse a serving environment that names another arm.
             env.update(PARTIAL_STATE_CONTRACT=comb_contract(base_kind), PARTIAL_STATE_LOAD_SECONDS="1",
                        PARTIAL_STATE_EXCHANGE_SECONDS="1", GNN_SERVE_CANDIDATE_SLATE=ra_serving_slate(side))
-            if base_kind in ("ra_mlp_same", "ra_set_transformer", "ra_mlp_same_arm1", "ra_mlp_same_combfl"):
-                env["GNN_ARM_KIND"] = base_kind[3:].removesuffix("_arm1").removesuffix("_combfl")
+            if base_kind in ("ra_mlp_same", "ra_set_transformer", "ra_mlp_same_arm1", "ra_mlp_same_combfl", "ra_mlp_same_flreg"):
+                env["GNN_ARM_KIND"] = base_kind[3:].removesuffix("_arm1").removesuffix("_combfl").removesuffix("_flreg")
         if base_kind in LOAD_KINDS:
             # exported, not adopted, so run_provenance records them; the loader verifies the sidecar
             env.update(PARTIAL_STATE_CONTRACT="partial_state_v4",
