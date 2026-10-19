@@ -1515,3 +1515,150 @@ def test_size64_per_arrival_reactive_row_and_batched_cells(s64, case):
              "mlp_unset_fails": "groupSize/servedBatchSize"}[case]
     with pytest.raises(SystemExit, match=match):
         s64["read"]("secondary", "s.json", **sec)
+
+
+@pytest.fixture
+def fll(tmp_path, monkeypatch):
+    """An FL + lambda gate: the bars, FL + lambda and FL (seeds 1-2, _k100 and _kr) in --gate at 24 servers; FL MLP + lambda and the FL MLP
+    (seeds 1-2, both charges) in --desc-gate. The w chain: base -> W-CONF (FL and FL MLP w, k_cotenancy) -> P7 (the two flreg kinds' w)."""
+    for g in ("BAR", "SEEDS", "PROG_ALPHA"):
+        monkeypatch.setattr(G, g, getattr(G, g))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    p, c, mp, mc = G.FLL_PRIMARY, G.FLL_CONTROL, G.FLL_MLP, G.FLL_MLP_CONTROL
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, (c, mc)), "k_cotenancy": 1.468}}, "conf w")
+    w2 = commit(repo, {G.W_FILE: {**w_with(w_with(W0, (c, mc)), (p, mp)), "k_cotenancy": 1.468}}, "flreg w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (p, c, mp, mc) for s in (1, 2)}))
+    d, dd = tmp_path / "cells", tmp_path / "desc"
+    for x in (d, dd):
+        x.mkdir()
+
+    def fill(lam=(1.8, 1.8), ctl=(2.0, 2.0), servers=24, mlp_in_gate=False, big=None):
+        for t in TOPOS:
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    jit = 0.001 * t
+                    wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.1, busy=0.1, commit=base, servers=servers)
+                    cell(str(d), "cd", 0, t, w, r, 2.2, busy=0.1, commit=base, servers=servers)
+                    for i, sd in enumerate((1, 2)):
+                        for kind, mean, out in ((p, lam[i], d), (c, ctl[i], d), (mp, 1.95, d if mlp_in_gate else dd), (mc, 2.05, d if mlp_in_gate else dd)):
+                            m = mean - jit if not (big and (kind, sd, t, w, r) == big) else 50.0
+                            cell(str(out), kind, sd, t, w, r, m, str(ck), commit=w2, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=servers)
+                            cell(str(out), kind, sd, t, w, r, m, str(ck), commit=w2, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)}, servers=servers)
+
+    def read(stage, out, **kw):
+        args = ["--gate", str(d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", f"{w1[:8]},{w2[:8]}", "--primary", p, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
+                "--confirm-fl-lambda", "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}"] + ([] if v is None else [v])
+        return G.main(args)
+
+    def file_primary(path):
+        return commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(path)}`\n"}, "file the primary")
+
+    return {"d": d, "dd": dd, "fill": fill, "read": read, "tmp": tmp_path, "cm": cm, "file": file_primary, "repo": repo}
+
+
+def test_fll_primary_win_is_lambda_vs_its_control_under_both_charges(fll):
+    fll["fill"]()
+    res = fll["read"]("primary", "p.json")
+    assert res["confirmation"]["label"] == G.FLL_YES and res["combined"]["F1"] == "WIN"
+    assert res["F1"]["tests"][0]["a"] == G.FLL_PRIMARY and res["F1"]["tests"][0]["b"] == G.FLL_CONTROL
+    assert res["confirmation"]["grid_cells"] == len(TOPOS) * 4 * 2 * (2 * 2 * 2 + 2) and res["servers"] == 24
+    assert all(e["median_pct"] < -2 and e["p_holm"] < G.PROG_ALPHA_FILED for e in res["F1"]["tests"] + res["cotenancy"]["F1"]["tests"])
+    assert "descriptive" not in res and G.PROG_ALPHA == G.PROG_ALPHA_FILED
+
+
+def test_fll_per_seed_clause_is_seed_matched(fll):
+    # pooled clears the line (-2.75 %) but lambda seed 2 is only -0.5 % against FL seed 2
+    fll["fill"](lam=(1.9, 1.99), ctl=(2.0, 2.0))
+    res = fll["read"]("primary", "p.json")
+    assert all(e["median_pct"] <= -2 for e in res["F1"]["tests"])
+    assert res["F1"]["label"] == "MIXED" and "seeds_alone_ok=False" in res["F1"]["why"] and res["confirmation"]["label"] == "NOT-WIN"
+    # the same seed-2 cells against a seed mean would pass; seed-matched they do not
+    assert all(e["median_pct"] > -1 for e in res["F1"]["seeds_alone"][2]) and all(e["b"] == G.FLL_CONTROL for e in res["F1"]["seeds_alone"][2])
+
+
+def test_fll_collapse_clause_is_seed_matched(fll):
+    fll["fill"](big=(G.FLL_PRIMARY, 1, 3, "g1", "heavy"))
+    res = fll["read"]("primary", "p.json")
+    h = res["F1"]
+    assert res["health"][G.FLL_PRIMARY]["heavy"]["per_seed"][1]["collapse_any"] == 1 and "collapse_ok=False" in h["why"]
+    assert res["confirmation"]["label"] == "NOT-WIN"
+
+
+def test_fll_lambda_slower_is_fl_faster_and_not_win(fll):
+    fll["fill"](lam=(2.3, 2.3))
+    res = fll["read"]("primary", "p.json")
+    assert res["F1"]["label"] == "FL-FASTER" and res["combined"]["F1"] == "FL-FASTER" and res["confirmation"]["label"] == "NOT-WIN"
+
+
+@pytest.mark.parametrize("t", [30129, 30140, 19953, 30011, 19707, 19461, 19537, 20021])
+def test_fll_refuses_every_guarded_topology(fll, t):
+    tops = f"{t},1"
+    with pytest.raises(SystemExit, match="fresh"):
+        G.main(["--gate", str(fll["d"]), "--topos", tops, "--topos-sha256", hashlib.sha256(tops.encode()).hexdigest(), "--pin", "x", "--repo", "r",
+                "--w-pins", "w", "--primary", G.FLL_PRIMARY, "--checkpoint-md5", str(fll["cm"]), "--bar", "cd_ib0_inflightfull",
+                "--confirm-fl-lambda", "--stage", "primary"])
+
+
+@pytest.mark.parametrize("kw, match", [
+    ({"seeds": "1,2,3"}, "--seeds 1,2"), ({"confirm2": None}, "its own family"), ({"twin": "x"}, "no twin"),
+    ({"mlp": G.FLL_MLP}, "seal"), ({"cotenancy": "off"}, "--cotenancy required"), ({"stage": "full"}, "stage primary or secondary")])
+def test_fll_arguments_fail_loud(fll, kw, match):
+    fll["fill"]()
+    stage = kw.pop("stage", "primary")
+    with pytest.raises(SystemExit, match=match):
+        fll["read"](stage, "x.json", **kw)
+
+
+@pytest.mark.parametrize("case", ["missing", "mlp_in_gate", "servers"])
+def test_fll_primary_is_void_or_fails_loud_unless_the_registered_24_server_grid(fll, case):
+    fll["fill"](mlp_in_gate=(case == "mlp_in_gate"), servers=64 if case == "servers" else 24)
+    if case == "missing":
+        _drop(str(fll["d"]), f"cc40s5__g2moderate__{G.FLL_PRIMARY}_kr_s2.")
+    with pytest.raises(SystemExit, match={"missing": "VOID: --gate", "mlp_in_gate": "belong in --desc-gate", "servers": "servers = 24"}[case]):
+        fll["read"]("primary", "p.json")
+
+
+def test_fll_secondary_opens_the_desc_gate_only_after_the_primary_is_filed(fll):
+    fll["fill"]()
+    fll["read"]("primary", "p.json")
+    p = str(fll["tmp"] / "p.json")
+    head = subprocess.run(["git", "-C", str(fll["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    sec = {"mlp": G.FLL_MLP, "primary-read": p, "record": head, "filed-ref": "HEAD", "desc-gate": str(fll["dd"])}
+    with pytest.raises(SystemExit, match="not filed"):
+        fll["read"]("secondary", "s.json", **sec)
+    sec["record"] = fll["file"](p)
+    with pytest.raises(SystemExit, match="needs --desc-gate"):
+        fll["read"]("secondary", "s.json", **{k: v for k, v in sec.items() if k != "desc-gate"})
+    res = fll["read"]("secondary", "s.json", **sec)
+    assert res["confirmation"]["desc_grid_cells"] == len(TOPOS) * 4 * 2 * 8 and res["confirmation"]["label"] == G.FLL_YES
+    for v in (res, res["cotenancy"]):
+        for k in ("fl_lambda_vs_bar", "fl_lambda_vs_cd", "mlp_lambda_vs_mlp", "fl_lambda_vs_mlp_lambda"):
+            assert len(v["descriptive"][k]["tests"]) == 4 and all("p_holm" not in e for e in v["descriptive"][k]["tests"])
+    assert all(e["median_pct"] < 0 for e in res["descriptive"]["mlp_lambda_vs_mlp"]["tests"])
+    d = res["descriptive"]["mlp_lambda_vs_fl_gnn"]["tests"]
+    assert len(d) == 4 and d[0]["a"] == G.FLL_MLP and d[0]["b"] == G.FLL_CONTROL and "mlp_lambda_vs_fl_gnn" not in res["cotenancy"]["descriptive"]
+
+
+def test_fll_secondary_desc_gate_must_be_the_exact_grid(fll):
+    fll["fill"]()
+    fll["read"]("primary", "p.json")
+    p = str(fll["tmp"] / "p.json")
+    rec = fll["file"](p)
+    _drop(str(fll["dd"]), f"cc40s7__g0heavy__{G.FLL_MLP_CONTROL}_kr_s1.")
+    with pytest.raises(SystemExit, match="VOID: --desc-gate"):
+        fll["read"]("secondary", "s.json", mlp=G.FLL_MLP, **{"primary-read": p, "record": rec, "filed-ref": "HEAD", "desc-gate": str(fll["dd"])})
+
+
+def test_fll_kinds_are_w_charged_learned_kinds_outside_the_combined_b6_set():
+    assert set(G.FLREG_W_KINDS) <= set(G.LEARNED_W_KINDS) and not set(G.FLREG_W_KINDS) & set(G.COMB_W_KINDS)
+    assert G.FLL_CONTROL == G.CONFIRM_PRIMARY and G.FLL_MLP_CONTROL == G.CONFIRM_MLP
