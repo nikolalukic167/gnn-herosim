@@ -303,6 +303,45 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **FL confirmation 2, primary read filed: NOT-CONFIRMED.** FL gnn's B6 cap stays (WIN-ARM-ONLY on the 12-topology read, as filed). **Both confirmations are reported together:** confirmation 1 (`83fa5b8e`, seeds 1–2, 19707–19730) and confirmation 2 (`c41f1527`, seeds 3–6, 19953–19976) are both NOT-CONFIRMED, and neither is re-read or amended. (S6 read, at the frozen reader `13c9343d`, blob `60592d2d`, with `--confirm2 --stage primary --seeds 3,4,5,6`. It was run exactly once, as S5's held job, released after the exact grid, B3 and SCIENTIST's OK on the md5 file.) File `/share/nikola.lukic/uncut_groups/conf2/reads/read_conf2_primary.json`, md5 `c41f1527b2f31ac6ccc4510fff5585df`.
+  - **Before the read.**
+    - Training: jobs 885140–885143 at `f9a41cce`, all COMPLETED 0:0, each log ending "0 failure(s)" with "sidecar check: OK". Only those counters and the md5 lines were read; no curve, val metric or W&B value (C2).
+    - The md5 file `conf2/md5_conf2.json` (md5 `cdbe7447`) gives s3 `aaee53a5`, s4 `21c7ce30`, s5 `27e6efdf`, s6 `2680edb7`. SCIENTIST OK'd it before any cell.
+    - Smoke: 886915 / 886916 on 19461 g0 heavy, seed 3, both 0:0, "SMOKE OK". The served file matched the md5 file, and the `_k100` / `_kr` charges were checked.
+    - B3, job 886917 at `13c9343d`: all 13 reads of record byte-identical.
+  - **Disclosure (SCIENTIST's ruling).** While checking a suspected stall, S5 saw 4 `[done] elapsed=/share=` lines from the learned-shard logs (19963 g1 moderate, seeds 3–6). The expert saw 2 (19963 g0 / g1 moderate, seed 3, job 886993's log). No summary, npy or bar figure was opened, no comparison was drawn, and only counts were checked from then on. SCIENTIST ruled that this does not affect the primary, because the rule, reader, topologies and checkpoints were frozen before the look.
+  - **Read.** Job 887013 ran on os-cpu-slurm-11 and finished 0:0.
+    - Cells: bar 384 (S5's 885165–885168) and learned 1,536 (886993–886996: seeds 3–6 × `_k100` / `_kr` × 24 × g0–g3 × 2 rungs), 0 failed. The R1 grid (1,920) is exact.
+    - Verdict line: "CONFIRMATION NOT-CONFIRMED (reader: MIXED; weaker of frozen 'MIXED' and co-tenancy 'MIXED')".
+  - **F1, FL gnn vs `cd_ib0_inflightfull_k100`** (median %, topologies ahead of 24, Holm k = 4; the line is Holm < .0125):
+
+    | charge | moderate whole | moderate after-360 | heavy whole | heavy after-360 |
+    |---|---|---|---|---|
+    | `_k100` | −6.46 (22, 4.8e-6) | −6.30 (20, 4.9e-5) | −3.56 (17, .0011) | **−1.77 (17, .056)** |
+    | `_kr` | −5.86 (21, 2.1e-5) | −5.47 (20, 1.3e-4) | −4.01 (20, 6.4e-4) | **−2.50 (16, .069)** |
+
+  - **Seeds alone** (moderate whole / after-360 / heavy whole / heavy after-360; topologies ahead of 24 in brackets where a value is near the line):
+    - `_k100`:
+      - seed 3: −6.00 / −6.05 / −2.07 / −1.92 (16)
+      - seed 4: −6.06 / −6.28 / −4.10 / **−0.99 (14)**
+      - seed 5: −5.83 / −5.69 / −2.20 / −3.17 (14)
+      - seed 6: −5.78 / −5.37 / −3.18 / −1.86 (14)
+    - `_kr`:
+      - seed 3: −5.55 / −5.80 / −3.06 / −2.31 (17)
+      - seed 4: −5.06 / −5.14 / −5.67 / −2.06 (17)
+      - seed 5: −6.43 / −6.67 / −2.73 / −3.43 (17)
+      - seed 6: −5.98 / −5.32 / −2.48 / −1.59 (14)
+  - **Failing clauses, all at heavy after-360.**
+    - The median: −1.77 % under `_k100`, against the −2 % line.
+    - Holm: .056 (`_k100`) and .069 (`_kr`), against .0125.
+    - Per seed: seed 4 alone is −0.99 % under `_k100`, against the −1 % line.
+    - The other three tests pass every clause under both charges.
+  - **Health.**
+    - 0 collapses in every arm, rung and seed under both charges; 96 cells per rung per arm, none missing.
+    - Anchor OK at both rungs.
+    - Decision share (moderate / heavy): FL 0.10 / 0.13 % (`_k100`) and 0.15 / 0.19 % (`_kr`); bar 0.006 / 0.010 %.
+    - Robust vs `cd`: −10.9 to −12.8 % (24/24, Holm 4.8e-7) under both charges.
+  - **Reading.** Under the registered rule this is NOT-CONFIRMED, with no re-read and no rule change. The pooled moderate and heavy whole-run results reproduce confirmation 1's direction on new seeds and new topologies. The after-360 heavy test does not separate at this α: 16–17 of 24 topologies are ahead, against 19–20 in confirmation 1. The secondary (k = 0 cells, FL MLP descriptive) waits until this md5 is filed.
 - 2026-10-19 — **FL gnn seeds 3–6 at 64 servers: all 768 cells read; every test is negative, descriptive, no label, no verdict.** (S5.) Cells `size64/cells_learned_s36` complete: 768 summaries, 3,840 files, 0 failed, jobs 887254–887257 (pending variant, below), grid identical to the filed cell list (the read fails loud on a missing, extra or failed cell and on any cell with servers ≠ 64); read job 887325 (`size64_s36_read.py` imports the frozen reader at reference-physics `2b571f99`, blob `549643c8`, and reuses `load`, `four` and `family` unchanged).
   - **Result.** Seeds 3–6 pooled beat the bar in all four tests under both charges, 12/12 topologies, raw p 0.0005 and Holm 0.0020: `_k100` −24.41 % moderate whole, −32.98 % moderate after 360 s, **−9.07 % heavy whole**, −23.16 % heavy after 360 s; `_kr` −24.70 / −33.47 / **−7.67** / −23.07 %. Seeds 1–2 pooled (the filed seeds, read here by the same script): heavy whole −4.29 % (`_k100`, 11/12) and −4.59 % (`_kr`, 9/12); seeds 1–6 pooled heavy whole −7.88 % (`_k100`) and −6.33 % (`_kr`), 12/12. Every single seed of 3–6 is below −5 % in heavy whole under both charges (−5.4 to −11.7 %); the weakest is seed 3 (−6.36 % `_k100`, −5.37 % `_kr`, 10/12), and seed 5's heavy whole is 10/12 with raw p 0.0161 (`_k100`) and 0.0342 (`_kr`). The heavy whole line is the thin one in every seed set; after 360 s every seed is 12/12.
   - **Reading.** The filed size-64 result stands as filed; this read confirms nothing and fails nothing. Its content is that seeds 3–6, trained once more on the same corpus and recipe, are stronger on the heavy whole-run statistic than seeds 1–2, which fits the opening addendum above (the whole-run margin at 64 heavy is carried by the deploy opening, where seed 1 loses). Seeds 3–6 were trained after the filed read; they are a descriptive replication on the same 12 topologies, not independent draws of topology.
