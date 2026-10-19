@@ -303,6 +303,69 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **Exchange-model sensitivity (FL gnn vs the in-flight bar across peer-exchange payload scales): REGISTERED before any topology is minted and before any cell exists. SCIENTIST's 9-point design and amendments (a)–(f) are in the text; SCIENTIST signs against this commit after a diff check.** (The user's GO, relayed by the expert. S5 writes the sampler change and mints; S4 / S5 run the cells; S6 drafts, builds the P10 reader and reads.) **Claim, and its only claim:** "FL gnn's margin over the in-flight bar grows as the peer-exchange payload grows." It changes no filed label. The FL + λ and twin cells keep node priority.
+  - **The confound, stated up front (SCIENTIST point 6).** Both learned arms were trained at ×1, so off ×1 the margin also moves through distribution shift; the untrained bar does not suffer this. **The study measures the served model's robustness to the exchange scale, not the mechanism alone.** For the mechanism there is a descriptive gap attribution (exchange seconds saved vs the total gain) per variant.
+  - **Variants (point 1), each a mint-time setting of the payload sampler.**
+    - **×0:** no exchange; a sanity variant.
+    - **×0.1, ×0.3, ×1, ×3:** ×1 is the in-family anchor, run fresh.
+    - **heavy-tier 0 % at ×1:** do the gains live in the 50–500 MB pairs?
+    - **Slot for a 7th, "azblob",** only if the user accepts the expert's proposal. Per-pair payloads would be resampled from the Azure Functions blob trace 2020 BlobBytes ECDF (inverse CDF on the same payload stream's u, same pair graph). It would be descriptive only and outside the trend, labelled "blob sizes per access, a proxy, not measured function-to-function exchange". The trace file is filed by sha256 before the mint; if it is not local, the user downloads it.
+    - Partner degree is dropped: it changes group structure and the label distribution, not the exchange model.
+  - **The knob: a code change, reviewed by SCIENTIST before the mint (amendment / fact 1).**
+    - Today the `wf1_v1` sampler in `src/placement/workload_payloads.py` draws each pair's bytes: log-normal, median 4 MB, σ 1.2, plus a `HEAVY_SHARE` 0.10 of pairs log-uniform 50–500 MB. Its parameters are module constants, so no knob exists.
+    - The change adds sampler parameters `scale` (default 1.0) and `heavy_share` (default 0.10), and `azblob` if accepted. Each is recorded in `payload_sampler_meta`.
+    - Every pair still consumes the same two draws from its dedicated `payload_rng` (tier, then value), so variants stay paired pair by pair. `scale` multiplies the drawn bytes; heavy-tier 0 % (`heavy_share` = 0) gives a formerly heavy pair the body value of the same u. ×0 is `scale` 0.
+    - A test shows the defaults are bit-identical to the existing `wf1_v1` output on an existing mint.
+    - S5 writes it. It is filed with SCIENTIST's review in its own line before the mint, and each variant's mint cfg is frozen by md5 in the mint line.
+  - **Topologies (point 2).** 12 FRESH ids above 30160, by the literal scan rule: the lowest free 12-run, from S5's scan rerun just before filing (no ids named here).
+    - Minted once per variant on the same 12 ids, arrival windows, groups and pair graph, so variants differ only in payload bytes. Every variant runs on the same ids and arrival seeds, so variants are paired.
+    - fl3 is not reused: after the FL + λ and twin reads, its ×1 results for FL gnn and the bar are seen.
+    - Disjoint from every list in the FL + λ registration, plus fl3 30149–30160.
+    - The recipe is confirmation 2's (`big_groups_inputs.sbatch` at `f8814905`, 24 servers, unscaled M, `--payload-sampler wf1_v1`) plus the variant's sampler parameters.
+  - **Admissibility, per variant (point 3, amendment (c)).** Reactive (`reactive` at `a459dd98`) runs first. A topology is admitted for a variant only if all 8 of its reactive cells have queue share ≤ 0.80; unknown is not a pass.
+    - ×3 is the risk: `payload_scale_v1` saturated reactive at ×3 in the old seat. **If ×3 fails on more than 4 topologies, ×3 is dropped and disclosed, never replaced by a milder scale.**
+    - A failed or VOID variant is disclosed, never re-scaled.
+    - The trend reads the topologies admitted in all four trend variants.
+  - **Arms and cells (fact 3, point 8).** Per variant:
+    - FL gnn (`ra_gnn_eng_combfl_nosplit`) s1–2 and FL MLP (`ra_mlp_same_combfl_nosplit`) s1–2, `_k100`, at the FL serving chain confirmation 2 used (w at `74ddf70e`); the filed `-final.pt`, no retraining.
+    - The bar `cd_ib0_inflightfull_k100` at `a459dd98`; reactive at `a459dd98` for admission.
+    - No `_kr` and no `cd_k100`. The MLP is descriptive. Every cell must record servers = 24.
+    - Size: 6 variants × 12 × g0–g3 × 2 rungs × (4 learned + bar + reactive) ≈ 3,460 cells, about 9 h on 4 nodes. If needed, cut ×0.3 or the MLP, never ×0.
+  - **Smoke (amendment (b)).** One FL and one bar cell per variant on 19461 before the grid, ×0 above all. Completion status only.
+  - **Seal (amendment (e)).** The cells may run before P10 is frozen. Until it is frozen and signed, only job states and file counts are checked; admission reads `queue_share` only. **(d)** The FL + λ / twin cells keep node priority. A sensitivity cell is rerun only for an infrastructure failure, and logged.
+  - **Registered primary: one trend family (point 4, amendment (a)).** The registered direction: the margin is more negative as the payload grows. Per rung × statistic (moderate / heavy × whole / after-360), on the topologies admitted in all four trend variants:
+    - **the per-topology value:** the paired FL gnn vs bar % per variant (the cell is the seed-1–2 mean; the topology value is the median over g0–g3 of the paired %);
+    - **the test:** Page's L across the ordered variants ×0.1 < ×0.3 < ×1 < ×3, one-sided in the registered direction (within a topology, the most negative % gets the highest rank);
+    - **the p-value:** exact, from the null distribution of L by convolution over topologies (each topology's 4! orderings equally likely). If a topology has tied values, midranks are used and the p comes from the normal approximation, disclosed;
+    - **Holm k = 4** over the four tests.
+    - ×0, heavy-tier 0 % and azblob are outside the trend.
+  - **Labels.**
+    - **EXCHANGE-TREND:** Holm < .025 on both moderate tests (whole and after-360).
+    - **NO-TREND:** any other outcome; the four tests are reported.
+    - The label stands as read; there is no widening.
+  - **Registered prediction, not a gate (point 5).** At ×0, |median FL gnn vs bar| ≤ 1 % on all four tests. A learned-arm win at ×0 would mean the gain is not only exchange, and it is reported prominently.
+  - **Descriptive (points 6–7; p unadjusted, never a label; after the primary md5 is filed):**
+    - per variant: FL gnn vs the bar (four tests), FL MLP vs the bar, FL gnn vs FL MLP;
+    - the gap attribution (exchange seconds saved vs total gain);
+    - heavy-tier 0 % vs ×1; azblob if run.
+  - **Registered prior (SCIENTIST point 9):** P(EXCHANGE-TREND) ≈ 0.75; P(the ×0 prediction holds) ≈ 0.6 (the GNN may still win a little on queue / cold, or lose OOD); P(×3 admissible) ≈ 0.5.
+  - **Reader: P10 `--confirm-exchange-trend`,** on the frozen-reader pattern:
+    - the per-variant grid exact (R1);
+    - servers = 24;
+    - the FL w chain as confirmation 2's;
+    - Page's L as above;
+    - a staged primary and secondary.
+    - Proven by B3 on every read of record. Frozen and signed before any cell is opened.
+  - **Process:**
+    - (1) SCIENTIST signs;
+    - (2) the sampler change, reviewed;
+    - (3) the mint, filed per variant;
+    - (4) admission, smoke, then the cells, sealed;
+    - (5) P10 frozen;
+    - (6) B3, then the primary alone;
+    - (7) one read; any void is disclosed with what it printed;
+    - (8) Rule 6: the label stands as read.
+
 - 2026-10-19 — **FL + λ: the reader is re-frozen as P8.1 at reference-physics `d2da78dc`** (`scripts_cosim/uncut_arm_gate_read.py` blob `bfbf124e`, re-checked on origin there; `s6/reader-fllambda-p81` `34c3297c`). **It supersedes the P8 freeze (`82a5db52`, filed above).** Filed before any FL + λ learned cell. Every FL + λ read runs from this blob (datalab worktree `s6_reader_34c3297c`).
   - **The defect, found before any cell, with nothing opened.** The P8 reader could not read the registered FL + λ pin chain. G8c was built on the P2 w-only pin `74ddf70e`, so the chain carries a w-only link between gate changes: `a459dd98` → `095948ea` → `f6818d09` → `74ddf70e` → `b8909f58` (G8c) → `05ec45c1` (G8d) → P7. The reader allows gate changes first and w-only pins last. Both flag orders failed loud on the real repo:
     - `--gate-change 095948ea,f6818d09,b8909f58,05ec45c1 --w-pins 74ddf70e`: "FAIL LOUD: the gate change b8909f58c9097dcc3efe80117dcd9d63612f7766 is not a child of f6818d0963cbce85cf10e8c5e91cff465b945946";
