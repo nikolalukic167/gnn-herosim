@@ -805,7 +805,7 @@ def test_g4_file_set_is_admitted_only_for_the_g4_commit_and_arm2_w_only_on_its_c
 
 def test_ckpt_arm_maps_arm2_and_k0():
     assert G.ckpt_arm("ra_gnn_eng_arm2_nosplit") == "gnn_eng" and G.ckpt_arm("ra_twin_eng_arm2k0_nosplit") == "twin_eng"
-    assert G.ckpt_tag("ra_gnn_eng_arm2_nosplit") == "" and G.G4 in G.GATE_CHANGE_FILES_BY_COMMIT and set(G.GATE_CHANGE_FILES_BY_COMMIT) == {G.G4, G.G8D}
+    assert G.ckpt_tag("ra_gnn_eng_arm2_nosplit") == "" and G.G4 in G.GATE_CHANGE_FILES_BY_COMMIT and set(G.GATE_CHANGE_FILES_BY_COMMIT) == {G.G4, G.G8D, G.P2}
 
 
 def fill_seeds(d, ck, seeds, primary_mean, twin_mean=2.0):
@@ -1673,3 +1673,29 @@ def test_g8d_file_set_is_admitted_for_that_commit_only(gchain, monkeypatch):
         G.w_pin_chain(str(repo), base, [], f"{gc},{g8d}")
     monkeypatch.setitem(G.GATE_CHANGE_FILES_BY_COMMIT, g8d, G.GATE_CHANGE_FILES_BY_COMMIT[G.G8D])
     G.w_pin_chain(str(repo), base, [], f"{gc},{g8d}")
+
+
+def test_p2_w_only_link_is_admitted_inside_the_gate_change_sequence_for_that_commit_only(gchain, monkeypatch):
+    """P8.1: the FL + lambda chain has the P2 w-only pin between gate changes (... -> P1 -> P2 (w) -> G8c -> G8d -> P7). The link is admitted
+    with the w file as its only file, for that commit only, and w_frozen still checks it."""
+    repo, base, gc, w1 = gchain[0], gchain[1], gchain[2], gchain[3]
+    assert G.GATE_CHANGE_FILES_BY_COMMIT[G.P2] == (G.W_FILE,) and G.P2.startswith("74ddf70e")
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", w1], check=True)
+    g2 = commit(repo, {GATE: "x = 9\n", G.GATE_CHANGE_FILES[1]: "t = 9\n"}, "gate change on the w-only pin")
+    w = json.loads((repo / G.W_FILE).read_text())
+    w3 = commit(repo, {G.W_FILE: w_with(w, ("ra_gnn_eng_flreg_nosplit",))}, "P7-like w-only pin")
+    with pytest.raises(SystemExit, match="not exactly"):
+        G.w_pin_chain(str(repo), base, [w3], f"{gc},{w1},{g2}")
+    with pytest.raises(SystemExit, match="not a child"):
+        G.w_pin_chain(str(repo), base, [w1, w3], f"{gc},{g2}")
+    monkeypatch.setitem(G.GATE_CHANGE_FILES_BY_COMMIT, w1, (G.W_FILE,))
+    ws = G.w_pin_chain(str(repo), base, [w3], f"{gc},{w1},{g2}")
+    assert list(ws)[-1] == w3 and "ra_gnn_eng_flreg_nosplit" in ws[w3]["w_ms_per_plan"]
+    # the admitted link is still a w-only commit under w_frozen: a link that changes a frozen key fails
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", gc], check=True)
+    bad = json.loads(json.dumps(w))
+    bad["w_ms_per_plan"]["cd_ib0"]["heavy"] = 9.0
+    wb = commit(repo, {G.W_FILE: bad}, "a link that rewrites a frozen key")
+    monkeypatch.setitem(G.GATE_CHANGE_FILES_BY_COMMIT, wb, (G.W_FILE,))
+    with pytest.raises(SystemExit, match="changes frozen"):
+        G.w_pin_chain(str(repo), base, [], f"{gc},{wb}")

@@ -119,8 +119,13 @@ GATE_CHANGE_FILES = ("scripts_cosim/fresh_topo_burst_v1_gate.py", "tests/test_un
 G4 = "6935428088592fad78ee2a786ad7d5fc1388e30b"
 # G8d 05ec45c1 (the FL MP-OFF twin kind, on G8c, before P7): the gate, the sidecheck (its v6 twin arm) and the gate test; admitted for that commit only
 G8D = "05ec45c103214f7fa8d0617479a8aabeaeb2d444"
+# P8.1 (FL + lambda): G8c was built on the P2 w-only pin 74ddf70e, so the FL + lambda chain is a459dd98 -> 095948ea -> f6818d09 -> 74ddf70e
+# -> b8909f58 -> 05ec45c1 -> P7: a w-only link inside the gate-change sequence. 74ddf70e is admitted there with the w file as its only file,
+# for that commit only; w_frozen still checks it against its parent like every other link.
+P2 = "74ddf70e1effbdc1eea0a69b8573c81a5f23384e"
 GATE_CHANGE_FILES_BY_COMMIT = {G4: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_arm2_gate.py"),
-                               G8D: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_uncut_arm1_gate_stage.py")}
+                               G8D: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_uncut_arm1_gate_stage.py"),
+                               P2: (W_FILE,)}
 # Arm 2 and Arm 2-K0 (read under ruling 2, on the G4 chain): their w keys may enter a w-only pin only on a chain through G4
 ARM2_W_KINDS = tuple(f"ra_{a}_eng_{k}_nosplit" for k in ("arm2", "arm2k0") for a in ("gnn", "twin"))
 COT_KEYS = ("k_cotenancy", "_source_k_cotenancy")
