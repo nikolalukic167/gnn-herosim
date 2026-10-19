@@ -303,6 +303,36 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **FL size-128 and partner structure: the reader is frozen as P11 at reference-physics `f4b1a4d2`** (`scripts_cosim/uncut_arm_gate_read.py` blob `b87ca2d9`, re-checked on origin there; `--confirm-size128` and `--confirm-degree-trend` at `s6/reader-s128-deg` `bd00b187`; filed before any size-128 or partner-structure cell exists or is read). Every read of either family runs from this blob (datalab worktree `s6_reader_bd00b187`).
+  - **What P11 adds.** Additions only against `0f3d0de1` (reader +494, tests +400). `main()` dispatches both flags before any existing code runs. A stray `--mlp-gate` or `--deg-root` in a filed mode fails loud.
+  - **`--confirm-size128`:**
+    - **Primary:** `--gate` is exactly FL gnn s1–2 `_k100` and `_kr`, plus `cd_ib0_inflightfull_k100` and `cd_k100` (576 cells), or the read is VOID. No FL MLP cell may be in it. Every cell must record servers = 128.
+    - **F1:** the size-64 `verdict()` / `combine()`, Holm 4 per charge, the program's win rule, weaker of the two verdicts. Label SIZE-128-CONFIRMED (size chosen after an exploratory pilot), or NOT-CONFIRMED.
+    - **Secondary** (only after F1's md5 is filed at `--record`):
+      - the gates: `--mlp-gate` (FL MLP s1–2, `_k100` and `_kr`, 384 cells), `--desc-gate` (k = 0 FL gnn s1–2 and the bar, bare kinds, 288) and `--reactive-gate` (96), each the exact grid at 128;
+      - **F2,** FL gnn vs FL MLP, Holm 4 per charge. GNN-AHEAD-OF-MLP-128 iff, under both charges, every test has median < 0, Holm < .025 and median over topologies of (gap_t + d_t) < 0. Here d_t is the median over windows of the seed-mean decision-charge miss of FL gnn minus FL MLP, in pp. Otherwise DIRECTION-ONLY;
+      - a decision-charge row per charged cell (charged, measured and excess in pp, flagged above 0.5). decisionTiming is whole-run only, so the whole-run miss is used for both statistics, and the read says so. The charge is the 24-server w, unchanged;
+      - the descriptive rows.
+    - **Topology guard:** the registered list, plus every id the node names at `0f3d0de1`, extracted by script (602 ids in 42 runs, a superset, minus the two runs the node names as free).
+  - **`--confirm-degree-trend --deg-root`:**
+    - **Layout:** `k1 k2 k4 k8`, each with `inputs_group/wf1_<rung>/wl/` and `cells_reactive`, `cells_bar`, `cells_learned` (24 servers). Ids are 30176–30187 only (sha256 `dd359919…`).
+    - **Mint fields read:** the signed mint's `grounded_workload_v1.partner_nested` (`a6d4a9cc`). The level must equal `peer_rule.partners` (fail loud) and the level directory (VOID). Connector pairs are read from the same block.
+    - **VOID unless all three hold:**
+      - (i) the minted `nonpair_sha256` is equal across the four levels;
+      - (ii) the built `{rps, duration, events}` hash (the minter's serialization) is equal across the four levels;
+      - (iii) every group carries its k = 2 bytes at every level (rtol 1e-9).
+    - **Why not the recorded hash:** the builder rewrites events (rate scale, task mix, single origin, client remap). A built file can therefore never reproduce the minted hash, so (ii) replaces "recomputed = recorded" (SCIENTIST: stronger than the spec).
+    - **Admission:** as P10. A rung that is saturated (≥ 1 cell) on every topology is excluded and listed. A partially saturated heavy rung still removes topologies, and can VOID the read through the > 4 clause.
+    - **Primary:** Page's L of the paired FL gnn vs FL MLP % over k = 1 < 2 < 4 < 8, moderate, whole and after-360, Holm 2. DEGREE-TREND iff Holm < .025 on both, else NO-TREND.
+    - **Rendezvous:** a nonzero rendezvous wait is reported in the label line ("rendezvous nonzero in N cells"); it is not a VOID.
+    - **Secondary:** the per-level descriptive rows.
+  - **Builder finding (job 888742, S5's dry-run mints L1 / L2 through `big_groups_inputs.sbatch` for 30176):**
+    - `grounded_workload_v1` survives the build byte-identical.
+    - With the script's default `PAYLOAD_SAMPLER=wf1_v1`, the build re-draws every pair's bytes (g0 total 1.99e12 → 1.18e12 at L1) and undoes the per-group holding. With `legacy`, `peer_exchange` is byte-identical to the mint.
+    - **Carried condition (SCIENTIST):** the degree build runs with `PAYLOAD_SAMPLER=legacy`, and the mint line records it with the per-file `peer_exchange` md5 against the mint output. Check (iii) is the reader-side backstop.
+    - Real-file test 888769 (output md5 `4ead0dd3`): the `legacy` build passes (0 groups off their k = 2 bytes). The `wf1_v1` build fails (8,955–10,277 groups off per window).
+  - **Tests and B3.** Reader tests 372 passed; full suite 2981 passed, 115 skipped. B3 888756 (`b3_p11b.sh` md5 `74c469f6`): all 19 reads of record byte-identical (the 17 of B3 887676, plus the exchange study's `c3cb21f6` and `f1431718`), output md5 `7350e786`.
+  - Signed: SCIENTIST, 2026-10-19 — P11 reviewed and approved for freeze at s6/reader-s128-deg bd00b187 (reader blob b87ca2d9; diff from 8e02b86f md5 17e50931; additions-only vs 0f3d0de1). --confirm-size128 implements the registration's F1 (Holm 4 per charge, the program's win rule, weaker_f1) and F2 with the signed charge clause median_t(gap_t + d_t) < 0. --confirm-degree-trend reads the signed mint's fields and VOIDs unless the minted and built identity hashes are each equal across levels and every group holds its k = 2 bytes. Rulings (a)–(e) applied. Reader tests 372/372, suite 2981 passed / 115 skipped, B3 888756 19/19 byte-identical (output md5 7350e786). Freeze before any cell is read.
 - 2026-10-19 — **Partner-structure study (FL gnn and FL MLP vs the in-flight bar across partners drawn per task, k = 1 / 2 / 4 / 8): REGISTERED before any mint or cell.** Registered by SCIENTIST and relayed by the expert; filed verbatim by S5, with the SCIENTIST review amendments below the signed text. The 12 topologies are the exchange-study ids 30176–30187 ("topologies already read in the exchange study").
   - **Factual corrections to the proposal.**
     - (a) The 12 exchange-study topologies use the wf1_v1 sampler (log-normal, median 4 MB, plus 10 % of pairs at 50–500 MB; `gate_inputs_xs_x1` records sampler wf1_v1). The 200 MB × 10^U line in `grounded_workload_v1_mint.py:14` is the legacy sampler. So "400 MB/pair at degree 1, 50 MB/pair at degree 8" is not what would be compared; see the bytes rule.
