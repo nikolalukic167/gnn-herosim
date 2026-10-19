@@ -117,7 +117,10 @@ GATE_CHANGE_FILES = ("scripts_cosim/fresh_topo_burst_v1_gate.py", "tests/test_un
 # the K0 / Arm 2 chain (B3, the expert's ruling (c1), 2026-10-17): gate change G4 69354280 (the Arm 2-K0 kinds, ported from c34b17e3) touches
 # the gate, the sidecheck and its own test. That exact set is admitted for that one commit only; every other gate change keeps GATE_CHANGE_FILES.
 G4 = "6935428088592fad78ee2a786ad7d5fc1388e30b"
-GATE_CHANGE_FILES_BY_COMMIT = {G4: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_arm2_gate.py")}
+# G8d 05ec45c1 (the FL MP-OFF twin kind, on G8c, before P7): the gate, the sidecheck (its v6 twin arm) and the gate test; admitted for that commit only
+G8D = "05ec45c103214f7fa8d0617479a8aabeaeb2d444"
+GATE_CHANGE_FILES_BY_COMMIT = {G4: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_arm2_gate.py"),
+                               G8D: ("scripts_cosim/fresh_topo_burst_v1_gate.py", "scripts_cosim/joint_burst_v2_sidecheck.py", "tests/test_uncut_arm1_gate_stage.py")}
 # Arm 2 and Arm 2-K0 (read under ruling 2, on the G4 chain): their w keys may enter a w-only pin only on a chain through G4
 ARM2_W_KINDS = tuple(f"ra_{a}_eng_{k}_nosplit" for k in ("arm2", "arm2k0") for a in ("gnn", "twin"))
 COT_KEYS = ("k_cotenancy", "_source_k_cotenancy")

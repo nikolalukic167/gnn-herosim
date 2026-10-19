@@ -805,7 +805,7 @@ def test_g4_file_set_is_admitted_only_for_the_g4_commit_and_arm2_w_only_on_its_c
 
 def test_ckpt_arm_maps_arm2_and_k0():
     assert G.ckpt_arm("ra_gnn_eng_arm2_nosplit") == "gnn_eng" and G.ckpt_arm("ra_twin_eng_arm2k0_nosplit") == "twin_eng"
-    assert G.ckpt_tag("ra_gnn_eng_arm2_nosplit") == "" and G.G4 in G.GATE_CHANGE_FILES_BY_COMMIT and len(G.GATE_CHANGE_FILES_BY_COMMIT) == 1
+    assert G.ckpt_tag("ra_gnn_eng_arm2_nosplit") == "" and G.G4 in G.GATE_CHANGE_FILES_BY_COMMIT and set(G.GATE_CHANGE_FILES_BY_COMMIT) == {G.G4, G.G8D}
 
 
 def fill_seeds(d, ck, seeds, primary_mean, twin_mean=2.0):
@@ -1662,3 +1662,14 @@ def test_fll_secondary_desc_gate_must_be_the_exact_grid(fll):
 def test_fll_kinds_are_w_charged_learned_kinds_outside_the_combined_b6_set():
     assert set(G.FLREG_W_KINDS) <= set(G.LEARNED_W_KINDS) and not set(G.FLREG_W_KINDS) & set(G.COMB_W_KINDS)
     assert G.FLL_CONTROL == G.CONFIRM_PRIMARY and G.FLL_MLP_CONTROL == G.CONFIRM_MLP
+
+
+def test_g8d_file_set_is_admitted_for_that_commit_only(gchain, monkeypatch):
+    repo, base, gc = gchain[0], gchain[1], gchain[2]
+    assert G.GATE_CHANGE_FILES_BY_COMMIT[G.G8D] == (GATE, "scripts_cosim/joint_burst_v2_sidecheck.py", G.GATE_CHANGE_FILES[1])
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", gc], check=True)
+    g8d = commit(repo, {GATE: "x = 3\n", "scripts_cosim/joint_burst_v2_sidecheck.py": "y = 1\n", G.GATE_CHANGE_FILES[1]: "t = 3\n"}, "g8d")
+    with pytest.raises(SystemExit, match="not exactly"):
+        G.w_pin_chain(str(repo), base, [], f"{gc},{g8d}")
+    monkeypatch.setitem(G.GATE_CHANGE_FILES_BY_COMMIT, g8d, G.GATE_CHANGE_FILES_BY_COMMIT[G.G8D])
+    G.w_pin_chain(str(repo), base, [], f"{gc},{g8d}")
