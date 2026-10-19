@@ -20,7 +20,10 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-SERVE_ENV = {"PARTIAL_STATE_CONTRACT": "partial_state_v6", "PARTIAL_STATE_LOAD_SECONDS": "1", "PARTIAL_STATE_EXCHANGE_SECONDS": "1"}
+# the gate's serving environment for a learned RA cell (fresh_topo_burst_v1_gate.py: GNN_DECODE_MODE masked_topo, peer-group batches, prefix
+# alpha key inf, the v6 partial-state contract with load and exchange seconds)
+SERVE_ENV = {"PARTIAL_STATE_CONTRACT": "partial_state_v6", "PARTIAL_STATE_LOAD_SECONDS": "1", "PARTIAL_STATE_EXCHANGE_SECONDS": "1",
+             "GNN_DECODE_MODE": "masked_topo", "GNN_BATCH_BY_PEER_GROUP": "1", "GNN_PREFIX_ALPHA_KEY": "inf"}
 N_TASKS, N_PLATFORMS = 6, 5
 
 
