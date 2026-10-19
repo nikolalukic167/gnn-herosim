@@ -87,6 +87,11 @@ def physics_from_sidecar(path):
     for k, var in PHYSICS_ENV_VARS.items():
         os.environ[var] = str(pe[k])
     replica_rule.set_rule(pe["replica_placement_rule"])
+    with open(path[:-3] + ".contract.json") as fh:
+        slate = json.load(fh).get("candidate_slate")
+    if not slate:
+        raise SystemExit(f"FAIL LOUD: {path} sidecar records no candidate_slate")
+    os.environ["GNN_SERVE_CANDIDATE_SLATE"] = slate  # as the gate serves it (ra_serving_slate: the sidecar's rule)
     return pe
 
 
