@@ -339,7 +339,7 @@ def main() -> int:
     ap.add_argument("--payload-sampler", choices=PAYLOAD_SAMPLERS, default="legacy",
                     help="legacy: 200 MB * 10**U(-1,1). wf1_v1: workload_fix_v1 W2 (log-normal 4 MB + heavy tier)")
     ap.add_argument("--partners-nested", type=int, default=0, metavar="K",
-                    help="partner_structure_v1: K in 1..8 partners per task from one nested ordered draw (needs --payload-sampler wf1_v1, --group-size); "
+                    help="partner_structure_v1: K in 1..8 partners per task from one nested ordered draw (needs --payload-sampler wf1_v1); "
                          "per-group bytes held at the K=2 total. 0 = off, the registered rule, byte-identical")
     a = ap.parse_args()
     if os.path.exists(a.out):
