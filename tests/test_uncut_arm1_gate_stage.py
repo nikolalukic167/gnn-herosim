@@ -343,3 +343,40 @@ def test_comb_kr_serves_fl_gnn_and_the_fl_mlp_at_the_frozen_cotenancy_k(tmp_path
     # every other _kr stays an unknown arm, as before this change (the listing proof relies on it)
     for other in ("ra_gnn_eng_combf_nosplit_kr", "ra_gnn_eng_combl_nosplit_kr", "ra_gnn_eng_a3l_nosplit_kr", "cd_ib0_inflightfull_kr", "ra_gnn_eng_arm1_nosplit_kr"):
         assert G.split_dc(other) == (other, None)
+
+
+def test_g8c_flreg_kinds_check_lambda_the_table_and_v6_and_serve_kr(tmp_path, monkeypatch):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    assert G.COMB_FLREG == ("ra_gnn_eng_flreg", "ra_mlp_same_flreg")
+    for k in G.COMB_FLREG:
+        assert k not in G.COMB_KINDS and k not in G.COMB_FAST and k in G.RA_KINDS
+        assert f"{k}_nosplit" in G.R1A_NOSPLIT and f"{k}_nosplit" in G.R1A_ARMS
+        assert G.comb_contract(k) == "partial_state_v6" and G.split_dc(f"{k}_nosplit_k100") == (f"{k}_nosplit", 1.0)
+    assert G.COMB_CHECK["ra_gnn_eng_flreg"] == "ra_gnn_eng_v6" and G.COMB_CHECK["ra_mlp_same_flreg"] == "ra_mlp_same_v6"
+    assert G.COMB_STEMS["ra_gnn_eng_flreg"] == "uncut-flreg-gnn-eng" and G.COMB_STEMS["ra_mlp_same_flreg"] == "uncut-flreg-mlp-same"
+    good = {"batched_teacher_forced": True, "partial_state_contract": "partial_state_v6", "regret_lambda": 2.0,
+            "move_regret": {"sha256": G.COMB_FAST_TABLE_SHA256, "lambda": 2.0}}
+    p = tmp_path / "c.contract.json"
+    p.write_text(json.dumps(good))
+    for k in G.COMB_FLREG:
+        G.comb_trainer_check(k, str(p))
+    for bad in ({"regret_lambda": None}, {"regret_lambda": 0.5}, {"move_regret": None},
+                {"move_regret": {"sha256": "17a7387271eeea6f961371e7a4f93603efb58bc0d368af9f84f410af0af166be", "lambda": 2.0}},
+                {"partial_state_contract": "partial_state_v5"}, {"batched_teacher_forced": None}):
+        p.write_text(json.dumps({**good, **bad}))
+        for k in G.COMB_FLREG:
+            with pytest.raises(SystemExit, match="FAIL LOUD"):
+                G.comb_trainer_check(k, str(p))
+    # the filed FL kinds still refuse a regret-lever sidecar
+    p.write_text(json.dumps(good))
+    with pytest.raises(SystemExit, match="not a regret-lever run"):
+        G.comb_trainer_check("ra_gnn_eng_combfl", str(p))
+    # _kr: the two FL + lambda kinds serve at the frozen k_cotenancy; COMB_KR_KINDS (the FL confirmation's) is unchanged
+    assert G.COMB_KR_KINDS == ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit")
+    w = json.load(open(G.DC_W_FILE))
+    f = tmp_path / "w.json"
+    f.write_text(json.dumps({**w, "k_cotenancy": 1.468}))
+    monkeypatch.setattr(G, "DC_W_FILE", str(f))
+    for k in G.FLREG_KR_KINDS:
+        assert G.split_dc(f"{k}_kr") == (k, 1.468)
+    assert G.split_dc("ra_gnn_eng_flreg_kr") == ("ra_gnn_eng_flreg_kr", None)
