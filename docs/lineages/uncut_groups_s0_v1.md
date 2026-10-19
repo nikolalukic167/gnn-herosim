@@ -303,6 +303,52 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **FL MP-OFF twin (FL gnn vs its message-passing-off twin): REGISTERED before any twin cell exists. SCIENTIST's 7-point design is in the text; SCIENTIST signs against this commit after a diff check.** (The user's GO, relayed by the expert. S4 trains and runs the cells; S6 drafts, makes the gate change, the w-only pin and the reader, and reads.) **Claim, and its only claim:** "FL gnn's message passing makes it faster than the same model with message passing off." This is its own entry, not an amendment to the FL + λ registration (`9ddbf7ec`): a different claim and contrast. It changes no filed label.
+  - Signed: SCIENTIST, 2026-10-19 — FL MP-OFF twin registered at s6/twin-registration 0a251dd9 before any twin cell (own entry; seed-matched FL vs twin on 30149–30160; parity test, P7b and P9 before any cell; read after the FL + λ primary md5; F2 labels; priors .15 / .20 / .55 / .10). TWIN-FASTER is at the program threshold, Holm < .025. Two checks for P9: every 64-server descriptive cell must record servers = 64 (and the 24-server cells servers = 24); the twin-vs-FL-MLP row reads FL + λ's MLP descriptive cells, so it opens them only after the FL + λ primary md5 is filed.
+  - **Disclosure.**
+    - Designed after both FL confirmations, the size-64 reads, the size pilot and the FL + λ registration. Only seeds 1–2 of FL gnn are compared, and every one of FL's earlier reads was seen.
+    - The record's MP-OFF twins mostly tie: `joint_burst_v2` K4 and `gnn_seeded_cd_mp_ablation_v1`. The FL gnn–MLP gap is only 1–2 points at 24 servers.
+    - The new topologies 30149–30160 (fl3) have had only the reactive admission and bar cells run, counts only. No learned cell has run there.
+  - **Training (launched before this registration, which only fixes how it is read).** S4, jobs 887471 (seed 1, os-cpu-slurm-10) and 887475 (seed 2, os-cpu-slurm-17), array tasks of `uncut_comb_train.sbatch`, both started about 16:21 CEST. Seed 2 was first submitted as 887472 (pending on os-cpu-slurm-12). S4 cancelled it before it started and resubmitted it as 887475 with the recipe unchanged.
+    - Pin `72aa0a46` (`s4/fltwin-train`) is `f9a41cce` plus one config, `experiments/uncut_comb_fl_twin.yaml`. Against FL's `uncut_comb_fl_gnn_eng.yaml`, it differs only in a header comment, `run_name`, one tag, and `GNN_DISABLE_MESSAGE_PASSING: '1'` in place of the two bipartite message-passing flags. That is how `uncut_arm1b_twin_eng.yaml` differs from its gnn. λ = 0.
+    - FL's corpus, simulator labels, split, `partial_state_v6` and recipe: 100 epochs, CPU (venue A), 6 threads, from scratch, seeds 1–2. W&B on every run.
+    - **`-final.pt` is served whatever the curves show. No curve, val metric or W&B value is read for any decision.** The md5s of both `-final.pt` are filed in a new md5 file before any cell. If a run cannot finish, the family is VOID: it is not read on one seed, and no seed is replaced.
+    - Host lines (CPU-amd, SMT off, 6 CPUs) and the trainer-path diff against FL's pin `f9a41cce` are filed with the md5 file. `git diff --stat f9a41cce 72aa0a46` touches only the new yaml, so no trainer-path file differs.
+  - **The arm and the gate.** `ra_twin_eng_combfl_nosplit`, stem `uncut-comb-fl-twin` (gate change G8d `05ec45c1`, on G8c; reviewed for inertness before P7). The gate checks the sidecar's MP-off flag (`disable_message_passing` true, no bipartite conv), `partial_state_v6`, the batched loss and λ absent. The cell serves with `GNN_DISABLE_MESSAGE_PASSING=1`.
+  - **Before any cell.**
+    - **(a) Parity test, guarding against the old MP-OFF loader hole:** the served twin's logits do not change when neighbour features are permuted, and FL gnn's do. It runs on the filed checkpoints through the serving loader.
+    - **(b) Its own w calibration and w-only pin**, P7b on P7.
+    - **(c) The reader**, P9 `--confirm-mp-twin`: frozen and signed after B3.
+  - **Cells** (one venue, as FL + λ's: CPU-amd, EPYC 9335, SMT off, `--exclusive`, PAR 60, 1 thread, CELL_MEM 16G, LIMIT 14400; ≥ 4 nodes by `sinfo` load, never os-cpu-slurm-21; `R1A_SLATE=declared_pruning_v1_uncapped`).
+    - The twin, seeds 1–2, `_k100` and `_kr`, on fl3 30149–30160 × g0–g3 × 2 rungs: **384 cells in their own directory with their own exact grid.** It reuses FL + λ's bar and FL cells and never enters FL + λ's 960 / 768 grids, which would void that read.
+    - Descriptive cells: the twin at 64 servers on 30129–30140, seeds 1–2, `_k100` (192), in a separate directory.
+  - **Read order.** The twin read runs only AFTER the FL + λ primary md5 is filed, so FL + λ's seal is not opened early.
+  - **Primary family: FL gnn vs the twin** (Holm k = 4 per charge, both charges, combined by `weaker_f1`). The tests are moderate and heavy × whole and after-360, on fl3 30149–30160 at 24 servers.
+    - The cell value is the mean of seeds 1–2. The topology value is the median over g0–g3 of the paired %. The test is an exact two-sided Wilcoxon.
+    - **Seed-matched clauses:** FL seed s vs twin seed s, ≤ −1 % on all four, and collapses also seed-matched.
+  - **F2 labels.**
+    - **MP-ATTRIBUTED:** FL gnn beats the twin under the full program win rule: median ≤ −2 %, Holm < .025 on all four, each seed ≤ −1 %, collapses seed-matched.
+    - **MP-DIRECTION:** FL gnn is faster on all four medians and Holm < .025 on at least two, but the full rule fails.
+    - **TWIN-FASTER:** the twin is Holm-faster (< .025) on any test.
+    - **TIE:** anything else.
+    - **Only MP-ATTRIBUTED licenses a message-passing claim in the paper.** The label stands as read; there is no widening after the read.
+  - **Descriptive** (after the primary md5 is filed; p unadjusted, never a label):
+    - the twin vs FL MLP: is the GNN without message passing still ahead of the pointwise model (architecture and EdgeScorer vs MP)?
+    - the twin vs the bar;
+    - the twin at 64 servers on 30129–30140, labelled "topologies already read in size-64".
+  - **Registered prior (SCIENTIST):** P(MP-ATTRIBUTED) ≈ 0.15, P(MP-DIRECTION) ≈ 0.20, P(TIE) ≈ 0.55, P(TWIN-FASTER) ≈ 0.10.
+  - **Process:**
+    - (1) SCIENTIST signs; then the parity test, the md5 file and the host lines;
+    - (2) P7b and P9 are frozen and signed;
+    - (3) a smoke on 19461, then the cells;
+    - (4) B3 at P9;
+    - (5) the primary read, alone, after the FL + λ primary md5 is filed;
+    - (6) one read; any void is disclosed with what it printed;
+    - (7) Rule 6: the label stands as read.
+  - **Cost (estimate).**
+    - Training about 10 h CPU per seed, in parallel; cells about 1 h wall on 4 exclusive nodes.
+    - The parity test, P7b and P9 are a few hours, in parallel with training.
+
 - 2026-10-19 — **FL + λ, prerequisite P6: gate change G8c `b8909f58` filed (merged into reference-physics at `0ffaf309`); SCIENTIST OK'd it before merge.** (S6.) G8c is a child of the P2 pin `74ddf70e`, on the reader's pin chain `a459dd98` → `095948ea` (G8b) → `f6818d09` (P1) → `74ddf70e` (P2) → G8c, as P1 and P2 were built. It touches only `scripts_cosim/fresh_topo_burst_v1_gate.py` (blob `996ce2f7`) and `tests/test_uncut_arm1_gate_stage.py`. The FL + λ read's flags will be `--pin a459dd98 --gate-change 095948ea,f6818d09,b8909f58 --w-pins 74ddf70e,<P7>`.
   - **What it adds.**
     - `COMB_FLREG` = `ra_gnn_eng_flreg`, `ra_mlp_same_flreg`, kept out of `COMB_KINDS` and `COMB_FAST`. Stems `uncut-flreg-gnn-eng` / `uncut-flreg-mlp-same`; sidecheck `ra_gnn_eng_v6` / `ra_mlp_same_v6`; `partial_state_v6`.
