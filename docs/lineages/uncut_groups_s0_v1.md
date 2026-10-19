@@ -7,6 +7,7 @@
 - **Scope (measured on the gate windows):** the gate serves groups up to about 230 tasks (window max 135–226). 31.8–43.2 % of tasks sit in groups > 10 per window, and 1.2–3.5 % in groups > 100. The 2,876-task and other giant groups lie past the windows' first 50k tasks and are **not tested**: no outcome of this node may be quoted as covering groups in the thousands.
 - **Post-data amendments (2026-10-13, after k = 0 cells started returning):** WALL-INFEASIBLE is a third health count; K0's load question is read on `cd`; the k = 1 hand bar is `cd`, `cd_ib0` and the prune if it is wall-feasible. See [Post-data amendments](#post-data-amendments-2026-10-13-flagged-post-data). **Result:** hand expansion run to termination is wall-infeasible on uncut heavy groups (projected ~33,000 s per cell), measured before any learned arm ran.
 - **State (2026-10-18):** **Combined lever FL gnn** (in-flight features + simulator labels): 12-topology read WIN-ARM-ONLY on all four tests vs the in-flight bar (B6 cap); TE3 heavy CLAIM on 36; **FL confirmation on 24 fresh topologies NOT-CONFIRMED** (every pooled test clears the win line under both charges; seed 1 heavy whole is −0.70 % under `_kr`, above the −1 % seed line); F2-MC FL gnn vs FL MLP **MODEL-CLASS-DIRECTION** (−0.9 to −2.0 %, 8/8 faster, 6/8 Holm-significant; no MP-OFF twin, so no MP claim). Seed extension: Arm 1b and Arm 3 s11–18 read (F1 MIXED each), E1 CLAIM moderate / UNRESOLVED heavy; K0 and Arm 2 s11–16 were cancelled by the user before completion (2026-10-18, not result-driven), so E3/E4 will not be read. Earlier on 2026-10-18: frozen w for F, L, FL and the FL MLP is pinned from node B only (series 884584; the H3 drift stop fired on node A; see the 2026-10-18 Record entry). Before that, as of 2026-10-17: Hand co-tenancy series 871538 read: KEEP for cd_ib0 and cd under ruling (c) (r_hand_off 1.169 / 1.173, k_cotenancy stays 1.468); learned-w freeze next. `ils_oracle_live` read PARTIAL + CEILING-TRUNCATED (contrasts A and B filed, SCIENTIST audit PASS). Arm 1 labels 12,000/12,000, corpus 11,073 datasets, cache check D == C on all 11,073. Training: **Arm 1 COMPLETE** (gnn, twin and mlp, seeds 1 and 2; CPU, pin 69ed8e53 = c825d517 + 6-thread / 0-worker yamls, no src change; relaunched as 871420 after datalab switched SMT off, hedge rule in the Record; all six `-final.pt` are in the md5 file, val CE at epoch 100 within 2.5 % of its minimum in every run read); **Arm 1b** (batched teacher-forced trainer, pin c94b9459, jobs 870044–870047); **Arm 2 and its K0 sibling** at pin 33de2b47 as resume-capable chains (its only training-relevant src difference from 69ed8e53 is the `init_weights` guard for bias-free Linears, a no-op on biased ones). The two K = 2 Arm 2 gnn runs were moved to one L40S each at 5f4258a4 on 2026-10-14; the twins and K0 stay on CPU, so every Arm 2 gnn-vs-twin line is not device-matched (item (i) of the Arm 2 launch entry; the stager entry repeats the disclosure). Gate pin d6ae87c2, served from `-final.pt`; learned cells may run at w-only pins (pre-registered amendment of 2026-10-14), and a second, co-tenancy-charged learned cell set and verdict are pre-registered the same day. Interim looks 1 (Arm 1b twin) and 2 (Arm 1b gnn) are in `interim_looks.md`; look 3 (K0 twin) ran and is SEALED (line 869; seal `dc313b0c`). **No final-read learned gate cell has been read.** **Move-regret lever, wave 1 (array 880666; Record 2026-10-16):** three of four runs finished; lambda 2.0 seed 1 timed out (880669) and is relaunched from scratch as chain 881142 / 881143; stage 1 waits for it. The lever's live-gate plumbing (gate change G6 `3df0cce6`, stager, reader) is built and tested; no calibration or cell runs before the user rules on the live gate. The lever's live-gate plumbing (gate change G6 `3df0cce6`, stager, reader) is built and tested; no calibration or cell runs before the user rules on the live gate. Stage 1 on all four lambda runs (Record 2026-10-17): neither lambda passes. The lever's live gate then ran at the user's go (lambda 2.0, the expert's fallback selection): F1 MIXED, no WIN (moderate load clearly ahead of the ib0 bar, heavy not significant), no MP attribution possible (no twin); the filed read is done (MIXED). **Reference baselines (amendment 2026-10-17, no cell yet):** random, Knative-style reactive and a HEFT-style list scheduler are registered as descriptive reference rows against the `cd_ib0_k100` bar; no verdict changes. **Seed extension, Arm 1b gnn seeds 11–18 (2026-10-18):** trained (883459–883466) and gated (1,536 cells, 0 failed); the registered reader read is F1 MIXED, frozen and co-tenancy, as for seeds 1 and 2 (moderate ahead, heavy not significant); a descriptive file-only read against the in-flight bar is attached; the labelled E1 / E3 tests wait for the other arms' reads.
+- **Per-term latency breakdown (2026-10-19; descriptive, no label; Record):** the FL gnn's gain over `cd_ib0_inflightfull` is peer-exchange time (Δ −0.18 to −0.70 s per task, 12/12 topologies, gate and size 64 at both rungs), paid for in scheduler wait, residual queue and lock wait; its co-location share is *lower* than the bar's, so the saving is not more co-located pairs.
 - **Serve-fast (2026-10-15; post-interim, used in no gate or registered read):** `SERVEFAST_BUILD` and `SERVEFAST_COLUMNS` (`rp/gnn-serve-fast`) are bit-identical and SIM-IDENTICAL on 8/8 Arm 1b cells, cutting the live decision wall by 14.3 % moderate / 22.1 % heavy together; `SERVEFAST_ROWS` failed decision identity on near-ties (8/8 cells on `24fc2b70`) and was unwired at merge. **Disclosure for every GNN-arm read:** exact top-2 logit ties are common in this decode (1.59 % of scoring steps; twin platforms with identical features), and what is served at a tie is the lowest (node_id, platform_id). Record entry 2026-10-15.
 - **Labels are ILS incumbents, not optima.** For groups above the 100,000-plan cap, label quality is bounded by the registered convergence check (ruling 3). `placements.jsonl` for those groups is a headed sample, not a sweep (F; the expert's exemption of 2026-10-13).
 
@@ -300,6 +301,94 @@ Read at reference-physics 18161421. "Cut" is where tasks are dropped; "cap" is w
 Not checked: the feature contract for very large batches (the `partial_state_v3` block is size-free by design), the memory of a 2,876-task decode, and the per-batch time of the GNN forward at that size. These are smoke-test items.
 
 ## Record (newest first)
+
+- 2026-10-19 — **Per-term latency breakdown (Eq. 2): descriptive, no label.** (S5; filed cells only, no new cell, report-only at the user's GO via the expert; the held conf2 read is untouched.) Whole run, windows g0–g3 pooled, per topology the mean over windows (and over GNN seeds 1–2); delta = GNN − bar; faster/12 counts topologies with GNN below bar; raw two-sided Wilcoxon signed-rank over the 12 topology means (the smallest p at n = 12 is 0.0005; no correction, descriptive). GNN = FL `ra_gnn_eng_combfl_nosplit_k100` s1–2; bar = `cd_ib0_inflightfull_k100` s0. Sets: (a) the 12 gate topologies 19537–19548 (`comb/cells_comb_fl` vs `comb/cells_bar_g8`), (b) the 12 size-64 topologies 30129–30140 (`size64/cells_learned` vs `size64/cells_bar`; the secondary is filed, so size64 is open).
+  - **Result.** Peer exchange is the whole gain: Δ exchange −0.300 / −0.178 s (gate moderate / heavy) and −0.701 / −0.397 s (size 64) against Δ elapsed −0.213 / −0.097 / −0.652 / −0.177 s, 12/12 topologies faster on exchange in every row. GNN pays for it in the scheduler wait (+0.024 to +0.029 s, 0/12 in every row), in the residual queue Q_resid (+0.018 to +0.069 s, 0/12 or 2/12 faster; at size-64 heavy the queue field itself is −0.040 s because pull is −0.060 s) and in the compute-lock wait (+0.020, +0.034 and +0.274 s, with −0.007 s at size-64 moderate). **Co-location share is lower for GNN in all four rows (−3.3, −1.7, −10.4, −4.0 pp) while its exchange seconds are lower**: the exchange saving is not more co-located pairs (the share counts transfers, not seconds; the mechanism, for example cheaper access classes for the remaining transfers, is not measured here).
+  - **Field map** (`src/placement/infrastructure.py`, `orchestrator.py`; script docstring):
+    - W = `averageWaitTime` (scheduled − dispatched: batch collection plus the charged decision time).
+    - queue field = `averageQueueTime` (arrived − scheduled), which holds the FIFO queue, ingress propagation, ingress transfer and link wait, and the image pull. Separable parts: propagation N = `averageNetworkLatency` and pull P = `averagePullTime`; the rest, Q_resid = queue − N − P, is the FIFO queue plus ingress transfer and link wait, **not separable** (no summary field carries ingress wait or link wait).
+    - K = `averageColdStartTime`. R = `totalPeerRendezvousWait` / n. X = `totalPeerExchangeTime` / n.
+    - IO = `averageCommunicationsTime` − X (input read plus output write, **not separable from each other**; 0.0168 s in every cell, the same on both arms).
+    - L = `lock_wait.mean`. E = `averageExecutionTime`. elapsed = `averageElapsedTime`. compute_resid = `averageComputeTime` − (comm + L + E) (output storage wait and the like).
+    - Informational: decision wall = `decisionTiming.total_s` / n is real seconds, not simulated time (GNN 0.005–0.006, bar 0.0002–0.0004); the simulated charge sits in W. Cold-start count = `cold_start_pct`/100 × n; scale-ups = the sum of `scaleOut.scale_ups_by_cause`; co-location share = 1 − cross-node transfers (`peerExchangeByAccessClass`) / directed partner relations (2 × `peer_exchange` rows of the window's workload).
+  - **Counts.** Replica peak is 120 (gate) / 319 (size 64) on both arms; mean replica count is 1.0 / 1.0 (gate) and 6.7 / 3.1 (size 64) lower for GNN. Cold starts: gate +98 / −6; size 64 +98 (0/12 faster) / −67 (12/12). Tables:
+    - **Gate topologies 19537–19548, moderate** (s per task; GNN − bar)
+      | term | GNN | bar | Δ | faster/12 | Wilcoxon p |
+      |---|---|---|---|---|---|
+      | W_sched_wait | 0.0441 | 0.0176 | +0.0265 | 0/12 | 0.0005 |
+      | queue_field | 0.6836 | 0.6490 | +0.0345 | 2/12 | 0.0034 |
+      | N_prop | 0.0501 | 0.0493 | +0.0008 | 0/12 | 0.0005 |
+      | P_pull | 0.1365 | 0.1366 | -0.0001 | 5/12 | 0.9097 |
+      | Q_resid | 0.4970 | 0.4632 | +0.0338 | 2/12 | 0.0024 |
+      | K_cold | 0.1420 | 0.1339 | +0.0081 | 5/12 | 0.1763 |
+      | R_rendezvous | 0.0353 | 0.0353 | -0.0000 | 7/12 | 0.9697 |
+      | X_exchange | 1.3924 | 1.6927 | -0.3003 | 12/12 | 0.0005 |
+      | IO_input_output | 0.0168 | 0.0168 | -0.0000 | 9/12 | 0.3394 |
+      | L_lock_wait | 0.4062 | 0.3857 | +0.0204 | 0/12 | 0.0005 |
+      | E_exec | 0.0765 | 0.0747 | +0.0018 | 6/12 | 0.6772 |
+      | compute_resid | 0.0388 | 0.0425 | -0.0037 | 11/12 | 0.0010 |
+      | elapsed | 2.8356 | 3.0483 | -0.2127 | 12/12 | 0.0005 |
+      | coloc_share | 0.6292 | 0.6623 | -0.0330 | 11/12 | 0.0010 |
+      | cold_starts | 2207.9 | 2109.8 | +98.0 | 5/12 | 0.1763 |
+      | replica_time_mean | 40.3 | 41.3 | -1.0 | 9/12 | 0.0122 |
+    - **Gate topologies 19537–19548, heavy** (s per task; GNN − bar)
+      | term | GNN | bar | Δ | faster/12 | Wilcoxon p |
+      |---|---|---|---|---|---|
+      | W_sched_wait | 0.0506 | 0.0220 | +0.0287 | 0/12 | 0.0005 |
+      | queue_field | 0.6917 | 0.6710 | +0.0206 | 1/12 | 0.0015 |
+      | N_prop | 0.0493 | 0.0485 | +0.0008 | 1/12 | 0.0049 |
+      | P_pull | 0.1271 | 0.1284 | -0.0013 | 9/12 | 0.1099 |
+      | Q_resid | 0.5153 | 0.4942 | +0.0211 | 0/12 | 0.0005 |
+      | K_cold | 0.0483 | 0.0426 | +0.0057 | 3/12 | 0.0122 |
+      | R_rendezvous | 0.0134 | 0.0134 | -0.0000 | 7/12 | 0.6772 |
+      | X_exchange | 0.7094 | 0.8877 | -0.1783 | 12/12 | 0.0005 |
+      | IO_input_output | 0.0168 | 0.0168 | +0.0000 | 2/12 | 0.0024 |
+      | L_lock_wait | 0.7052 | 0.6712 | +0.0340 | 2/12 | 0.0342 |
+      | E_exec | 0.0824 | 0.0857 | -0.0033 | 8/12 | 0.2661 |
+      | compute_resid | 0.0487 | 0.0530 | -0.0043 | 12/12 | 0.0005 |
+      | elapsed | 2.3666 | 2.4635 | -0.0969 | 10/12 | 0.0024 |
+      | coloc_share | 0.7628 | 0.7798 | -0.0169 | 9/12 | 0.0923 |
+      | cold_starts | 987.9 | 994.3 | -6.4 | 7/12 | 0.6772 |
+      | replica_time_mean | 55.0 | 55.9 | -1.0 | 9/12 | 0.0923 |
+    - **Size-64 topologies 30129–30140, moderate** (s per task; GNN − bar)
+      | term | GNN | bar | Δ | faster/12 | Wilcoxon p |
+      |---|---|---|---|---|---|
+      | W_sched_wait | 0.0493 | 0.0252 | +0.0241 | 0/12 | 0.0005 |
+      | queue_field | 0.7087 | 0.6631 | +0.0456 | 0/12 | 0.0005 |
+      | N_prop | 0.0486 | 0.0470 | +0.0016 | 0/12 | 0.0005 |
+      | P_pull | 0.2122 | 0.2367 | -0.0245 | 12/12 | 0.0005 |
+      | Q_resid | 0.4479 | 0.3794 | +0.0685 | 0/12 | 0.0005 |
+      | K_cold | 0.0480 | 0.0333 | +0.0147 | 0/12 | 0.0005 |
+      | R_rendezvous | 0.0116 | 0.0117 | -0.0001 | 11/12 | 0.0010 |
+      | X_exchange | 0.7073 | 1.4087 | -0.7014 | 12/12 | 0.0005 |
+      | IO_input_output | 0.0168 | 0.0168 | -0.0000 | 11/12 | 0.0010 |
+      | L_lock_wait | 0.7753 | 0.7826 | -0.0073 | 6/12 | 0.9697 |
+      | E_exec | 0.0482 | 0.0551 | -0.0070 | 11/12 | 0.0010 |
+      | compute_resid | 0.0708 | 0.0915 | -0.0207 | 12/12 | 0.0005 |
+      | elapsed | 2.4360 | 3.0880 | -0.6520 | 12/12 | 0.0005 |
+      | coloc_share | 0.4943 | 0.5984 | -0.1041 | 12/12 | 0.0005 |
+      | cold_starts | 682.0 | 583.8 | +98.2 | 0/12 | 0.0005 |
+      | replica_time_mean | 67.6 | 74.3 | -6.7 | 11/12 | 0.0010 |
+    - **Size-64 topologies 30129–30140, heavy** (s per task; GNN − bar)
+      | term | GNN | bar | Δ | faster/12 | Wilcoxon p |
+      |---|---|---|---|---|---|
+      | W_sched_wait | 0.0642 | 0.0372 | +0.0270 | 0/12 | 0.0005 |
+      | queue_field | 0.8564 | 0.8963 | -0.0400 | 11/12 | 0.0010 |
+      | N_prop | 0.0477 | 0.0459 | +0.0019 | 0/12 | 0.0005 |
+      | P_pull | 0.2257 | 0.2852 | -0.0595 | 12/12 | 0.0005 |
+      | Q_resid | 0.5830 | 0.5653 | +0.0177 | 0/12 | 0.0005 |
+      | K_cold | 0.0135 | 0.0113 | +0.0022 | 1/12 | 0.0024 |
+      | R_rendezvous | 0.0036 | 0.0036 | -0.0000 | 10/12 | 0.1763 |
+      | X_exchange | 0.3532 | 0.7507 | -0.3974 | 12/12 | 0.0005 |
+      | IO_input_output | 0.0168 | 0.0168 | +0.0000 | 4/12 | 0.2036 |
+      | L_lock_wait | 2.0360 | 1.7617 | +0.2743 | 1/12 | 0.0010 |
+      | E_exec | 0.0725 | 0.0866 | -0.0141 | 11/12 | 0.0034 |
+      | compute_resid | 0.0964 | 0.1251 | -0.0287 | 12/12 | 0.0005 |
+      | elapsed | 3.5126 | 3.6893 | -0.1767 | 11/12 | 0.0024 |
+      | coloc_share | 0.7112 | 0.7513 | -0.0401 | 11/12 | 0.0024 |
+      | cold_starts | 332.5 | 399.7 | -67.2 | 12/12 | 0.0005 |
+      | replica_time_mean | 111.3 | 114.4 | -3.1 | 9/12 | 0.0640 |
+  - **Files** (`docs/lineages/uncut_groups_s0_v1/term_decomp/`, copied from `/share/nikola.lukic/uncut_groups/term_decomp/`, jobs 887193 / 887194): `term_decomp.py` md5 `c56dd5d44161dc3a1085b87f5429e7cb`; `term_decomp_a.json` `3b98be9b53bff8fcc8bc1a5a929a87d9`, `term_decomp_a.txt` `56cbfaa4e55334daf473caea03a27312`, `term_decomp_b.json` `f70082c776ef3467726b357eb2544218`, `term_decomp_b.txt` `ce68fc30bbcb5d9eb8f848f2198668cb`; `run.sbatch` `07398eafb3d774dc28e2de17e5753dd0`. Label: descriptive, no label.
 
 - 2026-10-18 — **FL size-64: the reader is re-frozen at reference-physics `2b571f99`** (`scripts_cosim/uncut_arm_gate_read.py` blob `549643c8`; P5.1 on P5; filed before the secondary is rerun). The size-64 secondary runs from this commit (datalab worktree `s6_reader_2b571f99`); the filed primary (`99de7fac`, read at `4132de68`) stands as filed.
   - **Disclosure: the first secondary was VOID.** Job 885487 (`size64_read_secondary.sh` md5 `8936663b`, `--record 8596db80`, reader `4132de68`) FAILED 1:0 in 25 s and wrote no read file. It printed: "SECONDARY READ FAILED rc=1 / filed gate text ad1f728a; addenda dcaa41d9, 1c7c8682; gate pin a459dd98 / FAIL LOUD: ('reactive', 0, 30129, 'g0', 'heavy') per-task sidecar lacks groupSize/servedBatchSize on some task". The md5 and filed-primary checks and every `--desc-gate` check had passed; no descriptive row was computed or seen.
