@@ -303,6 +303,79 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **FL + λ (FL gnn and FL MLP trained with the move-regret term at λ = 2.0, vs their filed λ = 0 twins): REGISTERED before any FL + λ topology is minted and before any FL + λ cell exists. SCIENTIST's signed design is in the text; SCIENTIST signs against this commit after a diff check.** (The user's GO, relayed by the expert. S4 trains, mints and runs the bar cells; S6 drafts, makes the gate change, the w-only pin and the reader, and reads.) **Claim, and its only claim:** "Adding the move-regret term at λ = 2.0 to FL's training makes FL gnn faster than FL gnn without it." It does not touch either FL confirmation (`83fa5b8e`, `c41f1527`, both NOT-CONFIRMED), the size-64 family or FL's B6 label.
+  - **Disclosure.**
+    - λ = 2.0 and the move-regret table (sha256 `0117cbd2…`) are not new to this program. Arm 3 trained at λ 2.0 on the earlier table, and A3-L / A3-L-ft trained at λ 2.0 on `0117cbd2`. Their filed reads were seen: A3-L-ft is F1 MIXED, beating the in-flight bar at moderate and tying it at heavy.
+    - This family was designed after both FL confirmations' primary reads, the size-64 reads and the size pilot.
+    - λ is fixed at 2.0 as filed for those arms. It is not tuned for this family, and no other λ is run.
+    - The new topologies and the FL + λ checkpoints are unseen.
+  - **Training (launched before this registration, which only fixes how they are read).** S4, CPU-amd (**venue A**: the CPU one-epoch smoke took GNN 309.7 s and MLP 203.7 s; the GPU smokes did not finish one epoch in 19 min, so the GPU rule, ≤ 1/3 of CPU's epoch time, is not met).
+    - Pin `75579c0f` (`s4/flreg-train`): `f9a41cce` plus two configs, `experiments/uncut_flreg_gnn_eng.yaml` and `experiments/uncut_flreg_mlp_same.yaml`. Each is FL's yaml (`uncut_comb_fl_gnn_eng`, `uncut_comb_fl_mlp_same`) with only the lineage, run name, tags and two keys changed: `NEAR_RTT_REGRET_LAMBDA: '2.0'`, and `NEAR_RTT_MOVE_REGRET_PATH` set to `/share/nikola.lukic/uncut_groups/lever_sim/move_regret_simlabels.pkl` (sha256 `0117cbd2ee9af473ad14d0ab3e32b7d08cdd1d54df9ed631da9486628c78cdc2`).
+    - **The term.** λ weights the expected move-regret in the batched teacher-forced loss: L = CE(label) + λ · Σ over label steps Σ_c p_c · d_c (`regret_term`, `src/policy/gnn/batched_tf.py`). d_c comes from the table, with 10 for never-scored candidates.
+      - It applies to 3,118 of the 9,745 train graphs. Val and test carry no move cost.
+      - The MLP uses the same term, with no code change. Its smoke logged a non-zero `[REGRET]` (0.0066).
+    - Jobs 887337 / 887338 (GNN + λ seeds 1 / 2, os-cpu-slurm-13 / 14) and 887339 / 887340 (MLP + λ seeds 1 / 2, -15 / -16). From scratch, 100 epochs, FL's corpus, split, simulator labels and `partial_state_v6`. W&B on every run.
+    - **`-final.pt` is served whatever the curves show; no val selection.** No curve, val metric or W&B value is read for any decision. The md5s of all four `-final.pt` are filed in a new md5 file before any cell. If any of the four runs cannot finish, the family is VOID: it is never read on fewer seeds, and no seed is replaced.
+  - **Arms (⟦A⟧: one CPU recipe for all four learned arms).**
+    - **FL + λ:** `ra_gnn_eng_flreg_nosplit`, stem `uncut-flreg-gnn-eng`, seeds 1–2.
+    - **FL (the matched λ = 0 control):** `ra_gnn_eng_combfl_nosplit`, the filed seeds 1–2 (`comb/md5_comball.json`), no retraining.
+    - **FL MLP + λ:** `ra_mlp_same_flreg_nosplit`, stem `uncut-flreg-mlp-same`, seeds 1–2.
+    - **FL MLP (filed):** `ra_mlp_same_combfl_nosplit`, seeds 1–2.
+    - **Bars:** `cd_ib0_inflightfull_k100` and `cd_k100`, seed 0, at the G8 base pin `a459dd98`.
+    - Every learned arm runs under both charges, `_k100` and `_kr` (k = 1.468).
+  - **Topologies: 12 fresh 24-server ids**, by the literal scan rule: the lowest free run of 12 consecutive ids above 30140, from S5's token scan rerun just before filing.
+    - **Disjoint from:** the training corpus and every capture or state list of the Arm 1 corpus; 16251–16270; 19461; the gate ids 19537–19548; TE3's 19554–19589; confirmation 1's 19707–19730; confirmation 2's 19953–19976; the retired 20021–20032; the pilot's 30011–30123; size-64's 30129–30140; the 57 `accel_replica_v1` test ids; every scan token.
+    - **Mint:** confirmation 2's recipe, `big_groups_inputs.sbatch` at `f8814905`, 24 servers, unscaled `M_MODERATE` / `M_HEAVY`, g0–g3, new root `gate_inputs_fl3`. The ids, the list's sha256, the generator cfg md5 and the MD5SUMS are filed in the mint's Record line before any cell. **The mint runs only after SCIENTIST signs this registration.**
+    - **Admission:** reactive (`reactive` at `a459dd98`) runs first, alone, on all 96 cells. A topology is admitted only if all 8 of its reactive cells have queue share ≤ 0.80. Unknown is not a pass: a missing, failed or watchdog-killed cell, or one without the field, fails the topology.
+    - A failed topology is replaced by the lowest free id above the run (S5's rule). The replacement is scanned, minted, admitted and filed in its own line before any other cell runs on it. At most 4 replacements; beyond that the family stops and is reported. No id is dropped for an outcome.
+  - **Cells** (one venue: CPU-amd, EPYC 9335, SMT off, `--exclusive`, PAR 60, 1 thread, CELL_MEM 16G, LIMIT 14400; ≥ 4 nodes chosen by `sinfo` load, never os-cpu-slurm-21; `R1A_SLATE=declared_pruning_v1_uncapped`).
+    - Reactive: 96.
+    - Bars: 192.
+    - Learned: each of the four learned arms gets 2 seeds × 2 charges × 12 × g0–g3 × 2 rungs = 384 cells, 1,536 in all, at the w-only pin (P7).
+    - In all, 1,824 cells.
+    - The primary gate directories hold the bars, FL + λ and FL. The MLP arms are in a separate descriptive directory, which is not read, summarised or listed until the primary md5 is filed.
+  - **Primary family: FL + λ vs FL** (Holm k = 4 per charge). The tests are moderate and heavy × whole and after-360, on the 12 new topologies only, never pooled with any other set. Each charge is compared with the same charge: FL + λ `_k100` vs FL `_k100`, and `_kr` vs `_kr`.
+    - The cell value is the mean of seeds 1 and 2. The topology value is the median over the 4 windows of the paired %. The test is an exact two-sided Wilcoxon.
+  - **Win rule (the program's):**
+    - median ≤ −2 % and Holm p < .025 on all four;
+    - each of FL + λ seeds 1 and 2 alone ≤ −1 % on all four (seed s alone vs the control's seed mean);
+    - FL + λ's collapses ≤ FL's, per seed (the reader's count, the worse seed's) at each rung;
+    - the anchor clause as filed;
+    - read under `_k100` and `_kr` and combined by `weaker_f1`: a win must hold under both.
+  - **No B6 cap.** The topologies are fresh and the family is registered before any cell, so a win is program-level.
+  - **Labels.**
+    - **λ-WIN:** the win rule holds under both charges.
+    - **NOT-WIN:** any other outcome; the reader's own label is reported, including whether FL + λ is slower.
+    - **Stop rule: the label stands as read.** No widening after the read: no other λ, seed, topology, statistic or subset.
+  - **Secondary, descriptive only.** Never a label, never pooled into the primary, p unadjusted; computed after the primary md5 is filed:
+    - (a) FL + λ vs `cd_ib0_inflightfull_k100`, and vs `cd_k100`;
+    - (b) FL MLP + λ vs FL MLP;
+    - (c) FL + λ vs FL MLP + λ, a model-class contrast under λ (no MP-OFF twin, so no MP claim).
+  - **Registered prior (SCIENTIST, before any FL + λ output or topology).** P ≈ 0.25 that FL + λ beats FL at heavy whole by ≥ 1 pt. P ≈ 0.35 that FL MLP + λ is within 0.5 pt of FL gnn + λ.
+  - **Prerequisites (each filed in its own line before any learned cell).**
+    - **P6, gate change:** adds the kinds `ra_gnn_eng_flreg_nosplit` and `ra_mlp_same_flreg_nosplit` (stems above). Each cell checks the sidecar: batched loss, λ 2.0, the table sha256 `0117cbd2…`. The `.contract.json` of the filed FL checkpoints records none of device, dtype or TF32. So under venue A the venue is proven from each training log's host line (CPU-amd node, "smt off", 6 CPUs) and filed in the md5 file's provenance, not taken from the sidecar. It touches only the gate file and its tests, proven by listing equality against the parent with the new kinds removed.
+    - **P7, w-only pin:** the frozen decision-cost w of the two new kinds, calibrated by the filed recipe on one exclusive node pair. The commit changes only the w file. FL's and the FL MLP's w are unchanged, so their cells at P7 serve as at `74ddf70e`.
+    - **P8, reader:** `--confirm-fl-lambda`, on the frozen-reader pattern of P4 / P5:
+      - the primary contrast is learned vs learned (FL + λ vs FL), not vs the bar, with collapses compared to the control;
+      - seeds exactly 1, 2; Holm < .025;
+      - every cell records servers = 24;
+      - the topology guard extended by every list above;
+      - R1 grid-or-void: `--gate` must be exactly the bars, FL + λ and FL (960 cells) with 0 failed and nothing extra, and in the secondary `--desc-gate` must be exactly the two MLP arms (768);
+      - a staged primary and secondary read.
+    - The reader is proven by B3 on every read of record in its filed `--gate` order. It is frozen at the reference-physics commit that carries it and signed before any cell.
+  - **Process:**
+    - (1) SCIENTIST signs; then the mint, then reactive admission, then every other cell.
+    - (2) The checkpoint md5 file and a smoke on 19461 (one FL + λ cell per charge).
+    - (3) One read script, written locally and copied.
+    - (4) B3 at the frozen P8 reader before the primary.
+    - (5) The primary stage runs alone and stops non-zero on failure, VOID included; nothing descriptive is computed until its md5 is filed.
+    - (6) One read; any void is disclosed with what it printed.
+    - (7) Rule 6: the label stands as read.
+  - **Cost (estimate, from confirmation 2's cells).**
+    - Training: GNN about 8.6 h, MLP about 5.7 h, in parallel.
+    - Mint about 1 min; reactive about 96 × 1–3 min.
+    - Learned cells about 1 h wall per 384 on 4 exclusive nodes; bars about 8 min.
+    - P6–P8 about 2–3 h, in parallel with training. The read about 1 min.
 - 2026-10-19 — **FL confirmation 2, primary read filed: NOT-CONFIRMED.** FL gnn's B6 cap stays (WIN-ARM-ONLY on the 12-topology read, as filed). **Both confirmations are reported together:** confirmation 1 (`83fa5b8e`, seeds 1–2, 19707–19730) and confirmation 2 (`c41f1527`, seeds 3–6, 19953–19976) are both NOT-CONFIRMED, and neither is re-read or amended. (S6 read, at the frozen reader `13c9343d`, blob `60592d2d`, with `--confirm2 --stage primary --seeds 3,4,5,6`. It was run exactly once, as S5's held job, released after the exact grid, B3 and SCIENTIST's OK on the md5 file.) File `/share/nikola.lukic/uncut_groups/conf2/reads/read_conf2_primary.json`, md5 `c41f1527b2f31ac6ccc4510fff5585df`.
   - **Before the read.**
     - Training: jobs 885140–885143 at `f9a41cce`, all COMPLETED 0:0, each log ending "0 failure(s)" with "sidecar check: OK". Only those counters and the md5 lines were read; no curve, val metric or W&B value (C2).
