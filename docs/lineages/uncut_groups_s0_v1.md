@@ -303,6 +303,29 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **FL + λ, prerequisite P6: gate change G8c `b8909f58` filed (merged into reference-physics at `0ffaf309`); SCIENTIST OK'd it before merge.** (S6.) G8c is a child of the P2 pin `74ddf70e`, on the reader's pin chain `a459dd98` → `095948ea` (G8b) → `f6818d09` (P1) → `74ddf70e` (P2) → G8c, as P1 and P2 were built. It touches only `scripts_cosim/fresh_topo_burst_v1_gate.py` (blob `996ce2f7`) and `tests/test_uncut_arm1_gate_stage.py`. The FL + λ read's flags will be `--pin a459dd98 --gate-change 095948ea,f6818d09,b8909f58 --w-pins 74ddf70e,<P7>`.
+  - **What it adds.**
+    - `COMB_FLREG` = `ra_gnn_eng_flreg`, `ra_mlp_same_flreg`, kept out of `COMB_KINDS` and `COMB_FAST`. Stems `uncut-flreg-gnn-eng` / `uncut-flreg-mlp-same`; sidecheck `ra_gnn_eng_v6` / `ra_mlp_same_v6`; `partial_state_v6`.
+    - Each cell checks its sidecar: `batched_teacher_forced` true, `regret_lambda` 2.0, `move_regret` {sha256 `0117cbd2…`, lambda 2.0} and `partial_state_v6`, else FAIL LOUD. The FL kinds still refuse any non-zero `regret_lambda`.
+    - `_kr` is served through a new `FLREG_KR_KINDS`, so `COMB_KR_KINDS` is unchanged. The MLP serves with `GNN_ARM_KIND=mlp_same`. The bare kinds sit in `R1A_NOSPLIT`, outside the unset default grid.
+  - **Listing equality against the parent.**
+    - 94 module constants are equal once the flreg kinds are removed; only `COMB_FLREG` and `FLREG_KR_KINDS` are new.
+    - `split_dc` and `comb_contract` agree on all 430 parent kind variants.
+    - The unset default arm list is equal (22 = 22), and `R1A_ARMS` minus the flreg kinds equals the parent's (93).
+  - **Tests.** The new G8c test passes. The full suite at `b8909f58` has 34 failures. **They are the identical set at the parent `74ddf70e`, all pre-existing at that pin**, and fixed later on the main line:
+    - `test_run_experiment` 16; `test_dag_dispatch` 5; `test_pull_hold` 3; `test_pg_inflight` 2; `test_tied_dim25cr_features` 2;
+    - one each in `test_decision_cost_by_bucket`, `test_r1a_gate`, `test_skew_warmth_v2_grid`, `test_slate_no_split`, `test_uncut_arm1_gate_stage` and `test_uncut_comb_gate`.
+    - The list is filed at `/share/nikola.lukic/uncut_groups/paper_figdata/g8c_preexisting_failures_74ddf70e.txt`, md5 `c65e28e858d9bf257a922d13ae08e5d0`. My messages first said "35" with md5 `ede22c34`: that was the raw grep, which included one wrapped message line.
+    - The merge `0ffaf309`: full suite 2,858 passed, 115 skipped. The merge resolved `R1A_NOSPLIT` as the union, code-identical to my tip-based resolution `4d8e4477`.
+  - **Disclosed.** A first push of G8c put the bare flreg kinds in the unset default grid (`test_r1a_cell_list` 86 → 95). It was fixed in `b8909f58` before any use; nothing ran on it.
+- 2026-10-19 — **Paper reproducibility extraction (descriptive; filed data only, no new cell or read).** Job 887401 ran `paper_figdata/repro_extract.py` (md5 `c4fbe313a481da829171e353f88a5b19`); its output is `paper_figdata/repro_extract-887401.out`, md5 `0eb3db2a041a8204ac51a17884513e6f`. It is the source of the paper's:
+  - FL gnn vs FL MLP row on the 12 gate topologies, from `comb/reads/desc_comb.json` (md5 `26db4a56`). The file's p is unadjusted; any Holm column is computed for the paper, not filed.
+  - Parameter counts: FL gnn 505,220, FL MLP 24,833.
+  - Decision wall per batch, `_k100`, mean over cells (moderate / heavy): FL 21.97 / 22.30 ms at 24 servers and 30.15 / 29.43 ms at 64; the bar 0.79 / 1.02 and 1.50 / 2.11 ms.
+  - Frozen w(n) and `k_cotenancy`, quoted from `decision_cost_w.json` at `74ddf70e`.
+  - Batch size 32 and weight decay 1e-3. These are the trainer defaults; the yaml sets neither. The W&B configs of the six combined-lever runs of 2026-10-17 20:48 (FL gnn, FL MLP and L, seeds 1–2, `s6_comb_f9a41cce/wandb`) all record them.
+  - AdamW at lr 1e-3, from the yaml.
+
 - 2026-10-19 — **FL + λ fresh gate (30149–30160): reactive admission and hand-bar cells ran; counts and admission only, no latency read.** (S4; the expert's instruction after SCIENTIST OK'd the mint line; the mint is S5's, entry above.)
   - **Inputs.** Ids 30149–30160 (id-list sha256 `f6c5af0a…`), 24 servers, 160 clients, p 0.6, windows g0–g3, moderate and heavy. `gate_inputs_fl3/inputs_group` (MD5SUMS md5 `8e6333b2…`, `md5sum -c` clean), selection `fl3_selected.json` md5 `1a41404a…`, split md5 `cb4f540d…`. Root `/share/nikola.lukic/uncut_groups/fl3/`, script `fl3_cells.sh react|bar` (checks the above before any submit).
   - **Venue.** G8 `a459dd98` (the bar pin), CPU-amd EPYC 9335, SMT off, `--exclusive`, PAR 60, one thread per cell, CELL_MEM 16G, LIMIT 14400. Four shards per set on idle nodes, none of 13–16 (FL + λ training) or 21.
