@@ -308,6 +308,40 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
   - **Read (descriptive; filed in this node when the cells are complete).** The frozen reader's `--confirm-size64` accepts seeds 1–2 only, so the read is a script that imports the frozen reader (reference-physics `2b571f99`, blob `549643c8`) and reuses its `load`, `four` and `family` unchanged: per seed, seeds 3–6 pooled, and seeds 1–6 pooled (s1–2 from `size64/cells_learned`), against `cd_ib0_inflightfull_k100` (`size64/cells_bar`), both charges, the four tests (whole and after 360 s × moderate and heavy), raw exact Wilcoxon p and its Holm adjustment within each four. No verdict is read from it: a descriptive pass cannot confirm or fail the filed size-64 result.
   - **Files:** `docs/lineages/uncut_groups_s0_v1/size64_s36/`.
 
+- 2026-10-19 — **Server-count size pilot, FL gnn and FL MLP vs the in-flight bar: exploratory, not registered; descriptive, no label.** The 64-server size was chosen after this pilot; none of these ids is in any registered family. Filed cells only; nothing here was gated.
+  - **Who ran what (all 2026-10-18).** S5 ran the bar (`cd_ib0_inflightfull_k100`), reactive and FL gnn (`ra_gnn_eng_combfl_nosplit_k100`, seeds 1–2) cells at the P2 pin `74ddf70e`, window g0, moderate and heavy, scaled rate: `topo_explore/pilot/cells_v1_s16` (30011–30013, 16 servers), `cells_v2_s40` (30021–30023, 40), `cells_v2r_s40` (30101–30103, 40), `cells_v56_s56` (30111–30113, 56), `cells_v64_s64` (30121–30123, 64), all under `/share/nikola.lukic/uncut_groups`. S4 ran the FL MLP (`ra_mlp_same_combfl_nosplit_k100`, checkpoints md5 d05ff3f1 / 94b6f4be, seeds 1–2, same pin, same g0 and rungs) on the same topologies: `topo_explore/mlp_pilot/cells_{s16,s40,s40r,s56,s64}`, 12 cells each, 0 failed.
+  - **Why 40 servers appears twice.** `v2_s40` (30021–30023) and `v2r_s40` (30101–30103) are two independent draws of three topologies at the same 40-server recipe, built 22:26 and 22:42 and run by the same procedure. `v2r` is the replicate of the first 40-server draw; the gain differs between them (moderate whole −20.81 % vs −14.78 %), so the 40-server number is a spread over draws, not one value. S5's own stated reason for the second draw is not recorded in the cell files; this entry states only what the files show.
+  - **Source of the 24-server row.** It is NOT a pilot draw. It is the conf1 FL cells, window g0 only, on the 24 fresh topologies 19707–19730 (`conf/cells_bar`, `conf/cells_learned`; the same cells as the FL confirmation), so its n is 24, not 3. The `read_size` and `mlp_size_read` readers pool it as "24 (conf1, g0)".
+  - **Statistic.** Per topology, % vs the bar (FL gnn and FL MLP are the mean of seeds 1–2; the bar is s0), then the mean over the topologies of that size with faster/n. Whole = `averageElapsedTime`; after-360 = `steady_state.after_360s.mean`. Mean over 3 topologies is a direction only.
+  - **Table** (mean % over the topologies, faster/n; negative = faster; `*` = 24 servers, n = 24 conf1 g0, otherwise n = 3; gnn vs MLP is FL gnn against FL MLP)
+      | servers | rung | stat | FL gnn vs bar | FL MLP vs bar | FL gnn vs FL MLP |
+      |---|---|---|---|---|---|
+      | 16 | moderate | whole | -5.18 % (2/3) | -3.14 % (2/3) | -2.12 % (3/3) |
+      | 16 | moderate | after-360 | -4.53 % (2/3) | -2.36 % (2/3) | -2.24 % (3/3) |
+      | 16 | heavy | whole | -2.46 % (2/3) | -3.26 % (3/3) | +0.84 % (1/3) |
+      | 16 | heavy | after-360 | +1.17 % (1/3) | +0.18 % (2/3) | +0.95 % (1/3) |
+      | 24* | moderate | whole | -5.83 % (22/24) | -5.10 % (21/24) | -0.74 % (14/24) |
+      | 24* | moderate | after-360 | -6.28 % (22/24) | -4.78 % (21/24) | -1.55 % (18/24) |
+      | 24* | heavy | whole | -3.84 % (17/24) | -4.36 % (19/24) | +0.65 % (12/24) |
+      | 24* | heavy | after-360 | -3.48 % (16/24) | -3.02 % (15/24) | -0.25 % (12/24) |
+      | 40 | moderate | whole | -20.81 % (3/3) | -18.64 % (3/3) | -2.67 % (3/3) |
+      | 40 | moderate | after-360 | -24.23 % (3/3) | -20.78 % (3/3) | -4.38 % (3/3) |
+      | 40 | heavy | whole | -9.55 % (3/3) | -8.20 % (3/3) | -1.40 % (2/3) |
+      | 40 | heavy | after-360 | -19.66 % (3/3) | -13.89 % (3/3) | -6.63 % (3/3) |
+      | 40r | moderate | whole | -14.78 % (3/3) | -12.76 % (3/3) | -2.26 % (3/3) |
+      | 40r | moderate | after-360 | -16.61 % (3/3) | -13.52 % (3/3) | -3.47 % (3/3) |
+      | 40r | heavy | whole | -8.57 % (3/3) | -8.50 % (3/3) | +0.02 % (1/3) |
+      | 40r | heavy | after-360 | -15.90 % (3/3) | -14.54 % (3/3) | -1.10 % (2/3) |
+      | 56 | moderate | whole | -17.52 % (3/3) | -16.03 % (3/3) | -1.70 % (2/3) |
+      | 56 | moderate | after-360 | -21.84 % (3/3) | -18.79 % (3/3) | -3.61 % (2/3) |
+      | 56 | heavy | whole | -8.40 % (3/3) | -5.37 % (2/3) | -2.99 % (2/3) |
+      | 56 | heavy | after-360 | -17.36 % (3/3) | -16.41 % (3/3) | -1.24 % (2/3) |
+      | 64 | moderate | whole | -25.69 % (3/3) | -20.37 % (3/3) | -6.67 % (3/3) |
+      | 64 | moderate | after-360 | -32.68 % (3/3) | -25.61 % (3/3) | -9.12 % (3/3) |
+      | 64 | heavy | whole | -14.27 % (3/3) | -13.74 % (3/3) | -0.50 % (1/3) |
+      | 64 | heavy | after-360 | -38.87 % (3/3) | -36.68 % (3/3) | -3.02 % (2/3) |
+  - **Reading.** Both learned arms beat the bar at every size and rung except the 16-server heavy after-360 (gnn +1.17 %, MLP +0.18 %). The gain rises with size (moderate whole gnn −5.2 % at 16, −5.8 % at 24, −14.8 to −20.8 % at 40, −17.5 % at 56, −25.7 % at 64). The MLP carries most of it; the gnn's extra over the MLP is largest at 64 servers moderate (−6.67 % whole, −9.12 % after-360, 3/3) and mixed in sign at heavy. The per-term split of the size gain (peer-exchange time carries it for both arms) is in `mlp_pilot/size_decomp.txt`, not repeated here; no MP-OFF twin was run, so no message-passing claim follows.
+  - **Read files** (`topo_explore`, md5): `pilot/read_size.txt` 638a33730e45adae83c9fa1e9954a2d2; `mlp_pilot/mlp_size_read.txt` 3fc0239b646b1d7fceef1016b42e8060; `mlp_pilot/mlp_size_read.json` 8913380161d3cc914e854eba5900b47f; `mlp_pilot/size_decomp.txt` 873624a5854c4d5a080c55e69c152a90; `mlp_pilot/size_decomp.json` 1763e7bb8c6ec5136acefeae0596f791. Readers: S4's scratch `mlp_read.py` and `size_decomp.py` (copies in `topo_explore/`).
 - 2026-10-19 — **Per-term latency breakdown (Eq. 2): descriptive, no label.** (S5; filed cells only, no new cell, report-only at the user's GO via the expert; the held conf2 read is untouched.) Whole run, windows g0–g3 pooled, per topology the mean over windows (and over GNN seeds 1–2); delta = GNN − bar; faster/12 counts topologies with GNN below bar; raw two-sided Wilcoxon signed-rank over the 12 topology means (the smallest p at n = 12 is 0.0005; no correction, descriptive). GNN = FL `ra_gnn_eng_combfl_nosplit_k100` s1–2; bar = `cd_ib0_inflightfull_k100` s0. Sets: (a) the 12 gate topologies 19537–19548 (`comb/cells_comb_fl` vs `comb/cells_bar_g8`), (b) the 12 size-64 topologies 30129–30140 (`size64/cells_learned` vs `size64/cells_bar`; the secondary is filed, so size64 is open).
   - **Result.** Peer exchange is the whole gain: Δ exchange −0.300 / −0.178 s (gate moderate / heavy) and −0.701 / −0.397 s (size 64) against Δ elapsed −0.213 / −0.097 / −0.652 / −0.177 s, 12/12 topologies faster on exchange in every row. GNN pays for it in the scheduler wait (+0.024 to +0.029 s, 0/12 in every row), in the residual queue Q_resid (+0.018 to +0.069 s, 0/12 or 2/12 faster; at size-64 heavy the queue field itself is −0.040 s because pull is −0.060 s) and in the compute-lock wait (+0.020, +0.034 and +0.274 s, with −0.007 s at size-64 moderate). **Co-location share is lower for GNN in all four rows (−3.3, −1.7, −10.4, −4.0 pp) while its exchange seconds are lower**: the exchange saving is not more co-located pairs (the share counts transfers, not seconds; the mechanism, for example cheaper access classes for the remaining transfers, is not measured here).
   - **Field map** (`src/placement/infrastructure.py`, `orchestrator.py`; script docstring):
