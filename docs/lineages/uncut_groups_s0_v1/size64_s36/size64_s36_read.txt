@@ -1,0 +1,71 @@
+=== FL gnn at 64 servers (topologies 30129-30140) vs cd_ib0_inflightfull_k100; DESCRIPTIVE, no verdict. median % of per-topology median over g0-g3; faster/12; raw exact Wilcoxon p; Holm within each four
+--- _k100 seed3 (seeds [3])
+    moderate whole    median  -21.77 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -33.37 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -6.36 %  faster 10/12  p 0.0034  p_holm 0.0034  cells 48
+    heavy    after360 median  -23.27 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _k100 seed4 (seeds [4])
+    moderate whole    median  -26.56 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -33.93 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median  -11.69 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -25.19 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _k100 seed5 (seeds [5])
+    moderate whole    median  -22.82 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -32.84 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -8.34 %  faster 10/12  p 0.0161  p_holm 0.0161  cells 48
+    heavy    after360 median  -25.12 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _k100 seed6 (seeds [6])
+    moderate whole    median  -26.18 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -34.04 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -9.96 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -24.44 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _k100 seeds3-6 (seeds [3, 4, 5, 6])
+    moderate whole    median  -24.41 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -32.98 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -9.07 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -23.16 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _k100 seeds1-2 (seeds [1, 2])
+    moderate whole    median  -21.47 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -32.89 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -4.29 %  faster 11/12  p 0.0049  p_holm 0.0049  cells 48
+    heavy    after360 median  -27.27 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _k100 seeds1-6 (seeds [1, 2, 3, 4, 5, 6])
+    moderate whole    median  -23.48 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -32.86 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -7.88 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -24.77 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _kr seed3 (seeds [3])
+    moderate whole    median  -23.48 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -33.71 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -5.37 %  faster 10/12  p 0.0024  p_holm 0.0024  cells 48
+    heavy    after360 median  -26.96 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _kr seed4 (seeds [4])
+    moderate whole    median  -24.55 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -32.25 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -9.43 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -22.36 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _kr seed5 (seeds [5])
+    moderate whole    median  -23.69 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -33.55 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -6.48 %  faster 10/12  p 0.0342  p_holm 0.0342  cells 48
+    heavy    after360 median  -25.25 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _kr seed6 (seeds [6])
+    moderate whole    median  -26.27 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -34.43 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -9.78 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -21.76 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _kr seeds3-6 (seeds [3, 4, 5, 6])
+    moderate whole    median  -24.70 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -33.47 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -7.67 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -23.07 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _kr seeds1-2 (seeds [1, 2])
+    moderate whole    median  -21.94 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -33.26 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -4.59 %  faster  9/12  p 0.0068  p_holm 0.0068  cells 48
+    heavy    after360 median  -28.34 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+--- _kr seeds1-6 (seeds [1, 2, 3, 4, 5, 6])
+    moderate whole    median  -23.78 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    moderate after360 median  -33.31 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    whole    median   -6.33 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
+    heavy    after360 median  -24.42 %  faster 12/12  p 0.0005  p_holm 0.0020  cells 48
