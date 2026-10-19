@@ -380,3 +380,29 @@ def test_g8c_flreg_kinds_check_lambda_the_table_and_v6_and_serve_kr(tmp_path, mo
     for k in G.FLREG_KR_KINDS:
         assert G.split_dc(f"{k}_kr") == (k, 1.468)
     assert G.split_dc("ra_gnn_eng_flreg_kr") == ("ra_gnn_eng_flreg_kr", None)
+
+
+def test_g8d_fl_twin_kind_is_mp_off_v6_lambda_free_and_serves_kr(tmp_path, monkeypatch):
+    from scripts_cosim import fresh_topo_burst_v1_gate as G
+    from scripts_cosim import joint_burst_v2_sidecheck as SC
+    k = "ra_twin_eng_combfl"
+    assert G.COMB_TWIN == (k,) and k not in G.COMB_KINDS + G.COMB_FAST + G.COMB_FLREG and k in G.RA_KINDS and k in G.RA_MP_OFF
+    assert f"{k}_nosplit" in G.R1A_NOSPLIT and k in G.R1A_NOSPLIT and f"{k}_nosplit" in G.R1A_ARMS
+    assert G.COMB_STEMS[k] == "uncut-comb-fl-twin" and G.COMB_CHECK[k] == "ra_twin_eng_v6" and G.comb_contract(k) == "partial_state_v6"
+    # the sidecheck's v6 twin is the RA twin architecture (MP off, no bipartite conv) on partial_state_v6; the G8 v6 arms are unchanged
+    assert SC.COMB_V6_ARMS["ra_twin_eng_v6"] == SC.RA_ARMS["ra_twin_eng"] and SC.RA_ARMS["ra_twin_eng"][1] is True
+    assert SC.COMB_V6_ARMS["ra_gnn_eng_v6"] == SC.RA_ARMS["ra_gnn_eng"] and SC.COMB_V6_ARMS["ra_mlp_same_v6"] == SC.RA_ARMS["ra_mlp_same"]
+    good = {"batched_teacher_forced": True, "partial_state_contract": "partial_state_v6", "regret_lambda": None}
+    p = tmp_path / "c.contract.json"
+    p.write_text(json.dumps(good))
+    G.comb_trainer_check(k, str(p))
+    for bad in ({"regret_lambda": 2.0}, {"partial_state_contract": "partial_state_v5"}, {"batched_teacher_forced": None}):
+        p.write_text(json.dumps({**good, **bad}))
+        with pytest.raises(SystemExit, match="FAIL LOUD"):
+            G.comb_trainer_check(k, str(p))
+    assert G.TWIN_KR_KINDS == (f"{k}_nosplit",) and G.FLREG_KR_KINDS == ("ra_gnn_eng_flreg_nosplit", "ra_mlp_same_flreg_nosplit")
+    w = json.load(open(G.DC_W_FILE))
+    f = tmp_path / "w.json"
+    f.write_text(json.dumps({**w, "k_cotenancy": 1.468}))
+    monkeypatch.setattr(G, "DC_W_FILE", str(f))
+    assert G.split_dc(f"{k}_nosplit_kr") == (f"{k}_nosplit", 1.468) and G.split_dc(f"{k}_nosplit_k100") == (f"{k}_nosplit", 1.0)
