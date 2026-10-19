@@ -389,6 +389,83 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
       | cold_starts | 332.5 | 399.7 | -67.2 | 12/12 | 0.0005 |
       | replica_time_mean | 111.3 | 114.4 | -3.1 | 9/12 | 0.0640 |
   - **Files** (`docs/lineages/uncut_groups_s0_v1/term_decomp/`, copied from `/share/nikola.lukic/uncut_groups/term_decomp/`, jobs 887193 / 887194): `term_decomp.py` md5 `c56dd5d44161dc3a1085b87f5429e7cb`; `term_decomp_a.json` `3b98be9b53bff8fcc8bc1a5a929a87d9`, `term_decomp_a.txt` `56cbfaa4e55334daf473caea03a27312`, `term_decomp_b.json` `f70082c776ef3467726b357eb2544218`, `term_decomp_b.txt` `ce68fc30bbcb5d9eb8f848f2198668cb`; `run.sbatch` `07398eafb3d774dc28e2de17e5753dd0`. Label: descriptive, no label.
+  - **Addendum (2026-10-19): opening only (first 360 s), descriptive, no label.** Same cells, units and tests as above. Opening = tasks dispatched before 360 s (`tasks_bsz` column 1); the script asserts that dispatch ≥ 360 reproduces the summary's `steady_state.after_360s` n and mean in every cell, so the split is the summaries' own.
+    - **Only elapsed and lock wait can be split.** The filed artifacts carry, per task, the dispatch and completion times, group size, served batch size and lock wait (`tasks_lock` column 3). Every other Eq. 2 term (scheduler wait, queue, ingress, pull, cold start, rendezvous, exchange, input/output, execution) exists only as a whole-run summary mean, and the summaries carry an after-360 mean for elapsed alone. **Whole minus after-360 cannot be formed for those terms; no opening value is reported for them.** Reported instead: opening elapsed, opening lock wait, elapsed per 60 s dispatch bin, and elapsed per group-size bucket inside the opening.
+    - **Where seed 1 loses at 64 heavy.** The opening holds 25.2 % of tasks (12.6 k of 50 k). After 360 s the GNN beats the bar by −0.287 s (12/12; seed 1 −0.280, seed 2 −0.293), so the whole-run loss of seed 1 comes from the opening: seed 1 opening elapsed is **+0.553 s (2/12 faster, p = 0.0068)** against seed 2 −0.274 s (9/12). Inside the opening it sits in the 60–120 s dispatch bin (seed 1 **+5.31 s, 0/12, p = 0.0005**; seed 2 +2.26 s, 0/12; pooled +3.79 s, 0/12), after a win in the first 60 s (pooled −2.00 s, 11/12; seed 1 −0.62 s, 5/12) and a mostly recovered 120–180 s bin (seed 1 −0.69 s, 12/12). The lock wait in the opening is higher for the GNN in every seed (seed 1 +1.50 s, 0/12; seed 2 +0.62 s, 1/12; pooled +1.06 s, 0/12), and by group size seed 1 loses in the groups of at most 10 (+0.52 s, 2/12) and of 11–50 (+0.80 s, 1/12) but not in the bigger groups (−0.01 and +0.05 s). The after-360 lock wait carries no such difference (+0.005 s, 5/12, p = 0.85).
+    - **Other rows.** Gate moderate: opening Δ −0.437 s (9/12; seed 1 −0.160, 9/12, p = 0.27), the opening lock wait higher (+0.247 s, 3/12) and a loss in the 180–240 s bin (+0.604 s). Gate heavy: seed 1 opening +0.230 s (5/12, p = 0.09), seed 2 −0.648 s (12/12), the 60–120 s bin +1.70 s for seed 1 (0/12). Size-64 moderate: the GNN is ahead in the opening (−1.16 s, 12/12) apart from the 60–120 s bin (seed 1 +2.83 s, 0/12). Seed 1 loses the 60–120 s bin in three of the four rows (gate heavy, size-64 moderate and heavy; at gate moderate it is −0.27 s, 7/12, and its loss there is the 180–240 s bin, +0.88 s, 2/12); this is a description of the cells, no mechanism is tested.
+    - **Gate 19537–19548, moderate** (opening = 4.4 % of tasks, 2181 per cell-mean; s per task; Δ = GNN − bar, (faster/12, p))
+      | quantity | bar | GNN s1–2 Δ | seed 1 Δ | seed 2 Δ |
+      |---|---|---|---|---|
+      | open_elapsed | 16.9090 | -0.4370 (9, 0.0161) | -0.1597 (9, 0.2661) | -0.7143 (10, 0.0034) |
+      | after_elapsed | 2.4068 | -0.2034 (12, 0.0005) | -0.2046 (12, 0.0005) | -0.2022 (12, 0.0005) |
+      | whole_elapsed | 3.0483 | -0.2127 (12, 0.0005) | -0.2015 (12, 0.0005) | -0.2239 (12, 0.0005) |
+      | open_lock | 7.3340 | +0.2473 (3, 0.0161) | +0.6531 (0, 0.0005) | -0.1586 (8, 0.2036) |
+      | after_lock | 0.0674 | +0.0087 (3, 0.0522) | +0.0166 (2, 0.0049) | +0.0008 (6, 0.9097) |
+      | bin0_60 | 55.3862 | -1.6811 (12, 0.0005) | -1.2865 (12, 0.0005) | -2.0756 (11, 0.0010) |
+      | bin60_120 | 10.4950 | -1.2392 (9, 0.0122) | -0.2695 (7, 0.5693) | -2.2090 (12, 0.0005) |
+      | bin120_180 | 3.2648 | +0.1906 (6, 0.6772) | +0.1666 (6, 0.7910) | +0.2147 (6, 0.4238) |
+      | bin180_240 | 2.8839 | +0.6041 (3, 0.0425) | +0.8849 (2, 0.0269) | +0.3234 (5, 0.2334) |
+      | bin240_300 | 2.9453 | -0.3145 (9, 0.1294) | -0.2612 (8, 0.2334) | -0.3679 (9, 0.1514) |
+      | bin300_360 | 2.5072 | -0.0899 (5, 0.9097) | -0.2618 (7, 0.3013) | +0.0821 (4, 0.7334) |
+      | bk_le10 | 15.6247 | -0.7133 (11, 0.0015) | -0.4438 (10, 0.0049) | -0.9828 (11, 0.0010) |
+      | bk_11_50 | 19.5978 | -0.2622 (6, 0.3394) | +0.0921 (6, 0.8501) | -0.6165 (8, 0.1099) |
+      | bk_51_100 | 22.1215 | +0.4522 (4, 0.3394) | +0.4161 (4, 0.3394) | +0.4883 (5, 0.5186) |
+      | bk_101_plus | 6.4327 | +1.8008 (3, 0.0522) | +2.8172 (4, 0.0640) | +0.7843 (4, 0.3804) |
+    - **Gate 19537–19548, heavy** (opening = 9.7 % of tasks, 4828 per cell-mean; s per task; Δ = GNN − bar, (faster/12, p))
+      | quantity | bar | GNN s1–2 Δ | seed 1 Δ | seed 2 Δ |
+      |---|---|---|---|---|
+      | open_elapsed | 12.7008 | -0.2094 (9, 0.0342) | +0.2296 (5, 0.0923) | -0.6483 (12, 0.0005) |
+      | after_elapsed | 1.3698 | -0.0877 (12, 0.0005) | -0.0786 (10, 0.0034) | -0.0968 (12, 0.0005) |
+      | whole_elapsed | 2.4635 | -0.0969 (10, 0.0024) | -0.0465 (9, 0.0771) | -0.1473 (12, 0.0005) |
+      | open_lock | 6.0915 | +0.3026 (1, 0.0024) | +0.8170 (0, 0.0005) | -0.2118 (11, 0.0034) |
+      | after_lock | 0.0926 | +0.0031 (5, 0.5186) | +0.0164 (4, 0.2036) | -0.0102 (8, 0.5186) |
+      | bin0_60 | 49.5939 | -1.5632 (11, 0.0010) | -0.6391 (10, 0.0425) | -2.4873 (12, 0.0005) |
+      | bin60_120 | 9.3536 | +0.4794 (4, 0.1294) | +1.6951 (0, 0.0005) | -0.7363 (11, 0.0093) |
+      | bin120_180 | 3.0647 | -0.3232 (9, 0.1294) | -0.3621 (9, 0.2036) | -0.2842 (8, 0.0771) |
+      | bin180_240 | 1.4734 | +0.1302 (5, 0.3013) | +0.2792 (6, 0.3804) | -0.0189 (5, 0.7334) |
+      | bin240_300 | 1.6828 | +0.1423 (3, 0.1514) | +0.1997 (5, 0.5186) | +0.0849 (4, 0.4238) |
+      | bin300_360 | 1.6131 | -0.1697 (9, 0.0425) | -0.1300 (9, 0.1514) | -0.2095 (9, 0.0522) |
+      | bk_le10 | 11.9418 | -0.1589 (8, 0.1294) | +0.2348 (3, 0.0425) | -0.5526 (12, 0.0005) |
+      | bk_11_50 | 14.1468 | -0.0789 (6, 0.6221) | +0.5080 (2, 0.0093) | -0.6659 (10, 0.0024) |
+      | bk_51_100 | 15.6748 | -0.4645 (6, 0.3804) | -0.1848 (6, 0.6772) | -0.7442 (7, 0.1514) |
+      | bk_101_plus | 8.5479 | -1.2331 (10, 0.0024) | -0.9285 (8, 0.0640) | -1.5378 (10, 0.0034) |
+    - **Size-64 30129–30140, moderate** (opening = 10.9 % of tasks, 5438 per cell-mean; s per task; Δ = GNN − bar, (faster/12, p))
+      | quantity | bar | GNN s1–2 Δ | seed 1 Δ | seed 2 Δ |
+      |---|---|---|---|---|
+      | open_elapsed | 13.4674 | -1.1608 (12, 0.0005) | -0.4675 (9, 0.0425) | -1.8541 (12, 0.0005) |
+      | after_elapsed | 1.8032 | -0.5891 (12, 0.0005) | -0.5967 (12, 0.0005) | -0.5816 (12, 0.0005) |
+      | whole_elapsed | 3.0880 | -0.6520 (12, 0.0005) | -0.5820 (12, 0.0005) | -0.7220 (12, 0.0005) |
+      | open_lock | 6.7236 | -0.0185 (6, 1.0000) | +0.7709 (1, 0.0010) | -0.8079 (12, 0.0005) |
+      | after_lock | 0.0472 | -0.0049 (4, 0.6772) | -0.0033 (7, 0.8501) | -0.0064 (5, 0.9697) |
+      | bin0_60 | 54.0306 | -4.4612 (12, 0.0005) | -2.9024 (11, 0.0010) | -6.0200 (12, 0.0005) |
+      | bin60_120 | 9.3163 | +0.6496 (3, 0.0640) | +2.8267 (0, 0.0005) | -1.5274 (11, 0.0024) |
+      | bin120_180 | 2.0668 | -0.4083 (10, 0.0049) | -0.3894 (10, 0.0122) | -0.4273 (9, 0.0122) |
+      | bin180_240 | 2.2247 | -0.5569 (11, 0.0010) | -0.4045 (11, 0.0010) | -0.7093 (11, 0.0010) |
+      | bin240_300 | 1.8023 | -0.4959 (11, 0.0024) | -0.4457 (11, 0.0015) | -0.5461 (10, 0.0034) |
+      | bin300_360 | 2.2260 | -0.7606 (12, 0.0005) | -0.7955 (12, 0.0005) | -0.7257 (12, 0.0005) |
+      | bk_le10 | 12.8728 | -1.1251 (12, 0.0005) | -0.4981 (9, 0.0269) | -1.7521 (12, 0.0005) |
+      | bk_11_50 | 15.2137 | -1.2950 (12, 0.0005) | -0.5255 (10, 0.0342) | -2.0645 (12, 0.0005) |
+      | bk_51_100 | 14.2829 | -1.9006 (12, 0.0005) | -1.1387 (10, 0.0210) | -2.6624 (12, 0.0005) |
+      | bk_101_plus | 8.5386 | -0.5677 (8, 0.3013) | +0.6615 (4, 0.2661) | -1.7970 (10, 0.0161) |
+    - **Size-64 30129–30140, heavy** (opening = 25.2 % of tasks, 12595 per cell-mean; s per task; Δ = GNN − bar, (faster/12, p))
+      | quantity | bar | GNN s1–2 Δ | seed 1 Δ | seed 2 Δ |
+      |---|---|---|---|---|
+      | open_elapsed | 11.5115 | +0.1395 (4, 0.4238) | +0.5527 (2, 0.0068) | -0.2738 (9, 0.0640) |
+      | after_elapsed | 1.0481 | -0.2869 (12, 0.0005) | -0.2804 (12, 0.0005) | -0.2934 (12, 0.0005) |
+      | whole_elapsed | 3.6893 | -0.1767 (11, 0.0024) | -0.0678 (8, 0.3013) | -0.2856 (12, 0.0005) |
+      | open_lock | 6.7793 | +1.0597 (0, 0.0005) | +1.5028 (0, 0.0005) | +0.6166 (1, 0.0010) |
+      | after_lock | 0.0657 | +0.0053 (5, 0.8501) | +0.0167 (4, 0.4697) | -0.0062 (6, 0.4697) |
+      | bin0_60 | 51.3556 | -2.0045 (11, 0.0010) | -0.6167 (5, 0.7334) | -3.3923 (12, 0.0005) |
+      | bin60_120 | 6.5711 | +3.7853 (0, 0.0005) | +5.3136 (0, 0.0005) | +2.2569 (0, 0.0005) |
+      | bin120_180 | 2.3355 | -0.4045 (9, 0.0122) | -0.6892 (12, 0.0005) | -0.1198 (8, 0.3394) |
+      | bin180_240 | 1.2910 | +0.1386 (5, 0.3394) | +0.0285 (6, 0.7910) | +0.2486 (4, 0.1763) |
+      | bin240_300 | 1.3042 | -0.3091 (10, 0.0034) | -0.3720 (11, 0.0010) | -0.2462 (10, 0.0522) |
+      | bin300_360 | 0.9968 | -0.1378 (10, 0.0425) | -0.1442 (10, 0.1099) | -0.1314 (9, 0.1514) |
+      | bk_le10 | 10.8085 | +0.1099 (4, 0.4238) | +0.5179 (2, 0.0122) | -0.2981 (9, 0.0522) |
+      | bk_11_50 | 11.8981 | +0.3811 (2, 0.0210) | +0.7984 (1, 0.0015) | -0.0363 (5, 0.9697) |
+      | bk_51_100 | 14.6948 | -0.3892 (7, 0.1514) | -0.0111 (4, 0.6772) | -0.7672 (10, 0.0161) |
+      | bk_101_plus | 17.3584 | -0.2021 (7, 0.6221) | +0.0500 (6, 0.9697) | -0.4542 (7, 0.6221) |
+    - **Files** (`docs/lineages/uncut_groups_s0_v1/term_decomp/`; jobs 887233 / 887234, os-cpu-slurm-11): `term_opening.py` md5 `fc7db6dae1321e713f223963d2f06ca6`; `term_opening_a.json` `6527d5792636aeeab449ff2f01b68e74`, `term_opening_a.txt` `093b419514028019650b4a412cc50b87`, `term_opening_b.json` `2df9948781ef5c27092fda6920fb2e23`, `term_opening_b.txt` `62e30817c534a6d0fb45a85056297cf4`; `run_open.sbatch` `2f77565c781815d356bf0978730d7e59`. Label: descriptive, no label.
 
 - 2026-10-18 — **FL size-64: the reader is re-frozen at reference-physics `2b571f99`** (`scripts_cosim/uncut_arm_gate_read.py` blob `549643c8`; P5.1 on P5; filed before the secondary is rerun). The size-64 secondary runs from this commit (datalab worktree `s6_reader_2b571f99`); the filed primary (`99de7fac`, read at `4132de68`) stands as filed.
   - **Disclosure: the first secondary was VOID.** Job 885487 (`size64_read_secondary.sh` md5 `8936663b`, `--record 8596db80`, reader `4132de68`) FAILED 1:0 in 25 s and wrote no read file. It printed: "SECONDARY READ FAILED rc=1 / filed gate text ad1f728a; addenda dcaa41d9, 1c7c8682; gate pin a459dd98 / FAIL LOUD: ('reactive', 0, 30129, 'g0', 'heavy') per-task sidecar lacks groupSize/servedBatchSize on some task". The md5 and filed-primary checks and every `--desc-gate` check had passed; no descriptive row was computed or seen.
