@@ -303,6 +303,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **FL + λ: the reader is frozen at reference-physics `391a1ec1`** (`scripts_cosim/uncut_arm_gate_read.py` blob `82a5db52`, re-checked on origin there; P8 `--confirm-fl-lambda` at `s6/reader-fllambda` `135c808b`; filed before any FL + λ learned cell).
+  - Every FL + λ read runs from this blob (datalab worktree `s6_reader_135c808b`). Any change to the blob before the read voids the freeze.
+  - **What P8 adds**, all inside the new path (`main()` returns into `read_fl_lambda` before any existing code runs):
+    - `FLREG_W_KINDS` in `LEARNED_W_KINDS`, outside `COMB_W_KINDS`.
+    - The FL + λ vs FL primary (Holm < .025, both charges, combined as the weaker): seed-matched per-seed and collapse clauses, the anchor clause, labels LAMBDA-WIN / NOT-WIN.
+    - `--gate` exactly 960 cells, servers = 24 on every cell, MLP cells refused in `--gate`.
+    - The topology guard extended by 30129–30140.
+    - The staged secondary: `check_against_filed_primary`, then `--desc-gate` exactly 768 cells, rows (a)–(d).
+    - The G8d file-set entry: `05ec45c1` may touch the gate, the sidecheck and the gate test.
+  - **Tests and B3.** Reader tests 282 passed.
+    - B3 887474 (`b3_p8.sh` md5 `6f9124b4`): all 17 reads of record byte-identical (output md5 `6b82d53e`). These are the 13 of B3 885150 / 885155 (extension reads against their corrected files), plus confirmation 2's `c41f1527` / `0b63511d` and size-64's `99de7fac` / `c69ed865`.
+    - A first B3 at `110de489` (887417) was 16/17. The size-64 secondary differed only in `confirmation.primary_read.record`, because the B3 script passed a short `--record` sha where the filed run passed the full one: an argument error, not a reader defect.
+  - Signed: SCIENTIST, 2026-10-19 — FL + λ reader P8 (--confirm-fl-lambda) approved for freeze at s6/reader-fllambda 135c808b (uncut_arm_gate_read.py blob 82a5db52; B3 887474: 17 reads of record byte-identical, output md5 6b82d53e).
 - 2026-10-19 — **FL MP-OFF twin (FL gnn vs its message-passing-off twin): REGISTERED before any twin cell exists. SCIENTIST's 7-point design is in the text; SCIENTIST signs against this commit after a diff check.** (The user's GO, relayed by the expert. S4 trains and runs the cells; S6 drafts, makes the gate change, the w-only pin and the reader, and reads.) **Claim, and its only claim:** "FL gnn's message passing makes it faster than the same model with message passing off." This is its own entry, not an amendment to the FL + λ registration (`9ddbf7ec`): a different claim and contrast. It changes no filed label.
   - Signed: SCIENTIST, 2026-10-19 — FL MP-OFF twin registered at s6/twin-registration 0a251dd9 before any twin cell (own entry; seed-matched FL vs twin on 30149–30160; parity test, P7b and P9 before any cell; read after the FL + λ primary md5; F2 labels; priors .15 / .20 / .55 / .10). TWIN-FASTER is at the program threshold, Holm < .025. Two checks for P9: every 64-server descriptive cell must record servers = 64 (and the 24-server cells servers = 24); the twin-vs-FL-MLP row reads FL + λ's MLP descriptive cells, so it opens them only after the FL + λ primary md5 is filed.
   - **Disclosure.**
