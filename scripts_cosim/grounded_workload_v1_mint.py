@@ -253,7 +253,7 @@ def _nested_pairs(plan, new_idx, events, seed: int, level: int, bridge: bool) ->
         m = min(NESTED_MAX, len(members) - 1)
         samples.append([(i, rng.sample([x for x in members if x != i], m) if m > 0 else []) for i in members])
     out = {}
-    for lv in sorted({2, level}):
+    for lv in range(1, NESTED_MAX + 1):
         pairs: Dict[Tuple[int, int], float] = {}
         bridges = 0
         for samp in samples:
@@ -269,31 +269,48 @@ def _nested_pairs(plan, new_idx, events, seed: int, level: int, bridge: bool) ->
     return {"pairs": out[level][0], "by_level": out, "level": level}
 
 
-def _bytes_for(keys, seed: int) -> Dict[Tuple[int, int], float]:
-    r = payload_rng(seed)
-    return {key: sample_payload_bytes(r) for key in sorted(keys)}
-
-
 def _nested_bytes(nested: dict, events: List[dict], plan, seed: int, level: int):
-    """wf1_v1 bytes drawn as today over the level's sorted pairs, then every pair of a group is scaled by
+    """wf1_v1 raw bytes are drawn ONCE, over the sorted union of every level's pair set (so they depend on no level): a pair
+    present at two levels has the same raw bytes at both. Each level then rescales every pair of a group by
     (the group's byte total at level 2) / (its total at this level), so a group carries exactly its level-2 bytes."""
     grp = lambda key: events[key[0]]["peer_group"]  # noqa: E731
-    ref = _bytes_for(nested["by_level"][2][0], seed)
-    cur = _bytes_for(nested["pairs"], seed)
-    tot2: Dict[int, float] = {}
-    totk: Dict[int, float] = {}
-    for key, b in ref.items():
-        tot2[grp(key)] = tot2.get(grp(key), 0.0) + b
-    for key, b in cur.items():
-        totk[grp(key)] = totk.get(grp(key), 0.0) + b
-    pairs = {key: b * (tot2[grp(key)] / totk[grp(key)]) if level != 2 else b for key, b in cur.items()}
+    bylv = nested["by_level"]
+    union = sorted(set().union(*[set(p) for p, _b in bylv.values()]))
+    r = payload_rng(seed)
+    raw = {key: sample_payload_bytes(r) for key in union}
+
+    def totals(keys):
+        t: Dict[int, float] = {}
+        for key in keys:
+            if grp(key) != events[key[1]]["peer_group"]:
+                raise SystemExit(f"FAIL LOUD: pair {key} joins two peer groups")
+            t[grp(key)] = t.get(grp(key), 0.0) + raw[key]
+        return t
+    tot2, totk = totals(bylv[2][0]), totals(nested["pairs"])
+    pairs = {key: raw[key] * (tot2[grp(key)] / totk[grp(key)]) if level != 2 else raw[key] for key in sorted(nested["pairs"])}
     n = len(events)
+    deg: Dict[int, int] = {}
+    for a, b in pairs:
+        deg[a] = deg.get(a, 0) + 1
+        deg[b] = deg.get(b, 0) + 1
     sizes = [len(offs) for _t, offs in plan]
+    changed = set()
+    pk2 = bylv[2][0]
+    gk: Dict[int, set] = {}
+    gk2: Dict[int, set] = {}
+    for key in pairs:
+        gk.setdefault(grp(key), set()).add(key)
+    for key in pk2:
+        gk2.setdefault(grp(key), set()).add(key)
+    changed = {g for g in set(gk) | set(gk2) if gk.get(g, set()) != gk2.get(g, set())}
     total_bytes = sum(pairs.values())
-    meta = {"realised_mean_degree": 2.0 * len(pairs) / n, "pairs_per_task": len(pairs) / n,
-            "connector_pairs": nested["by_level"][level][1], "connector_pairs_level2": nested["by_level"][2][1],
-            "share_tasks_in_groups_le_k_plus_1": sum(s for s in sizes if s <= level + 1) / n,
+    meta = {"mean_degree_all_tasks": 2.0 * len(pairs) / n, "mean_distinct_partners_tasks_with_a_partner": 2.0 * len(pairs) / len(deg),
+            "share_tasks_with_zero_partners": 1.0 - len(deg) / n, "pairs_per_task": len(pairs) / n,
+            "connector_pairs": bylv[level][1], "connector_pairs_level2": bylv[2][1],
+            "share_tasks_singleton_groups": sum(s for s in sizes if s == 1) / n,
+            "share_tasks_in_groups_2_to_k_plus_1": sum(s for s in sizes if 2 <= s <= level + 1) / n,
             "share_bytes_in_pairs_gt_50MB": sum(b for b in pairs.values() if b > BIG_PAIR_BYTES) / total_bytes,
+            "share_bytes_in_groups_whose_pairs_differ_from_level2": sum(b for key, b in pairs.items() if grp(key) in changed) / total_bytes,
             "total_bytes": total_bytes, "total_bytes_level2": sum(tot2.values())}
     return pairs, meta
 
