@@ -1699,3 +1699,163 @@ def test_p2_w_only_link_is_admitted_inside_the_gate_change_sequence_for_that_com
     monkeypatch.setitem(G.GATE_CHANGE_FILES_BY_COMMIT, wb, (G.W_FILE,))
     with pytest.raises(SystemExit, match="changes frozen"):
         G.w_pin_chain(str(repo), base, [], f"{gc},{wb}")
+
+
+@pytest.fixture
+def xs(tmp_path, monkeypatch):
+    """An exchange-sensitivity root: per variant, reactive (queue_share), the bar s0 and FL gnn / FL MLP s1-2 _k100 on that variant's admitted ids,
+    24 servers. margins[v] is FL gnn's % vs the bar; fail[v] lists ids whose reactive cell exceeds 0.80."""
+    for g in ("BAR", "SEEDS", "PROG_ALPHA"):
+        monkeypatch.setattr(G, g, getattr(G, g))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, mlp = G.XS_FL, G.XS_MLP
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}}, "fl w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (fl, mlp) for s in (1, 2)}))
+    root = tmp_path / "xs"
+
+    def fill(margins=None, fail=None, servers=24, extra_on_failed=None, skip=()):
+        margins = {"x0": 0.0, "x0p1": -1.0, "x0p3": -2.0, "x1": -3.0, "x3": -4.0, "tier0": -2.5, "azblob": 0.1, **(margins or {})}
+        fail = fail or {}
+        for v in G.XS_VARIANTS:
+            dr, db, dl = (root / v / x for x in ("cells_reactive", "cells_bar", "cells_learned"))
+            for x in (dr, db, dl):
+                x.mkdir(parents=True, exist_ok=True)
+            for t in TOPOS:
+                bad = t in fail.get(v, ())
+                for w in G.WINDOWS:
+                    for r in G.RUNGS:
+                        cell(str(dr), "reactive", 0, t, w, r, 5.0, busy=0.1, commit=base, sfx="", servers=servers,
+                             env=None)
+                        sp = dr / f"cc40s{t}__{w}{r}__reactive_s0.summary.json"
+                        d = json.loads(sp.read_text())
+                        d["queue_share"] = 0.9 if bad else 0.3
+                        sp.write_text(json.dumps(d))
+                        if (bad and v != extra_on_failed) or v in skip:
+                            continue
+                        wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                        jit = 0.0007 * t * (1 if r == "heavy" else 1.3)
+                        bar = 2.0
+                        cell(str(db), "cd_ib0_inflightfull", 0, t, w, r, bar, busy=0.1, commit=base, servers=servers)
+                        for sd in (1, 2):
+                            m = bar * (1 + margins[v] / 100.0) - jit
+                            cell(str(dl), fl, sd, t, w, r, m, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=servers)
+                            cell(str(dl), mlp, sd, t, w, r, m + 0.01, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=servers)
+            for f in dr.glob("*.tasks_bsz.npy"):
+                _unset_batch_fields(f)
+            for d_ in (db, dl):
+                for sp in d_.glob("*.summary.json"):
+                    s_ = json.loads(sp.read_text())
+                    s_.setdefault("totalPeerExchangeTime", 10.0 if "cd_ib0" in sp.name else 8.0)
+                    sp.write_text(json.dumps(s_))
+
+    def read(stage, out, **kw):
+        args = ["--gate", str(tmp_path / "unused"), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
+                "--confirm-exchange-trend", "--xs-root", str(root), "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}"] + ([] if v is None else [v])
+        return G.main(args)
+
+    def file_primary(p):
+        return commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(p)}`\n"}, "file the primary")
+
+    return {"fill": fill, "read": read, "tmp": tmp_path, "file": file_primary, "repo": repo, "root": root, "cm": cm}
+
+
+def test_page_trend_exact_and_tied():
+    r = G.page_trend([[3.0, 2.0, 1.0, 0.0]])
+    assert r["L"] == 30 and r["method"] == "exact" and abs(r["p"] - 1 / 24) < 1e-12
+    r = G.page_trend([[0.0, 1.0, 2.0, 3.0]])
+    assert r["L"] == 20 and r["p"] == 1.0
+    assert G.page_trend([[1.0, 1.0, 0.0, -1.0], [3.0, 2.0, 1.0, 0.0]])["method"].startswith("normal")
+    rows = [[-1.0 * j - 0.01 * i for j in range(4)] for i in range(12)]
+    assert abs(G.page_trend(rows)["p"] / (1 / 24) ** 12 - 1) < 1e-9
+
+
+def test_xs_primary_trend_reads_page_on_the_four_levels_and_opens_nothing_else(xs):
+    xs["fill"]()
+    res = xs["read"]("primary", "p.json")
+    tr = res["trend"]
+    assert res["confirmation"]["label"] == G.XS_YES and tr["levels"] == list(G.XS_TREND) and tr["n"] == len(TOPOS)
+    assert all(e["method"] == "exact" and e["p_holm"] < 1e-6 and e["k"] == 4 for e in tr["tests"]) and "descriptive" not in res
+    assert set(res["admission"]) == set(G.XS_VARIANTS) and all("grid_cells" not in res["admission"][v] for v in ("x0", "tier0", "azblob"))
+
+
+def test_xs_flat_margin_is_no_trend(xs):
+    xs["fill"](margins={"x0p1": -2.0, "x0p3": -2.0, "x1": -2.0, "x3": -2.0})
+    assert xs["read"]("primary", "p.json")["confirmation"]["label"] == G.XS_NO
+
+
+def test_xs_x3_dropped_over_four_failures_runs_three_levels(xs):
+    xs["fill"](fail={"x3": [1, 2, 3, 4, 5]})
+    tr = xs["read"]("primary", "p.json")["trend"]
+    assert tr["x3_dropped"] and tr["levels"] == ["x0p1", "x0p3", "x1"] and all(e["k"] == 3 for e in tr["tests"]) and tr["n"] == len(TOPOS)
+
+
+def test_xs_trend_ids_are_admitted_at_every_level_and_a_lower_level_over_four_is_void(xs):
+    xs["fill"](fail={"x1": [2, 7], "x0p1": [7, 9]})
+    tr = xs["read"]("primary", "p.json")["trend"]
+    assert tr["trend_ids"] == [t for t in TOPOS if t not in (2, 7, 9)] and tr["n"] == len(TOPOS) - 3
+
+
+def test_xs_lower_level_losing_more_than_four_is_void(xs):
+    xs["fill"](fail={"x0p3": [1, 2, 3, 4, 5]})
+    assert xs["read"]("primary", "p.json")["confirmation"]["label"] == "VOID"
+
+
+@pytest.mark.parametrize("case", ["extra_on_failed", "servers", "missing_cells"])
+def test_xs_grid_on_admitted_ids_or_void(xs, case):
+    if case == "extra_on_failed":
+        xs["fill"](fail={"x1": [3]}, extra_on_failed="x1")
+        match = "VOID: variant x1"
+    elif case == "servers":
+        xs["fill"](servers=64)
+        match = "servers = 24"
+    else:
+        xs["fill"]()
+        _drop(str(xs["root"] / "x0p3" / "cells_learned"), f"cc40s5__g2moderate__{G.XS_MLP}_k100_s2.")
+        match = "VOID: variant x0p3"
+    with pytest.raises(SystemExit, match=match):
+        xs["read"]("primary", "p.json")
+
+
+@pytest.mark.parametrize("kw, match", [({"seeds": "1,2,3"}, "--seeds 1,2"), ({"confirm2": None}, "its own family"), ({"mlp": G.XS_MLP}, "--xs-root"),
+                                       ({"record": "x"}, "seal")])
+def test_xs_arguments_fail_loud(xs, kw, match):
+    xs["fill"]()
+    with pytest.raises(SystemExit, match=match):
+        xs["read"]("primary", "x.json", **kw)
+
+
+@pytest.mark.parametrize("t", [30149, 30160, 30129, 19953, 19461])
+def test_xs_refuses_used_topologies(xs, t):
+    tops = f"{t},1"
+    with pytest.raises(SystemExit, match="fresh"):
+        G.main(["--gate", "x", "--topos", tops, "--topos-sha256", hashlib.sha256(tops.encode()).hexdigest(), "--pin", "x", "--repo", "r", "--w-pins", "w",
+                "--primary", G.XS_FL, "--checkpoint-md5", str(xs["cm"]), "--bar", "cd_ib0_inflightfull", "--confirm-exchange-trend", "--xs-root", "r",
+                "--stage", "primary"])
+
+
+def test_xs_secondary_reads_every_variant_only_after_the_primary_is_filed(xs):
+    xs["fill"](fail={"azblob": [1, 2, 3, 4, 5, 6]}, skip=("azblob",))
+    xs["read"]("primary", "p.json")
+    p = str(xs["tmp"] / "p.json")
+    head = subprocess.run(["git", "-C", str(xs["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    with pytest.raises(SystemExit, match="not filed"):
+        xs["read"]("secondary", "s.json", **{"primary-read": p, "record": head, "filed-ref": "HEAD"})
+    rec = xs["file"](p)
+    res = xs["read"]("secondary", "s.json", **{"primary-read": p, "record": rec, "filed-ref": "HEAD"})
+    d = res["descriptive"]
+    for v in ("x0", "x0p1", "x0p3", "x1", "x3", "tier0"):
+        assert len(d[v]["fl_vs_bar"]) == 4 and all("p_holm" not in e for e in d[v]["fl_vs_bar"] + d[v]["mlp_vs_bar"] + d[v]["fl_vs_mlp"])
+        assert d[v]["gap"]["exchange_seconds_saved"] > 0
+    assert "not queued" in d["azblob"]["note"]
+    assert d["x0_prediction"]["holds"] and len(d["tier0_vs_x1"]["tests"]) == 4
+    assert all(e["median_pp_tier0_minus_x1"] > 0 for e in d["tier0_vs_x1"]["tests"])
+    assert res["confirmation"]["label"] == G.XS_YES and res["confirmation"]["primary_read"]["md5"] == G.md5(p)
