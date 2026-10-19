@@ -43,7 +43,7 @@ ARM2_ARMS = {
 }
 # uncut_groups_s0_v1 combined lever (G8): the gnn_eng / mlp_same architectures on partial_state_v6 (the in-flight columns appended to the platform block;
 # the 27 partial-state edge columns unchanged).
-COMB_V6_ARMS = {"ra_gnn_eng_v6": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v6": RA_ARMS["ra_mlp_same"]}
+COMB_V6_ARMS = {"ra_gnn_eng_v6": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v6": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v6": RA_ARMS["ra_twin_eng"]}  # G8d: the FL twin
 ARM2_RANDOM_PREFIX_K = {"ra_gnn_eng_arm2k0": 0, "ra_twin_eng_arm2k0": 0}  # Arm 2-K0; every other Arm 2 arm is K = 2
 
 
