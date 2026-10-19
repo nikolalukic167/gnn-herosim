@@ -1,0 +1,58 @@
+# uncut_groups_s0_v1 FL + lambda 2.0 (FL's recipe at f9a41cce, same labels, plus the move-regret term lambda 2.0 on the table 0117cbd2, sha256 0117cbd2ee9af473ad14d0ab3e32b7d08cdd1d54df9ed631da9486628c78cdc2). The user's GO via the expert, 2026-10-19.
+# uncut_groups_s0_v1 combined lever (registered 2026-10-17, c660e61e; B6, best label WIN-ARM-ONLY): Arm 1b's recipe (experiments/uncut_arm1b_gnn_eng.yaml)
+# with (F) the in-flight queue features, PARTIAL_STATE_CONTRACT partial_state_v6 on its v6 cache (canonical digest ea967a6c...).
+# with (L) the simulator labels: NEAR_RTT_LABEL_OVERRIDE_JSON = S7's relabel (90f0f343), sha256 5ae45a56003b7bfc3c9db67c78267eb16f93d94a3ae7976d76bdb541f674f6fd; train labels only.
+trainer: gnn
+lineage: uncut_flreg
+cache_dir: /share/nikola.lukic/uncut_groups/inflight/cache_v6_a/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_BATCHED_TF: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v6
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_arm1/label_screen/sim_labels_arm1.json
+  NEAR_RTT_REGRET_LAMBDA: '2.0'
+  NEAR_RTT_MOVE_REGRET_PATH: /share/nikola.lukic/uncut_groups/lever_sim/move_regret_simlabels.pkl
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 100
+  patience: 60
+  min-epochs: 100
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-flreg-gnn-eng
+  tags:
+  - uncut-comb
+  - comb-flreg
+  - lever-regret
+  - lambda-2p0
+  - batched-tf
+  - ils-r010
+  - opening30
+  - gnn-eng
