@@ -44,11 +44,16 @@ TOPOS=${TOPOS:-$(python3 -c "import json;print(*json.load(open('$SELECTION'))['t
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa GATE_FIXED_POLICY_TIME_SCALE=1.0 HEROSIM_SHARED_AUTOSCALER=0
 mkdir -p "$ROOT"
 for t in $TOPOS; do python3 scripts_cosim/scale_probe_cfg.py "$BASECFG" "$ROOT/cfg_src" --clients "$NC" --servers "$NS" --p "$P" --seed "$t" >/dev/null; done
+# exchange-sensitivity variants (all unset = today's recipe, byte for byte): PAYLOAD_SAMPLER (wf1_v1|azblob), PAYLOAD_SCALE, PAYLOAD_HEAVY_SHARE, PAYLOAD_AZBLOB_TABLE
+PEXTRA=()
+[[ -z "${PAYLOAD_SCALE:-}" ]] || PEXTRA+=(--payload-scale "$PAYLOAD_SCALE")
+[[ -z "${PAYLOAD_HEAVY_SHARE:-}" ]] || PEXTRA+=(--payload-heavy-share "$PAYLOAD_HEAVY_SHARE")
+[[ -z "${PAYLOAD_AZBLOB_TABLE:-}" ]] || PEXTRA+=(--payload-azblob-table "$PAYLOAD_AZBLOB_TABLE")
 TAGS=""
 for spec in moderate=$M_MODERATE heavy=$M_HEAVY; do
   tag=${spec%%=*}; m=${spec##*=}
   python3 scripts_cosim/workload_fix_v1_build.py --grounded-wl "$X1" --cfg-dir "$ROOT/cfg_src" --topologies $TOPOS \
-    --rung "$tag=$(python3 -c "print(repr(1.0/$m))")" --payload-sampler wf1_v1 --task-mix wf1_v1 --batch-timeout-fixed 1.0 --out "$ROOT/_b_$tag"
+    --rung "$tag=$(python3 -c "print(repr(1.0/$m))")" --payload-sampler "${PAYLOAD_SAMPLER:-wf1_v1}" "${PEXTRA[@]}" --task-mix wf1_v1 --batch-timeout-fixed 1.0 --out "$ROOT/_b_$tag"
   mkdir -p "$ROOT/inputs_w24"; mv "$ROOT/_b_$tag/wf1_$tag" "$ROOT/inputs_w24/wf1_$tag"; cp "$ROOT/_b_$tag/manifest.json" "$ROOT/inputs_w24/manifest_$tag.json"; rm -rf "$ROOT/_b_$tag"
   TAGS="$TAGS $tag"
 done

@@ -31,7 +31,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts_cosim"))
 
 from src.placement.workload_payloads import (  # noqa: E402
-    PAYLOAD_SAMPLERS, payload_sampler_meta, require_sampler, resample_peer_exchange,
+    HEAVY_SHARE, PAYLOAD_SAMPLERS, load_azblob_table, payload_sampler_meta, require_sampler, resample_peer_exchange,
 )
 from src.placement.workload_task_mix import (  # noqa: E402
     TASK_MIXES, defined_application_types, relabel_events, require_task_mix, task_mix_meta,
@@ -48,7 +48,8 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def apply_sampler(src: Path, dst: Path, sampler: str, task_mix: str = "none") -> dict:
+def apply_sampler(src: Path, dst: Path, sampler: str, task_mix: str = "none", heavy_share: float = HEAVY_SHARE, scale: float = 1.0,
+                  azblob_table: dict = None) -> dict:
     """Copy the four x1 windows to ``dst``, resampling payloads when the sampler asks for it and relabelling the
     task types when ``task_mix`` is not ``none`` (W4). Both default to the untouched path."""
     require_sampler(sampler)
@@ -65,8 +66,8 @@ def apply_sampler(src: Path, dst: Path, sampler: str, task_mix: str = "none") ->
             continue
         meta = {"seed": seed, "source_sha256": sha256(src / name)}
         if sampler != "legacy":
-            wl["peer_exchange"] = resample_peer_exchange(wl["peer_exchange"], seed)
-            meta = {**payload_sampler_meta(), **meta}
+            wl["peer_exchange"] = resample_peer_exchange(wl["peer_exchange"], seed, sampler, heavy_share, scale, azblob_table)
+            meta = {**payload_sampler_meta(sampler, heavy_share, scale, azblob_table), **meta}
         if applications is not None:
             wl["events"] = relabel_events(wl["events"], seed, applications)
             meta["task_mix"] = task_mix_meta(applications)
@@ -132,6 +133,9 @@ def main() -> int:
     ap.add_argument("--topologies", type=int, nargs="+", required=True)
     ap.add_argument("--rung", action="append", required=True, metavar="TAG=FACTOR")
     ap.add_argument("--payload-sampler", choices=PAYLOAD_SAMPLERS, default="legacy")
+    ap.add_argument("--payload-scale", type=float, default=1.0, help="multiply every drawn payload by this (default 1.0 = unchanged; 0 = 0-byte payloads)")
+    ap.add_argument("--payload-heavy-share", type=float, default=HEAVY_SHARE, help="probability of the heavy tier (default the registered 0.10; 0 = none)")
+    ap.add_argument("--payload-azblob-table", type=Path, default=None, help="azblob sampler: the BlobBytes quantile table (workload_payloads.load_azblob_table)")
     ap.add_argument("--batch-timeout-fixed", type=float, default=None, metavar="SECONDS",
                     help="amendment WB: keep scheduler.batch_timeout at this value on every rung "
                          "(timestamps still scale); absent = the ladder protocol's scaled value")
@@ -152,8 +156,19 @@ def main() -> int:
     x1 = a.out / "_x1_windows"
     if x1.exists():
         shutil.rmtree(x1)
-    seeds = apply_sampler(a.grounded_wl, x1, a.payload_sampler, a.task_mix)
+    if a.payload_scale < 0 or not 0.0 <= a.payload_heavy_share <= 1.0:
+        raise SystemExit("FAIL LOUD: --payload-scale must be >= 0 and --payload-heavy-share in [0, 1]")
+    table = load_azblob_table(str(a.payload_azblob_table)) if a.payload_sampler == "azblob" else None
+    if a.payload_sampler == "azblob" and table is None or (a.payload_sampler != "azblob" and a.payload_azblob_table):
+        raise SystemExit("FAIL LOUD: --payload-azblob-table goes with --payload-sampler azblob, and only with it")
+    seeds = apply_sampler(a.grounded_wl, x1, a.payload_sampler, a.task_mix, a.payload_heavy_share, a.payload_scale, table)
     manifest = {"payload_sampler": a.payload_sampler, "batch_timeout_fixed_s": a.batch_timeout_fixed, "window_seeds": seeds, "topologies": a.topologies, "rungs": {}}
+    if a.payload_scale != 1.0:
+        manifest["payload_scale"] = a.payload_scale
+    if a.payload_heavy_share != HEAVY_SHARE:
+        manifest["payload_heavy_share"] = a.payload_heavy_share
+    if table is not None:
+        manifest["payload_azblob_table_sha256"] = table["table_sha256"]
     if a.task_mix != "none":
         manifest["task_mix"] = a.task_mix
     for tag, factor in rungs.items():
