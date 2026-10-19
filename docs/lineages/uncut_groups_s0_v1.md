@@ -303,6 +303,29 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **Exchange-model sensitivity, secondary read filed (descriptive; p unadjusted, never a label).** The label stays EXCHANGE-TREND, as filed. **The registered ×0 prediction does not hold.** At zero payload FL gnn is not within 1 % of the bar on any of the four tests. It loses at moderate (+1.24 / +2.89 %) and wins at heavy (−1.59 % at 10/12, p .034 unadjusted; −2.04 % at 9/12). By the registration's own reading, a learned-arm win at ×0 means the heavy-rung gain is not only exchange. (S6 read, at the frozen P10 reader `03d648c5`, blob `99892613`, with `--stage secondary --primary-read xs/reads/read_xs_primary.json --record cbcd25c5` and the primary's flags. The reader confirmed that the primary md5 `c3cb21f6` is in this node at `cbcd25c5`, that `cbcd25c5` is on origin/reference-physics, and that the recomputed primary parts equal the filed ones.) File `/share/nikola.lukic/uncut_groups/xs/reads/read_xs_secondary.json`, md5 `f14317183ec9e2f5e81bc1e20cf6cb81` (script `xs/xs_read_secondary.sh` md5 `82adc935`). Job 888598, os-cpu-slurm-11, 0:0. The exact grid holds for ×0, tier0 and azblob: 480 cells each, 12 / 12 ids admitted.
+  - **FL gnn vs `cd_ib0_inflightfull_k100`** (median %, topologies where FL gnn is faster / 12, exact Wilcoxon p unadjusted):
+
+    | variant | moderate whole | moderate after-360 | heavy whole | heavy after-360 |
+    |---|---|---|---|---|
+    | ×0 | +1.24 (2, .092) | +2.89 (2, .007) | −1.59 (10, .034) | −2.04 (9, .204) |
+    | ×0.1 | +0.09 (5, .970) | +1.00 (3, .110) | −0.25 (7, .569) | +1.59 (4, .733) |
+    | ×0.3 | −1.68 (11, .001) | −0.50 (7, .176) | −1.23 (8, .064) | −3.92 (9, .012) |
+    | ×1 | −4.24 (10, .003) | −5.18 (10, .002) | −2.82 (10, .016) | −2.87 (9, .077) |
+    | ×3 | −5.95 (9, .007) | −7.37 (9, .012) | −3.53 (9, .129) | −4.24 (8, .266) |
+    | tier0 (×1, heavy tier 0 %) | −1.77 (10, .007) | −2.00 (9, .021) | −0.45 (9, .424) | −2.98 (9, .266) |
+    | azblob (proxy) | +0.18 (5, .569) | +1.81 (3, .016) | −0.29 (7, .970) | +2.35 (4, .204) |
+
+  - **FL gnn vs FL MLP** (same format):
+    - ×0: +2.78 (0, .0005) / −0.22 (7, .791) / +4.16 (1, .0015) / +1.13 (4, .569);
+    - ×1: −0.84 (8, .077) / −2.21 (12, .0005) / −1.06 (11, .001) / −1.07 (9, .043);
+    - ×3: −2.58 (11, .001) / −2.89 (11, .001) / −1.54 (9, .009) / −0.44 (9, .234);
+    - tier0: −0.16 / −1.05 / +0.02 / −0.53;
+    - azblob: +2.60 (1, .002) / +0.42 / +3.77 (0, .0005) / +0.33.
+    - At ×0 and under azblob, the FL MLP is ahead of FL gnn in the whole-run tests. FL MLP vs the bar at ×0 is −0.94 / +4.23 / −5.82 (12/12, .0005) / −2.79. So the heavy ×0 learned-arm win is not specific to message passing: the MLP shows it more strongly.
+  - **tier0 vs ×1** (the paired FL gnn vs bar margin, tier0 minus ×1, in pp): +2.12 (tier0 more negative on 2/12, p .007), +3.05 (0/12, .0005), +2.22 (3/12, .052), +1.15 (6/12, .622). Removing the heavy payload tier at ×1 shrinks FL gnn's margin by about 2–3 pp at moderate.
+  - **Mechanism row** (pooled over each variant's cells: exchange seconds FL gnn saves against the bar ÷ total latency seconds gained): ×0 −0.28, ×0.1 4.21, ×0.3 2.55, ×1 2.01, ×3 1.87, tier0 3.51, azblob −7.06. From ×0.1 to ×3 the share is above 1, so the exchange saved exceeds the net gain and is partly paid back in other terms, as in the per-term breakdown. At ×0 and under azblob, FL gnn pays more exchange than the bar.
+  - **azblob** (labelled "blob sizes per access, a proxy, not measured function-to-function exchange"; outside the trend): FL gnn ties or trails the bar at both rungs (+0.18 / +1.81 / −0.29 / +2.35 %).
 - 2026-10-19 — **Exchange-model sensitivity, primary read filed: EXCHANGE-TREND.** FL gnn's margin over the in-flight bar grows with the peer-exchange payload: Page's L is Holm < .025 on both moderate tests (whole .0037, after-360 .0004). Heavy is not required and does not trend (Holm .297 on both). The label stands as read; it changes no filed label. (S6 read, at the frozen P10 reader `03d648c5`, blob `99892613`, with `--confirm-exchange-trend --stage primary` and the registered flags `--pin a459dd98 --gate-change 095948ea,f6818d09 --w-pins 74ddf70e --xs-root /share/nikola.lukic/uncut_groups/xs`, plus `--bar cd_ib0_inflightfull --seeds 1,2 --suffix _k100 --cotenancy required --checkpoint-md5 comb/md5_comball.json`, on 30176–30187, sha256 `dd359919…`. It ran exactly once, after the pipeline finished and S5's count line.) File `/share/nikola.lukic/uncut_groups/xs/reads/read_xs_primary.json`, md5 `c3cb21f6d38cf1675c5cf6bb1474bd07` (stdout md5 `fa6e5132`; script `xs/xs_read_primary.sh` md5 `411489f2`).
   - **Before the read.** The pipeline (`xs/pipeline-host-888026.out`) ended "PIPELINE DONE": every variant had 96 reactive, 96 bar and 384 learned summaries, 0 failed. S5's count line confirmed it and the seal. Nothing beyond counts and the reactive admission was looked at before the read.
   - **Read.** Job 888588 ran on os-cpu-slurm-11 and finished 0:0 in 22 s.
