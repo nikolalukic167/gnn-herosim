@@ -1859,3 +1859,361 @@ def test_xs_secondary_reads_every_variant_only_after_the_primary_is_filed(xs):
     assert d["x0_prediction"]["holds"] and len(d["tier0_vs_x1"]["tests"]) == 4
     assert all(e["median_pp_tier0_minus_x1"] > 0 for e in d["tier0_vs_x1"]["tests"])
     assert res["confirmation"]["label"] == G.XS_YES and res["confirmation"]["primary_read"]["md5"] == G.md5(p)
+
+
+def _timing(d, miss_pp=None, evals=100):
+    """Give every charged cell in d a whole-run decisionTiming: measured = charged + miss_pp[kind] % of its task latency (default 0)."""
+    for sp in d.glob("*.summary.json"):
+        s = json.loads(sp.read_text())
+        env = s.get("env") or {}
+        if not env.get("HEROSIM_DECISION_COST_MS"):
+            continue
+        charged = float(env["HEROSIM_DECISION_COST_MS"]) * evals / 1e3
+        lat = int(s["num_tasks"]) * float(s["averageElapsedTime"])
+        extra = next((v for k, v in (miss_pp or {}).items() if f"__{k}" in sp.name), 0.0)
+        s["decisionTiming"] = {"total_s": charged + extra / 100.0 * lat, "by_bucket": {"le10": {"calls": 10, "plan_evals": evals, "total_s": 1.0}}}
+        sp.write_text(json.dumps(s))
+
+
+@pytest.fixture
+def s128(tmp_path, monkeypatch):
+    """An FL size-128 gate: FL gnn s1-2 (_k100, _kr) and the bars in --gate; FL MLP s1-2 (_k100, _kr) in --mlp-gate; the uncharged k = 0 FL gnn
+    s1-2 and bar in --desc-gate; reactive s0 in --reactive-gate; every cell at 128 servers."""
+    for g in ("BAR", "SEEDS", "PROG_ALPHA"):
+        monkeypatch.setattr(G, g, getattr(G, g))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, mlp = G.CONFIRM_PRIMARY, G.CONFIRM_MLP
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}}, "conf w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (fl, mlp) for s in (1, 2)}))
+    d, md, dd, rd = (tmp_path / x for x in ("cells", "mlp", "desc", "reactive"))
+    for x in (d, md, dd, rd):
+        x.mkdir()
+
+    def fill(fl_mean=1.8, mlp_mean=1.9, servers=128, miss_pp=None):
+        for t in TOPOS:
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    jit = 0.001 * t
+                    wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                    bar_env = {"HEROSIM_DECISION_COST_MS": "0.01"}
+                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=servers, env=bar_env)
+                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=servers, env=bar_env)
+                    cell(str(dd), "cd_ib0_inflightfull", 0, t, w, r, 1.99, busy=0.1, commit=base, sfx="", servers=servers)
+                    cell(str(rd), "reactive", 0, t, w, r, 5.0, busy=0.1, commit=base, sfx="", servers=servers)
+                    for sd in (1, 2):
+                        for dir_, arm, m in ((d, fl, fl_mean), (md, mlp, mlp_mean)):
+                            cell(str(dir_), arm, sd, t, w, r, m - jit, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=servers)
+                            cell(str(dir_), arm, sd, t, w, r, m - jit, str(ck), commit=w1, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)},
+                                 servers=servers)
+                        cell(str(dd), fl, sd, t, w, r, fl_mean - 0.01 - jit, str(ck), commit=w1, sfx="", servers=servers)
+        for f in rd.glob("*.tasks_bsz.npy"):
+            _unset_batch_fields(f)
+        for x in (d, md):
+            _timing(x, miss_pp)
+
+    def read(stage, out, **kw):
+        args = ["--gate", str(d), "--topos", TOPS, "--topos-sha256", hashlib.sha256(TOPS.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
+                "--confirm-size128", "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}"] + ([] if v is None else [v])
+        return G.main(args)
+
+    def file_primary(p):
+        return commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(p)}`\n"}, "file the primary")
+
+    def secondary(p, **kw):
+        sec = {"mlp": mlp, "primary-read": p, "record": file_primary(p), "filed-ref": "HEAD", "mlp-gate": str(md), "desc-gate": str(dd),
+               "reactive-gate": str(rd), **kw}
+        return read("secondary", "s.json", **sec)
+
+    return {"d": d, "md": md, "dd": dd, "rd": rd, "fill": fill, "read": read, "tmp": tmp_path, "cm": cm, "file": file_primary, "repo": repo,
+            "secondary": secondary}
+
+
+def test_size128_primary_is_size64_f1_at_128_servers(s128):
+    s128["fill"]()
+    res = s128["read"]("primary", "p.json")
+    assert res["confirmation"]["label"] == G.S128_YES and res["confirmation"]["family"] == "FL size-128" and res["servers"] == 128
+    assert res["confirmation"]["grid_cells"] == len(TOPOS) * 4 * 2 * (2 * 2 + 2) and sorted(res["F1"]["seeds_alone"]) == [1, 2]
+    assert G.PROG_ALPHA == G.PROG_ALPHA_FILED and "descriptive" not in res and "F2_size128" not in res and "decision_charge" not in res
+    assert "MODEL-CLASS" not in res["combined"]
+
+
+def test_size128_not_confirmed_when_fl_does_not_clear_the_line(s128):
+    s128["fill"](fl_mean=1.99)
+    assert s128["read"]("primary", "p.json")["confirmation"]["label"] == "NOT-CONFIRMED"
+
+
+@pytest.mark.parametrize("t", [30200, 30222, 30239, 30176, 30187, 30129, 30140, 30149, 30160, 19953, 30011, 30123, 19707, 19461, 19537, 20021])
+def test_size128_refuses_every_guarded_topology(s128, t):
+    tops = f"{t},1"
+    with pytest.raises(SystemExit, match="fresh"):
+        G.main(["--gate", str(s128["d"]), "--topos", tops, "--topos-sha256", hashlib.sha256(tops.encode()).hexdigest(), "--pin", "x", "--repo", "r",
+                "--w-pins", "w", "--primary", G.CONFIRM_PRIMARY, "--checkpoint-md5", str(s128["cm"]), "--bar", "cd_ib0_inflightfull",
+                "--confirm-size128", "--stage", "primary"])
+
+
+@pytest.mark.parametrize("kw, match", [({"seeds": "1,2,3"}, "--seeds 1,2"), ({"confirm-size64": None}, "its own family"),
+                                       ({"confirm-degree-trend": None}, "its own family"), ({"twin": "x"}, "no twin"),
+                                       ({"mlp": G.CONFIRM_MLP}, "seal"), ({"mlp-gate": "x"}, "seal"), ({"record": "x"}, "seal")])
+def test_size128_arguments_fail_loud(s128, kw, match):
+    s128["fill"]()
+    with pytest.raises(SystemExit, match=match):
+        s128["read"]("primary", "x.json", **kw)
+
+
+@pytest.mark.parametrize("case", ["missing", "servers64", "mlp_in_gate"])
+def test_size128_primary_is_void_or_fails_loud_unless_the_128_server_grid(s128, case):
+    s128["fill"](servers=64 if case == "servers64" else 128)
+    if case == "missing":
+        _drop(str(s128["d"]), f"cc40s5__g2moderate__{G.CONFIRM_PRIMARY}_kr_s2.")
+    if case == "mlp_in_gate":
+        cell(str(s128["d"]), G.CONFIRM_MLP, 1, 3, "g0", "heavy", 1.9, servers=128)
+    match = {"missing": "VOID: --gate", "servers64": "servers = 128", "mlp_in_gate": "belong in --mlp-gate"}[case]
+    with pytest.raises(SystemExit, match=match):
+        s128["read"]("primary", "p.json")
+
+
+def test_size128_secondary_f2_and_charge_rows_only_after_the_primary_is_filed(s128):
+    s128["fill"](fl_mean=1.8, mlp_mean=1.9)
+    s128["read"]("primary", "p.json")
+    p = str(s128["tmp"] / "p.json")
+    head = subprocess.run(["git", "-C", str(s128["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    with pytest.raises(SystemExit, match="not filed"):
+        s128["read"]("secondary", "s.json", **{"mlp": G.CONFIRM_MLP, "primary-read": p, "record": head, "filed-ref": "HEAD",
+                                               "mlp-gate": str(s128["md"]), "desc-gate": str(s128["dd"]), "reactive-gate": str(s128["rd"])})
+    with pytest.raises(SystemExit, match="needs --mlp"):
+        s128["read"]("secondary", "s.json", **{"mlp": G.CONFIRM_MLP, "primary-read": p, "record": head, "filed-ref": "HEAD"})
+    res = s128["secondary"](p)
+    n = len(TOPOS) * 4 * 2
+    c = res["confirmation"]
+    assert (c["mlp_grid_cells"], c["desc_grid_cells"], c["reactive_grid_cells"]) == (n * 4, n * 3, n)
+    f2 = res["F2_size128"]
+    assert f2["label"] == G.S128_F2_YES and len(f2["frozen"]["tests"]) == 4 and len(f2["cotenancy"]["tests"]) == 4
+    assert all(e["median_pct"] < 0 and e["charge_clause"]["holds"] and abs(e["charge_clause"]["median_miss_diff_pp"]) < 1e-9
+               for e in f2["frozen"]["tests"] + f2["cotenancy"]["tests"])
+    dc = res["decision_charge"]
+    assert len(dc["cells"]) == n * (2 + 1 + 1 + 2 + 2 + 2) and dc["flagged"] == 0 and "whole run only" in dc["note"]
+    for k in ("k0_fl_vs_bar", "mlp_vs_bar", "reactive_vs_bar"):
+        assert len(res["descriptive"][k]["tests"]) == 4 and all("p_holm" not in e for e in res["descriptive"][k]["tests"])
+    assert res["confirmation"]["label"] == G.S128_YES
+
+
+def test_size128_f2_charge_clause_is_signed_and_flags_cells_over_half_a_point(s128):
+    # FL gnn ahead of the MLP by ~0.5 % on every topology, but its decision-charge miss exceeds the MLP's by 1 pp: the clause fails
+    s128["fill"](fl_mean=1.89, mlp_mean=1.9, miss_pp={f"{G.CONFIRM_PRIMARY}_": 1.0})
+    s128["read"]("primary", "p.json")
+    res = s128["secondary"](str(s128["tmp"] / "p.json"))
+    f2 = res["F2_size128"]
+    assert f2["label"] == G.S128_F2_NO
+    assert all(e["median_pct"] < 0 and e["p_holm"] < G.PROG_ALPHA for e in f2["frozen"]["tests"])
+    assert all(not e["charge_clause"]["holds"] and abs(e["charge_clause"]["median_miss_diff_pp"] - 1.0) < 1e-9 for e in f2["frozen"]["tests"])
+    assert res["decision_charge"]["flagged"] == len(TOPOS) * 4 * 2 * 2 * 2  # FL gnn's _k100 and _kr cells, two seeds
+
+
+def test_size128_f2_extra_undercharge_of_the_mlp_cannot_flatter_the_gnn(s128):
+    # the MLP's own extra miss makes d_t negative; the signed clause only adds it, so the GNN's lead stays and the label holds
+    s128["fill"](fl_mean=1.8, mlp_mean=1.9, miss_pp={f"{G.CONFIRM_MLP}_": 0.3})
+    s128["read"]("primary", "p.json")
+    f2 = s128["secondary"](str(s128["tmp"] / "p.json"))["F2_size128"]
+    assert f2["label"] == G.S128_F2_YES and all(e["charge_clause"]["median_miss_diff_pp"] < 0 for e in f2["frozen"]["tests"])
+
+
+@pytest.mark.parametrize("case", ["mlp_missing", "k0_charged_name", "reactive_missing", "no_timing"])
+def test_size128_secondary_gates_fail_loud(s128, case):
+    s128["fill"]()
+    s128["read"]("primary", "p.json")
+    if case == "mlp_missing":
+        _drop(str(s128["md"]), f"cc40s4__g1heavy__{G.CONFIRM_MLP}_kr_s1.")
+    elif case == "k0_charged_name":
+        cell(str(s128["dd"]), G.CONFIRM_PRIMARY, 3, 3, "g0", "heavy", 1.8, servers=128)  # a charged name at a distinct key (seed 3)
+    elif case == "reactive_missing":
+        _drop(str(s128["rd"]), "cc40s8__g0moderate__reactive_s0.")
+    else:
+        sp = s128["md"] / f"cc40s2__g3moderate__{G.CONFIRM_MLP}_k100_s2.summary.json"
+        x = json.loads(sp.read_text())
+        x.pop("decisionTiming")
+        sp.write_text(json.dumps(x))
+    match = {"mlp_missing": "VOID: --mlp-gate", "k0_charged_name": "the k = 0 cells are bare kinds", "reactive_missing": "VOID: --reactive-gate",
+             "no_timing": "no decisionTiming"}[case]
+    with pytest.raises(SystemExit, match=match):
+        s128["secondary"](str(s128["tmp"] / "p.json"))
+
+
+def test_new_family_flags_are_refused_by_the_filed_modes():
+    with pytest.raises(SystemExit, match="--mlp-gate belongs"):
+        G.main(["--gate", "x", "--topos", "1", "--topos-sha256", "y", "--pin", "x", "--primary", "p", "--checkpoint-md5", "c", "--mlp-gate", "m"])
+    with pytest.raises(SystemExit, match="--deg-root to"):
+        G.main(["--gate", "x", "--topos", "1", "--topos-sha256", "y", "--pin", "x", "--primary", "p", "--checkpoint-md5", "c", "--deg-root", "m"])
+
+
+XS_TOPS = ",".join(map(str, range(30176, 30188)))
+
+
+def _deg_workload(path, k, n=12, connectors=0, shift_arrival=0.0):
+    """Groups of 4 tasks; per task the first min(k, 3) later-indexed group mates as partners; bytes 10 MB, one pair per group at 60 MB."""
+    events = [{"timestamp": 1.0 + i + shift_arrival * (i == 0), "application": {"name": "a"}, "node_name": "c0", "peer_group": i // 4} for i in range(n)]
+    pairs = set()
+    for i in range(n):
+        g0 = (i // 4) * 4
+        mates = [j for j in range(g0, g0 + 4) if j != i]
+        for j in mates[:min(k, 3)]:
+            pairs.add((min(i, j), max(i, j)))
+    pe = [[i, j, 60e6 if (i % 4, j % 4) == (0, 1) else 10e6] for i, j in sorted(pairs)]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as fh:
+        json.dump({"rps": 150, "duration": 100.0, "events": events, "peer_exchange": pe, G.DEG_META: {"k": k, "connector_pairs": connectors}}, fh)
+
+
+@pytest.fixture
+def deg(tmp_path, monkeypatch):
+    """A partner-structure root: per level k1 k2 k4 k8, the workloads (identical apart from the pairs), reactive (queue_share), the bar s0 and
+    FL gnn / FL MLP s1-2 _k100 on that level's admitted ids, 24 servers. margins[lv] is FL gnn's % vs FL MLP."""
+    for g in ("BAR", "SEEDS", "PROG_ALPHA"):
+        monkeypatch.setattr(G, g, getattr(G, g))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, mlp = G.CONFIRM_PRIMARY, G.CONFIRM_MLP
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w1 = commit(repo, {G.W_FILE: {**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}}, "fl w")
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (fl, mlp) for s in (1, 2)}))
+    root = tmp_path / "deg"
+    topos = list(range(30176, 30188))
+
+    def fill(margins=None, fail=None, heavy_all=None, rendezvous=None, shift=None, meta_k=None):
+        margins = {"k1": 0.0, "k2": -1.0, "k4": -2.0, "k8": -3.0, **(margins or {})}
+        fail = fail or {}
+        for lv in G.DEG_LEVELS:
+            for r in G.RUNGS:
+                for w in G.WINDOWS:
+                    _deg_workload(str(root / lv / "inputs_group" / f"wf1_{r}" / "wl" / f"grounded_{w}_n50000.json"),
+                                  (meta_k or {}).get(lv, G.DEG_K[lv]), connectors=1 if lv == "k1" else 0, shift_arrival=(shift or {}).get(lv, 0.0))
+            dr, db, dl = (root / lv / x for x in ("cells_reactive", "cells_bar", "cells_learned"))
+            for x in (dr, db, dl):
+                x.mkdir(parents=True, exist_ok=True)
+            for t in topos:
+                bad = t in fail.get(lv, ())
+                for w in G.WINDOWS:
+                    for r in G.RUNGS:
+                        cell(str(dr), "reactive", 0, t, w, r, 5.0, busy=0.1, commit=base, sfx="", servers=24)
+                        sp = dr / f"cc40s{t}__{w}{r}__reactive_s0.summary.json"
+                        x = json.loads(sp.read_text())
+                        x["queue_share"] = 0.9 if bad or (heavy_all == lv and r == "heavy") else 0.3
+                        sp.write_text(json.dumps(x))
+                        if bad:
+                            continue
+                        wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                        jit = 0.0007 * (t - 30175) * (1 if r == "heavy" else 1.3)
+                        cell(str(db), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=24, env={"HEROSIM_DECISION_COST_MS": "0.01"})
+                        for sd in (1, 2):
+                            m = 1.9 - jit
+                            cell(str(dl), mlp, sd, t, w, r, m, str(ck), commit=w1, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=24)
+                            cell(str(dl), fl, sd, t, w, r, m * (1 + margins[lv] / 100.0) - 0.3 * jit, str(ck), commit=w1,
+                                 env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=24)
+            for f in dr.glob("*.tasks_bsz.npy"):
+                _unset_batch_fields(f)
+            for d_ in (db, dl):
+                for sp in d_.glob("*.summary.json"):
+                    s_ = json.loads(sp.read_text())
+                    s_.setdefault("totalPeerExchangeTime", 10.0 if "cd_ib0" in sp.name else 8.0)
+                    s_["totalPeerRendezvousWait"] = 1.0 if rendezvous == lv and "_s1." in sp.name else 0.0
+                    sp.write_text(json.dumps(s_))
+                _timing(d_)
+
+    def read(stage, out, tops=XS_TOPS, **kw):
+        args = ["--gate", str(tmp_path / "unused"), "--topos", tops, "--topos-sha256", hashlib.sha256(tops.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", w1[:8], "--primary", fl, "--mlp", mlp, "--checkpoint-md5", str(cm), "--bar", "cd_ib0_inflightfull",
+                "--confirm-degree-trend", "--deg-root", str(root), "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}"] + ([] if v is None else [v])
+        return G.main(args)
+
+    def file_primary(p):
+        return commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary read md5 `{G.md5(p)}`\n"}, "file the primary")
+
+    return {"fill": fill, "read": read, "tmp": tmp_path, "file": file_primary, "repo": repo, "root": root, "topos": topos}
+
+
+def test_deg_primary_reads_page_over_the_four_levels_gnn_vs_mlp_holm_2(deg):
+    deg["fill"]()
+    res = deg["read"]("primary", "p.json")
+    tr = res["trend"]
+    assert res["confirmation"]["label"] == G.DEG_YES and tr["n"] == 12 and len(tr["tests"]) == 2
+    assert all(e["rung"] == "moderate" and e["k"] == 4 and e["method"] == "exact" and e["levels"] == list(G.DEG_LEVELS) for e in tr["tests"])
+    assert all(abs(e["p_holm"] - min(1.0, 2 * e["p"])) < 1e-12 for e in tr["tests"]) and "descriptive" not in res
+
+
+def test_deg_flat_is_no_trend(deg):
+    deg["fill"](margins={"k1": -2.0, "k2": -2.0, "k4": -2.0, "k8": -2.0})
+    assert deg["read"]("primary", "p.json")["confirmation"]["label"] == G.DEG_NO
+
+
+def test_deg_structure_is_read_from_the_workloads(deg):
+    deg["fill"]()
+    s = deg["read"]("primary", "p.json")["structure"]["levels"]
+    # groups of 4: k = 1 -> pairs (0,1),(1,2),(2,3) per group; k >= 3 -> all 6 pairs
+    assert abs(s["k1"]["mean_over_workloads"]["pairs_per_task"] - 3 / 4) < 1e-12 and abs(s["k8"]["mean_over_workloads"]["pairs_per_task"] - 6 / 4) < 1e-12
+    assert abs(s["k8"]["mean_over_workloads"]["mean_partners_per_task_with_partners"] - 3.0) < 1e-12
+    assert s["k1"]["mean_over_workloads"]["share_tasks_in_groups_le_k_plus_1"] == 0.0 and s["k4"]["mean_over_workloads"]["share_tasks_in_groups_le_k_plus_1"] == 1.0
+    assert s["k1"]["connector_pairs_total"] == 8 and s["k2"]["connector_pairs_total"] == 0
+    assert abs(s["k8"]["mean_over_workloads"]["byte_share_over_50MB"] - 60 / 110) < 1e-12
+
+
+@pytest.mark.parametrize("case", ["identity", "meta_k"])
+def test_deg_is_void_unless_the_levels_differ_only_in_their_pairs(deg, case):
+    deg["fill"](shift={"k4": 0.5} if case == "identity" else None, meta_k={"k8": 4} if case == "meta_k" else None)
+    with pytest.raises(SystemExit, match="differ apart from the pairs" if case == "identity" else "records k = 4"):
+        deg["read"]("primary", "p.json")
+
+
+def test_deg_trend_ids_admitted_at_every_level_and_over_four_lost_is_void(deg):
+    deg["fill"](fail={"k1": [30177], "k8": [30180, 30181]})
+    tr = deg["read"]("primary", "p.json")["trend"]
+    assert tr["n"] == 9 and 30177 not in tr["trend_ids"] and 30181 not in tr["trend_ids"]
+    deg2 = deg["tmp"] / "deg"
+    import shutil
+    shutil.rmtree(deg2)
+    deg["fill"](fail={"k4": [30176, 30177, 30178, 30179, 30180]})
+    assert deg["read"]("primary", "q.json")["confirmation"]["label"] == "VOID"
+
+
+def test_deg_heavy_saturated_everywhere_is_excluded_and_listed_and_moderate_reads(deg):
+    deg["fill"](heavy_all="k8")
+    res = deg["read"]("primary", "p.json")
+    assert res["admission"]["k8"]["rungs_wholly_saturated_excluded"] == ["heavy"] and res["trend"]["n"] == 12
+    assert res["confirmation"]["label"] == G.DEG_YES
+
+
+@pytest.mark.parametrize("kw, match", [({"seeds": "1,2,3"}, "--seeds 1,2"), ({"confirm-size128": None}, "its own family"),
+                                       ({"mlp": "x"}, "--deg-root"), ({"record": "x"}, "seal"), ({"tops": "30176,30177"}, "exchange-study ids")])
+def test_deg_arguments_fail_loud(deg, kw, match):
+    deg["fill"]()
+    with pytest.raises(SystemExit, match=match):
+        deg["read"]("primary", "x.json", **kw)
+
+
+def test_deg_secondary_reads_descriptive_rows_only_after_the_primary_is_filed(deg):
+    deg["fill"](rendezvous="k2")
+    res = deg["read"]("primary", "p.json")
+    assert not res["admission"]["k2"]["rendezvous_check"]["holds"] and res["admission"]["k1"]["rendezvous_check"]["holds"]
+    p = str(deg["tmp"] / "p.json")
+    head = subprocess.run(["git", "-C", str(deg["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    with pytest.raises(SystemExit, match="not filed"):
+        deg["read"]("secondary", "s.json", **{"primary-read": p, "record": head, "filed-ref": "HEAD"})
+    res = deg["read"]("secondary", "s.json", **{"primary-read": p, "record": deg["file"](p), "filed-ref": "HEAD"})
+    d = res["descriptive"]
+    for lv in G.DEG_LEVELS:
+        assert len(d[lv]["fl_vs_bar"]) == 4 and len(d[lv]["fl_vs_mlp"]) == 4 and all("p_holm" not in e for e in d[lv]["fl_vs_bar"] + d[lv]["mlp_vs_bar"])
+        assert d[lv]["gap_fl"]["exchange_seconds_saved"] > 0 and d[lv]["charge_miss"][G.CONFIRM_PRIMARY]["excess_pp_max"] == 0.0
+    assert res["confirmation"]["primary_read"]["md5"] == G.md5(p)
