@@ -303,6 +303,23 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-19 — **FL + λ: the reader is re-frozen as P8.1 at reference-physics `d2da78dc`** (`scripts_cosim/uncut_arm_gate_read.py` blob `bfbf124e`, re-checked on origin there; `s6/reader-fllambda-p81` `34c3297c`). **It supersedes the P8 freeze (`82a5db52`, filed above).** Filed before any FL + λ learned cell. Every FL + λ read runs from this blob (datalab worktree `s6_reader_34c3297c`).
+  - **The defect, found before any cell, with nothing opened.** The P8 reader could not read the registered FL + λ pin chain. G8c was built on the P2 w-only pin `74ddf70e`, so the chain carries a w-only link between gate changes: `a459dd98` → `095948ea` → `f6818d09` → `74ddf70e` → `b8909f58` (G8c) → `05ec45c1` (G8d) → P7. The reader allows gate changes first and w-only pins last. Both flag orders failed loud on the real repo:
+    - `--gate-change 095948ea,f6818d09,b8909f58,05ec45c1 --w-pins 74ddf70e`: "FAIL LOUD: the gate change b8909f58c9097dcc3efe80117dcd9d63612f7766 is not a child of f6818d0963cbce85cf10e8c5e91cff465b945946";
+    - `--gate-change 095948ea,f6818d09,74ddf70e,b8909f58,05ec45c1`: "FAIL LOUD: the gate change 74ddf70e1effbdc1eea0a69b8573c81a5f23384e touches ['scripts_cosim/decision_cost_w.json'], not exactly ['scripts_cosim/fresh_topo_burst_v1_gate.py', 'tests/test_uncut_arm1_gate_stage.py']".
+    - Neither P6 nor P8 caught it, because the FL + λ reader tests used no gate changes. The expert's ruling: a fix and rerun, not an amendment.
+  - **The fix.** `GATE_CHANGE_FILES_BY_COMMIT[P2] = (decision_cost_w.json,)`, with P2 = `74ddf70e1effbdc1eea0a69b8573c81a5f23384e`, admitted for that commit only and with no general rule. `w_frozen` still checks every consecutive pair.
+    - The FL + λ read flags are `--pin a459dd98 --gate-change 095948ea,f6818d09,74ddf70e,b8909f58,05ec45c1 --w-pins <P7>`.
+    - The diff from `391a1ec1` is the P2 constant, its comment and one dict entry, plus tests.
+    - A unit test shows: without the entry the link fails; as a w pin before a gate change it fails; with the entry the chain is accepted; an admitted link that rewrites a frozen key fails.
+  - **Real-repo serving check (SCIENTIST's condition 3),** on the real chain with a scratch P7 stand-in on G8d in a throwaway clone (never pushed):
+    - the chain is accepted, with `w_frozen` on every pair;
+    - FL and FL MLP w and `k_cotenancy` 1.468 are bit-unchanged from `74ddf70e` to the stand-in;
+    - charges pass for the FL and FL MLP controls at `74ddf70e` and at P7, for FL + λ and FL MLP + λ at P7, and for the bar at `a459dd98`, all `_k100` and `_kr` at both rungs (20 learned checks);
+    - injected wrong charges are refused: a wrong k, FL's w for FL + λ, and FL + λ at a pin without its w.
+    - **The same check is rerun against the real P7 and filed before any learned cell** (SCIENTIST).
+  - **Tests and B3.** Reader tests 283 passed. B3 887509 (`b3_p81.sh` md5 `e2fbeaad`): all 17 reads of record byte-identical (output md5 `96ab6f39`).
+  - Signed: SCIENTIST, 2026-10-19 — FL + λ reader re-frozen as P8.1 at s6/reader-fllambda-p81 34c3297c (uncut_arm_gate_read.py blob bfbf124e; P8 + the one w-only link 74ddf70e admitted with (decision_cost_w.json,) only; defect found before any cell; B3 887509: 17 reads of record byte-identical, output md5 96ab6f39).
 - 2026-10-19 — **FL + λ: the reader is frozen at reference-physics `391a1ec1`** (`scripts_cosim/uncut_arm_gate_read.py` blob `82a5db52`, re-checked on origin there; P8 `--confirm-fl-lambda` at `s6/reader-fllambda` `135c808b`; filed before any FL + λ learned cell).
   - Every FL + λ read runs from this blob (datalab worktree `s6_reader_135c808b`). Any change to the blob before the read voids the freeze.
   - **What P8 adds**, all inside the new path (`main()` returns into `read_fl_lambda` before any existing code runs):
