@@ -342,6 +342,14 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - In both cells the only differences are S4's new fields (`bytes` per class pair, `peerExchangeOverlap`) and provenance or wall clock (`code`, `host`, `python_env`, `wallclock_s`, `decisionTiming`, `total_rtt_plus_inference`).
   - **Grid launch.** `knp_grid.sh` (md5 `dfc029f1`), at `90b6afe5`, `R1A_KPA_KNATIVE_PANIC=1`.
     - One exclusive node per root, on S6's nodes os-cpu-slurm-18, 19, 20 and 22 (split agreed with S4; disjoint from S4's; S6 holds at most 6 queued jobs, combined queue ≤ 44).
+    - Jobs: ref_mod 891683 (node 19), ref_heavy 891684 (20), gnn_mod 891685 (18), gnn_heavy 891686 (22).
+  - **Checkpoints the learned cells load** (SCIENTIST's addition).
+    - `env.GNN_MODEL_PATH` is the staged `comb/in_comball/models/uncut-comb-fl-gnn-eng-seed{1,2}.pt`. Its md5s equal `comb/md5_comball.json`: s1 `a670eb0c67577bcb63785f514bb63534`, s2 `78c09cc0daf315587dcf6c9c5c18aa28`. Contract sidecars: s1 `e9faf416`, s2 `a582b3ea`, equal to the file's provenance.
+    - Checked on the staged files, and on the shared-pin FL identity cell's `GNN_MODEL_PATH` (s1).
+  - **Read script** `uncut_groups_s0_v1/kpa_conf/knp_read.py` (md5 `e15677cd`), written before any grid cell finished. Output `anomaly/knpanic_read.txt`, written once.
+    - In every learned cell of both switch states, it asserts that `GNN_MODEL_PATH` is the staged path for the cell's seed, and that the file's md5 equals `md5_comball.json`, as the frozen readers do.
+    - In every cell it also asserts the switch state (`knative_panic` present only in the on cells) and the pin `90b6afe5`, clean.
+    - Attachments: `knp_ident.sh` `d48b21d1`, `knp_grid.sh` `dfc029f1`, `sumdiff.py` `f58b4c83`.
   - **Grid** (switch set; everything else exactly as S4's 0.7 arms, which are the switch-off comparison at the same pin):
     - Gate topologies 19537–19548, windows g0–g3, `R1A_SLATE=declared_pruning_v1_uncapped`, inputs `comb/in_comball`, selection `arm1_selected.json`, split `uncut_arm1_split.json`.
     - Arms:
