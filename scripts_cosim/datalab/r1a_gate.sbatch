@@ -45,6 +45,8 @@ export WF1_RUNGS=${RUNGS_IN:-light,moderate,heavy}
 [[ -z "${R1A_QUEUE_LENGTH:-}" ]] || export HEROSIM_QUEUE_LENGTH="$R1A_QUEUE_LENGTH"
 # KPA conformance (ii) closed-loop sensitivity: R1A_KPA_KNATIVE_PANIC=1 survives the wipe as HEROSIM_KPA_KNATIVE_PANIC (D1-D3 aligned to Knative)
 [[ -z "${R1A_KPA_KNATIVE_PANIC:-}" ]] || export HEROSIM_KPA_KNATIVE_PANIC="$R1A_KPA_KNATIVE_PANIC"
+# peer-exchange TCP sensitivity: R1A_EXCHANGE_TCP=1 survives the wipe as HEROSIM_EXCHANGE_TCP (handshake + slow start + framing on each remote exchange)
+[[ -z "${R1A_EXCHANGE_TCP:-}" ]] || export HEROSIM_EXCHANGE_TCP="$R1A_EXCHANGE_TCP"
 [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]] || export R1A_SHARD="${SLURM_ARRAY_TASK_ID}/${SLURM_ARRAY_TASK_COUNT}"
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$SELECT" --parallel "${PAR:-60}" --mem "${CELL_MEM:-8G}" \
   --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip"
