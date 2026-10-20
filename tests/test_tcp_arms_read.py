@@ -236,3 +236,54 @@ def test_ident_checkpoint_md5(tmp_path):
     new, old, m = _ident_pair(tmp_path)
     why, _, _ = I.judge(new, old, {k: "0" * 32 for k in m}, {})
     assert "checkpoint md5" in " ".join(why)
+
+
+# ---------------------------------------------------------------- per-size runs
+def test_list_restricted_to_the_size_but_whole_list_md5_checked(tree):
+    cfg, g, md5s, cf = tree
+    open(cf, "a").write("tcp_arms/on64\tcc40s30129__g0moderate__ra_twin_eng_combfl_nosplit_k100_s1\tTCP=1\n"
+                        "tcp_arms/ident64\tcc40s30129__g0heavy__x_s1\tTCP=0\tvs size64/cells_bar\n")
+    n, ident = T.check_list(cfg, cf, None)
+    assert (n, ident) == (144, 1)
+    with pytest.raises(SystemExit, match="cell list md5"):
+        T.check_list(cfg, cf, "0" * 32)
+
+
+def test_main_reads_one_size_once_and_refuses_a_partial_size(tree, monkeypatch, capsys):
+    cfg, g, md5s, cf = tree
+    U = cfg["U"]
+    os.makedirs(f"{U}/comb", exist_ok=True)
+    os.makedirs(f"{U}/fl3", exist_ok=True)
+    json.dump({k: v for k, v in md5s.items() if "twin" not in k}, open(f"{U}/comb/md5_comball.json", "w"))
+    json.dump({k: v for k, v in md5s.items() if "twin" in k}, open(f"{U}/fl3/md5_twin.json", "w"))
+    monkeypatch.setenv("TCP_ARMS_U", U)
+    monkeypatch.setattr(T, "CELLS_MD5", hashlib.md5(open(cf, "rb").read()).hexdigest())
+    monkeypatch.setitem(T.TOPOS, 24, TOPOS)
+    out = f"{U}/read24.txt"
+    T.main(["x", cf, "--size", "24", "--out", out])
+    assert os.path.exists(out) and "24 servers" in open(out).read() and "64 servers" not in open(out).read()
+    with pytest.raises(SystemExit, match="read once"):
+        T.main(["x", cf, "--size", "24", "--out", out])
+    key = next(k for k in g if k[0] == "on" and k[2] == "mlp")
+    os.remove(g[key] + ".summary.json")
+    with pytest.raises(SystemExit, match="missing cell"):
+        T.main(["x", cf, "--size", "24", "--out", f"{U}/read24b.txt"])
+    assert not os.path.exists(f"{U}/read24b.txt")
+    with pytest.raises(SystemExit):
+        T.main(["x", cf])
+
+
+def test_ident_main_is_per_size_and_counts_entries(tmp_path, monkeypatch):
+    new, old, m = _ident_pair(tmp_path)
+    cf = tmp_path / "cells.txt"
+    cf.write_text("tcp_arms/ident64\tcc40s1__g0heavy__ra_gnn_eng_combfl_nosplit_k100_s1\tTCP=0\tvs size64/cells_learned\n")
+    monkeypatch.setenv("TCP_ARMS_U", str(tmp_path))
+    monkeypatch.setattr(I, "CELLS_MD5", hashlib.md5(cf.read_bytes()).hexdigest())
+    os.makedirs(tmp_path / "comb")
+    os.makedirs(tmp_path / "fl3")
+    json.dump(m, open(tmp_path / "comb" / "md5_comball.json", "w"))
+    json.dump({}, open(tmp_path / "fl3" / "md5_twin.json", "w"))
+    with pytest.raises(SystemExit, match="1 identity entries at 64, want 4"):
+        I.main(["x", str(cf), "--size", "64"])
+    with pytest.raises(SystemExit):
+        I.main(["x", str(cf)])
