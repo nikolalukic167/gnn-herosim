@@ -31,7 +31,8 @@ from src.placement.scheduling_cost import (
     transfer_time as _transfer_time,
 )
 from src.placement.network_fabric import (
-    EXCHANGE_TCP_ENV, NetworkFabric, exchange_tcp_enabled, tcp_transfer, transfer_model, transmission_hops,
+    EXCHANGE_FAIRSHARE_ENV, EXCHANGE_TCP_ENV, NetworkFabric, exchange_fairshare_enabled, exchange_fairshare_partners,
+    TCP_FRAME, TCP_MSS, exchange_tcp_enabled, tcp_startup_and_rest, tcp_transfer, transfer_model, transmission_hops,
 )
 from src.placement.physics_audit import AUDIT as _AUDIT
 
@@ -1346,6 +1347,88 @@ class Platform:
                                        sender=peer_node_name, start=self.env.now + exchange_start)
         return total
 
+    def _fairshare_plan(self, task: "Task", record: bool = True) -> List[Dict[str, Any]]:
+        """HEROSIM_EXCHANGE_FAIRSHARE=1: the remote exchanges of ``task`` as flows, in the order `_peer_exchange_time` charges them.
+        Each: the partner's node, payload, route latency, the directed route, the start-up ``b`` (0 unless HEROSIM_EXCHANGE_TCP
+        is on), the bytes that share the links (``rest``), the goodput scale (1, or MSS / frame under TCP) and ``solo``, the seconds
+        the same exchange takes alone on its route (equal to the plain or TCP charge). Co-located peers are free and absent.
+        Same peer resolution and fail-loud checks as `_peer_exchange_time`."""
+        if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
+            return []
+        if transfer_model() != "pipelined":
+            raise RuntimeError(f"{EXCHANGE_FAIRSHARE_ENV}=1 is defined for the pipelined transfer model only")
+        orchestrator = getattr(self.node, "orchestrator_ref", None)
+        if orchestrator is None:
+            raise RuntimeError(f"HEROSIM_PEER_EXCHANGE=1 but {self.node.node_name} has no orchestrator_ref; "
+                               "the peer table lives on the orchestrator")
+        peers = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id)
+        if not peers:
+            return []
+        fabric = getattr(self.node, "fabric", None)
+        if fabric is None or fabric.fairshare is None:
+            raise RuntimeError(f"{EXCHANGE_FAIRSHARE_ENV}=1 needs the link fabric of the run (NetworkFabric built with the switch on)")
+        flows: List[Dict[str, Any]] = []
+        for peer_id in sorted(peers):
+            payload = float(peers[peer_id])
+            peer = orchestrator.task_by_id.get(peer_id)
+            if peer is None:
+                raise RuntimeError(f"HEROSIM_PEER_EXCHANGE=1: task {task.id} lists peer {peer_id}, which is not a task of this workload")
+            peer_platform = getattr(peer, "platform", None)
+            peer_node_name = peer_platform.node.node_name if peer_platform is not None else getattr(peer, "planned_node_name", None)
+            if peer_node_name is None:
+                raise RuntimeError(f"HEROSIM_PEER_EXCHANGE=1 but peer {peer_id} of task {task.id} has neither a platform nor a planned node; "
+                                   "a batch scheduler must plan the whole batch before any member starts (planned_node_name pre-pass)")
+            if peer_node_name == self.node.node_name:
+                continue
+            latency = self.peer_link_latency(peer_node_name, context=f"peer {peer_id} of task {task.id}")
+            if record and _AUDIT is not None:
+                self._audit_payload("peer", task, peer_node_name, payload, latency)
+            hops = fabric.directed_hops(peer_node_name, self.node.node_name)
+            if not hops:
+                raise RuntimeError(f"{EXCHANGE_FAIRSHARE_ENV}=1: no route from {peer_node_name} to {self.node.node_name}")
+            bottleneck = min(bw for _k, bw in hops)
+            if exchange_tcp_enabled():
+                b, rest = tcp_startup_and_rest(payload, bottleneck, latency)
+                scale = TCP_MSS / TCP_FRAME
+            else:
+                b, rest, scale = 0.0, payload, 1.0
+            solo = b + (rest / (scale * bottleneck * 1024 ** 2) if rest > 0 else 0.0) + latency
+            flows.append({"peer_id": peer_id, "peer_node": peer_node_name, "payload": payload, "latency": latency, "hops": hops,
+                          "b": b, "rest": rest, "scale": scale, "solo": solo,
+                          "tcp_extra": (solo - latency - payload / (bottleneck * 1024 ** 2)) if exchange_tcp_enabled() else 0.0})
+        return flows
+
+    def _fairshare_exchange(self, task: "Task", flows: List[Dict[str, Any]]):
+        """Run the flows of `_fairshare_plan` (a generator; yield from it) and return the seconds from the first start to the last
+        finish. Each flow: its start-up (no link held), its bytes through the shared links, then the route latency. Booked per flow
+        into the access-class tally (seconds as run, start = the flow's own start) and the fabric's fair-share block."""
+        fabric = self.node.fabric
+        t0 = self.env.now
+
+        def one(fl):
+            start = self.env.now
+            if fl["b"] > 0:
+                yield self.env.timeout(fl["b"])
+            if fl["rest"] > 0:
+                yield fabric.fairshare.start(fl["hops"], fl["rest"], fl["scale"])
+            if fl["latency"] > 0:
+                yield self.env.timeout(fl["latency"])
+            seconds = self.env.now - start
+            if fabric.access_classes:
+                fabric.record_exchange(fl["peer_node"], self.node.node_name, seconds, bytes_=fl["payload"],
+                                       sender=fl["peer_node"], start=start)
+            if fabric.exchange_tcp is not None:
+                fabric.record_exchange_tcp(fl["tcp_extra"])
+            fabric.record_exchange_fairshare(seconds, fl["solo"])
+
+        if exchange_fairshare_partners() == "concurrent":
+            procs = [self.env.process(one(fl)) for fl in flows]
+            yield self.env.all_of(procs)
+        else:
+            for fl in flows:
+                yield from one(fl)
+        return self.env.now - t0
+
     def _audit_payload(self, kind: str, task: "Task", src_node_name: str, payload: float, latency: float) -> None:
         fabric = getattr(self.node, "fabric", None)
         try:
@@ -1850,17 +1933,26 @@ class Platform:
 
         if _AUDIT is not None:
             task._audit_rendezvous_end = self.env.now
-        peer_exchange_time = self._peer_exchange_time(task)
-        if peer_exchange_time:
-            task.peer_exchange_time = peer_exchange_time
-            input_duration += peer_exchange_time
+        fairshare_flows: List[Dict[str, Any]] = []
+        if exchange_fairshare_enabled():
+            # HEROSIM_EXCHANGE_FAIRSHARE: the exchange is run as flows after the task's other inputs, not summed into input_duration;
+            # its solo charge (what it would cost alone) is only the bookkeeping estimate below.
+            fairshare_flows = self._fairshare_plan(task)
+            peer_exchange_time = self._peer_exchange_time(task, record=False) if fairshare_flows else 0.0
+            input_estimate = input_duration + peer_exchange_time
+        else:
+            peer_exchange_time = self._peer_exchange_time(task)
+            if peer_exchange_time:
+                task.peer_exchange_time = peer_exchange_time
+                input_duration += peer_exchange_time
+            input_estimate = input_duration
 
 
         # backlog_corpus_v1: when this task's service will end, known here to within the
         # node-slot wait. Bookkeeping only (read by live_audit under
         # HEROSIM_INFLIGHT_CAPTURE=service_end_v1); nothing in the simulation reads it.
         self.inflight_service_end = (
-            self.env.now + input_duration
+            self.env.now + input_estimate
             + float(task.type["executionTime"][self.type["shortName"]])
             + _output_estimate_seconds(task)
         )
@@ -1870,8 +1962,10 @@ class Platform:
 
         # Retrieve input data
         if FIDELITY:
-            task._fid["io_end"] = self.env.now + input_duration
+            task._fid["io_end"] = self.env.now + input_estimate
         yield self.env.timeout(input_duration)
+        if fairshare_flows:
+            task.peer_exchange_time = yield from self._fairshare_exchange(task, fairshare_flows)
         task.io_end_time = self.env.now
         if _AUDIT is not None:
             task._audit_io_end = self.env.now

@@ -219,7 +219,7 @@ def ib0_alpha(kind: str) -> dict:
     return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
-W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp")
+W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp", "peerExchangeFairshare")
 
 
 def exchange_tcp_problems(out, driver_value):
@@ -233,6 +233,22 @@ def exchange_tcp_problems(out, driver_value):
         problems.append("HEROSIM_EXCHANGE_TCP=1 driven but the summary carries no peerExchangeTcp block")
     if not on and (carried or (out.get("env") or {}).get("HEROSIM_EXCHANGE_TCP") == "1"):
         problems.append(f"HEROSIM_EXCHANGE_TCP driven as {driver_value!r} but peerExchangeTcp carried={carried}")
+    return problems
+
+
+def exchange_fairshare_problems(out, driver_value, driver_partners):
+    """HEROSIM_EXCHANGE_FAIRSHARE: a cell driven with the switch on must carry the summary's `peerExchangeFairshare` block, whose
+    `partners` equals the driven HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS (unset = serial); a cell driven with it off must carry
+    neither the block nor the variable."""
+    on = driver_value == "1"
+    block = out.get("peerExchangeFairshare")
+    problems = []
+    if on and block is None:
+        problems.append("HEROSIM_EXCHANGE_FAIRSHARE=1 driven but the summary carries no peerExchangeFairshare block")
+    if on and block is not None and block.get("partners") != (driver_partners or "serial"):
+        problems.append(f"fair-share partners driven as {driver_partners or 'serial'!r} but recorded as {block.get('partners')!r}")
+    if not on and (block is not None or (out.get("env") or {}).get("HEROSIM_EXCHANGE_FAIRSHARE") == "1"):
+        problems.append(f"HEROSIM_EXCHANGE_FAIRSHARE driven as {driver_value!r} but peerExchangeFairshare carried={block is not None}")
     return problems
 
 
@@ -1339,6 +1355,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     problems = []
     orig_kind, kind = kind, check_alias(kind)
     problems += exchange_tcp_problems(out, os.environ.get("HEROSIM_EXCHANGE_TCP"))
+    problems += exchange_fairshare_problems(out, os.environ.get("HEROSIM_EXCHANGE_FAIRSHARE"), os.environ.get("HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS"))
     for k, default in (("HEROSIM_TRANSFER_MODEL", "store_forward"), ("HEROSIM_REPLICA_RELEASE", "0"),
                        ("HEROSIM_SCALEOUT", "legacy"), ("HEROSIM_SHARED_AUTOSCALER", "0")):
         if out["env"].get(k, default) != os.environ.get(k, default):
