@@ -87,6 +87,50 @@ ACCESS_CLASSES: Dict[str, Dict[str, Any]] = {
 DEFAULT_ACCESS_MIX: Dict[str, float] = {"wired": 0.4, "wifi": 0.4, "cellular": 0.2}
 
 
+# HEROSIM_EXCHANGE_TCP=1 (default off): a disclosed sensitivity on the peer-exchange charge (uncut_groups_s0_v1 Record,
+# 2026-10-20 "Simulator component check" and the TCP-transfer sensitivity line). Real TCP over the simulator's own rates and
+# latencies costs MTU framing, a handshake and slow start; the plain charge size / bottleneck has none of them. Under the switch each
+# non-co-located peer transfer is `tcp_transfer(size, bottleneck, lat) + lat` instead of `size / bottleneck + lat`: one handshake RTT,
+# slow start from 10 segments doubling per RTT up to the bandwidth-delay product, the rest at goodput. No fitted value. Every remote
+# partner is its own connection (its own handshake) and the terms are summed serially, as the exchange loop already does.
+EXCHANGE_TCP_ENV = "HEROSIM_EXCHANGE_TCP"
+TCP_MSS = 1448
+TCP_FRAME = 1514
+TCP_INITCWND_SEGMENTS = 10
+
+
+def exchange_tcp_enabled() -> bool:
+    """True under HEROSIM_EXCHANGE_TCP=1; unset or '0' is off; any other value raises."""
+    raw = os.environ.get(EXCHANGE_TCP_ENV)
+    if raw is None or raw == "0":
+        return False
+    if raw == "1":
+        return True
+    raise ValueError(f"{EXCHANGE_TCP_ENV}={raw!r}; expected '0' or '1'")
+
+
+def tcp_transfer(size_bytes: float, bottleneck_mbs: float, lat: float) -> float:
+    """Seconds to move ``size_bytes`` over a route of bottleneck ``bottleneck_mbs`` (MB/s, 1024**2 bytes) and one-way latency
+    ``lat`` (s), excluding the one-way ``lat`` the caller still adds once."""
+    if not bottleneck_mbs > 0:
+        raise ValueError(f"{EXCHANGE_TCP_ENV}: bottleneck {bottleneck_mbs} MB/s must be > 0")
+    rtt = 2 * lat
+    g = bottleneck_mbs * 1024 ** 2 / (TCP_FRAME / TCP_MSS)
+    bdp = g * rtt
+    t = rtt
+    sent = 0.0
+    cw = TCP_INITCWND_SEGMENTS * TCP_MSS
+    while sent < size_bytes and cw < bdp:
+        sent += cw
+        t += rtt
+        cw *= 2
+    if sent < size_bytes:
+        t += (size_bytes - sent) / g
+    else:
+        t -= rtt
+    return t
+
+
 def draw_access_classes(
     node_names: Sequence[str], seed: int, mix: Optional[Mapping[str, float]] = None
 ) -> Dict[str, Dict[str, Any]]:
@@ -233,6 +277,12 @@ class NetworkFabric:
         # Per sending node (its access link): (start, end, class pair) of every peer exchange it sends. Telemetry
         # only; exchanges are charged size/bottleneck + latency with no shared pipe, and this is what exposes it.
         self.exchange_intervals: Dict[str, List[Tuple[float, float, str]]] = {}
+        # HEROSIM_EXCHANGE_TCP: seconds the switch added to the booked exchange seconds. None (and no summary key) when off.
+        self.exchange_tcp: Optional[Dict[str, Any]] = (
+            {"model": "slow_start_v1", "mss": TCP_MSS, "frame": TCP_FRAME, "initcwnd_segments": TCP_INITCWND_SEGMENTS,
+             "per_partner": True, "transfers": 0, "extra_seconds": 0.0}
+            if exchange_tcp_enabled() else None
+        )
 
     @property
     def link_topology(self) -> Mapping[str, Any]:
@@ -272,6 +322,14 @@ class NetworkFabric:
             slot["bytes"] = slot.get("bytes", 0.0) + float(bytes_)
         if sender is not None and start is not None:
             self.exchange_intervals.setdefault(sender, []).append((float(start), float(start) + float(seconds), pair))
+
+    def record_exchange_tcp(self, extra_seconds: float) -> None:
+        """Book what HEROSIM_EXCHANGE_TCP added to one exchange (its TCP time minus the plain size / bottleneck term)."""
+        slot = self.exchange_tcp
+        if slot is None:
+            raise RuntimeError("record_exchange_tcp called with HEROSIM_EXCHANGE_TCP off")
+        slot["transfers"] += 1
+        slot["extra_seconds"] += float(extra_seconds)
 
     def exchange_overlap(self) -> Dict[str, Any]:
         """Share of exchange seconds that run concurrently with another exchange leaving the same source access

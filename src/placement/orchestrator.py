@@ -517,9 +517,12 @@ class Orchestrator:
             if fabric is not None:
                 if not fabric.access_classes:
                     return {}
-                return {"peerExchangeByAccessClass": fabric.exchange_by_class,
-                        "peerExchangeOverlap": fabric.exchange_overlap(),
-                        "accessClasses": fabric.access_classes}
+                fields = {"peerExchangeByAccessClass": fabric.exchange_by_class,
+                          "peerExchangeOverlap": fabric.exchange_overlap(),
+                          "accessClasses": fabric.access_classes}
+                if fabric.exchange_tcp is not None:
+                    fields["peerExchangeTcp"] = fabric.exchange_tcp
+                return fields
         return {}
 
     def _fabric_link_wait_total(self) -> float:
