@@ -1286,7 +1286,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         for k in ("averageColdStartTime", "averageInitializationTime", "averagePullTime", "averageExecutionTime",
                   "averageComputeTime", "averageCommunicationsTime", "averageNetworkLatency"):
             out[k] = st.get(k)
-    for k in ("peerExchangeByAccessClass", "accessClasses"):  # workload_fix_v1 W3 telemetry; absent otherwise
+    for k in ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses"):  # workload_fix_v1 W3 telemetry; absent otherwise
         if k in st:
             out[k] = st[k]
     c = out.get("schedulerCounters") or {}

@@ -83,8 +83,38 @@ def test_fabric_records_exchange_by_class_pair():
     fabric.record_exchange("n0", "n1", 2.0)
     fabric.record_exchange("n1", "n0", 3.0)
     assert fabric.exchange_by_class == {"cellular+wired": {"seconds": 5.0, "transfers": 2}}
+    assert fabric.exchange_intervals == {}
+    fabric.record_exchange("n0", "n1", 1.0, bytes_=100.0)
+    fabric.record_exchange("n1", "n0", 1.0, bytes_=50.0)
+    assert fabric.exchange_by_class == {"cellular+wired": {"seconds": 7.0, "transfers": 4, "bytes": 150.0}}
     plain = NetworkFabric(simpy.Environment(), {k: v for k, v in lt.items() if k != "access_classes"})
     assert plain.access_classes == {} and plain.exchange_by_class == {}
+
+
+def _ov_fabric():
+    lt = {"links": {"core0|n0": {"latency": 0.01, "bandwidth_mbps": 100.0}, "core0|n1": {"latency": 0.01, "bandwidth_mbps": 100.0}},
+          "routes": {"n0": {"n1": ["n0", "core0", "n1"]}},
+          "access_classes": {"n0": {"class": "wired"}, "n1": {"class": "cellular"}}}
+    return NetworkFabric(simpy.Environment(), lt)
+
+
+def test_exchange_overlap_same_source_only():
+    f = _ov_fabric()
+    f.record_exchange("n0", "n1", 4.0, bytes_=1.0, sender="n0", start=0.0)   # [0,4]
+    f.record_exchange("n0", "n1", 4.0, bytes_=1.0, sender="n0", start=2.0)   # [2,6]: overlaps [2,4]
+    f.record_exchange("n0", "n1", 1.0, bytes_=1.0, sender="n0", start=6.0)   # touches the end of [2,6]: no overlap
+    f.record_exchange("n1", "n0", 4.0, bytes_=1.0, sender="n1", start=0.0)   # other source: alone
+    o = f.exchange_overlap()
+    assert o["exchange_seconds"] == 13.0 and o["transfers"] == 4
+    assert o["overlap_seconds_share"] == pytest.approx(4.0 / 13.0)   # [2,4] counted for both intervals
+    assert o["transfers_with_overlap_share"] == pytest.approx(0.5)
+    assert o["union_over_sum"] == pytest.approx((7.0 + 4.0) / 13.0)
+    assert o["by_class"]["cellular+wired"]["transfers_with_overlap"] == 2
+
+
+def test_exchange_overlap_empty():
+    o = _ov_fabric().exchange_overlap()
+    assert o["overlap_seconds_share"] == 0.0 and o["transfers"] == 0 and o["by_class"] == {}
 
 
 def _row(topo, window, arm, lat, q=0.1, ex=1.0, classes=None):

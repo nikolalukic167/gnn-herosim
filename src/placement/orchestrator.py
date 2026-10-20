@@ -518,6 +518,7 @@ class Orchestrator:
                 if not fabric.access_classes:
                     return {}
                 return {"peerExchangeByAccessClass": fabric.exchange_by_class,
+                        "peerExchangeOverlap": fabric.exchange_overlap(),
                         "accessClasses": fabric.access_classes}
         return {}
 
