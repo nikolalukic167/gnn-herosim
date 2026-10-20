@@ -57,10 +57,11 @@ def test_snapshot_estimate_prices_peer_exchange_without_booking_it(monkeypatch):
     from src.placement import infrastructure as inf
     monkeypatch.setenv("HEROSIM_PEER_EXCHANGE", "1")
     booked = []
-    fabric = SimpleNamespace(access_classes=True, record_exchange=lambda a, b, t: booked.append((a, b, t)))
+    fabric = SimpleNamespace(access_classes=True, record_exchange=lambda a, b, t, **kw: booked.append((a, b, t)))
     peer = SimpleNamespace(platform=None, planned_node_name="n2")
     orch = SimpleNamespace(peer_exchange={1: {2: 1e6}}, task_by_id={2: peer})
     p = inf.Platform.__new__(inf.Platform)
+    p.env = SimpleNamespace(now=0.0)
     p.node = SimpleNamespace(node_name="n1", orchestrator_ref=orch, fabric=fabric, network_map={"n2": {"latency": 0.01}})
     monkeypatch.setattr(inf.Platform, "_payload_transfer_time", lambda self, n, b: 0.5, raising=False)
     monkeypatch.setattr(inf, "_AUDIT", None)
