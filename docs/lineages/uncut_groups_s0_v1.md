@@ -10,7 +10,7 @@
 - **Per-term latency breakdown (2026-10-19; descriptive, no label; Record):** the FL gnn's gain over `cd_ib0_inflightfull` is peer-exchange time (Δ −0.18 to −0.70 s per task, 12/12 topologies, gate and size 64 at both rungs), paid for in scheduler wait, residual queue and lock wait; its co-location share is *lower* than the bar's, so the saving is not more co-located pairs.
 - **FL gnn s3–6 at 64 servers (2026-10-19; descriptive, no label, no registration; Record):** 768 cells (`size64/cells_learned_s36`), the four conf2 `-final.pt`, `_k100` and `_kr`, topologies 30129–30140; cell list filed (md5 `cb0b2c39…`) before submission; read filed: seeds 3–6 beat the bar in all four tests under both charges (heavy whole −9.07 % `_k100`, −7.67 % `_kr`, 12/12), descriptive, no verdict.
 - **FL + λ and twin decision-cost pins (2026-10-20; Record):** P7 `91269ec0` (FL + λ GNN and MLP w, on G8d) and P7b `f8a55ff0` (twin w, on P7) filed with the real serving check; the FL + λ cells read at the frozen P8.1 reader with `--w-pins 91269ec0`; the twin's read needs P9, which must admit the twin kind on the chain to P7b. No label changes.
-- **KPA conformance (ii) (2026-10-20; descriptive, open loop; Record):** against knative.dev/serving v0.50.0's own decider and defaults on two re-traced bar cells (cc40s19537 g0 heavy and moderate). Our `KpaScaler` asks for different counts on 8.6 % / 11.2 % of window-full ticks, with Knative higher on 90 % of those (+1.8 % / +3.3 % summed desired). Causes: panic entry on the ceiled count (D1), the panic count without the stable term (D2), un-panic one tick early (D3), and a float ceil at exact multiples of 0.7 (D6). Joint residual 0, unexplained 0. Not fixed before submission (physics change); the scraped-metric difference (D8) is untested.
+- **KPA conformance (ii) (2026-10-20; descriptive, open loop; Record):** against knative.dev/serving v0.50.0's own decider and defaults on two re-traced bar cells (cc40s19537 g0 heavy and moderate). Our `KpaScaler` asks for different counts on 8.6 % / 11.2 % of window-full ticks, with Knative higher on 90 % of those (ours 1.8 % / 3.2 % below in summed desired). Causes: panic entry on the ceiled count (D1), the panic count without the stable term (D2), un-panic one tick early (D3), and a float ceil at exact multiples of 0.7 (D6). Joint residual 0, unexplained 0. Not fixed before submission (physics change); the scraped-metric difference (D8) is untested.
 - **Heavy < moderate, additions (2026-10-20; descriptive, no label; Record):** after 360 s heavy is faster than moderate at both 24 and 64 servers (bar −1.04 / −0.76 s, 12/12); the heavy lock-wait rise (+0.29 / +0.98 s whole) is almost all in the first 360 s (+0.025 / +0.019 s after). FL gnn saves exchange by cheaper, mostly non-cellular transfers, with lower co-location than the bar.
 - **Partner structure (2026-10-20; Record):** NO-TREND. FL gnn vs FL MLP stays near −2 % (moderate whole) and −3 % (after-360) at k = 1, 2, 4 and 8 partners; Page Holm .851 / .586. Read through a symlink view of the partners tree (layout mismatch, disclosed).
 - **FL size-128 F1 (2026-10-20; Record):** NOT-CONFIRMED (MIXED under both charges). At 128 servers FL beats the bar −19.0 % moderate whole, −46.4 % moderate after-360 and −27.9 % heavy after-360 (12/12), but is +4.7 % slower at heavy whole (0/12, Holm .002; seed 1 +12.3 %). The loss is in the opening and is there at k = 0 too (+6.7 %), so it is not the decision charge. F2 (FL gnn vs FL MLP): DIRECTION-ONLY.
@@ -310,7 +310,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
-- 2026-10-20 — **KPA conformance check (ii): our KPA decider follows Knative's except D1, D2, D3 and D6 on 8.6 % (heavy) and 11.2 % (moderate) of window-full ticks. Knative asks for more replicas on 90 % of those ticks. No difference is unexplained.** Descriptive, no label, open loop.
+- 2026-10-20 — **KPA conformance check (ii): our decider follows Knative v0.50.0's except D1 (panic entry un-ceiled), D2 (panic sizing without the stable count), D3 (one-tick un-panic boundary) and D6 (Knative's binary-float ceil at exact multiples of the target), on 1,328 of 15,516 window-full ticks at heavy (8.6 %) and 4,194 of 37,436 at moderate (11.2 %); UNEXPLAINED 0; joint residual 0.** (SCIENTIST's wording; not "conforms".) Knative asks for more on 1,199 of 1,328 and 3,731 of 4,194 differing ticks; ours is about 1.8 % and 3.2 % below in summed desired. Descriptive, no label, open loop.
   - **Decision.** `KpaScaler` is not changed before submission: a change there is a physics change and would invalidate every filed cell (the expert). The paper names D1, D2, D3 and D6 as departures. A closed-loop rerun with Knative's choices applied is the only way to know their latency effect. That is a separate decision.
   - **Design and approvals.** Designed by S6; reviewed by SCIENTIST (cells, linear aggregation only, a defaults-equality row, D8 named, joint residual); accepted by the expert.
   - **Trace.** Two filed G8 bar cells were re-run at their pin `a459dd98` with `HEROSIM_AUDIT_TRACE`, chosen before any comparison: cc40s19537 / g0heavy and g0moderate / `cd_ib0_inflightfull_k100` s0.
@@ -324,6 +324,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - Output: per-tick `kpa_conf/go_g0heavy.csv` md5 `f805bf57`, `go_g0moderate.csv` `41b27fc7`.
   - **Defaults-equality row** (`knative_defaults.json` md5 `637b9b1b`). Every field we use equals our constants: target 0.7 (total 1), stable 60 s, panic 6 s (10 %), threshold 2.0, max up 1000, max down 2, scale-down delay 0, 1 s buckets, reachable.
     - Defaults outside the decider are listed, not compared: initial scale 1, target burst capacity 211, scale-to-zero grace 30 s.
+    - The Go test ran with activation scale **0**, as `MakeDecider` gives it with no annotation; the design note had said 1. The decider only adjusts counts when activation scale > 1, so 0 and 1 give identical counts.
   - **Our side.** `src/placement/scaleout.py` at reference-physics `5acaecf2` (md5 `0a39560a`). `scaleout.py` and `autoscaler.py` are unchanged between `a459dd98` and `5acaecf2`, so this is the cells' decider.
   - **Comparison.** `uncut_groups_s0_v1/kpa_conf/kpa_conformance.py` md5 `4d81c8a3`. Reports `report_g0heavy.txt` `fba1eef8` and `report_g0moderate.txt` `df157022`; per-tick `go_g0heavy.compare.csv` `08947713` and `go_g0moderate.compare.csv` `8f5327b4`.
     - Self-checks: the replayed `KpaScaler` equals the traced desired on 100 % of ticks.
@@ -331,22 +332,34 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - A difference counts as explained only when aligning that mechanism alone (or the smallest combination) removes it. Nothing is fitted.
     - The window is full when t − first sample ≥ 60 s.
   - **Results, window-full ticks.**
-    - heavy: 1,328 of 15,516 ticks differ (8.6 %); Knative is higher on 1,199 and lower on 129; median |diff| 4 replicas; summed desired +1.8 %.
-    - moderate: 4,194 of 37,436 differ (11.2 %); Knative higher on 3,731, lower on 463; median |diff| 3; summed desired +3.3 %.
+    - heavy: 1,328 of 15,516 ticks differ (8.6 %); Knative is higher on 1,199 and lower on 129; median |diff| 4 replicas; ours is 1.8 % below in summed desired.
+    - moderate: 4,194 of 37,436 differ (11.2 %); Knative higher on 3,731, lower on 463; median |diff| 3; ours is 3.2 % below in summed desired (1 − 1/1.033).
     - Largest single-tick gaps: +60 (heavy) and +140 (moderate).
-    - Per function, ticks that differ out of 3,879 (heavy) or 9,359 (moderate) — heavy: cnn 315, dnn1 172, dnn2 446, rf 395; moderate: cnn 779, dnn1 887, dnn2 1,586, rf 942.
+    - Per function (window-full ticks: 3,879 per function at heavy, 9,359 at moderate). Columns: ticks explained by each alignment alone, D1–D7; then `multi` (ticks explained by more than one single alignment, so counted in two columns); then `joint-only` (ticks removed only by a combination). Each row closes: differ = the D columns − multi + joint-only.
+
+      | rung | fn | differ | D1 | D2 | D3 | D4 | D5 | D6 | D7 | multi | joint-only | UNEXP |
+      |---|---|---|---|---|---|---|---|---|---|---|---|---|
+      | heavy | cnn | 315 | 155 | 0 | 30 | 0 | 4 | 68 | 0 | 1 | 59 | 0 |
+      | heavy | dnn1 | 172 | 115 | 0 | 28 | 0 | 1 | 28 | 0 | 1 | 1 | 0 |
+      | heavy | dnn2 | 446 | 277 | 124 | 33 | 0 | 0 | 10 | 0 | 0 | 2 | 0 |
+      | heavy | rf | 395 | 174 | 0 | 31 | 0 | 0 | 183 | 0 | 0 | 7 | 0 |
+      | moderate | cnn | 779 | 537 | 0 | 81 | 0 | 0 | 150 | 0 | 0 | 11 | 0 |
+      | moderate | dnn1 | 887 | 716 | 0 | 59 | 0 | 6 | 47 | 0 | 0 | 59 | 0 |
+      | moderate | dnn2 | 1,586 | 868 | 280 | 69 | 0 | 0 | 51 | 0 | 1 | 319 | 0 |
+      | moderate | rf | 942 | 569 | 107 | 84 | 0 | 1 | 111 | 0 | 2 | 72 | 0 |
     - **UNEXPLAINED: 0 in every function and rung.**
   - **The mechanisms.**
     - **D1, panic entry.** Knative tests the ceiled count, ceil(panic/0.7)/max(1, ready) ≥ 2; we test the unceiled ratio, so Knative panics earlier. It explains the most ticks alone: heavy 155 / 115 / 277 / 174; moderate 537 / 716 / 868 / 569 (cnn / dnn1 / dnn2 / rf).
     - **D2, desired in panic.** Knative takes max(stable, panic) and holds the running max; we take max(panic, running max, current) and omit the stable count. It explains dnn2 heavy 124; dnn2 moderate 280; rf moderate 107; nothing in the other functions.
     - **D3, un-panic.** Knative needs strictly more than 60 s since the last over-threshold tick; we exit at ≥ 60 s, so we leave one tick early. It explains 28–33 ticks per function at heavy and 59–84 at moderate.
-    - **D6, the ceil epsilon.** Not a rounding-rule choice but binary floating point: a stable average of exactly 2.1 gives 2.1 / 0.7 = 3.0000000000000004, and Knative's ceil makes that 4. Our `ceil(x − 1e-9)` gives 3. So Knative asks for one more replica whenever the average is an exact decimal multiple of the target. It explains heavy 68 / 28 / 10 / 183; moderate 150 / 47 / 51 / 111.
+    - **D6, the ceil epsilon.** This is Knative's floating-point behaviour, not a rule of ours. It is recorded as an explained difference, and nothing is to be "fixed" toward it. It is binary floating point, not a rounding-rule choice: a stable average of exactly 2.1 gives 2.1 / 0.7 = 3.0000000000000004, and Knative's ceil makes that 4. Our `ceil(x − 1e-9)` gives 3. So Knative asks for one more replica whenever the average is an exact decimal multiple of the target. It explains heavy 68 / 28 / 10 / 183; moderate 150 / 47 / 51 / 111.
     - **D5, averaging.** It explains at most 6 ticks per function.
       - The tick is 1.000 s apart on all but 4–5 ticks per function (1.001–1.033 s and one 2.0 s gap).
       - Tick times are not whole seconds on 3,858 of 3,938 (heavy) and 7,780 of 9,418 (moderate) ticks per function.
       - Per function: 0 shared buckets and 1 empty bucket. Bucket truncation therefore almost never changes the average.
     - **D4** (hold of the last replica) **and D7** (no data) **fire on 0 ticks.**
-    - **Ticks needing two or three alignments together,** all removed by the smallest combination listed: heavy cnn 59 (D1+D3 38, D1+D6 20, D3+D6 1); moderate dnn2 319 (D1+D2 307, D1+D3 4, D2+D3 3, D1+D2+D3 4, D3+D6 1), rf 72 (D1+D2 60, …), dnn1 59 (D1+D2 52, D1+D3 7), cnn 11. They are D2 acting inside panics that only D1 opens, and similar pairings.
+    - **Ticks needing two or three alignments together,** counted as explained by combination (SCIENTIST's ruling: the joint residual is 0 and every such tick is removed by ≤ 3 alignments). All are removed by the smallest combination listed: heavy cnn 59 (D1+D3 38, D1+D6 20, D3+D6 1); moderate dnn2 319 (D1+D2 307, D1+D3 4, D2+D3 3, D1+D2+D3 4, D3+D6 1), rf 72 (D1+D2 60, …), dnn1 59 (D1+D2 52, D1+D3 7), cnn 11. They are D2 acting inside panics that only D1 opens, and similar pairings.
+  - **Open-loop limit.** This test compares *desired* counts, not *realised* replica counts.
   - **Realised effect, approximate.** Applying each desired count to the traced replica count (scale-ups capped at 120 minus the live total, scale-downs at the idle replicas in the trace's occupancy), the change would differ on 1,325 of 1,328 (heavy) and 4,186 of 4,194 (moderate) differing ticks. Rate limits do not absorb the departures. Not modelled here: memory refusals and A3-protected replicas.
   - **Untested (D8 and the boundary).** Each one is named:
     - **D8, the metric fed to the decider.** Real Knative feeds it a per-second time-averaged concurrency scraped from pods and the activator. We feed the instantaneous in-flight count at the tick. Both sides got the same obs here, so this test cannot see that difference.
