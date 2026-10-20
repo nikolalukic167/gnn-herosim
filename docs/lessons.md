@@ -663,3 +663,27 @@ When decision time is charged as simulated time per batch, every one of the batc
 base any bound on the exact felt share. The `uncut_groups_s0_v1` Record ("Felt share: definition, hand F measured
 exactly, bounds recomputed") owns the definition and the measurements.
 
+## A pilot direction from 3 topologies and one window can flip sign at confirmation — a 3 × 1 pilot is not a "small design" (2026-10-20)
+
+`uncut_groups_s0_v1`'s server-count ladder chose 128 servers for the FL size confirmation.
+At 128 servers × 160 clients it read FL gnn vs `cd_ib0_inflightfull` at heavy load over the
+whole run as −14.2 % (mean over 3 topologies, 3/3 ahead, window g0, seeds 1–2; `ladder/read_v1/ladder_read.txt` md5
+`b1e33b19`). The registered confirmation, on 12 fresh topologies and windows g0–g3 with the
+same two seeds, read **+4.65 % (0/12)** on that test (`size128/reads/read_s128_primary.json`
+md5 `dfd3a5ca`). The direction flipped. The registered prior, written from the pilot,
+expected −8 to −15 % and put P(SIZE-128-CONFIRMED) at about 0.70. The other three tests
+kept their pilot direction (pilot −29.8 / −53.1 / −15.6 %; confirmation −19.0 / −46.4 /
+−27.9 %).
+
+**Why:** a 3-topology, one-window pilot samples neither of the two things that move the
+heavy whole-run statistic. One is the topology draw. The other is the scale-from-zero
+opening, which differs by window and by training seed (seed 1 alone read +12.3 % at 128 and
+−0.66 % at 64). Three topologies agreeing in sign is what one draw with a common shift looks
+like. It is not three replicates of the effect.
+
+**How to apply:** AGENTS.md says to quote a DIRECTION from a small design and a MAGNITUDE
+only from a large one. A 3-topology × 1-window pilot is below that small design for any
+statistic that the opening dominates: the heavy rung, and every whole-run test. Use such a
+pilot to choose and order the work, never as the basis of a prior on direction. Write the
+registered prior for those tests as if the pilot had not been run. The paper's pilot table
+reports the pilot row beside the confirmation that overturned it.
