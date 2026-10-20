@@ -224,15 +224,15 @@ W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "access
 
 def exchange_tcp_problems(out, driver_value):
     """HEROSIM_EXCHANGE_TCP (the peer-exchange TCP sensitivity): a cell driven with the switch on must carry the summary's
-    `peerExchangeTcp` block and record the switch in its env; a cell driven with it off must carry neither."""
+    `peerExchangeTcp` block (the simulator's own record that the switch ran; the run provenance's env list does not carry this
+    variable, so the env is not asked); a cell driven with it off must carry neither the block nor the variable."""
     on = driver_value == "1"
     carried = out.get("peerExchangeTcp") is not None
-    recorded = (out.get("env") or {}).get("HEROSIM_EXCHANGE_TCP") == "1"
     problems = []
-    if on and not (carried and recorded):
-        problems.append(f"HEROSIM_EXCHANGE_TCP=1 driven but peerExchangeTcp carried={carried}, switch recorded={recorded}")
-    if not on and (carried or recorded):
-        problems.append(f"HEROSIM_EXCHANGE_TCP driven as {driver_value!r} but peerExchangeTcp carried={carried}, switch recorded={recorded}")
+    if on and not carried:
+        problems.append("HEROSIM_EXCHANGE_TCP=1 driven but the summary carries no peerExchangeTcp block")
+    if not on and (carried or (out.get("env") or {}).get("HEROSIM_EXCHANGE_TCP") == "1"):
+        problems.append(f"HEROSIM_EXCHANGE_TCP driven as {driver_value!r} but peerExchangeTcp carried={carried}")
     return problems
 
 
