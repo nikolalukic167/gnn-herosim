@@ -821,6 +821,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 - 2026-10-19 — **Paper reproducibility extraction (descriptive; filed data only, no new cell or read).** Job 887401 ran `paper_figdata/repro_extract.py` (md5 `c4fbe313a481da829171e353f88a5b19`); its output is `paper_figdata/repro_extract-887401.out`, md5 `0eb3db2a041a8204ac51a17884513e6f`. It is the source of the paper's:
   - FL gnn vs FL MLP row on the 12 gate topologies, from `comb/reads/desc_comb.json` (md5 `26db4a56`). The file's p is unadjusted; any Holm column is computed for the paper, not filed.
   - Parameter counts: FL gnn 505,220, FL MLP 24,833.
+  - Correction (S4, 2026-10-20) to the line above: 505,220 was the checkpoint state_dict total including three non-trainable GIN `eps` buffers; trainable parameters are 505,217 (train log `flreg/logs/smoke-gnn_eng-cpu-887307.log` line 37, `executesimulation` loader), twin 256,001.
   - Decision wall per batch, `_k100`, mean over cells (moderate / heavy): FL 21.97 / 22.30 ms at 24 servers and 30.15 / 29.43 ms at 64; the bar 0.79 / 1.02 and 1.50 / 2.11 ms.
   - Frozen w(n) and `k_cotenancy`, quoted from `decision_cost_w.json` at `74ddf70e`.
   - Batch size 32 and weight decay 1e-3. These are the trainer defaults; the yaml sets neither. The W&B configs of the six combined-lever runs of 2026-10-17 20:48 (FL gnn, FL MLP and L, seeds 1–2, `s6_comb_f9a41cce/wandb`) all record them.
