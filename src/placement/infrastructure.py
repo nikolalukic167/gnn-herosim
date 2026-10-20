@@ -1313,10 +1313,12 @@ class Platform:
                     peer_node_name, context=f"peer {peer_id} of task {task.id}"))
             term = self._payload_transfer_time(peer_node_name, payload) + self.peer_link_latency(
                 peer_node_name, context=f"peer {peer_id} of task {task.id}")
+            exchange_start = total
             total += term
             fabric = getattr(self.node, "fabric", None)
             if record and fabric is not None and fabric.access_classes:
-                fabric.record_exchange(peer_node_name, self.node.node_name, term)
+                fabric.record_exchange(peer_node_name, self.node.node_name, term, bytes_=payload,
+                                       sender=peer_node_name, start=self.env.now + exchange_start)
         return total
 
     def _audit_payload(self, kind: str, task: "Task", src_node_name: str, payload: float, latency: float) -> None:
