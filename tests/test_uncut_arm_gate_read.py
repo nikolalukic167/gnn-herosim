@@ -2296,7 +2296,7 @@ def tw(tmp_path, monkeypatch):
     frec = commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- FL + lambda primary md5 `{G.md5(str(fread))}`\n"}, "file FL + lambda")
     twin_byb = lambda r, k: json.dumps({b: k * v for b, v in w7b_body["w_ms_per_plan_by_bucket"][twin][r].items()}, sort_keys=True)
 
-    def fill(fl_mean=1.8, tw_mean=2.0, seed2_fl=None, twin_at=None, twin_env=None):
+    def fill(fl_mean=1.8, tw_mean=2.0, seed2_fl=None, twin_at=None, twin_env=None, twin_busy=1.0):
         for t in range(30149, 30161):
             for w in G.WINDOWS:
                 for r in G.RUNGS:
@@ -2311,7 +2311,7 @@ def tw(tmp_path, monkeypatch):
                         cell(str(d), fl, sd, t, w, r, fm, str(ck), commit=w7, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)}, servers=24)
                         for sfx, k in (("_k100", 1.0), ("_kr", 1.468)):
                             env = twin_env or {"HEROSIM_DECISION_COST_MS_BY_BUCKET": twin_byb(r, k)}
-                            cell(str(td), twin, sd, t, w, r, tw_mean - jit, str(ck), commit=twin_at or w7b, sfx=sfx, env=env, servers=24)
+                            cell(str(td), twin, sd, t, w, r, tw_mean - jit, str(ck), commit=twin_at or w7b, sfx=sfx, env=env, servers=24, busy=twin_busy)
                             cell(str(dd), mlp, sd, t, w, r, 1.9 - jit, str(ck), commit=w7, sfx=sfx,
                                  env={"HEROSIM_DECISION_COST_MS": repr(k * wr)}, servers=24)
         for t in range(30129, 30141):
@@ -2425,6 +2425,8 @@ def test_twin_secondary_descriptive_rows_only_after_the_primary_is_filed(tw):
         assert all(e["median_pct"] > 0 for e in v["descriptive"]["twin_vs_mlp"]["tests"])
     d64 = res["descriptive_64"]
     assert d64["label"] == "topologies already read in size-64" and all(e["median_pct"] < 0 for e in d64["fl_vs_twin"])
+    assert d64["pins"] == {"twin_vs_bar": {"twin": [tw["w7b"][:8]], "bar": [tw["base"][:8]]}, "fl_vs_twin": {"fl": [tw["w7"][:8]], "twin": [tw["w7b"][:8]]}}
+    assert all(v["F2"]["anchor_ok"] == {"moderate": True, "heavy": True} for v in (res, res["cotenancy"]))
     assert res["confirmation"]["primary_read"]["md5"] == G.md5(p) and res["confirmation"]["label"] == "MP-ATTRIBUTED"
 
 
@@ -2444,3 +2446,12 @@ def test_twin_64_server_rows_fail_loud_off_64_servers(tw, where):
 def test_twin_flags_are_refused_by_the_filed_modes():
     with pytest.raises(SystemExit, match="belong to --confirm-mp-twin"):
         G.main(["--gate", "x", "--topos", "1", "--topos-sha256", "y", "--pin", "x", "--primary", "p", "--checkpoint-md5", "c", "--twin-gate", "m"])
+
+
+def test_twin_anchor_clause_drops_attributed_to_direction(tw):
+    tw["fill"](twin_busy=5.0)  # the twin spends more decision time per task than FL gnn: FL's share is below the twin's at both rungs
+    res = tw["read"]("primary", "p.json")
+    for v in (res, res["cotenancy"]):
+        assert v["F2"]["anchor_ok"] == {"moderate": False, "heavy": False} and v["F2"]["label"] == "MP-DIRECTION" and "anchor_ok=False" in v["F2"]["why"]
+        assert all(e["median_pct"] <= -2 and e["p_holm"] < G.PROG_ALPHA for e in v["F2"]["tests"])
+    assert res["confirmation"]["label"] == "MP-DIRECTION"

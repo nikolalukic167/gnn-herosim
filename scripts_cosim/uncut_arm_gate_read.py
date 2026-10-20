@@ -1776,7 +1776,8 @@ TW_SERVERS, TW_64_SERVERS = 24, 64
 TW_ORDER = ("MP-ATTRIBUTED", "MP-DIRECTION", "TIE", "TWIN-FASTER")
 TW_WHY = ("FL MP-OFF twin (F2, Holm 4 per charge, combined by the weaker label): TWIN-FASTER if the twin is Holm-faster (< .025) on any test; else "
           "MP-ATTRIBUTED iff FL gnn vs the twin has median <= -2 % and Holm < .025 on all four, FL seed s vs twin seed s <= -1 % on all four for each s, "
-          "and FL seed s's collapses <= twin seed s's at each rung; else MP-DIRECTION iff every median < 0 and Holm < .025 on at least two; else TIE. "
+          "FL seed s's collapses <= twin seed s's at each rung, and FL gnn's decision share >= the twin's at each rung (the anchor clause, SCIENTIST's "
+          "ruling (b)); else MP-DIRECTION iff every median < 0 and Holm < .025 on at least two; else TIE. "
           "Only MP-ATTRIBUTED licenses a message-passing claim")
 TW_DESC = "descriptive, p unadjusted, never a label"
 
@@ -1847,15 +1848,16 @@ def tw_pick(cells, failed, kinds):
     return keep(cells), keep(failed)
 
 
-def tw_label(f2, seeds_alone, h_fl, h_tw):
+def tw_label(f2, seeds_alone, h_fl, h_tw, anchor_ok):
     if any(e["median_pct"] is not None and e["median_pct"] > 0 and e["p_holm"] < PROG_ALPHA for e in f2):
         return "TWIN-FASTER", "the twin is Holm-faster on: " + ", ".join(f"{e['rung']}/{e['stat']}" for e in f2 if e["median_pct"] is not None and e["median_pct"] > 0 and e["p_holm"] < PROG_ALPHA)
     if win_four(f2, WIN_MED, PROG_ALPHA):
         seed_ok = all(e["median_pct"] is not None and e["median_pct"] <= SEED_MED for es in seeds_alone.values() for e in es)
         col_ok = all(h_fl[r]["per_seed"][sd]["collapse_any"] <= h_tw[r]["per_seed"][sd]["collapse_any"] for r in RUNGS for sd in SEEDS)
-        if seed_ok and col_ok:
+        anc = all(anchor_ok.values())
+        if seed_ok and col_ok and anc:
             return "MP-ATTRIBUTED", "every clause holds"
-        why = f"WIN line met but seeds_alone_ok={seed_ok} collapse_ok={col_ok} (seed-matched)"
+        why = f"WIN line met but seeds_alone_ok={seed_ok} collapse_ok={col_ok} (seed-matched) anchor_ok={anc}"
     else:
         why = "the full win rule fails"
     if all(e["median_pct"] is not None and e["median_pct"] < 0 for e in f2) and sum(e["p_holm"] < PROG_ALPHA for e in f2) >= 2:
@@ -1865,11 +1867,16 @@ def tw_label(f2, seeds_alone, h_fl, h_tw):
 
 def tw_verdict(cells, topos):
     """One charge: F2 (FL gnn vs the twin, Holm 4), the seed-matched seeds alone and collapses (against cd, per seed cell)."""
-    res = {"health": {arm: health(cells, {}, arm, sd, topos) for arm, sd in ((CONFIRM_PRIMARY, SEEDS), (TWIN, SEEDS), (BAR, (0,)), (CD, (0,)))}}
+    arms = ((CONFIRM_PRIMARY, SEEDS), (TWIN, SEEDS), (BAR, (0,)), (CD, (0,)))
+    res = {"health": {arm: health(cells, {}, arm, sd, topos) for arm, sd in arms},
+           "decision_share_pct": {arm: decision_share(cells, arm, sd, topos) for arm, sd in arms}}
     f2 = family(four(cells, CONFIRM_PRIMARY, SEEDS, TWIN, SEEDS, topos))
     seeds_alone = {sd: four(cells, CONFIRM_PRIMARY, (sd,), TWIN, (sd,), topos) for sd in SEEDS}
-    lab, why = tw_label(f2, seeds_alone, res["health"][CONFIRM_PRIMARY], res["health"][TWIN])
-    res["F2"] = {"contrast": f"{CONFIRM_PRIMARY} vs {TWIN} (seed-matched clauses)", "tests": f2, "seeds_alone": seeds_alone, "label": lab, "why": why}
+    ds = res["decision_share_pct"]
+    anchor = {r: (ds[CONFIRM_PRIMARY][r] or 0) >= (ds[TWIN][r] or 0) for r in RUNGS}
+    lab, why = tw_label(f2, seeds_alone, res["health"][CONFIRM_PRIMARY], res["health"][TWIN], anchor)
+    res["F2"] = {"contrast": f"{CONFIRM_PRIMARY} vs {TWIN} (seed-matched clauses)", "tests": f2, "seeds_alone": seeds_alone, "anchor_ok": anchor,
+                 "anchor": "FL gnn's decision share >= the twin's at each rung (MP-ATTRIBUTED only; no F3)", "label": lab, "why": why}
     return res
 
 
@@ -1948,7 +1955,9 @@ def read_mp_twin(a):
             v["descriptive"] = {"twin_vs_mlp": {"note": TW_DESC + "; is the GNN without message passing still ahead of the pointwise model", "tests": four(both, TWIN, SEEDS, CONFIRM_MLP, SEEDS, topos)},
                                 "twin_vs_bar": {"note": TW_DESC, "tests": four(both, TWIN, SEEDS, BAR, (0,), topos)}}
         both64 = {**c64, **s64}
+        pins64 = {arm: sorted({str((v.get("code") or {}).get("commit", ""))[:8] for k, v in both64.items() if k[0] == arm}) for arm in (TWIN, CONFIRM_PRIMARY, BAR)}
         res["descriptive_64"] = {"label": "topologies already read in size-64", "note": TW_DESC + "; _k100, 64 servers, 30129-30140",
+                                 "pins": {"twin_vs_bar": {"twin": pins64[TWIN], "bar": pins64[BAR]}, "fl_vs_twin": {"fl": pins64[CONFIRM_PRIMARY], "twin": pins64[TWIN]}},
                                  "twin_vs_bar": four(both64, TWIN, SEEDS, BAR, (0,), list(TW_64_TOPOS)),
                                  "fl_vs_twin": four(both64, CONFIRM_PRIMARY, SEEDS, TWIN, SEEDS, list(TW_64_TOPOS))}
     txt = json.dumps(res, indent=1, default=str)
@@ -1960,8 +1969,13 @@ def read_mp_twin(a):
         os.replace(a.out + ".tmp", a.out)
     print(f"MP-TWIN {lab} ({res['combined']['why']})")
     for tag, x in (("", res), ("_kr ", res["cotenancy"])):
+        ds = x["decision_share_pct"]
+        print(f"  F2 {tag or '_k100 '}{x['F2']['label']} ({x['F2']['why']}); anchor " + ", ".join(
+            f"{r} FL {ds[CONFIRM_PRIMARY][r]} vs twin {ds[TWIN][r]} {'ok' if x['F2']['anchor_ok'][r] else 'FAILS'}" for r in RUNGS))
         for e in x["F2"]["tests"]:
             print(f"  F2 {tag}{e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
+    if "descriptive_64" in res:
+        print(f"  64-server rows (descriptive), pins: {json.dumps(res['descriptive_64']['pins'])}")
     return res
 
 
