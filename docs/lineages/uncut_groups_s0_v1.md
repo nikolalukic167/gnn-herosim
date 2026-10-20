@@ -304,6 +304,31 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **FL MP-OFF twin: the reader is frozen as P9 at reference-physics `b12d9f3f`** (`scripts_cosim/uncut_arm_gate_read.py` blob `04e368af`, re-checked on origin there; `--confirm-mp-twin` at `s6/reader-twin` `a3c5304e`; filed before any twin cell exists or is read). Every twin read runs from this blob (datalab worktree `s6_reader_a3c5304e`).
+  - **What P9 adds.** Additions only against `ba5e7ab0` (reader +231, tests +196). `main()` dispatches `--confirm-mp-twin` before any existing code. Its new flags (`--twin-gate`, `--fll-primary-read`, `--fll-record`, `--desc64-gate`, `--s64-gate`) fail loud in every filed mode.
+  - **Read order.** Both stages first require FL + λ's primary read to be filed: its md5 is in the node at `--fll-record`, that commit is on origin/reference-physics, and the read's family is "FL + lambda".
+  - **Cells.**
+    - `--gate` is FL + λ's directories. Only FL gnn s1–2 `_k100` / `_kr`, `cd_ib0_inflightfull_k100` and `cd_k100` are taken, as their own exact grid (576); every other kind there is ignored.
+    - `--twin-gate` holds only `ra_twin_eng_combfl_nosplit` s1–2 `_k100` / `_kr`, as an exact grid of 384.
+    - Every cell records servers = 24, on fl3 30149–30160 (sha256 `f6c5af0a…`).
+  - **The chain.**
+    - `--w-pins` must end with P7 `91269ec0`, then P7b `f8a55ff0`. The chain up to P7 goes through the frozen `w_pin_chain`.
+    - The link P7 → P7b is admitted for exactly those two commits. It must be a child, touch only the w file, and add only the twin's keys (`w_frozen` with the twin added). Any other key change fails loud.
+  - **Twin charges.** `asserts()` charge-checks only its learned w kinds, which would have let a twin cell through with no charge check. P9 therefore checks every twin cell explicitly: it must have run at P7b and served k × the twin's w there (k 1, or k_cotenancy for `_kr`).
+  - **F2,** FL gnn vs the twin, Holm 4 per charge, with seed-matched seeds-alone and collapses. Labels, in this order:
+    - TWIN-FASTER: the twin is Holm-faster (< .025) on any test;
+    - MP-ATTRIBUTED: the full program rule, median ≤ −2 % and Holm < .025 on all four, each seed s ≤ −1 %, collapses seed-matched, and the anchor clause (FL gnn's decision share ≥ the twin's at each rung; no F3), added on SCIENTIST's review ruling (b) before any twin cell;
+    - MP-DIRECTION: every median < 0 and Holm < .025 on at least two;
+    - TIE.
+    - The combined label is the weaker of the two charges, with TWIN-FASTER the weakest. Only MP-ATTRIBUTED licenses a message-passing claim.
+  - **Secondary** (after the twin's own primary md5 is filed, with F2 recomputed and compared):
+    - the twin vs FL MLP and vs the bar, from FL + λ's FL MLP cells (`--desc-gate`, 384);
+    - the twin at 64 servers (`--desc64-gate`, 192, charge-checked at P7b) vs size-64's bar and FL gnn (`--s64-gate`, 288), every cell at servers = 64. These rows are labelled "topologies already read in size-64" and carry each arm's recorded pins.
+    - All descriptive: p unadjusted, never a label.
+  - **Before any twin cell** (registration process (1)), all filed: the parity test (job 888794, PARITY OK, above), `fl3/md5_twin.json` (md5 `d294f97d`) with hosts, and P7b `f8a55ff0` with the real serving check.
+  - **For the read's disclosure (SCIENTIST):** FL gnn seed 2's logits move about 80× less than seed 1's under the parity permutation, a weak-use-of-message-passing signal. It is named next to any seed-2 clause.
+  - **Tests and B3.** Twin tests 31/31; full suite 3011 passed, 115 skipped. B3 888857 (`twin/b3_p9b.sh` md5 `82fe83dd`): all 19 reads of record byte-identical, output md5 `b0c11562`.
+  - Signed: SCIENTIST, 2026-10-20 — P9 (--confirm-mp-twin) reviewed and approved for freeze at s6/reader-twin a3c5304e (reader blob 04e368af; additions-only vs ba5e7ab0; diff from 983d15c1 md5 2da0c23b). It implements the twin registration (0a251dd9): read only after FL + λ's primary md5 is filed; the twin's own exact grid at P7b with an explicit charge check; the P7 → P7b link admitted for the twin kind only. F2 is Holm 4 per charge, seed-matched, with labels TWIN-FASTER > MP-ATTRIBUTED (the full program rule incl. the anchor clause) > MP-DIRECTION > TIE, combined by the weaker label (TWIN-FASTER weakest). Descriptive 64-server rows carry their recorded pins. Tests 31/31, suite 3011 passed / 115 skipped, B3 888857 19/19 byte-identical (b0c11562). Freeze before any twin cell is read.
 - 2026-10-20 — **FL MP-OFF twin: the registered parity test PASSED on the filed checkpoints (before any twin cell).** (S6; registration item (a).) Job 888794 (os-cpu-slurm-5, 0:0) ran `scripts_cosim/mp_twin_parity.py` at `s6/twin-parity` `48998355` (merged `a2ce8bf0`), the script whose smoke 887486 is filed, unchanged. Script `twin/parity_run.sh` md5 `402f64e7`; output `twin/parity_run/parity.json` md5 `af5baa94`, log md5 `8e27dc9a`. Verdict "PARITY OK".
   - **Served.** FL gnn s1–2 with message passing, and the twin s1–2 with `GNN_DISABLE_MESSAGE_PASSING=1`, the filed `-final.pt`, through the live serving loader under the gate's serving environment. Before loading, the run checks each file's md5 against the filed md5 files and stops on a mismatch: FL `a670eb0c` / `78c09cc0` (`comb/md5_comball.json`), twin `f7a5d76d` / `c96187ba` (`fl3/md5_twin.json` md5 `d294f97d`).
   - **The test.** One fixed synthetic graph is encoded, then again with the features of tasks 1..n−1 permuted. A model with message passing must change task 0 or the platforms; a model without it must leave them bit-identical.
