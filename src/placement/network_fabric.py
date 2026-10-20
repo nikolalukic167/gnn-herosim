@@ -131,6 +131,123 @@ def tcp_transfer(size_bytes: float, bottleneck_mbs: float, lat: float) -> float:
     return t
 
 
+def tcp_startup_and_rest(size_bytes: float, bottleneck_mbs: float, lat: float) -> Tuple[float, float]:
+    """`tcp_transfer` split into its start-up and its rate-limited part: ``(b, rest_bytes)`` with
+    ``b + rest_bytes / goodput == tcp_transfer(size, bottleneck, lat)``. ``b`` is the handshake and the slow-start rounds that
+    carry the first ``size - rest`` bytes at a window-limited rate; ``rest_bytes`` is what is left to move at the link rate."""
+    if not bottleneck_mbs > 0:
+        raise ValueError(f"{EXCHANGE_TCP_ENV}: bottleneck {bottleneck_mbs} MB/s must be > 0")
+    rtt = 2 * lat
+    g = bottleneck_mbs * 1024 ** 2 / (TCP_FRAME / TCP_MSS)
+    bdp = g * rtt
+    t = rtt
+    sent = 0.0
+    cw = TCP_INITCWND_SEGMENTS * TCP_MSS
+    while sent < size_bytes and cw < bdp:
+        sent += cw
+        t += rtt
+        cw *= 2
+    if sent < size_bytes:
+        return t, size_bytes - sent
+    return t - rtt, 0.0
+
+
+# HEROSIM_EXCHANGE_FAIRSHARE=1 (default off): peer-exchange flows that overlap in time share each link, processor sharing
+# (uncut_groups_s0_v1 Record, 2026-10-20). A flow's rate is the minimum over the links of its route of (link capacity / flows
+# active on that link), recomputed whenever a flow starts or ends; links are directional (full duplex: A>B and B>A are separate
+# capacities). A flow alone gets the whole bottleneck, so a single exchange costs what it cost before. The route latency is not a
+# shared resource: it is added once after the bytes have gone, as in the plain charge. Composes with HEROSIM_EXCHANGE_TCP: the
+# per-transfer start-up (handshake, slow-start rounds) is the TCP model's and is paid per transfer without holding any link; only
+# the remaining bytes (at goodput, i.e. capacity x MSS / frame) share the links. A task's exchanges with several partners start
+# one after another (HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS=serial, the default and SCIENTIST's ruling A1: the switch changes one thing, the
+# contention between different tasks' flows); `concurrent` starts them together and is not used by any registered study. Neither
+# scheduler prices the shared rate. The pipelined transfer model only.
+EXCHANGE_FAIRSHARE_ENV = "HEROSIM_EXCHANGE_FAIRSHARE"
+EXCHANGE_FAIRSHARE_PARTNERS_ENV = "HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS"
+FAIRSHARE_PARTNER_MODES = ("concurrent", "serial")
+FAIRSHARE_MODEL = "processor_sharing_v1"
+
+
+def exchange_fairshare_enabled() -> bool:
+    """True under HEROSIM_EXCHANGE_FAIRSHARE=1; unset or '0' is off; any other value raises."""
+    raw = os.environ.get(EXCHANGE_FAIRSHARE_ENV)
+    if raw is None or raw == "0":
+        return False
+    if raw == "1":
+        return True
+    raise ValueError(f"{EXCHANGE_FAIRSHARE_ENV}={raw!r}; expected '0' or '1'")
+
+
+def exchange_fairshare_partners() -> str:
+    """How one task's exchanges with several partners start: ``serial`` (default) or ``concurrent``; any other value raises."""
+    raw = os.environ.get(EXCHANGE_FAIRSHARE_PARTNERS_ENV)
+    if raw is None or raw == "":
+        return "serial"
+    if raw in FAIRSHARE_PARTNER_MODES:
+        return raw
+    raise ValueError(f"{EXCHANGE_FAIRSHARE_PARTNERS_ENV}={raw!r}; expected one of {FAIRSHARE_PARTNER_MODES}")
+
+
+class _Flow:
+    __slots__ = ("hops", "nbytes", "rem", "scale", "rate", "event")
+
+    def __init__(self, hops: Sequence[Tuple[str, float]], nbytes: float, scale: float, event: Any) -> None:
+        self.hops, self.nbytes, self.rem, self.scale, self.rate, self.event = list(hops), float(nbytes), float(nbytes), float(scale), 0.0, event
+
+
+class FairShare:
+    """Processor sharing over named directional links (capacities in MB/s, 1024**2 bytes). `start` returns an event that
+    succeeds when the flow's bytes have all been moved; the rates of every active flow are recomputed whenever a flow starts or
+    ends. Work-conserving: n equal flows on one link each take n times as long as one alone."""
+
+    def __init__(self, env: Any) -> None:
+        self.env = env
+        self.flows: List[_Flow] = []
+        self._last = env.now
+        self._gen = 0
+        self.peak_flows_on_a_link = 0
+
+    def start(self, hops: Sequence[Tuple[str, float]], nbytes: float, scale: float = 1.0) -> Any:
+        if not nbytes > 0 or not hops:
+            raise ValueError("FairShare.start needs bytes > 0 and a route")
+        ev = self.env.event()
+        self._advance()
+        self.flows.append(_Flow(hops, nbytes, scale, ev))
+        self._reschedule()
+        return ev
+
+    def _advance(self) -> None:
+        dt = self.env.now - self._last
+        if dt > 0:
+            for f in self.flows:
+                f.rem -= f.rate * dt
+        self._last = self.env.now
+
+    def _reschedule(self) -> None:
+        counts: Dict[str, int] = {}
+        for f in self.flows:
+            for key, _bw in f.hops:
+                counts[key] = counts.get(key, 0) + 1
+        if counts:
+            self.peak_flows_on_a_link = max(self.peak_flows_on_a_link, max(counts.values()))
+        for f in self.flows:
+            f.rate = f.scale * min(bw * 1024 ** 2 / counts[key] for key, bw in f.hops)
+        self._gen += 1
+        if self.flows:
+            self.env.process(self._wake(self._gen, max(0.0, min(f.rem / f.rate for f in self.flows))))
+
+    def _wake(self, gen: int, dt: float):
+        yield self.env.timeout(dt)
+        if gen != self._gen:
+            return
+        self._advance()
+        done = [f for f in self.flows if f.rem <= 1e-9 * max(f.nbytes, 1.0)]
+        for f in done:
+            self.flows.remove(f)
+            f.event.succeed()
+        self._reschedule()
+
+
 def draw_access_classes(
     node_names: Sequence[str], seed: int, mix: Optional[Mapping[str, float]] = None
 ) -> Dict[str, Dict[str, Any]]:
@@ -283,6 +400,13 @@ class NetworkFabric:
              "per_partner": True, "transfers": 0, "extra_seconds": 0.0}
             if exchange_tcp_enabled() else None
         )
+        # HEROSIM_EXCHANGE_FAIRSHARE: the processor-sharing engine of this run and its booked totals. None (and no summary key) when off.
+        self.fairshare: Optional[FairShare] = FairShare(env) if exchange_fairshare_enabled() else None
+        self.exchange_fairshare: Optional[Dict[str, Any]] = (
+            {"model": FAIRSHARE_MODEL, "partners": exchange_fairshare_partners(), "directional_links": True,
+             "transfers": 0, "shared_transfers": 0, "flow_seconds": 0.0, "extra_seconds": 0.0, "peak_flows_on_a_link": 0}
+            if self.fairshare is not None else None
+        )
 
     @property
     def link_topology(self) -> Mapping[str, Any]:
@@ -330,6 +454,33 @@ class NetworkFabric:
             raise RuntimeError("record_exchange_tcp called with HEROSIM_EXCHANGE_TCP off")
         slot["transfers"] += 1
         slot["extra_seconds"] += float(extra_seconds)
+
+    def directed_hops(self, src: str, dst: str) -> List[Tuple[str, float]]:
+        """``[(directed_link_id, bandwidth_mbps)]`` along the route: the id carries the direction of travel (``a>b``), so the two
+        directions of a link are separate capacities. Same bandwidths and order as `hops`."""
+        links = self._link_topology.get("links") or {}
+        path = _lookup_path(self._routes, src, dst)
+        out: List[Tuple[str, float]] = []
+        for a, b in zip(path, path[1:]):
+            key = link_key(a, b)
+            if key not in self._bandwidth:
+                raise KeyError(f"route {src!r}->{dst!r} traverses link {key!r} which has no capacity entry in link_topology.links")
+            attrs = links[key]
+            bw = directed_bandwidth(attrs, a, b) if attrs.get("access_node") is not None else self._bandwidth[key]
+            out.append((f"{a}>{b}", bw))
+        return out
+
+    def record_exchange_fairshare(self, actual_seconds: float, solo_seconds: float) -> None:
+        """Book one finished fair-share exchange: its seconds as run and what it would have taken alone on its route."""
+        slot = self.exchange_fairshare
+        if slot is None or self.fairshare is None:
+            raise RuntimeError("record_exchange_fairshare called with HEROSIM_EXCHANGE_FAIRSHARE off")
+        slot["transfers"] += 1
+        slot["flow_seconds"] += float(actual_seconds)
+        slot["extra_seconds"] += float(actual_seconds) - float(solo_seconds)
+        if float(actual_seconds) > float(solo_seconds) * (1.0 + 1e-9) + 1e-9:
+            slot["shared_transfers"] += 1
+        slot["peak_flows_on_a_link"] = self.fairshare.peak_flows_on_a_link
 
     def exchange_overlap(self) -> Dict[str, Any]:
         """Share of exchange seconds that run concurrently with another exchange leaving the same source access
