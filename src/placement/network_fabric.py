@@ -131,34 +131,24 @@ def tcp_transfer(size_bytes: float, bottleneck_mbs: float, lat: float) -> float:
     return t
 
 
-def tcp_startup_and_rest(size_bytes: float, bottleneck_mbs: float, lat: float) -> Tuple[float, float]:
-    """`tcp_transfer` split into its start-up and its rate-limited part: ``(b, rest_bytes)`` with
-    ``b + rest_bytes / goodput == tcp_transfer(size, bottleneck, lat)``. ``b`` is the handshake and the slow-start rounds that
-    carry the first ``size - rest`` bytes at a window-limited rate; ``rest_bytes`` is what is left to move at the link rate."""
-    if not bottleneck_mbs > 0:
-        raise ValueError(f"{EXCHANGE_TCP_ENV}: bottleneck {bottleneck_mbs} MB/s must be > 0")
-    rtt = 2 * lat
-    g = bottleneck_mbs * 1024 ** 2 / (TCP_FRAME / TCP_MSS)
-    bdp = g * rtt
-    t = rtt
-    sent = 0.0
-    cw = TCP_INITCWND_SEGMENTS * TCP_MSS
-    while sent < size_bytes and cw < bdp:
-        sent += cw
-        t += rtt
-        cw *= 2
-    if sent < size_bytes:
-        return t, size_bytes - sent
-    return t - rtt, 0.0
+def tcp_startup_delay(size_bytes: float, bottleneck_mbs: float, lat: float) -> float:
+    """The fixed start-up a TCP transfer pays beyond size / bottleneck: ``tcp_transfer(size, bottleneck, lat) - size / bottleneck``
+    (handshake, slow-start rounds and framing). Under HEROSIM_EXCHANGE_FAIRSHARE it is a delay that holds no link, after which all
+    of the transfer's bytes go through the shared links; alone, ``delay + size / bottleneck == tcp_transfer`` exactly."""
+    delay = tcp_transfer(size_bytes, bottleneck_mbs, lat) - size_bytes / (bottleneck_mbs * 1024 ** 2)
+    if delay < 0:
+        raise ValueError(f"{EXCHANGE_TCP_ENV}: negative start-up delay {delay} for {size_bytes} bytes at {bottleneck_mbs} MB/s, lat {lat}")
+    return delay
 
 
 # HEROSIM_EXCHANGE_FAIRSHARE=1 (default off): peer-exchange flows that overlap in time share each link, processor sharing
 # (uncut_groups_s0_v1 Record, 2026-10-20). A flow's rate is the minimum over the links of its route of (link capacity / flows
 # active on that link), recomputed whenever a flow starts or ends; links are directional (full duplex: A>B and B>A are separate
 # capacities). A flow alone gets the whole bottleneck, so a single exchange costs what it cost before. The route latency is not a
-# shared resource: it is added once after the bytes have gone, as in the plain charge. Composes with HEROSIM_EXCHANGE_TCP: the
-# per-transfer start-up (handshake, slow-start rounds) is the TCP model's and is paid per transfer without holding any link; only
-# the remaining bytes (at goodput, i.e. capacity x MSS / frame) share the links. A task's exchanges with several partners start
+# shared resource: it is added once after the bytes have gone, as in the plain charge. Composes with HEROSIM_EXCHANGE_TCP as an
+# additive start-up delay (A1 amendment, "ramp as an additive start-up delay; all bytes shared"): each remote transfer first waits
+# d = tcp_transfer(size, solo bottleneck, lat) - size / solo bottleneck, holding no link, then ALL of its bytes go through the shared
+# links, so no byte escapes sharing. A task's exchanges with several partners start
 # one after another (HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS=serial, the default and SCIENTIST's ruling A1: the switch changes one thing, the
 # contention between different tasks' flows); `concurrent` starts them together and is not used by any registered study. Neither
 # scheduler prices the shared rate. The pipelined transfer model only.

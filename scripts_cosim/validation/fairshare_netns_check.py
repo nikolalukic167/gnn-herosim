@@ -2,8 +2,8 @@
 """HEROSIM_EXCHANGE_FAIRSHARE against the filed shaped-link check (netns_check/netns_result.json, md5 9de512ea1f91f292edc86f56420fb0b6).
 For each measured n = 2 and n = 4 point (n equal concurrent flows over one route, 50 and 250 MB) the fair-share engine is run on the case's own
 route (hop capacities, route latency) and the model makespan is set beside the measured median makespan: plain fair share (size / share
-+ latency) and fair share with the TCP start-up (HEROSIM_EXCHANGE_TCP: handshake and slow-start rounds per transfer, only the remaining bytes
-share the links). Nothing is fitted. The wired-to-wired case is not quotable (the sender probe reaches 758 MB/s against a 117 MB/s limit) and is
++ latency) and fair share with the TCP start-up as an additive delay (HEROSIM_EXCHANGE_TCP: d = tcp_transfer - size / bottleneck per transfer,
+holding no link; then all bytes share the links; A1 amendment). Nothing is fitted. The wired-to-wired case is not quotable (the sender probe reaches 758 MB/s against a 117 MB/s limit) and is
 printed but excluded from the summary, as in the filed check. A check of the code against measurements, not a quotable result."""
 import hashlib
 import json
@@ -15,7 +15,7 @@ import simpy
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, REPO)
-from src.placement.network_fabric import FairShare, TCP_FRAME, TCP_MSS, tcp_startup_and_rest  # noqa: E402
+from src.placement.network_fabric import FairShare, tcp_startup_delay  # noqa: E402
 
 NETNS = os.path.join(REPO, "docs/lineages/uncut_groups_s0_v1/netns_check/netns_result.json")
 NETNS_MD5 = "9de512ea1f91f292edc86f56420fb0b6"
@@ -28,10 +28,10 @@ def model_makespan(case, size_mb, n, tcp):
     hops = [(f"l{i}", bw) for i, bw in enumerate(case["hop_mbs"])]
     lat, size = case["latency_s"], size_mb * 1024 ** 2
     if tcp:
-        b, rest = tcp_startup_and_rest(size, case["bottleneck_mbs"], lat)
-        scale = TCP_MSS / TCP_FRAME
+        b = tcp_startup_delay(size, case["bottleneck_mbs"], lat)
     else:
-        b, rest, scale = 0.0, size, 1.0
+        b = 0.0
+    rest, scale = size, 1.0
     done = []
 
     def one():

@@ -32,7 +32,7 @@ from src.placement.scheduling_cost import (
 )
 from src.placement.network_fabric import (
     EXCHANGE_FAIRSHARE_ENV, EXCHANGE_TCP_ENV, NetworkFabric, exchange_fairshare_enabled, exchange_fairshare_partners,
-    TCP_FRAME, TCP_MSS, exchange_tcp_enabled, tcp_startup_and_rest, tcp_transfer, transfer_model, transmission_hops,
+    exchange_tcp_enabled, tcp_startup_delay, tcp_transfer, transfer_model, transmission_hops,
 )
 from src.placement.physics_audit import AUDIT as _AUDIT
 
@@ -1349,9 +1349,9 @@ class Platform:
 
     def _fairshare_plan(self, task: "Task", record: bool = True) -> List[Dict[str, Any]]:
         """HEROSIM_EXCHANGE_FAIRSHARE=1: the remote exchanges of ``task`` as flows, in the order `_peer_exchange_time` charges them.
-        Each: the partner's node, payload, route latency, the directed route, the start-up ``b`` (0 unless HEROSIM_EXCHANGE_TCP
-        is on), the bytes that share the links (``rest``), the goodput scale (1, or MSS / frame under TCP) and ``solo``, the seconds
-        the same exchange takes alone on its route (equal to the plain or TCP charge). Co-located peers are free and absent.
+        Each: the partner's node, payload, route latency, the directed route, the start-up delay ``b`` (0 unless
+        HEROSIM_EXCHANGE_TCP is on; it holds no link), the bytes that share the links (``rest``, all of the payload), the rate scale (1)
+        and ``solo``, the seconds the same exchange takes alone on its route (equal to the plain or TCP charge). Co-located peers are free and absent.
         Same peer resolution and fail-loud checks as `_peer_exchange_time`."""
         if os.environ.get("HEROSIM_PEER_EXCHANGE", "0") != "1":
             return []
@@ -1387,20 +1387,17 @@ class Platform:
             if not hops:
                 raise RuntimeError(f"{EXCHANGE_FAIRSHARE_ENV}=1: no route from {peer_node_name} to {self.node.node_name}")
             bottleneck = min(bw for _k, bw in hops)
-            if exchange_tcp_enabled():
-                b, rest = tcp_startup_and_rest(payload, bottleneck, latency)
-                scale = TCP_MSS / TCP_FRAME
-            else:
-                b, rest, scale = 0.0, payload, 1.0
-            solo = b + (rest / (scale * bottleneck * 1024 ** 2) if rest > 0 else 0.0) + latency
+            b = tcp_startup_delay(payload, bottleneck, latency) if exchange_tcp_enabled() else 0.0
+            rest, scale = payload, 1.0
+            solo = b + rest / (bottleneck * 1024 ** 2) + latency
             flows.append({"peer_id": peer_id, "peer_node": peer_node_name, "payload": payload, "latency": latency, "hops": hops,
                           "b": b, "rest": rest, "scale": scale, "solo": solo,
-                          "tcp_extra": (solo - latency - payload / (bottleneck * 1024 ** 2)) if exchange_tcp_enabled() else 0.0})
+                          "tcp_extra": b})
         return flows
 
     def _fairshare_exchange(self, task: "Task", flows: List[Dict[str, Any]]):
         """Run the flows of `_fairshare_plan` (a generator; yield from it) and return the seconds from the first start to the last
-        finish. Each flow: its start-up (no link held), its bytes through the shared links, then the route latency. Booked per flow
+        finish. Each flow: its start-up delay (no link held), all its bytes through the shared links, then the route latency. Booked per flow
         into the access-class tally (seconds as run, start = the flow's own start) and the fabric's fair-share block."""
         fabric = self.node.fabric
         t0 = self.env.now
