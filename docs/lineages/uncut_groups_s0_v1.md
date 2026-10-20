@@ -314,6 +314,11 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **Scale diagnosis, frozen extension run once (S5; EXPLORATORY; descriptive, no label).**
+  - Job 895729 (sbatch, COMPLETED, 7 s) ran `scale_diagnosis_ext.py` from the worktree `s5_scaleext_f223d784`, blob `0c95cbbad644747c6116c59d937f8b6e9f831f30` and md5 `36e1b30082243d619b69bab42fd79743` as hashed in the entry below it. Output `anomaly/scale_diagnosis_ext.txt`, md5 `fdf39741fe0e570eef6d1f173a6701dc` (72 lines), read once.
+  - **As disclosed in advance:** the bar's id-decile placement share is NOT COMPUTABLE from filed cells (no per-task node); byte shares are ABSENT in every filed root (they predate the byte telemetry), so only second and transfer shares are given; after 360 s only elapsed and lock wait exist (the after-360 elapsed was asserted equal to every cell's `steady_state.after_360s` mean). FL MLP has no filed 64-server cells.
+  - No number from this read goes to PUBLISHER until SCIENTIST releases it.
+
 - 2026-10-20 — **Scale diagnosis (reviewer point 3): descriptive read, EXPLORATORY; run before SCIENTIST's plan was filed (S5; no label).**
   - **Script** `scripts_cosim/scale_diagnosis.py`, git blob `ba2853176c0bf5d71d52d46be296906fe298a601`, md5 `7273d46c338ba676f5b0e7bd29a84777` (commit `92778b8c`, merged at `a23dcecd`). **Job 895696** (sbatch, COMPLETED) wrote `anomaly/scale_diagnosis.txt`, md5 `a9867cffb1b0bb0d36233ac943de7cbf`, and `scale_diagnosis.json`, md5 `972c697e9c296b80be114eac789ea32d`. Filed cells only: bar, FL gnn and FL MLP (the MLP has no filed 64-server cells), sizes 24 / 64 / 128, moderate and heavy. **Run before SCIENTIST's plan was filed; exploratory.**
   - **Rerun from the same blob** (job 895728, blob extracted from the pinned worktree with `git show`, hash-object `ba285317…`, output to `anomaly/scale_diag_rerun/rerun_stdout.txt`): md5 `a9867cffb1b0bb0d36233ac943de7cbf`, byte for byte the filed output. The originals were copied to `*.orig` first and are unchanged.
