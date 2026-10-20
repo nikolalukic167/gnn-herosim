@@ -550,6 +550,19 @@ def _workload_rows(task_results: Optional[List[dict]]) -> List[tuple]:
                   if r.get("taskId") is None or int(r["taskId"]) >= 0)
 
 
+def kpa_scaleout_problem(scale_out: Optional[Dict[str, object]], time_scale: float) -> Optional[str]:
+    """The kpa scale-out block must be the registered one: target 0.7 unless HEROSIM_QUEUE_LENGTH sets it (the
+    replica-count counterfactual passes R1A_QUEUE_LENGTH through r1a_gate.sbatch), windows scaled by `time_scale`."""
+    target = float(os.environ.get("HEROSIM_QUEUE_LENGTH") or 0.7)
+    want = {"mode": "kpa", "target": target, "stable_window_s": 60.0 * time_scale,
+            "panic_window_s": 6.0 * time_scale, "panic_threshold": 2.0}
+    got = {k: (scale_out or {}).get(k) for k in want}
+    if any(not isinstance(got[k], (int, float)) or abs(got[k] - v) > 1e-9 for k, v in want.items() if k != "mode") \
+            or got["mode"] != "kpa":
+        return f"kpa scale-out not served as registered: {got}, want {want}"
+    return None
+
+
 def steady_state_latency(task_results: Optional[List[dict]]) -> Optional[Dict[str, object]]:
     """The live path autoscales from zero replicas with no warm-up discard, so averageElapsedTime carries a whole-system cold
     start (expert's ruling, 2026-10-12). Mean latency (done - dispatched, the averageElapsedTime quantity) over the tasks
@@ -1325,12 +1338,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["replica_count_series"] = replica_count_series(st.get("systemEvents"), st.get("endTime"))
     out["steady_state"] = steady_state_latency(st.get("taskResults"))
     if os.environ.get("HEROSIM_SCALEOUT", "legacy") == "kpa":
-        want = {"mode": "kpa", "target": 0.7, "stable_window_s": 60.0 * time_scale,
-                "panic_window_s": 6.0 * time_scale, "panic_threshold": 2.0}
-        got = {k: (out["scaleOut"] or {}).get(k) for k in want}
-        if any(not isinstance(got[k], (int, float)) or abs(got[k] - v) > 1e-9 for k, v in want.items() if k != "mode") \
-                or got["mode"] != "kpa":
-            problems.append(f"kpa scale-out not served as registered: {got}, want {want}")
+        problem = kpa_scaleout_problem(out["scaleOut"], time_scale)
+        if problem:
+            problems.append(problem)
     elif out["scaleOut"] is not None:
         problems.append(f"legacy run carries a scaleOut block: {out['scaleOut']}")
     if out["env"].get("HEROSIM_SERVER_ONLY_REPLICAS") != ("0" if client_local else "1"):
