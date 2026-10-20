@@ -315,6 +315,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **Scale diagnosis, one-root addendum: FL MLP at 64 servers (S5; EXPLORATORY; descriptive, no label).**
+  - `scripts_cosim/scale_diagnosis_ext_mlp64.py`, root `size64/cells_desc`, arm `ra_mlp_same_combfl_nosplit_k100`, seeds 1-2, topologies 30129-30140, g0-g3, both rungs = 192 cells, pin `74ddf70e`. The `_k100` cells only: the root's uncharged and `_kr` cells are excluded, and the script asserts the stem, the `arm_kind` and the pin of every cell and a count of exactly 192 distinct files. Its `cell()`, `means()` and table code is copied unchanged from `scale_diagnosis_ext.py`.
+  - **Frozen before its run:** blob `a60c58f5caf91f971ead8883f8e2f38255561511`, md5 `eae0074c1536c503ae8886561a79ef71`, commit `a46ac607`. Run once via sbatch, job 895744 (COMPLETED, 1 s); output `anomaly/scale_diagnosis_ext_mlp64.txt`, md5 `d76f318dcf0213638f15601c700f88af`, beside `scale_diagnosis_ext.txt` (`fdf39741`).
+  - **A first attempt failed and is kept:** job 895743 on the first commit (blob `2dc0a740fad5885d79516c11287e380588ded2c6`, `7300efbd`) stopped at its own arm assertion on the first cell (the summary's `arm` field holds the cell stem, not the arm name), before reading any number and without writing output. The assertion was corrected in `a46ac607` and nothing else changed.
+  - Byte shares are ABSENT here too. No id-decile rerun (declined by SCIENTIST).
+
 - 2026-10-20 — **Scale diagnosis, frozen extension run once (S5; EXPLORATORY; descriptive, no label).**
   - Job 895729 (sbatch, COMPLETED, 7 s) ran `scale_diagnosis_ext.py` from the worktree `s5_scaleext_f223d784`, blob `0c95cbbad644747c6116c59d937f8b6e9f831f30` and md5 `36e1b30082243d619b69bab42fd79743` as hashed in the entry below it. Output `anomaly/scale_diagnosis_ext.txt`, md5 `fdf39741fe0e570eef6d1f173a6701dc` (72 lines), read once.
   - **As disclosed in advance:** the bar's id-decile placement share is NOT COMPUTABLE from filed cells (no per-task node); byte shares are ABSENT in every filed root (they predate the byte telemetry), so only second and transfer shares are given; after 360 s only elapsed and lock wait exist (the after-360 elapsed was asserted equal to every cell's `steady_state.after_360s` mean). FL MLP has no filed 64-server cells.
