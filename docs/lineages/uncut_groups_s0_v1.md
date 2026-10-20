@@ -10,6 +10,7 @@
 - **Per-term latency breakdown (2026-10-19; descriptive, no label; Record):** the FL gnn's gain over `cd_ib0_inflightfull` is peer-exchange time (Δ −0.18 to −0.70 s per task, 12/12 topologies, gate and size 64 at both rungs), paid for in scheduler wait, residual queue and lock wait; its co-location share is *lower* than the bar's, so the saving is not more co-located pairs.
 - **FL gnn s3–6 at 64 servers (2026-10-19; descriptive, no label, no registration; Record):** 768 cells (`size64/cells_learned_s36`), the four conf2 `-final.pt`, `_k100` and `_kr`, topologies 30129–30140; cell list filed (md5 `cb0b2c39…`) before submission; read filed: seeds 3–6 beat the bar in all four tests under both charges (heavy whole −9.07 % `_k100`, −7.67 % `_kr`, 12/12), descriptive, no verdict.
 - **FL + λ and twin decision-cost pins (2026-10-20; Record):** P7 `91269ec0` (FL + λ GNN and MLP w, on G8d) and P7b `f8a55ff0` (twin w, on P7) filed with the real serving check; the FL + λ cells read at the frozen P8.1 reader with `--w-pins 91269ec0`; the twin's read needs P9, which must admit the twin kind on the chain to P7b. No label changes.
+- **TCP-transfer sensitivity (2026-10-20; descriptive, no label; Record):** FL gnn stays ahead of the bar on every test, by less (moderate whole −6.75 → −4.28 %); none of rules (a)–(c) fires. Details in the Record entry.
 - **KPA closed-loop sensitivity (2026-10-20; descriptive, no label; Record):** D1–D3 aligned to Knative; heavy < moderate holds 12/12; R3 (replicas) FAILED; rule (c) fires (heavy after-360 FL-vs-bar median +1.88 pp). Details in the Record entry.
 - **KPA conformance (ii) (2026-10-20; descriptive, open loop; Record):** our KPA decider against Knative v0.50.0's on two re-traced bar cells; departures D1, D2, D3 and D6, unexplained 0. Verdict, table and limits are in the Record entry.
 - **Simulator component check, TCP over shaped links (2026-10-20; descriptive, no label; Record):** TCP vs the pipelined charge on five real server pairs: 6 of 12 required n = 1 points within 10 % (measured ≈ 1.045 × charge + 0.5–1.1 s, MTU framing and slow start); concurrent flows take about n × the additive charge; wired rows not quotable (sender probe 758 MB/s). Rates are the simulator's own.
@@ -312,6 +313,38 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **TCP-transfer sensitivity (`HEROSIM_EXCHANGE_TCP`), read (S6; descriptive, no label; a disclosed sensitivity row that replaces no filed result).** With the TCP charge on, FL gnn stays faster than the bar on every test, but by less: moderate whole −6.75 → −4.28 % (+2.47 pp, 12/12 → 12/12). None of reading rules (a)–(c) fires; (c) misses on three tests of four. Against SCIENTIST's prediction: the directions hold, the moderate and heavy whole shifts (+2.47 and +0.98 pp) fall below the predicted ranges, and lock wait does not rise.
+  - **How it was read.**
+    - S6, `uncut_groups_s0_v1/tcp_conf/tcp_read.py` (md5 `c4caac08`, filed with the expert and SCIENTIST before the run), job 894475 (os-cpu-slurm-11, 0:0).
+    - Output `/share/nikola.lukic/uncut_groups/anomaly/tcp_read.txt`, md5 `6fd5f6961d22e8364200fc38cbde6aa9` (job log md5 `3a7b8fb2`; wrapper `tcp_read.sh` `1505afa4`).
+    - Switch on: `anomaly/cells_tcp_{ref,gnn}_{mod,heavy}` at `e8b3f53c` (48 / 48 / 96 / 96). Switch off: S4's 0.7 arms at `7cb483c5`, `anomaly/dose_7cb483c5/cells_{ref_mod070,ref_heavy070,gnn_mod070,gnn_heavy070}` (48 / 48 / 96 / 96; counted complete, 0 failed, before the run). `anomaly/tcp_ident` is never opened, so R0 (smoke against its grid twin) is not part of this read.
+    - `git diff --stat 7cb483c5..e8b3f53c -- src` is the default-off switch only:
+      - `src/placement/infrastructure.py | 27 ++++++++++++++++++-`
+      - `src/placement/network_fabric.py | 58 +++++++++++++++++++++++++++++++++++++++++`
+      - `src/placement/orchestrator.py   |  9 ++++---`
+      - `3 files changed, 90 insertions(+), 4 deletions(-)`
+    - Asserted in every cell: its pin, clean; `peerExchangeTcp` present with `slow_start_v1`, MSS 1448, frame 1514, initcwnd 10, per partner (switch on) or absent (switch off); `scaleOut.target` 0.7 and no `knative_panic`; no `HEROSIM_SNAPSHOT_FIDELITY`, `HEROSIM_PG_ORACLE` or `LIVE_AUDIT_*` in `env`; no `failed.json`; and, in every learned cell, the checkpoint md5 against `comb/md5_comball.json` (s1 `a670eb0c`, s2 `78c09cc0`).
+    - Latency keys only (`averageElapsedTime`, `steady_state.after_360s.mean` and the per-term fields), never `total_rtt_plus_inference`. Per topology: the mean over g0–g3, and over seeds for FL gnn. Wilcoxon over 12 paired topologies, p unadjusted.
+  - **R1, paired FL-vs-bar median %** (off → on; FL faster of 12; shift; per-topology on − off p):
+    - moderate whole −6.75 → −4.28 % (12/12 → 12/12; +2.47 pp; p .021). Predicted 3–6 pp toward the bar: **below the range.**
+    - moderate after-360 −7.90 → −4.58 % (12/12 → 12/12; +3.32 pp; p .016).
+    - heavy whole −3.48 → −2.50 % (10/12 → 11/12; +0.98 pp; p .13). Predicted 2–5 pp toward the bar: **below the range.**
+    - heavy after-360 −5.08 → −2.72 % (12/12 → 10/12; +2.36 pp; p .034).
+    - Both after-360 tests move toward the bar, as predicted. No median changes sign.
+  - **Reading rules** (filed before any cell), applied to R1:
+    - (a) does not fire: moderate whole under the switch is −4.28 %, below −2 %.
+    - (b) does not fire: no sign flips on any test.
+    - (c) does not fire: three tests move by 1.5 pp or more (moderate whole +2.47, moderate after-360 +3.32, heavy after-360 +2.36).
+    - The filed rules name no action for this case.
+  - **R2, the bar's heavy − moderate gap** (off → on, change, p). Elapsed whole −0.585 → −0.643 s (−0.058 s, p .016; 12/12 both); after-360 −1.037 → −1.116 s (−0.079 s, p .007). Predicted to widen by 0.15–0.45 s whole: **it widens, by less.** Moderate keeps more transfers per task (0.82 vs 0.53 on). The gap's change is mostly exchange (−0.083 s, p .001) against the residual queue (+0.030 s) and cold start (+0.012 s).
+  - **R3, per arm × rung** (off → on, mean over 12; every change below is 12/12 or 0/12 in direction, p .0005, unless given):
+    - Elapsed: bar +5.6 % (moderate) / +4.6 % (heavy); FL gnn +7.6 % / +6.0 %.
+    - Exchange per task rises everywhere, as predicted: bar 1.693 → 1.918 / 0.888 → 1.030 s; FL gnn 1.392 → 1.689 / 0.709 → 0.898 s. The TCP extra charge is 0.60 / 0.37 s per task (bar) and 0.67 / 0.40 s (FL gnn).
+    - Transfers per task fall: bar −16.4 / −17.6 %, FL gnn −19.8 / −24.9 %; co-location share rises (bar 0.662 → 0.718 / 0.780 → 0.819, FL gnn 0.629 → 0.703 / 0.763 → 0.822). Seconds per transfer rise 34–65 %.
+    - Mean replicas rise, as predicted: bar 41.3 → 45.9 (+11.1 %) / 55.9 → 59.9 (+7.1 %); FL gnn 40.3 → 45.5 (+13.0 %) / 55.0 → 59.8 (+8.9 %).
+    - Lock wait does not rise (predicted to rise): whole −1.8 % to +0.7 %, p .15–.52; after-360 −4.5 % to −14.2 % (FL gnn moderate p .001, the others p ≥ .15).
+    - Cold start falls: K −15.7 to −24.5 %, cold-start share −9.9 to −18.5 %.
+  - **Not claimed.** This is one sensitivity row on the 12 gate topologies, with the switch-off arms at a pin whose `src/` differs only by the default-off switch. Under the switch only the simulated charge changes; neither scheduler prices the TCP term. The filed results stand as filed. Nothing here is a label, no mechanism is written, and the paper's wording is the expert's.
 - 2026-10-20 — **HEROSIM_EXCHANGE_TCP: smoke cell at the TCP pin `e8b3f53c`, kept and disclosed; grid launch (S5; descriptive, no label; filed before the first grid cell).**
   - **Smoke (switch on).** cc40s19537 / g0heavy / `cd_ib0_inflightfull_k100` s0, `R1A_EXCHANGE_TCP=1`, pin `e8b3f53c8b2e1e3d8d5a586064fc4f15b39b2e50`, launcher `anomaly/tcp_ident.sh` (md5 `558ff0c0`), job 894272, `anomaly/tcp_ident/smoke_on_e8b3f53c`. The gate check passes: the summary carries `peerExchangeTcp` (`model` slow_start_v1, `mss` 1448, `frame` 1514, `initcwnd_segments` 10, `per_partner` true, `transfers` 26,368, `extra_seconds` 19,839.6), `code.commit` is the pin and clean, and `env` has no `HEROSIM_SNAPSHOT_FIDELITY`, `HEROSIM_PG_ORACLE` or `LIVE_AUDIT_*` variable.
     - Summary md5 `da7422d32014fbe798218d7afb0cfeb5`; `.tasks.npy` `11407f69688e68b9ad9df1ed5d9bab4a`, `.tasks_bsz.npy` `7dcfa6b10b69a928f6d69628c2249f29`, `.tasks_lock.npy` `7481c27e46671c62ae56225a23f0cad7`.
