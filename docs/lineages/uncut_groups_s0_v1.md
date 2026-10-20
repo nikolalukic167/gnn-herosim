@@ -331,7 +331,17 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - **Disclosed:** both S6 and SCIENTIST saw its numbers before the prediction was written: panic ticks 9,686 → 10,597, panic entries 153 → 165, replica time mean 55.92 → 58.06, averageElapsedTime 2.070 → 2.153 s.
     - It is a smoke cell, not data. It is kept (SCIENTIST's condition), outside every grid root, at `kpa_conf/smoke_65db9c82_on`: summary md5 `aa062f48f70fc72e446444f31d62a0fc`; `.tasks.npy` `55a69182`, `.tasks_bsz.npy` `635c1488`, `.tasks_lock.npy` `c45e4639`.
     - **R0, a determinism check:** its grid twin (cc40s19537 / g0heavy, bar, switch on, at the shared pin) must reproduce it field for field, apart from provenance and wall clock.
-  - **Identity at the shared pin** (the merge of this branch; the expert names the sha): the same rerun, switch unset, plus one FL gnn cell (cc40s19537 / g0heavy / `ra_gnn_eng_combfl_nosplit_k100` s1 against `comb/cells_comb_fl`). Both results go into this line before the first grid cell.
+  - **Identity at the shared pin `90b6afe5`** (the merge of this branch), switch unset. Both pass, filed before the first grid cell.
+    - Launcher `knp_ident.sh` md5 `d48b21d1`: the `47152fe9` launcher with `-w <node>` pinned to S6's nodes instead of `--exclude`.
+    - Bar, cc40s19537 / g0heavy / `cd_ib0_inflightfull_k100` s0: job 891081 (os-cpu-slurm-19), `kpa_conf/ident_90b6afe5_bar` (summary md5 `b4d8e406`).
+      - Every existing summary field equals `comb/cells_bar_g8`, and the three per-task arrays are byte-equal.
+      - No `knative_panic` key.
+      - A first submission, 890342 on os-cpu-slurm-18, waited for resources; S6 cancelled its own job and resubmitted on 19.
+    - FL gnn, cc40s19537 / g0heavy / `ra_gnn_eng_combfl_nosplit_k100` s1: job 890343 (os-cpu-slurm-19), `kpa_conf/ident_90b6afe5_gnn` (summary md5 `a5c83311`).
+      - Every existing summary field equals `comb/cells_comb_fl` (filed at `a8681537`), and the three per-task arrays are byte-equal.
+    - In both cells the only differences are S4's new fields (`bytes` per class pair, `peerExchangeOverlap`) and provenance or wall clock (`code`, `host`, `python_env`, `wallclock_s`, `decisionTiming`, `total_rtt_plus_inference`).
+  - **Grid launch.** `knp_grid.sh` (md5 `dfc029f1`), at `90b6afe5`, `R1A_KPA_KNATIVE_PANIC=1`.
+    - One exclusive node per root, on S6's nodes os-cpu-slurm-18, 19, 20 and 22 (split agreed with S4; disjoint from S4's; S6 holds at most 6 queued jobs, combined queue ≤ 44).
   - **Grid** (switch set; everything else exactly as S4's 0.7 arms, which are the switch-off comparison at the same pin):
     - Gate topologies 19537–19548, windows g0–g3, `R1A_SLATE=declared_pruning_v1_uncapped`, inputs `comb/in_comball`, selection `arm1_selected.json`, split `uncut_arm1_split.json`.
     - Arms:
