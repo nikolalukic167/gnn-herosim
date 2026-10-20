@@ -66,6 +66,41 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
 | L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
 
+## 2026-10-20 — Two uncut-reader defects: a loss labelled "WIN-NOT-UNCUT", and the degree layout's k<L>/ roots
+
+Both are in `scripts_cosim/uncut_arm_gate_read.py`. Both were found during filed reads; neither reader was changed, because the readers are frozen.
+
+**1. The gap-attribution label is set from the share alone, ignoring the gap's sign.**
+- **Where:** the per-task gap attribution (`gap_attribution` in a read's `descriptive` block), added at `38fa6163` (2026-10-13). It is in every reader blob since, including P11 `b87ca2d9`, which printed it for the size-128 secondary.
+- **What it computes:**
+  - `gap_seconds` is the task-weighted primary − `cd_ib0` latency gap. It is negative when the primary wins.
+  - `share_gt10` is the part of that gap carried by tasks from groups > 10, divided by the gap.
+- **The defect:** `label` is `UNCUT-ATTRIBUTED` if `share_gt10` ≥ 0.5, else `WIN-NOT-UNCUT`. The sign of `gap_seconds` is never consulted.
+  - When the primary *loses* (`gap_seconds` > 0), the share is the share of a loss, and "WIN-NOT-UNCUT" names a win that did not happen.
+  - When buckets carry opposite signs, the share can leave [0, 1].
+- **How it surfaced:** the size-128 secondary (`read_s128_secondary.json` md5 `d2514698`). At heavy, FL gnn is slower than the bar, with `gap_seconds` +3.22e5 (`_kr` +3.44e5), yet the label printed was `WIN-NOT-UNCUT`.
+- **How to read it:** the filed Record line reports the label string as printed and flags the sign. Read `gap_seconds` first. The label means "share of the gap from groups > 10 is ≥ / < 50 %" only when `gap_seconds` < 0.
+  - Earlier filed reads with negative `gap_seconds` are unaffected.
+  - Before quoting any earlier `WIN-NOT-UNCUT`, check that its `gap_seconds` is negative.
+- **Fix, for the next unfrozen reader:** label from the sign first (a loss-signed gap gets its own label, e.g. `LOSS`), then by share; bound or flag shares outside [0, 1].
+
+**2. P11's `--confirm-degree-trend` assumed `--deg-root/k<L>/` roots that the mint and cell drivers never produced.**
+- **What the reader requires:** `--deg-root/k<L>/{cells_reactive, cells_bar, cells_learned, inputs_group/wf1_<rung>/wl/}` for L ∈ {1, 2, 4, 8}.
+- **What the drivers wrote,** as filed in S5's cell list:
+  - `partners/cells_k<L>` (bar, FL gnn and FL MLP together);
+  - `partners/cells_react_k<L>`;
+  - `partners/gate_inputs_partners_k<L>/inputs_group`.
+  - No `k<L>` directory existed.
+- **Why it was missed:** the P11 reader tests built their own fixture tree in the reader's layout. Nothing checked the layout against the real drivers' output before the freeze.
+- **Resolution (the expert's ruling; SCIENTIST had no objection):** the read ran through a read-only symlink view, `partners/deg_view/k<L>/`.
+  - `cells_reactive` and `cells_learned` are relative links to S5's directories, `cells_bar` is an empty directory, and `inputs_group` links to the gate inputs.
+  - No file moved and the reader is unchanged.
+  - Filed provenance, in the `uncut_groups_s0_v1` Record line for the degree read (`read_deg_primary.json` md5 `54a5310d`):
+    - listing md5 `ecce0bb1` and content md5 through the links `0118204f`;
+    - `readlink -f` of every entry;
+    - the view's script md5 `b876ac9b`.
+- **Lesson for the next reader that takes a root:** before freeze, run the reader's path loader (not the whole read) against the real driver output. Alternatively, take the directories as explicit flags, as `--gate` does, rather than assuming a tree.
+
 ## 2026-10-13 — Fidelity capture booked priced exchanges into the access-class tally (fixed 6d1764bd, 2026-10-13)
 
 `snapshot_fidelity._expected_input_seconds` priced each popped task's input stage with `Platform._peer_exchange_time`, which also calls `fabric.record_exchange`. So every capture booked transfers that never happened into the access-class tally. The fix adds `_peer_exchange_time(task, record=False)` for the capture; the physics call keeps `record=True`. Found by `uncut_groups_s0_v1` identity (m).
