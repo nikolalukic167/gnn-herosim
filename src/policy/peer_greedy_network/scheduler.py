@@ -66,6 +66,9 @@ PEER_GREEDY_COUNTERS = (
     "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
     "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
     "pg_expand_gain_seconds", "pg_expand_labels_skipped",
+    "pg_ils_batches", "pg_ils_evals", "pg_ils_improved", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget",
+    "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
+    "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_exact_g_skipped", "sched_plan_evals_s",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
     "pg_exact_gain_seconds",
     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
@@ -131,6 +134,20 @@ def _pg_ext_rate() -> Optional[float]:
 PG_CD_EXPANSION_ENV = "HEROSIM_PG_CD_EXPANSION"
 PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
                       "pg_expand_gain_seconds", "pg_expand_labels_skipped")
+# cd_ib0_ils (uncut_groups_s0_v1, reviewer arm "just run the label search"): after the CD passes, the label engine's iterated local search
+# (`ils.py`, the code of scripts_cosim/uncut_ils.py) runs on the rule's own whole-plan S from the CD plan. HEROSIM_PG_ILS_PER = the budget in
+# DISTINCT plans scored per (task x mean candidates per task), so a batch of n tasks may score ILS_PER * n * mean_cands plans; every score goes through
+# `_pg_plan_cost` and so through the decision-cost meter (HEROSIM_DECISION_COST_MS charges it as simulated time). Unset/0: no ILS, byte-identical.
+# No wall-clock stop and no replay: the search is a function of the batch state and HEROSIM_PG_ILS_SEED alone.
+PG_ILS_PER_ENV = "HEROSIM_PG_ILS_PER"   # the label engine's own value is 200 (uncut_ils.default_budget); seed 0
+PG_ILS_SEED_ENV = "HEROSIM_PG_ILS_SEED"
+PG_ILS_COUNTERS = ("pg_ils_batches", "pg_ils_evals", "pg_ils_improved", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget",
+                   "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
+                   "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50")
+ILS_MIN_TASKS = 11    # the labels were made on groups > 10 (uncut_ils.BUCKETS); a smaller batch is served by the bar's plan
+# cd_exactS_ib0 "live" (registered 2026-10-20): HEROSIM_PG_EXACT_G = the size cap G; a batch of more than G tasks keeps the bar's plan (no exact search, no
+# expansion fallback). Needs HEROSIM_PG_CD_EXACT=1 and peer_greedy_network_cd.
+PG_EXACT_G_ENV = "HEROSIM_PG_EXACT_G"
 # cd_exactS (2026-10-10): exact search over the rule's own S, for the batched CD flavour. After the single-task passes, every plan
 # over the batch's top-5 slate (each task's five cheapest candidates by standalone cost, the declared pruning's rule) is scored
 # as a whole plan on S and the minimum is taken; ties go to the plan that is lowest in CD's own (node id, platform id) order,
@@ -370,6 +387,31 @@ class _PeerGreedyCore:
                 f"FAIL LOUD: {PG_CD_EXPANSION_ENV}=1 is defined for peer_greedy_network_cd and the CD refine of a seeded plan "
                 f"(gnn_cd_refine) only; {self._policy_label} has no refine to extend"
             )
+        raw_ils = os.environ.get(PG_ILS_PER_ENV, "").strip()
+        try:
+            self.pg_ils_per = int(raw_ils) if raw_ils else 0
+        except ValueError as exc:
+            raise ValueError(f"FAIL LOUD: {PG_ILS_PER_ENV}={raw_ils!r} is not an integer") from exc
+        if self.pg_ils_per < 0:
+            raise ValueError(f"FAIL LOUD: {PG_ILS_PER_ENV} must be >= 0, got {self.pg_ils_per}")
+        self.pg_ils_seed = int(os.environ.get(PG_ILS_SEED_ENV, "0").strip() or "0")
+        raw_g = os.environ.get(PG_EXACT_G_ENV, "").strip()
+        try:
+            self.pg_exact_g = int(raw_g) if raw_g else 0
+        except ValueError as exc:
+            raise ValueError(f"FAIL LOUD: {PG_EXACT_G_ENV}={raw_g!r} is not an integer") from exc
+        if raw_g and self.pg_exact_g < 1:
+            raise ValueError(f"FAIL LOUD: {PG_EXACT_G_ENV} must be >= 1, got {raw_g!r}")
+        self.pg_exact_g_skipped = 0
+        self.sched_plan_evals_s = 0
+        for name in PG_ILS_COUNTERS:
+            setattr(self, name, 0.0 if name == "pg_ils_gain_seconds" else 0)
+        if self.pg_ils_per and self._policy_label != "peer_greedy_network_cd":
+            raise RuntimeError(f"FAIL LOUD: {PG_ILS_PER_ENV} is defined for peer_greedy_network_cd only; {self._policy_label}")
+        if self.pg_exact_g and (self._policy_label != "peer_greedy_network_cd" or not _pg_flag(PG_CD_EXACT_ENV)):
+            raise RuntimeError(f"FAIL LOUD: {PG_EXACT_G_ENV} needs peer_greedy_network_cd with {PG_CD_EXACT_ENV}=1; {self._policy_label}")
+        if self.pg_ils_per and (self.pg_cd_expansion or _pg_flag(PG_CD_EXACT_ENV)):
+            raise RuntimeError(f"FAIL LOUD: {PG_ILS_PER_ENV} replaces the expansion and the exact search; it is not run with {PG_CD_EXPANSION_ENV} or {PG_CD_EXACT_ENV}")
         self.pg_cd_exact = _pg_flag(PG_CD_EXACT_ENV)
         self.pg_cd_exact_max_plans = _pg_int(PG_CD_EXACT_MAX_PLANS_ENV, 100_000)
         self.pg_cd_exact_top_k = _pg_int(PG_CD_EXACT_TOP_K_ENV, 5)
@@ -1370,6 +1412,55 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self._pg_write_books(batch_tasks, plan, orch, memo, committed_service, planned, placements, service_of)
         return moved_tasks
 
+    def _pg_ils(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float],
+                committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
+                service_of: Dict[int, Tuple[str, float]]) -> int:
+        """cd_ib0_ils: iterated local search on `_pg_plan_cost` from the batch's current (CD) plan, budget pg_ils_per x n x mean candidates distinct
+        plans. Pinned tasks (forced placements) never move. The incumbent is written to the books only when it beats the start by more than 1e-9 s.
+        Returns the number of tasks moved."""
+        from src.policy.peer_greedy_network.ils import ils
+        from src.placement import decision_cost
+
+        n = len(batch_tasks)
+        if n < ILS_MIN_TASKS:
+            self.pg_ils_small_batches += 1
+            return 0
+        nodes = self.nodes.items
+        _cands, couple, keys, plan, _pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        ident = lambda pair: (int(pair[0].id), int(pair[1].id))
+        start = tuple(ident(p) for p in plan)
+        cand_keys = [sorted(k) for k in keys]
+        budget = int(self.pg_ils_per * n * (sum(len(c) for c in cand_keys) / n))      # uncut_ils.default_budget(cands, per)
+        metered_before = self.sched_plan_evals
+        wall0 = default_timer()
+
+        def score(p) -> float:
+            return self._pg_plan_cost(batch_tasks, [couple[k] for k in p], orch, memo, nodes)[0]
+
+        res = ils(cand_keys, start, score, seed=self.pg_ils_seed, max_evals=budget, cap=n)
+        self.pg_ils_batches += 1
+        self.pg_ils_evals += res["n_evals"]
+        self.pg_ils_budget += budget
+        tag = decision_cost.bucket_of(n)
+        setattr(self, f"pg_ils_evals_{tag}", getattr(self, f"pg_ils_evals_{tag}", 0) + res["n_evals"])
+        setattr(self, f"pg_ils_wall_{tag}", getattr(self, f"pg_ils_wall_{tag}", 0.0) + default_timer() - wall0)
+        stop = res["stopped"]
+        self.pg_ils_stop_evals += stop == "evals"
+        self.pg_ils_stop_converged += stop in ("converged", "no-moves")
+        self.pg_ils_stop_other += stop not in ("evals", "converged", "no-moves")
+        gain = res["start_S"] - res["best_S"]
+        moved = 0
+        if res["best"] is not None and gain > 1e-9:
+            moved = sum(1 for a, b in zip(res["best"], start) if tuple(a) != b)
+            self.pg_ils_improved += 1
+            self.pg_ils_tasks_moved += moved
+            self.pg_ils_gain_seconds += gain
+            self._pg_write_books(batch_tasks, [couple[tuple(k)] for k in res["best"]], orch, memo, committed_service, planned, placements, service_of)
+        # the ILS phase's whole-plan scores are charged at w_S (decision_cost.s_rate_ms), the bar's plans before it at the ordinary rate
+        self.sched_plan_evals_s += self.sched_plan_evals - metered_before
+        self.sched_plan_evals = metered_before
+        return moved
+
     def _pg_write_books(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch, memo: Dict[str, float],
                         committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
                         service_of: Dict[int, Tuple[str, float]]) -> None:
@@ -1834,6 +1925,12 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
         if passes < 1:
             raise ValueError(f"FAIL LOUD: HEROSIM_PG_CD_PASSES must be >= 1, got {raw!r}")
         self._pg_cd_passes(passes, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if self.pg_exact_g and len(batch_tasks) > self.pg_exact_g:
+            self.pg_exact_g_skipped += 1
+            return
+        if self.pg_ils_per:
+            self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+            return
         if not (self.pg_cd_expansion or self.pg_cd_exact):
             return
         # cd_expand: one expansion phase after the single-task passes converge, then the passes again on the new plan;
