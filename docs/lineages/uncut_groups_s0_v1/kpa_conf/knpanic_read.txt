@@ -1,0 +1,55 @@
+KPA closed-loop sensitivity read (uncut_groups_s0_v1, prediction line filed before the cells). Descriptive, no label.
+Switch off = S4's 0.7 arms at the shared pin 90b6afe5 (anomaly/cells_{ref,gnn}_{mod,heavy}070); switch on = anomaly/cells_knpanic_*.
+Per topology: mean over g0-g3 (FL gnn: and over seeds 1-2). Wilcoxon over the 12 topologies, paired, two-sided, p unadjusted.
+  R0  the smoke cell (kpa_conf/smoke_65db9c82_on) against its grid twin, field for field (provenance / wall clock aside) + arrays
+  R1  bar heavy - moderate per load_anomaly term, off and on, and the change on - off of that gap; elapsed and lock after 360 s
+  R2  paired FL-vs-bar % (100 (gnn - bar) / bar, per topology), median over 12, per rung x {whole, after-360}: off, on, shift
+  R3  replica_count_series.time_mean per arm x rung: off, on, % change
+  R4  scaleOut.panic_ticks per arm x rung: off, on
+The prediction (SCIENTIST's, verbatim in the line) is printed beside the measured value; nothing here is a label.
+
+=== R0 smoke cell vs grid twin: non-volatile differing fields 0 []; arrays equal [True, True, True]
+=== R1 bar heavy - moderate (mean over 12 topologies); n/12 = topologies with heavy < moderate; change = gap(on) - gap(off)
+    term                       gap off n/12    gap on n/12    change       p | mod on-off       p heavy on-off       p
+    elapsed                    -0.5848   12   -0.5451   12   +0.0397  0.0923 |    -0.0597  0.0005      -0.0200  0.0923
+    elapsed_after360           -1.0370   12   -0.9912   12   +0.0458  0.0522 |    -0.0693  0.0005      -0.0235  0.0771
+    W_sched_wait               +0.0044    0   +0.0044    0   +0.0000  0.6221 |    -0.0000  0.3013      -0.0000  0.9697
+    Q_resid                    +0.0310    0   +0.0350    1   +0.0040  0.6221 |    -0.0076  0.1294      -0.0036  0.1099
+    N_prop                     -0.0008   12   -0.0009   12   -0.0001  0.3013 |    -0.0000  0.4697      -0.0001  0.3394
+    P_pull                     -0.0082   11   -0.0075   12   +0.0008  0.2661 |    -0.0004  0.3804      +0.0003  0.4697
+    K_cold                     -0.0913   12   -0.0890   12   +0.0022  0.4697 |    -0.0015  0.4238      +0.0008  0.5186
+    R_rendezvous               -0.0219   12   -0.0220   12   -0.0001  0.4238 |    +0.0001  0.1763      +0.0000  0.2661
+    X_exchange                 -0.8050   12   -0.7805   12   +0.0245  0.3394 |    -0.0540  0.0024      -0.0295  0.0093
+    L_lock_wait                +0.2855    0   +0.2872    0   +0.0016  0.7910 |    +0.0047  0.5693      +0.0064  0.5693
+    L_lock_wait_after360       +0.0252    2   +0.0321    0   +0.0069  0.5693 |    -0.0008  0.9697      +0.0061  0.6772
+    E_exec                     +0.0110    2   +0.0187    0   +0.0077  0.1514 |    -0.0018  0.4238      +0.0059  0.2036
+    transfers_per_task         -0.3428   12   -0.3380   12   +0.0047  0.5186 |    -0.0106  0.0269      -0.0059  0.8501
+    s_per_transfer             -0.3417   12   -0.3373   12   +0.0044  0.7334 |    -0.0362  0.0210      -0.0319  0.0640
+    coloc_share                +0.1175    0   +0.1159    0   -0.0016  0.4697 |    +0.0037  0.0269      +0.0021  0.8501
+    replica_time_mean         +14.6131    0  +14.9447    0   +0.3316  0.4697 |    -0.0181  0.9097      +0.3135  0.3804
+    panic_ticks              -10650.1042   12 -12406.4583   12 -1756.3542  0.0005 | +2565.8333  0.0005    +809.4792  0.0005
+    panic_entries            -179.1458   12 -203.6042   12  -24.4583  0.0005 |   +35.5417  0.0005     +11.0833  0.0005
+    scale_ups_load           -1799.8542   12 -1842.1667   12  -42.3125  0.2036 |   +82.6875  0.0093     +40.3750  0.1465
+    scale_ups_reach          -639.7292   12 -564.0417   12  +75.6875  0.0049 |  -116.2500  0.0010     -40.5625  0.0005
+    cold_start_pct             -2.2310   12   -2.0942   12   +0.1368  0.0161 |    -0.1719  0.0093      -0.0350  0.0342
+=== R2 paired FL-vs-bar %, median over 12 topologies (n/12 = FL faster); shift = median(on) - median(off) in pp
+    moderate whole     off   -6.75 % (12/12)  on   -6.24 % (12/12)  shift  +0.51 pp  per-topology on-off p 0.0771
+    moderate after-360 off   -7.90 % (12/12)  on   -7.29 % (12/12)  shift  +0.61 pp  per-topology on-off p 0.1099
+    heavy    whole     off   -3.48 % (10/12)  on   -3.17 % (9/12)  shift  +0.31 pp  per-topology on-off p 0.3394
+    heavy    after-360 off   -5.08 % (12/12)  on   -3.20 % (9/12)  shift  +1.88 pp  per-topology on-off p 0.4238
+=== R3 mean replicas (time mean): off -> on (mean over 12 topologies), % change, n/12 rising, p
+    bar moderate      41.33 ->      41.31   -0.04 %  5/12  p 0.9097
+    bar heavy         55.94 ->      56.25   +0.56 %  8/12  p 0.3804
+    gnn moderate      40.30 ->      39.88   -1.06 %  2/12  p 0.0122
+    gnn heavy         54.97 ->      54.98   +0.02 %  6/12  p 0.9097
+=== R4 panic ticks: off -> on (mean over 12 topologies), % change, n/12 rising, p
+    bar moderate   19863.73 ->   22429.56  +12.92 %  12/12  p 0.0005
+    bar heavy       9213.62 ->   10023.10   +8.79 %  12/12  p 0.0005
+    gnn moderate   20454.43 ->   23046.08  +12.67 %  12/12  p 0.0005
+    gnn heavy       9412.23 ->   10101.39   +7.32 %  12/12  p 0.0005
+===     panic entries: off -> on (mean over 12 topologies), % change, n/12 rising, p
+    bar moderate     324.23 ->     359.77  +10.96 %  12/12  p 0.0005
+    bar heavy        145.08 ->     156.17   +7.64 %  12/12  p 0.0005
+    gnn moderate     334.14 ->     373.22  +11.70 %  12/12  p 0.0005
+    gnn heavy        148.55 ->     159.45   +7.33 %  12/12  p 0.0005
+=== checkpoints asserted per learned cell (both switch states): {'/share/nikola.lukic/uncut_groups/comb/in_comball/models/uncut-comb-fl-gnn-eng-seed1.pt': 'a670eb0c67577bcb63785f514bb63534', '/share/nikola.lukic/uncut_groups/comb/in_comball/models/uncut-comb-fl-gnn-eng-seed2.pt': '78c09cc0daf315587dcf6c9c5c18aa28'}
