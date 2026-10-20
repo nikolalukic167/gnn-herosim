@@ -1,0 +1,19 @@
+{
+ "activation_scale": 0,
+ "aggregation": "",
+ "bucket_s": 1,
+ "initial_scale": 1,
+ "max_scale_down_rate": 2,
+ "max_scale_up_rate": 1000,
+ "metric": "concurrency",
+ "panic_threshold": 2,
+ "panic_window_pct": 10,
+ "panic_window_s": 6,
+ "reachable": true,
+ "scale_down_delay_s": 0,
+ "scale_to_zero_grace_s": 30,
+ "stable_window_s": 60,
+ "target": 0.7,
+ "target_burst_capacity": 211,
+ "total": 1
+}

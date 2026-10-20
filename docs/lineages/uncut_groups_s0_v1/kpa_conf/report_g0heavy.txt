@@ -1,0 +1,17 @@
+=== g0heavy: 15752 ticks, 4 functions; trace trace_g0heavy.kpa.jsonl
+  self-check: replayed KpaScaler == traced desired on 100 % of ticks; model(all ours) == KpaScaler on 100 %
+  joint alignment (D1-D7 all to kn) vs go, window full: residual 0 ticks; all ticks incl. filling: 0
+  fn      full   same differ    D1    D2    D3    D4    D5    D6    D7 multi joint UNEXP |diff| hist
+  cnn     3879   3564    315   155     0    30     0     4    68     0     1    59     0 -1:4 +1:73 +2:6 +3:1 +4:9 +5:8 +6:41 +7:74 +8:46 +9:18 +10:10 +11:8 +12:1 +15:1 +16:2 +17:1 +18:3 +19:2 +21:1 +24:1 +28:2 +29:1 +40:1 +60:1
+  dnn1    3879   3707    172   115     0    28     0     1    28     0     1     1     0 -1:1 +1:28 +3:6 +4:21 +5:39 +6:21 +7:33 +8:7 +9:4 +10:1 +11:3 +12:1 +14:2 +16:1 +18:1 +20:1 +22:1 +30:1
+  dnn2    3879   3433    446   277   124    33     0     0    10     0     0     2     0 -4:38 -1:86 +1:15 +2:38 +3:31 +4:106 +5:24 +6:47 +7:28 +8:15 +9:7 +10:4 +11:2 +14:2 +19:1 +22:1 +46:1
+  rf      3879   3484    395   174     0    31     0     0   183     0     0     7     0 +1:185 +2:62 +3:15 +4:52 +5:18 +6:2 +7:7 +8:6 +9:7 +10:9 +11:9 +12:19 +13:1 +17:1 +37:1 +47:1
+  joint-only ticks cnn, smallest aligning combination(s): D1+D3: 38; D1+D6: 20; D3+D6: 1
+  joint-only ticks dnn1, smallest aligning combination(s): D1+D3: 1
+  joint-only ticks dnn2, smallest aligning combination(s): D2+D3: 1; D1+D3: 1
+  joint-only ticks rf, smallest aligning combination(s): D1+D2: 4; D3+D6: 2; D1+D3: 1
+  window-full differing ticks 1328; realised change would differ on 1325 (ups capped at 120 - live total, downs at idle replicas from the trace's occupancy; approximate: memory refusals and A3-protected replicas not modelled) {'dnn2': 445, 'rf': 393, 'dnn1': 172, 'cnn': 315}
+  D5 cnn: spacing 1.0s:3930, 1.001s:3, 2.0s:1, 1.033s:1, 1.004s:1 (distinct 6); non-integer tick times 3858; shared buckets 0; empty buckets 1
+  D5 dnn1: spacing 1.0s:3930, 1.001s:3, 2.0s:1, 1.033s:1, 1.004s:1 (distinct 6); non-integer tick times 3858; shared buckets 0; empty buckets 1
+  D5 dnn2: spacing 1.0s:3930, 1.001s:3, 2.0s:1, 1.033s:1, 1.004s:1 (distinct 6); non-integer tick times 3858; shared buckets 0; empty buckets 1
+  D5 rf: spacing 1.0s:3930, 1.001s:3, 2.0s:1, 1.033s:1, 1.004s:1 (distinct 6); non-integer tick times 3858; shared buckets 0; empty buckets 1
