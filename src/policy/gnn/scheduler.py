@@ -1363,6 +1363,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             decision_cost.book(self, "sched_queue_wait_seconds", self.env.now - queued_at)
             decision_cost.book(self, "sched_queue_wait_max", self.env.now - queued_at, mx=True)
         evals_before = getattr(self, "sched_plan_evals", 0)
+        evals_s_before = getattr(self, "sched_plan_evals_s", 0)
         fallbacks_before = getattr(self, "pg_exact_fallbacks", None)
         system_state: SystemState = yield self.mutex.get()
         maybe_capture_batch_live_audit_snapshot(
@@ -1424,6 +1425,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                           None if fallbacks_before is None else self.pg_exact_fallbacks > fallbacks_before)
         if cost_on:
             charge = decision_cost.rate_ms(len(decodable)) * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
+            charge += decision_cost.s_rate_ms(len(decodable)) * 1e-3 * (getattr(self, "sched_plan_evals_s", 0) - evals_s_before)
             if charge > 0.0:
                 waiting = len(self.mutex.get_queue)
                 yield self.env.timeout(charge)

@@ -260,6 +260,10 @@ class Orchestrator:
             # sparse_obs_s0_v1: degraded observation channels actually used
             "obs_drain_degraded", "obs_drain_exact", "obs_exec_degraded", "obs_inflight_degraded", "obs_partner_hidden", "obs_partner_predicted",
             "obs_cold_degraded", "obs_cold_exact", "pg_cold_tail_calls",
+            # cd_ib0_ils: the live ILS arm (HEROSIM_PG_ILS_PER)
+            "pg_ils_batches", "pg_ils_evals", "pg_ils_improved", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget",
+            "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
+            "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_exact_g_skipped", "sched_plan_evals_s",
             # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
             "sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max",
