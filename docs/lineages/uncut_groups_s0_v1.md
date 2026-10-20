@@ -10,6 +10,7 @@
 - **Per-term latency breakdown (2026-10-19; descriptive, no label; Record):** the FL gnn's gain over `cd_ib0_inflightfull` is peer-exchange time (Δ −0.18 to −0.70 s per task, 12/12 topologies, gate and size 64 at both rungs), paid for in scheduler wait, residual queue and lock wait; its co-location share is *lower* than the bar's, so the saving is not more co-located pairs.
 - **FL gnn s3–6 at 64 servers (2026-10-19; descriptive, no label, no registration; Record):** 768 cells (`size64/cells_learned_s36`), the four conf2 `-final.pt`, `_k100` and `_kr`, topologies 30129–30140; cell list filed (md5 `cb0b2c39…`) before submission; read filed: seeds 3–6 beat the bar in all four tests under both charges (heavy whole −9.07 % `_k100`, −7.67 % `_kr`, 12/12), descriptive, no verdict.
 - **FL + λ and twin decision-cost pins (2026-10-20; Record):** P7 `91269ec0` (FL + λ GNN and MLP w, on G8d) and P7b `f8a55ff0` (twin w, on P7) filed with the real serving check; the FL + λ cells read at the frozen P8.1 reader with `--w-pins 91269ec0`; the twin's read needs P9, which must admit the twin kind on the chain to P7b. No label changes.
+- **Partner structure (2026-10-20; Record):** NO-TREND. FL gnn vs FL MLP stays near −2 % (moderate whole) and −3 % (after-360) at k = 1, 2, 4 and 8 partners; Page Holm .851 / .586. Read through a symlink view of the partners tree (layout mismatch, disclosed).
 - **FL size-128 F1 (2026-10-20; Record):** NOT-CONFIRMED (MIXED under both charges). At 128 servers FL beats the bar −19.0 % moderate whole, −46.4 % moderate after-360 and −27.9 % heavy after-360 (12/12), but is +4.7 % slower at heavy whole (0/12, Holm .002; seed 1 +12.3 %). The loss is in the opening and is there at k = 0 too (+6.7 %), so it is not the decision charge. F2 (FL gnn vs FL MLP): DIRECTION-ONLY.
 - **FL MP-OFF twin primary read (2026-10-20; Record):** TIE under both charges. FL gnn vs its MP-OFF twin: medians −0.9 to +0.5 %, one test of eight Holm < .025 (heavy whole `_k100`, −0.93 %); seed 1 is slower than its twin there and seed 2 faster. No message-passing claim. Secondary (descriptive): the twin is ahead of FL MLP in direction on all 8 rows, and at 64 servers FL gnn leads its twin at moderate (−1.8 / −2.4 %) but trails at heavy (+3.1 / +1.8 %).
 - **FL + λ primary read (2026-10-20; Record):** NOT-WIN (MIXED under both charges). FL + λ beats FL at moderate (Holm .010 / .010 `_k100`, .004 / .004 `_kr`; medians −2.1 / −2.2 % and −1.2 / −1.7 %), not at heavy; seed 2 is slower at heavy whole. Secondary (descriptive): FL + λ beats the bar at moderate (−7.6 / −8.8 %), not at heavy; λ helps the MLP as much (MLP + λ vs MLP −2.2 / −2.6 % moderate). No filed label changes.
@@ -307,6 +308,46 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **Partner structure, primary read filed: NO-TREND.** FL gnn's lead over FL MLP does not grow with the partner count. Moderate medians at k = 1 / 2 / 4 / 8 are −2.11 / −2.20 / −1.72 / −2.21 % (whole) and −3.04 / −2.58 / −2.96 / −2.67 % (after-360); Page's L Holm .851 and .586. The read is not VOID: all three structure checks hold. The label stands as read; it changes no filed label.
+  - **How it was read.** S6, at the frozen P11 reader `bd00b187` (blob `b87ca2d9`), after size-128's secondary merged at `e286ac18`. On 30176–30187 (sha256 `dd359919…`), topologies already read in the exchange study.
+    - Mode flags: `--confirm-degree-trend --stage primary --deg-root partners/deg_view`.
+    - Chain flags: `--pin a459dd98 --gate-change 095948ea,f6818d09 --w-pins 74ddf70e`.
+    - Arm flags: `--primary ra_gnn_eng_combfl_nosplit --mlp ra_mlp_same_combfl_nosplit --bar cd_ib0_inflightfull --seeds 1,2 --suffix _k100 --checkpoint-md5 comb/md5_comball.json`.
+    - File `/share/nikola.lukic/uncut_groups/partners/reads/read_deg_primary.json`, md5 `54a5310de7052c2e87ad6df7324ea500` (stdout md5 `31e02a1a`; script `uncut_groups_s0_v1/partners/deg_read_primary.sh` md5 `3f4728a8`).
+  - **Layout mismatch, and the view** (the expert's ruling; SCIENTIST had no objection). Nothing moved and the reader is unchanged.
+    - P11's degree path reads `--deg-root/k<L>/{cells_reactive, cells_bar, cells_learned, inputs_group}`.
+    - S5's mint and cell drivers wrote, as filed in their cell list:
+      - `partners/cells_k<L>` (bar, FL gnn and FL MLP together);
+      - `partners/cells_react_k<L>`;
+      - `partners/gate_inputs_partners_k<L>/inputs_group`.
+      - No `k<L>` root exists.
+    - `partners/deg_view/k<L>/` is a symlink view, built by `uncut_groups_s0_v1/partners/make_deg_view.sh` (md5 `b876ac9b`):
+      - `cells_reactive` → `../../cells_react_k<L>`;
+      - `cells_learned` → `../../cells_k<L>`;
+      - `cells_bar` is an empty directory. The reader loads `cells_bar` and `cells_learned` together, so the bars in `cells_k<L>` count once;
+      - `inputs_group` → `../../gate_inputs_partners_k<L>/inputs_group`.
+      - Every summary's recorded `_path` is under `deg_view`, the read path.
+    - **Listing md5** `ecce0bb1ed8cdecf191763ceee1d9bed`. Command: `cd deg_view && ls -lR --time-style=+ . | md5sum`. It pins the link names only; it was filed with the expert before the read, and the read script re-checks it.
+    - **Content md5 through the links** `0118204f7a5e1293673a6f95cf06aaff`, over 11,660 files. Command: `cd partners && find -L deg_view -type f | sort | xargs md5sum | md5sum`. The per-file list is `partners/reads/deg_view_md5sums.txt` (job 889316; script `uncut_groups_s0_v1/partners/deg_view_hash.sh` md5 `de62e90e`).
+    - **`readlink -f` targets**, at every level L ∈ {1, 2, 4, 8}:
+      - `cells_reactive` → `/share/nikola.lukic/uncut_groups/partners/cells_react_k<L>`;
+      - `cells_learned` → `/share/nikola.lukic/uncut_groups/partners/cells_k<L>`;
+      - `inputs_group` → `/share/nikola.lukic/uncut_groups/partners/gate_inputs_partners_k<L>/inputs_group`;
+      - `cells_bar` → `/share/nikola.lukic/uncut_groups/partners/deg_view/k<L>/cells_bar` (the empty directory).
+    - **Order, disclosed.** The read (job 889315) was submitted at 09:42:44, as soon as `0c850494` landed. The expert's request for the content md5 and the `readlink -f` targets reached me after that. Both were computed by job 889316 (09:42:59–09:43:16), which only hashes files and resolves links. Both jobs read the same unchanged files.
+  - **Read.** Job 889315 ran on os-cpu-slurm-22 and finished 0:0 in 31 s. Every check ran on the real files, through the view:
+    - **Admission** (P10's rule): 12 / 12 ids at every level, no failing topology and no wholly saturated rung.
+    - **Grid:** exactly 480 cells per level (bar s0, FL gnn s1–2 and FL MLP s1–2, all `_k100`), 0 failed, servers = 24, warmth `node_disk_v2`, charges at `74ddf70e`.
+    - **Structure** (all three hold):
+      - (i) the minted `nonpair_sha256` is equal across the four levels;
+      - (ii) the built `{rps, duration, events}` hash is equal across the four levels;
+      - (iii) every group's bytes are held at its k = 2 total (`bytes_per_group_held_at_k2` true).
+  - **Primary.** Page's L on the paired FL gnn vs FL MLP %, ordered k = 1 < 2 < 4 < 8, one-sided upper, n = 12, exact test, Holm 2:
+    - moderate whole: L 290, p .851, Holm .851;
+    - moderate after-360: L 306, p .293, Holm .586.
+    - **NO-TREND.**
+  - **Rendezvous.** The rendezvous wait is nonzero in all 1,920 learned and bar cells, at every level. The rule reports this in the label line; it is not a VOID. This read does not explain it.
+  - **Disclosure** (from the registration). Both models were trained at k = 2, so k = 4 and k = 8 are out of distribution, which biases against the registered direction. Neither label says "message passing".
 - 2026-10-20 — **FL size-128, secondary read filed: F2 DIRECTION-ONLY (FL gnn vs FL MLP at 128 servers); F1's NOT-CONFIRMED stands.** (S6 read, at the frozen P11 reader `bd00b187`, blob `b87ca2d9`, with F1's flags plus `--stage secondary --mlp ra_mlp_same_combfl_nosplit --mlp-gate size128/mlp_cells --desc-gate size128/cells_desc --reactive-gate size128/cells_react --primary-read size128/reads/read_s128_primary.json --record 4e486119`, after that Record line merged at `6df7b6f0`.) File `/share/nikola.lukic/uncut_groups/size128/reads/read_s128_secondary.json`, md5 `d25146988691256f77781a9f485ce920` (stdout md5 `d48a5885`; script `uncut_groups_s0_v1/size128/s128_read_secondary.sh` md5 `b5210302`).
   - **Read.** Job 889279 ran on os-cpu-slurm-22 and finished 0:0 in 27 s. F1 recomputed equal to the filed read (`dfd3a5ca` at `4e486119`, on origin). Exact grids, 0 failed, servers = 128: `--mlp-gate` 384 (S4's FL MLP s1–2 `_k100` / `_kr`, ids 30241–30252), `--desc-gate` 288 (k = 0 FL gnn s1–2 and the bar), `--reactive-gate` 96.
   - **F2, FL gnn vs FL MLP** (median %, faster of 12, Holm p; d = median decision-charge miss difference, gnn − MLP, pp; "corrected" = median over topologies of gap_t + d_t):
