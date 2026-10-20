@@ -310,6 +310,52 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **KPA closed-loop sensitivity (`HEROSIM_KPA_KNATIVE_PANIC`): switch, identity checks and prediction, filed before any of the 288 cells runs (S6; the expert's decision after SCIENTIST's recommendation; descriptive, no label).** A disclosed sensitivity row. It never replaces a filed result.
+  - **Switch.** S6, branch `s6/kpa-knative-panic`, off reference-physics `04da2655`. `HEROSIM_KPA_KNATIVE_PANIC=1` aligns the three panic departures of KPA conformance (ii) to Knative v0.50.0's decider; averaging and the ceil epsilon (D5, D6) are unchanged.
+    - D1, entry: on the ceiled panic count over max(1, ready).
+    - D2, sizing: max(stable count, panic count), held at its running maximum, with no `current` term.
+    - D3, exit: strictly after the last over-threshold tick + the stable window.
+    - Default off. `KpaConfig.describe()`, and so the summary's `scaleOut` block, carries `"knative_panic": true` only when the switch is set. A summary with the switch unset keeps every filed field.
+    - `r1a_gate.sbatch` passes `R1A_KPA_KNATIVE_PANIC` through its `HEROSIM_*` wipe, after S4's `R1A_QUEUE_LENGTH` line.
+  - **Tests.**
+    - `tests/test_kpa_scaleout.py` adds five tests: the switch's parsing and `describe()` key; D1 entry at panic/target = 1.5 with one ready; D2 without `current` and with the stable count; D3 at exactly 60 s. All 24 tests in the file pass.
+    - Replayed on the two conformance traces (`kpa_conf/trace_g0{heavy,moderate}.kpa.jsonl`):
+      - switch off reproduces the traced desired on every tick;
+      - switch on equals the conformance model's D1 + D2 + D3 alignment on every tick, and differs from off on 1,034 of 15,752 (heavy) and 3,830 of 37,672 (moderate) ticks.
+  - **Identity at the branch tip `65db9c82`, switch unset.** cc40s19537 / g0heavy / `cd_ib0_inflightfull_k100` s0, rerun through the pin's own `r1a_gate.sbatch` with inputs exactly `comb/in_comball`.
+    - Job 889793 (os-cpu-slurm-7); `kpa_conf/ident_65db9c82_unset`; launcher `knp_ident.sh` md5 `47152fe9`; diff `sumdiff.py` md5 `f58b4c83`.
+    - Every existing summary field equals the filed cell (`comb/cells_bar_g8`), and `.tasks.npy`, `.tasks_bsz.npy` and `.tasks_lock.npy` are byte-equal.
+    - The only differences: S4's new fields (`bytes` per access-class pair, `peerExchangeOverlap`), and provenance or wall clock (`code`, `host`, `python_env`, `wallclock_s`, `decisionTiming`, `total_rtt_plus_inference`, which adds the measured decision wall).
+    - No `knative_panic` key in `scaleOut`.
+  - **The switch is seen.** The same cell with `R1A_KPA_KNATIVE_PANIC=1`, job 889794, `kpa_conf/smoke_65db9c82_on`: `scaleOut.knative_panic` true.
+    - **Disclosed:** both S6 and SCIENTIST saw its numbers before the prediction was written: panic ticks 9,686 → 10,597, panic entries 153 → 165, replica time mean 55.92 → 58.06, averageElapsedTime 2.070 → 2.153 s.
+    - It is a smoke cell, not data. It is kept (SCIENTIST's condition), outside every grid root, at `kpa_conf/smoke_65db9c82_on`: summary md5 `aa062f48f70fc72e446444f31d62a0fc`; `.tasks.npy` `55a69182`, `.tasks_bsz.npy` `635c1488`, `.tasks_lock.npy` `c45e4639`.
+    - **R0, a determinism check:** its grid twin (cc40s19537 / g0heavy, bar, switch on, at the shared pin) must reproduce it field for field, apart from provenance and wall clock.
+  - **Identity at the shared pin** (the merge of this branch; the expert names the sha): the same rerun, switch unset, plus one FL gnn cell (cc40s19537 / g0heavy / `ra_gnn_eng_combfl_nosplit_k100` s1 against `comb/cells_comb_fl`). Both results go into this line before the first grid cell.
+  - **Grid** (switch set; everything else exactly as S4's 0.7 arms, which are the switch-off comparison at the same pin):
+    - Gate topologies 19537–19548, windows g0–g3, `R1A_SLATE=declared_pruning_v1_uncapped`, inputs `comb/in_comball`, selection `arm1_selected.json`, split `uncut_arm1_split.json`.
+    - Arms:
+      - `cd_ib0_inflightfull_k100` s0: `anomaly/cells_knpanic_ref_mod` (48 cells) and `anomaly/cells_knpanic_ref_heavy` (48);
+      - FL gnn `ra_gnn_eng_combfl_nosplit_k100` s1–2 (checkpoints from `comb/md5_comball.json`): `anomaly/cells_knpanic_gnn_mod` (96) and `anomaly/cells_knpanic_gnn_heavy` (96).
+    - 288 cells, one root per job on four eligible exclusive nodes (never os-cpu-slurm-21 or 15, and none of S4's nodes).
+  - **Rows read afterwards** (descriptive, Wilcoxon over 12 topologies paired on vs off at the same pin, p unadjusted):
+    - (R1) the bar's heavy − moderate decomposition per rung, `load_anomaly` terms, whole run, plus elapsed and lock wait after 360 s;
+    - (R2) paired FL-vs-bar median % per rung × statistic (whole, after-360);
+    - (R3) mean replicas (`replica_count_series.time_mean`) per arm × rung;
+    - (R4) panic ticks (`scaleOut.panic_ticks`) per arm × rung.
+    - (R0) the smoke cell's grid twin reproduces it field for field.
+  - **S6's prediction was withdrawn**, because S6 was not blind to the smoke cell. SCIENTIST's prediction replaces it, verbatim:
+    - **PREDICTION (SCIENTIST, 2026-10-20; written after seeing the open-loop conformance result and S6's single smoke cell, cc40s19537/g0heavy bar: panic ticks 9,686 → 10,597, replica time mean 55.92 → 58.06, elapsed 2.070 → 2.153 s; that cell is disclosed and is not data):**
+      - R4: panic ticks rise at both rungs for both arms. D1 enters panic earlier.
+      - R3: mean replicas rise at both rungs, by under 6 %, and by more at moderate than at heavy for the bar. Open-loop desired was +3.3 % vs +1.8 %.
+      - R1: the bar's heavy < moderate holds, whole run and after 360 s, on at least 11 of 12 topologies with the switch on. The heavy − moderate elapsed gap (filed −0.585 s whole) changes by less than 0.15 s. No sign is predicted for the change in bar elapsed at either rung.
+      - R2: each paired FL-vs-bar median, per rung × {whole, after-360}, moves by under 1.5 pp and keeps its sign.
+      - Reading rules, fixed now:
+        - (a) If R1's sign flips, the panic departures carry part of the anomaly, and the paper says so.
+        - (b) If replicas rise and bar elapsed also rises (as in the smoke cell), "more replicas → faster" is incomplete as stated. Panic-added replicas pay image pulls and cold starts before they help, so R1 is decomposed with P and K shown, and the dose-series reading is phrased in terms of replicas alive in steady state, not replica count alone.
+        - (c) If R2 moves by 1.5 pp or more on any test, the paper's KPA disclosure gains one sentence with that number.
+    - SCIENTIST confirmed the rest of the design: rows R1–R4, 288 cells, paired Wilcoxon unadjusted, node exclusions, and S4's 0.7 arms at the same pin as the switch-off comparison.
+  - **Before any grid cell:** the full test suite passes; the identity check at the shared pin (bar and one FL gnn cell) is filed in this line.
 - 2026-10-20 — **KPA conformance check (ii): our decider follows Knative v0.50.0's except D1 (panic entry un-ceiled), D2 (panic sizing without the stable count), D3 (one-tick un-panic boundary) and D6 (Knative's binary-float ceil at exact multiples of the target), on 1,328 of 15,516 window-full ticks at heavy (8.6 %) and 4,194 of 37,436 at moderate (11.2 %); UNEXPLAINED 0; joint residual 0.** (SCIENTIST's wording; not "conforms".) Knative asks for more on 1,199 of 1,328 and 3,731 of 4,194 differing ticks; ours is about 1.8 % and 3.2 % below in summed desired. Descriptive, no label, open loop.
   - **Decision.** `KpaScaler` is not changed before submission: a change there is a physics change and would invalidate every filed cell (the expert). The paper names D1, D2, D3 and D6 as departures. A closed-loop rerun with Knative's choices applied is the only way to know their latency effect. That is a separate decision.
   - **Design and approvals.** Designed by S6; reviewed by SCIENTIST (cells, linear aggregation only, a defaults-equality row, D8 named, joint residual); accepted by the expert.
