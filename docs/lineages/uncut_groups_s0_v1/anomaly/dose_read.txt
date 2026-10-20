@@ -1,0 +1,99 @@
+Dose read (S4), replica-count counterfactual. Descriptive, no label. Latency keys only (averageElapsedTime and the per-term fields,
+steady_state.after_360s, the cells' lock sidecars); never total_rtt_plus_inference (includes measured decision wall time).
+Arms (anomaly/dose_7cb483c5/cells_<arm>): ref_mod0294, ref_mod045, ref_mod070 (reference, moderate, KPA target 0.294/0.45/0.7),
+ref_heavy070 (reference, heavy), gnn_mod070, gnn_heavy070 (FL gnn s1+s2, mean of the two seeds per cell).
+Every value is the mean over 12 topologies (19537-19548) x 4 windows (g0-g3) of the per-cell value; the topology mean is formed first.
+Checks before any number: pin (code.commit, clean), per-cell scaleOut.target equals the arm's registered value, cell counts, no failed cells,
+and for the gnn cells the served checkpoint md5 (env.GNN_MODEL_PATH, hashed here) equals comb/md5_comball.json s1/s2.
+Prediction (SCIENTIST, verbatim): "mean replicas rise toward 56; co-location share toward 0.78; exchange toward 0.89 s and cold start
+toward 0.04 s, monotone in dose; lock wait does not rise; if exchange does not move at matched replica counts the replica reading is wrong
+and rate itself (group overlap in time) is the remaining candidate". Rows are compared against the heavy reference (the target of the
+dose), monotone = the three moderate arms ordered 0.7 -> 0.45 -> 0.294 move one way and toward heavy-0.7 at every step.
+peerExchangeOverlap shares are approximate (intervals start at env.now plus the earlier peer terms of the task, include route latency,
+sender out-link only).
+
+checked ref_mod0294: 48/48 summaries, 0 failed, pin 7cb483c5 clean, scaleOut mode kpa target 0.294
+checked ref_mod045: 48/48 summaries, 0 failed, pin 7cb483c5 clean, scaleOut mode kpa target 0.45
+checked ref_mod070: 48/48 summaries, 0 failed, pin 7cb483c5 clean, scaleOut mode kpa target 0.7
+checked ref_heavy070: 48/48 summaries, 0 failed, pin 7cb483c5 clean, scaleOut mode kpa target 0.7
+checked gnn_mod070: 96/96 summaries, 0 failed, pin 7cb483c5 clean, scaleOut mode kpa target 0.7, checkpoint md5s equal comb/md5_comball.json
+checked gnn_heavy070: 96/96 summaries, 0 failed, pin 7cb483c5 clean, scaleOut mode kpa target 0.7, checkpoint md5s equal comb/md5_comball.json
+
+=== Reference dose series (moderate), mean over 12 topologies x 4 windows. dose order 0.7 -> 0.45 -> 0.294; heavy-0.7 is the target.
+    term                                    mod 0.7   mod 0.45  mod 0.294  heavy 0.7  monotone  n/12 mono
+    elapsed_whole                            3.0483     2.5245     2.0138     2.4635       yes         12
+    elapsed_after360                         2.4068     1.7753     1.3670     1.3698       yes         12
+    X_exchange_s_per_task                    1.6927     1.1425     0.7877     0.8877       yes         12
+    transfers_per_task                       0.9858     0.7466     0.5691     0.6431       yes         12
+    s_per_transfer                           1.7497     1.5629     1.4163     1.4080       yes         12
+    coloc_share                              0.6623     0.7442     0.8051     0.7798       yes         12
+    replica_time_mean                       41.3250    51.6410    63.1068    55.9381       yes         12
+    at_cap_share_whole                       0.0241     0.0542     0.1128     0.0748       yes         12
+    at_cap_share_after360                    0.0140     0.0348     0.0925     0.0252       yes         12
+    K_cold_s                                 0.1339     0.0972     0.0650     0.0426       yes         12
+    cold_start_pct                           4.2197     3.9560     3.5566     1.9887       yes         12
+    L_lock_wait_whole                        0.3857     0.4587     0.4206     0.6712        no          1
+    L_lock_wait_after360                     0.0674     0.0887     0.1072     0.0926       yes          9
+    W_sched_wait                             0.0176     0.0185     0.0193     0.0220       yes         12
+    Q_resid                                  0.4632     0.4404     0.3432     0.4942        no          0
+    R_rendezvous                             0.0353     0.0356     0.0356     0.0134        no          0
+    E_exec                                   0.0747     0.0835     0.0946     0.0857       yes         11
+    N_prop                                   0.0493     0.0488     0.0483     0.0485       yes         12
+    P_pull                                   0.1366     0.1363     0.1354     0.1284       yes          3
+    cellular_transfers_per_task              0.4202     0.3049     0.2256     0.2566       yes         12
+    cellular_share_of_exchange_s             0.7467     0.7392     0.7332     0.7450       yes          5
+    s_per_cellular_transfer                  3.0455     2.8104     2.6011     2.6133       yes         12
+    overlap_seconds_share                    0.8048     0.7601     0.7140     0.8390        no          0
+    transfers_with_overlap_share             0.8734     0.8650     0.8568     0.8938        no          0
+    union_over_sum                           0.4096     0.4594     0.5024     0.3674        no          0
+    MB_per_transfer wired+wired             25.1649    23.3529    21.6261    21.6593       yes         11
+    MB_per_transfer wifi+wired              15.2961    13.6562    12.1789    11.9594       yes         10
+    MB_per_transfer wifi+wifi               14.3293    12.8313    10.7388    11.3724       yes          7
+    MB_per_transfer cellular+wired          20.8569    19.8810    19.0848    18.8977       yes         11
+    MB_per_transfer cellular+wifi           20.2905    18.6618    16.8065    16.8228       yes         11
+    MB_per_transfer cellular+cellular       22.0900    19.5926    18.5609    18.1131       yes          7
+    MB_per_transfer all                     20.1460    18.3396    16.7012    16.6616       yes         12
+
+=== FL gnn (s1+s2), 0.7: moderate vs heavy; delta = heavy - moderate
+    term                                   moderate      heavy      delta
+    elapsed_whole                            2.8356     2.3666    -0.4690
+    elapsed_after360                         2.2034     1.2821    -0.9213
+    X_exchange_s_per_task                    1.3924     0.7094    -0.6830
+    transfers_per_task                       1.0822     0.6924    -0.3898
+    s_per_transfer                           1.3135     1.0625    -0.2511
+    coloc_share                              0.6292     0.7628    +0.1336
+    replica_time_mean                       40.3006    54.9672   +14.6665
+    at_cap_share_whole                       0.0246     0.0798    +0.0552
+    at_cap_share_after360                    0.0129     0.0309    +0.0179
+    K_cold_s                                 0.1420     0.0483    -0.0936
+    cold_start_pct                           4.4158     1.9758    -2.4400
+    L_lock_wait_whole                        0.4062     0.7052    +0.2991
+    L_lock_wait_after360                     0.0761     0.0957    +0.0196
+    W_sched_wait                             0.0441     0.0506    +0.0065
+    Q_resid                                  0.4970     0.5153    +0.0183
+    R_rendezvous                             0.0353     0.0134    -0.0219
+    E_exec                                   0.0765     0.0824    +0.0059
+    N_prop                                   0.0501     0.0493    -0.0008
+    P_pull                                   0.1365     0.1271    -0.0094
+    cellular_transfers_per_task              0.1872     0.1131    -0.0740
+    cellular_share_of_exchange_s             0.3887     0.3925    +0.0039
+    s_per_cellular_transfer                  2.8859     2.4683    -0.4175
+    overlap_seconds_share                    0.7352     0.7783    +0.0431
+    transfers_with_overlap_share             0.8776     0.8970    +0.0194
+    union_over_sum                           0.4852     0.4406    -0.0446
+    MB_per_transfer wired+wired             25.3975    22.6168    -2.7807
+    MB_per_transfer wifi+wired              21.1346    19.1421    -1.9925
+    MB_per_transfer wifi+wifi               27.0753    19.5694    -7.5058
+    MB_per_transfer cellular+wired          20.9734    18.1478    -2.8256
+    MB_per_transfer cellular+wifi           20.3318    17.5873    -2.7445
+    MB_per_transfer cellular+cellular       20.1991    17.9409    -2.2582
+    MB_per_transfer all                     22.7782    20.1629    -2.6153
+
+=== Prediction rows (SCIENTIST), reference series
+    replica_time_mean          0.7 41.3250 -> 0.45 51.6410 -> 0.294 63.1068; heavy 55.9381; predicted: rises toward 56 (heavy value)
+    coloc_share                0.7 0.6623 -> 0.45 0.7442 -> 0.294 0.8051; heavy 0.7798; predicted: toward 0.78
+    X_exchange_s_per_task      0.7 1.6927 -> 0.45 1.1425 -> 0.294 0.7877; heavy 0.8877; predicted: toward 0.89 s
+    K_cold_s                   0.7 0.1339 -> 0.45 0.0972 -> 0.294 0.0650; heavy 0.0426; predicted: toward 0.04 s
+    L_lock_wait_whole          0.7 0.3857 -> 0.45 0.4587 -> 0.294 0.4206; heavy 0.6712; predicted: does not rise
+    L_lock_wait_after360       0.7 0.0674 -> 0.45 0.0887 -> 0.294 0.1072; heavy 0.0926; predicted: does not rise
+    fallback (exchange does not move at matched replica counts -> rate / group overlap in time is the remaining candidate): the exchange row above and the replica row are the two inputs; no label here.
