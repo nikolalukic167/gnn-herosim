@@ -11,6 +11,12 @@ window and a 6 s panic window; panic when the panic-window demand is >= 200 % of
 no scale-down while panicking; the last replica is removed only after a full stable window without
 traffic. Reachability-triggered creation is kept and logged as its own cause. Both windows scale with
 HEROSIM_POLICY_TIME_SCALE exactly as keep-alive does.
+
+`HEROSIM_KPA_KNATIVE_PANIC=1` (default off; a closed-loop sensitivity, uncut_groups_s0_v1 KPA conformance (ii)) aligns
+the panic rule to Knative Serving's decider (pkg/autoscaler/scaling/autoscaler.go, v0.50.0) on the three departures that
+check found: D1 panic entry tests the ceiled panic count over ready, D2 the panic size is the larger of the stable and
+panic counts held at its running maximum (no `current` term), D3 panic ends only strictly after the last over-threshold
+tick plus the stable window. The averaging and the ceil epsilon (D5, D6) are unchanged.
 """
 from __future__ import annotations
 
@@ -34,6 +40,7 @@ KPA_PANIC_THRESHOLD = 2.0
 # amendment A2 (2026-10-07): max-scale-up-rate 1000, max-scale-down-rate 2.0 (at most halve per decision)
 KPA_MAX_SCALE_UP_RATE = 1000.0
 KPA_MAX_SCALE_DOWN_RATE = 2.0
+KNATIVE_PANIC_ENV = "HEROSIM_KPA_KNATIVE_PANIC"
 
 
 def scaleout_mode() -> str:
@@ -44,6 +51,13 @@ def scaleout_mode() -> str:
 
 
 SHARED_AUTOSCALER_ENV = "HEROSIM_SHARED_AUTOSCALER"
+
+
+def knative_panic() -> bool:
+    raw = (os.environ.get(KNATIVE_PANIC_ENV) or "0").strip()
+    if raw not in ("0", "1"):
+        raise ValueError(f"{KNATIVE_PANIC_ENV}={raw!r}; expected 0 or 1")
+    return raw == "1"
 
 
 def shared_autoscaler() -> bool:
@@ -80,19 +94,24 @@ class KpaConfig:
     panic_threshold: float = KPA_PANIC_THRESHOLD
     max_scale_up_rate: float = KPA_MAX_SCALE_UP_RATE
     max_scale_down_rate: float = KPA_MAX_SCALE_DOWN_RATE
+    knative_panic: bool = False
 
     @classmethod
     def from_env(cls, target: float) -> "KpaConfig":
         scale = policy_time_scale()
         if not (isinstance(target, (int, float)) and target > 0 and math.isfinite(target)):
             raise ValueError(f"kpa target concurrency must be a finite number > 0, got {target!r}")
-        return cls(float(target), KPA_STABLE_WINDOW_S * scale, KPA_PANIC_WINDOW_S * scale)
+        return cls(float(target), KPA_STABLE_WINDOW_S * scale, KPA_PANIC_WINDOW_S * scale, knative_panic=knative_panic())
 
     def describe(self) -> Dict[str, Any]:
-        return {"mode": KPA, "target": self.target, "stable_window_s": self.stable_window,
-                "panic_window_s": self.panic_window, "panic_threshold": self.panic_threshold,
-                "max_scale_up_rate": self.max_scale_up_rate, "max_scale_down_rate": self.max_scale_down_rate,
-                "policy_time_scale": policy_time_scale()}
+        out = {"mode": KPA, "target": self.target, "stable_window_s": self.stable_window,
+               "panic_window_s": self.panic_window, "panic_threshold": self.panic_threshold,
+               "max_scale_up_rate": self.max_scale_up_rate, "max_scale_down_rate": self.max_scale_down_rate,
+               "policy_time_scale": policy_time_scale()}
+        # only when set, so a summary with the switch unset stays byte-equal to every filed one
+        if self.knative_panic:
+            out["knative_panic"] = True
+        return out
 
 
 def pending_in_flight(pending: Any) -> int:
@@ -175,19 +194,27 @@ class KpaScaler:
         desired_stable = min(max(raw_stable, lo), hi)
         desired_panic = min(max(raw_panic, lo), hi)
 
-        over = (panic_avg / cfg.target) / max(1, ready) >= cfg.panic_threshold
+        kn = cfg.knative_panic
+        if kn:
+            over = raw_panic / max(1, ready) >= cfg.panic_threshold
+        else:
+            over = (panic_avg / cfg.target) / max(1, ready) >= cfg.panic_threshold
         entered = False
         if over:
             if st.panic_since is None:
                 st.panic_since = now
                 entered = True
             st.panic_last_over = now
-        elif st.panic_since is not None and now - st.panic_last_over >= cfg.stable_window:
+        elif st.panic_since is not None and (now - st.panic_last_over > cfg.stable_window if kn
+                                             else now - st.panic_last_over >= cfg.stable_window):
             st.panic_since = None
             st.panic_last_over = None
         panicking = st.panic_since is not None
 
-        if panicking:
+        if panicking and kn:
+            st.max_panic_pods = max(st.max_panic_pods, desired_stable, desired_panic)
+            desired = st.max_panic_pods
+        elif panicking:
             desired = max(desired_panic, st.max_panic_pods, current)
             st.max_panic_pods = desired
         else:

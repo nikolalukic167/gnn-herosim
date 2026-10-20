@@ -43,6 +43,8 @@ export WF1_RUNGS=${RUNGS_IN:-light,moderate,heavy}
 # replica-count counterfactual: R1A_QUEUE_LENGTH (the KPA target concurrency, > 0) survives the HEROSIM_* wipe above as
 # HEROSIM_QUEUE_LENGTH; unset leaves the filed behaviour (0.7 under kpa) untouched
 [[ -z "${R1A_QUEUE_LENGTH:-}" ]] || export HEROSIM_QUEUE_LENGTH="$R1A_QUEUE_LENGTH"
+# KPA conformance (ii) closed-loop sensitivity: R1A_KPA_KNATIVE_PANIC=1 survives the wipe as HEROSIM_KPA_KNATIVE_PANIC (D1-D3 aligned to Knative)
+[[ -z "${R1A_KPA_KNATIVE_PANIC:-}" ]] || export HEROSIM_KPA_KNATIVE_PANIC="$R1A_KPA_KNATIVE_PANIC"
 [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]] || export R1A_SHARD="${SLURM_ARRAY_TASK_ID}/${SLURM_ARRAY_TASK_COUNT}"
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$SELECT" --parallel "${PAR:-60}" --mem "${CELL_MEM:-8G}" \
   --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip"
