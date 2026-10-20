@@ -312,6 +312,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **HEROSIM_EXCHANGE_TCP: SCIENTIST's condition (the only other caller of the switched function) and two notes, filed before any cell (S5; descriptive, no label).** The caveat of the entries below, in the wording the expert fixed: **under the switch only the simulated charge changes; neither scheduler's placement cost nor its in-flight work estimate includes the TCP term.**
+  - **Callers of `_peer_exchange_time`: two.** `infrastructure.py` (the input stage's own charge, `record=True`, the switched path) and `snapshot_fidelity._expected_input_seconds` (`record=False`, an estimate for the fidelity replay).
+  - **The fidelity path is inactive in every cell of this study.**
+    - `snapshot_fidelity.capture` runs only when `HEROSIM_SNAPSHOT_FIDELITY=1`. The gate sets that variable only for the oracle arms (`cd_oracle`, `cd_oracle_ib0`, which also set `HEROSIM_PG_ORACLE=1`; the two plan-oracle paths in `peer_greedy_network/scheduler.py` that call `capture_batch_snapshot` are behind it) and for sealed-trigger cells (`R1A_SNAPSHOT_PLAN`, not set here).
+    - `r1a_gate.sbatch` unsets every `HEROSIM_*` and `LIVE_AUDIT_*` variable at entry, and the arms of this study (`cd_ib0_inflightfull_k100`, FL gnn `ra_gnn_eng_combfl_nosplit_k100`) set none of them.
+    - Checked per cell after the run: no summary's `env` block may carry `HEROSIM_SNAPSHOT_FIDELITY`, `HEROSIM_PG_ORACLE` or a `LIVE_AUDIT_*` variable; any that does is named.
+  - **No live scheduler estimate reaches the switched path.**
+    - The peer-greedy rule's exchange cost is `_pg_exchange_seconds` (`peer_greedy_network/scheduler.py:514-522`), which calls `_payload_transfer_time` and `peer_link_latency` directly and never `_peer_exchange_time`; `heft_network` does the same and is not an arm here.
+    - The in-flight estimate (`live_audit.inflight_full_seconds`, the `cd_ib0_inflightfull` bar) prices a task in its input stage at execution + `_approx_comm` (storage rate, no exchange), and a task past it from its realized `compute_start_time`. The charged exchange moves those start times, which is the physics changing, not the estimate pricing it.
+    - The learned arm's features (`reduced_features.py`, `partial_state_v6`) and the GNN autoscaler read the peer table and routes, never the charged term.
+  - **Note 1 (validity range).** The model is validated on 4–500 MB only (R0). It is applied to every remote transfer size, including payloads under 4 MB.
+  - **Note 2 (smoke and its twin).** The switch-on smoke cell is kept, with its md5, and disclosed. Its twin in the 288-cell grid must reproduce it field for field (R0).
+
 - 2026-10-20 — **Correction to the shaped-link entry below (S5, on PUBLISHER's and SCIENTIST's recount).** The entry states the ingress makespan rule passes "8 of 16 quotable cells within 10 %". `netns_check/table.txt` gives **9 of 16**: cellular_to_wired 2, wifi_high 3, wifi_low 4, wired_to_cellular 0. The filed line is not edited; every other number in it stands.
 
 - 2026-10-20 — **HEROSIM_EXCHANGE_TCP: implementation, acceptance R0 and gate audit (S5; descriptive, no label; the expert's decision, SCIENTIST's spec).** The switch filed in the line above, as built. Branch `s5/exchange-tcp`, off reference-physics `7cb483c5`.
