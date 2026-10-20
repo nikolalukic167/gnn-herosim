@@ -312,6 +312,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **HEROSIM_EXCHANGE_TCP grid complete: 288/288, R0 twin passes, `tcp_check.py` passes (S5; counts and checks only, no latency read).**
+  - **Counts.** Pin `e8b3f53c`, `R1A_EXCHANGE_TCP=1`; all four jobs COMPLETED, 0 failed cells: 894280 `cells_tcp_ref_mod` 48/48 (4:09), 894281 `cells_tcp_ref_heavy` 48/48 (4:08), 894282 `cells_tcp_gnn_mod` 96/96 (15:25), 894283 `cells_tcp_gnn_heavy` 96/96 (14:36). Total 288/288.
+  - **`tcp_check.py`** (md5 `fb5a932a`): 0 assertion failures (pin, `peerExchangeTcp` block present, no fidelity/oracle/`LIVE_AUDIT` env, learned-cell checkpoints equal `comb/md5_comball.json`). The failed first smoke (`anomaly/tcp_ident/smoke_on`) was excluded from the read.
+  - **R0 twin.** Smoke 894272 (summary md5 `da7422d32014fbe798218d7afb0cfeb5`) vs its grid twin cc40s19537 / g0heavy / s0 in `cells_tcp_ref_heavy`: 18 leaves differ, all provenance or wall clock (`decisionTiming.*`, `host.*`, `python_env.hostname`, `wallclock_s`, `total_rtt_plus_inference`), 0 others; `.tasks.npy`, `.tasks_bsz.npy`, `.tasks_lock.npy` byte-equal. The TCP path is deterministic.
+  - S5 has not read any paired latency result; that read is S6's, against SCIENTIST's filed rules.
+
 - 2026-10-20 — **HEROSIM_EXCHANGE_TCP: smoke cell at the TCP pin `e8b3f53c`, kept and disclosed; grid launch (S5; descriptive, no label; filed before the first grid cell).**
   - **Smoke (switch on).** cc40s19537 / g0heavy / `cd_ib0_inflightfull_k100` s0, `R1A_EXCHANGE_TCP=1`, pin `e8b3f53c8b2e1e3d8d5a586064fc4f15b39b2e50`, launcher `anomaly/tcp_ident.sh` (md5 `558ff0c0`), job 894272, `anomaly/tcp_ident/smoke_on_e8b3f53c`. The gate check passes: the summary carries `peerExchangeTcp` (`model` slow_start_v1, `mss` 1448, `frame` 1514, `initcwnd_segments` 10, `per_partner` true, `transfers` 26,368, `extra_seconds` 19,839.6), `code.commit` is the pin and clean, and `env` has no `HEROSIM_SNAPSHOT_FIDELITY`, `HEROSIM_PG_ORACLE` or `LIVE_AUDIT_*` variable.
     - Summary md5 `da7422d32014fbe798218d7afb0cfeb5`; `.tasks.npy` `11407f69688e68b9ad9df1ed5d9bab4a`, `.tasks_bsz.npy` `7dcfa6b10b69a928f6d69628c2249f29`, `.tasks_lock.npy` `7481c27e46671c62ae56225a23f0cad7`.
