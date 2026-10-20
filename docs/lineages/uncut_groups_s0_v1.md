@@ -10,6 +10,7 @@
 - **Per-term latency breakdown (2026-10-19; descriptive, no label; Record):** the FL gnn's gain over `cd_ib0_inflightfull` is peer-exchange time (Δ −0.18 to −0.70 s per task, 12/12 topologies, gate and size 64 at both rungs), paid for in scheduler wait, residual queue and lock wait; its co-location share is *lower* than the bar's, so the saving is not more co-located pairs.
 - **FL gnn s3–6 at 64 servers (2026-10-19; descriptive, no label, no registration; Record):** 768 cells (`size64/cells_learned_s36`), the four conf2 `-final.pt`, `_k100` and `_kr`, topologies 30129–30140; cell list filed (md5 `cb0b2c39…`) before submission; read filed: seeds 3–6 beat the bar in all four tests under both charges (heavy whole −9.07 % `_k100`, −7.67 % `_kr`, 12/12), descriptive, no verdict.
 - **FL + λ and twin decision-cost pins (2026-10-20; Record):** P7 `91269ec0` (FL + λ GNN and MLP w, on G8d) and P7b `f8a55ff0` (twin w, on P7) filed with the real serving check; the FL + λ cells read at the frozen P8.1 reader with `--w-pins 91269ec0`; the twin's read needs P9, which must admit the twin kind on the chain to P7b. No label changes.
+- **Heavy < moderate, additions (2026-10-20; descriptive, no label; Record):** after 360 s heavy is faster than moderate at both 24 and 64 servers (bar −1.04 / −0.76 s, 12/12); the heavy lock-wait rise (+0.29 / +0.98 s whole) is almost all in the first 360 s (+0.025 / +0.019 s after). FL gnn saves exchange by cheaper, mostly non-cellular transfers, with lower co-location than the bar.
 - **Partner structure (2026-10-20; Record):** NO-TREND. FL gnn vs FL MLP stays near −2 % (moderate whole) and −3 % (after-360) at k = 1, 2, 4 and 8 partners; Page Holm .851 / .586. Read through a symlink view of the partners tree (layout mismatch, disclosed).
 - **FL size-128 F1 (2026-10-20; Record):** NOT-CONFIRMED (MIXED under both charges). At 128 servers FL beats the bar −19.0 % moderate whole, −46.4 % moderate after-360 and −27.9 % heavy after-360 (12/12), but is +4.7 % slower at heavy whole (0/12, Holm .002; seed 1 +12.3 %). The loss is in the opening and is there at k = 0 too (+6.7 %), so it is not the decision charge. F2 (FL gnn vs FL MLP): DIRECTION-ONLY.
 - **FL MP-OFF twin primary read (2026-10-20; Record):** TIE under both charges. FL gnn vs its MP-OFF twin: medians −0.9 to +0.5 %, one test of eight Holm < .025 (heavy whole `_k100`, −0.93 %); seed 1 is slower than its twin there and seed 2 faster. No message-passing claim. Secondary (descriptive): the twin is ahead of FL MLP in direction on all 8 rows, and at 64 servers FL gnn leads its twin at moderate (−1.8 / −2.4 %) but trails at heavy (+3.1 / +1.8 %).
@@ -308,6 +309,36 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **Heavy < moderate latency, three additions (descriptive, no label).** These read only filed cells and change no filed label.
+  - **Base.** The expert's first read is `/share/nikola.lukic/uncut_groups/load_anomaly.py` (md5 `bb375fc5`), output `anomaly/load_anomaly.txt` (md5 `f90e365d`).
+    - It covers the bar `cd_ib0_inflightfull_k100` s0 and FL gnn `ra_gnn_eng_combfl_nosplit_k100` s1–2.
+    - Cells: `comb/cells_bar_g8` and `comb/cells_comb_fl` (24 servers, 19537–19548); `size64/cells_bar` and `size64/cells_learned` (64 servers, 30129–30140).
+    - Bar at 24 servers, heavy − moderate per task: exchange −0.81 s, cold −0.09 s, lock +0.29 s; replicas alive 41 → 56 (time mean); co-location 0.66 → 0.78; cellular transfers per task 0.42 → 0.26.
+    - SCIENTIST accepted that reading and asked for (a)–(c), from the same cells.
+  - **How it was read.** S6, `uncut_groups_s0_v1/anomaly/load_anomaly_ext.py` (md5 `dc27be18`, wrapper `load_anomaly_ext.sh` `067ddec9`), job 889444 (os-cpu-slurm-12, 0:0, 12 s; it read about 2 GB of sidecars, so it did not run on the login node).
+    - Output `anomaly/load_anomaly_ext.txt`, md5 `7ccb4366e3a5b75b253a35da5a625240`.
+    - Same means as the base: 12 topologies × 4 windows, FL gnn the mean of s1 and s2. Wilcoxon over 12 paired topologies. The whole-run elapsed and lock rows reproduce the base file.
+    - Checks that hold in every cell: the sidecar rows equal `num_tasks`; the sidecar lock mean equals the summary's `lock_wait.mean`; the after-360 task count equals `steady_state.after_360s.n`.
+  - **(a) After 360 s.** Heavy − moderate (n/12 = topologies with heavy < moderate).
+    - Elapsed comes from `steady_state.after_360s`. Lock wait comes from the cells' filed per-task `.tasks_bsz.npy` / `.tasks_lock.npy` sidecars, not the summary.
+    - 24 servers, bar: elapsed −0.58 s whole → **−1.04 s after-360** (12/12); lock +0.29 s whole → **+0.025 s after-360** (2/12, p .009).
+    - 24 servers, FL gnn: elapsed −0.47 → −0.92 s; lock +0.30 → +0.020 s.
+    - 64 servers, bar: elapsed **+0.60 s whole (0/12) → −0.76 s after-360 (12/12)**; lock +0.98 → +0.019 s.
+    - 64 servers, FL gnn: elapsed +1.08 → −0.45 s; lock +1.26 → +0.029 s.
+    - So after 360 s heavy is faster than moderate at both sizes. Almost all of the lock-wait rise sits in the first 360 s, which hold 4.4 / 9.7 % of tasks (moderate / heavy) at 24 servers and 10.9 / 25.2 % at 64.
+    - **Cannot be split from filed data:** queue wait and residual, propagation, pull, cold, rendezvous, exchange, exec, transfers and seconds per transfer, the cellular terms, co-location, scale-ups and cold-start %. They are whole-run aggregates in the summary, and the sidecars carry no per-task column for them.
+  - **(b) Share of run time at the replica cap** (120 at 24 servers, 319 at 64), from `replica_count_series`.
+    - Fraction of the 120 uniform grid points at or above the cap; the grid step is 78 s (moderate) and 33 s (heavy) at 24 servers, 30 s and 13 s at 64.
+    - 24 servers: bar 2.4 % → 7.5 % whole, 1.4 → 2.5 % after-360; FL gnn 2.5 → 8.0 % and 1.3 → 3.1 %.
+    - 64 servers: bar 3.6 → 11.8 % whole, 0.00 → 0.02 % after-360; FL gnn 3.3 → 11.2 % and 0.04 → 0.19 %.
+    - The cap is touched mostly in the opening at both rungs.
+  - **(c) FL gnn − bar, paired per topology** (n/12 = topologies with gnn < bar).
+    - Cellular transfers per task: 24 servers −0.23 moderate / −0.14 heavy; 64 servers −0.37 / −0.22 (all 12/12).
+    - Cellular share of exchange seconds: 0.75 → 0.39 moderate and 0.75 → 0.39 heavy at 24 servers; 0.77 → 0.12 and 0.72 → 0.14 at 64 (12/12).
+    - Seconds per transfer: −0.44 / −0.35 s at 24 servers; −0.79 / −0.64 s at 64 (12/12).
+    - FL gnn **co-locates less** than the bar. Co-location share: −0.033 moderate (11/12) and −0.017 heavy (9/12, p .092) at 24 servers; −0.104 (12/12) and −0.040 (11/12) at 64.
+    - FL gnn **moves more transfers per task**: +0.10 / +0.05 at 24 servers (1/12, 3/12); +0.30 / +0.12 at 64 (0/12, 1/12).
+    - Its exchange saving is cheaper transfers, mostly off cellular links, not fewer of them.
 - 2026-10-20 — **Partner structure, primary read filed: NO-TREND.** FL gnn's lead over FL MLP does not grow with the partner count. Moderate medians at k = 1 / 2 / 4 / 8 are −2.11 / −2.20 / −1.72 / −2.21 % (whole) and −3.04 / −2.58 / −2.96 / −2.67 % (after-360); Page's L Holm .851 and .586. The read is not VOID: all three structure checks hold. The label stands as read; it changes no filed label.
   - **How it was read.** S6, at the frozen P11 reader `bd00b187` (blob `b87ca2d9`), after size-128's secondary merged at `e286ac18`. On 30176–30187 (sha256 `dd359919…`), topologies already read in the exchange study.
     - Mode flags: `--confirm-degree-trend --stage primary --deg-root partners/deg_view`.
