@@ -342,7 +342,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - In both cells the only differences are S4's new fields (`bytes` per class pair, `peerExchangeOverlap`) and provenance or wall clock (`code`, `host`, `python_env`, `wallclock_s`, `decisionTiming`, `total_rtt_plus_inference`).
   - **Grid launch.** `knp_grid.sh` (md5 `dfc029f1`), at `90b6afe5`, `R1A_KPA_KNATIVE_PANIC=1`.
     - One exclusive node per root, on S6's nodes os-cpu-slurm-18, 19, 20 and 22 (split agreed with S4; disjoint from S4's; S6 holds at most 6 queued jobs, combined queue ≤ 44).
-    - Jobs: ref_mod 891683 (node 19), ref_heavy 891684 (20), gnn_mod 891685 (18), gnn_heavy 891686 (22).
+    - Jobs: ref_mod 891683 (node 19) and ref_heavy 891684 (node 20); both COMPLETED, 48/48 cells each.
+    - gnn_mod and gnn_heavy were first submitted as 891685 (node 18) and 891686 (node 22) and waited behind other users' jobs.
+      - At the expert's request, S6 cancelled those two jobs while they were still pending. No cell had run and neither root existed.
+      - They were resubmitted on the then-idle nodes 19 and 20 (S4 leaves them to S6): gnn_mod 893868 (node 19), gnn_heavy 893869 (node 20).
+      - Launcher `knp_grid_gnn.sh` (md5 `e13e64c9`): the two FL gnn roots of `knp_grid.sh`, unchanged.
+      - The job ids changed; the cells did not.
   - **Checkpoints the learned cells load** (SCIENTIST's addition).
     - `env.GNN_MODEL_PATH` is the staged `comb/in_comball/models/uncut-comb-fl-gnn-eng-seed{1,2}.pt`. Its md5s equal `comb/md5_comball.json`: s1 `a670eb0c67577bcb63785f514bb63534`, s2 `78c09cc0daf315587dcf6c9c5c18aa28`. Contract sidecars: s1 `e9faf416`, s2 `a582b3ea`, equal to the file's provenance.
     - Checked on the staged files, and on the shared-pin FL identity cell's `GNN_MODEL_PATH` (s1).
