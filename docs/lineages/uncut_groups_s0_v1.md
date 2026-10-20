@@ -355,7 +355,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - **No contrast between arms in different physics states.**
   - **Reader.** S6 extends `tcp_arms_read.py` with the new state and roots, keeps `--size`, and freezes and hashes it before any fair-share cell is read. Each size is read once, when complete.
   - **SCIENTIST's prediction (internal; not for the paper; low confidence, since this physics has never run):**
-    1. Exchange per task rises for every arm at every size, relative to TCP only at 24, by ≥ 20 % for the bar at moderate. The filed overlap telemetry shows 86–89 % of the bar's transfers overlap another on the sender's out-link.
+    1. Exchange per task rises for every arm at every size, relative to TCP only at 24, by ≥ 20 % for the bar at moderate. The filed overlap telemetry shows 87 % (moderate) and 89 % (heavy) of the bar's transfers at 24 servers overlap another on the sender's out-link (`dose_read.txt` `0e38de0c`).
     2. F-bar at moderate: FL gnn stays ahead at 24 and 64 (median < 0, ≥ 9/12) on both statistics. P ≈ 0.6.
     3. The direction of the off → fair-share shift of F-bar is not predicted. FL gnn transfers more often but puts fewer seconds on cellular (39 % vs 75 % of exchange seconds at 24), and fair share penalises the slow shared links most.
     4. F-mlp: shift within ±2 pp on every test at every size. P ≈ 0.55.
