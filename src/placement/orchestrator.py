@@ -522,6 +522,8 @@ class Orchestrator:
                           "accessClasses": fabric.access_classes}
                 if fabric.exchange_tcp is not None:
                     fields["peerExchangeTcp"] = fabric.exchange_tcp
+                if fabric.exchange_fairshare is not None:
+                    fields["peerExchangeFairshare"] = fabric.exchange_fairshare
                 return fields
         return {}
 
