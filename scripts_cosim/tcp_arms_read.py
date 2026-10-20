@@ -2,7 +2,7 @@
 """TCP-on arm study read (uncut_groups_s0_v1, HEROSIM_EXCHANGE_TCP; registration scientist/tcp-arms-reg 80ad5181, cell list
 tcp_arms_cells.txt md5 3e94b9af3bcba01dbe87bfec79fce174). Extends the filed tcp_read (c4caac08) to every arm and size. Descriptive, no label.
 
-Sizes: 24 (19537-19548), 64 (30129-30140), 128 (30241-30252). Arms: bar cd_ib0_inflightfull_k100 s0; FL gnn, FL MLP, twin (all combfl, _k100) s1-2.
+Sizes: 24 (19537-19548), 64 (30129-30140), 128 (30241-30252); one size per run (--size), each read once, when its grid is complete (Holm families are per size). Arms: bar cd_ib0_inflightfull_k100 s0; FL gnn, FL MLP, twin (all combfl, _k100) s1-2.
 Modes: "off" (switch unset; filed cells at their own pins, new twin cells at e8b3f53c) and "on" (R1A_EXCHANGE_TCP=1 at e8b3f53c). The mode is a parameter of
 every function (MODES, ROOTS); a third exchange mode adds roots and nothing else. Nothing here is built for it yet.
 
@@ -19,9 +19,11 @@ opened); _k100 only; code.commit is the root's pin and clean; servers = size; pe
 (on) or absent (off); scaleOut.target 0.7 and no knative_panic; no HEROSIM_SNAPSHOT_FIDELITY / PG_ORACLE / KPA_KNATIVE_PANIC / LIVE_AUDIT_* in env; learned
 cells' GNN_MODEL_PATH basename and file md5 against comb/md5_comball.json (gnn, MLP) or fl3/md5_twin.json (twin). Latency keys only; never
 total_rtt_plus_inference. Output is written once. Prediction items 1-5 of the registration are evaluated mechanically at the end, not labelled."""
+import argparse
 import hashlib
 import json
 import os
+import re
 import statistics as st
 import sys
 
@@ -114,14 +116,22 @@ def grid(cfg):
     return out
 
 
+def list_size(root):
+    """24, 64 or 128 from a list root such as tcp_arms/on64, tcp_arms/off128 or tcp_arms/ident24."""
+    return int(re.search(r"(\d+)$", root).group(1))
+
+
 def check_list(cfg, cells_file, expect):
-    """The tcp_arms cells of the grid equal the registered list (identity entries excluded and never opened)."""
+    """The tcp_arms cells of the grid equal the registered list's entries of the sizes in cfg (identity entries excluded and never opened). The whole list
+    must still match the registered md5."""
     got = hashlib.md5(open(cells_file, "rb").read()).hexdigest()
     if expect and got != expect:
         raise SystemExit(f"FAIL LOUD: cell list md5 {got}, want {expect}")
     listed, ident = set(), 0
     for line in open(cells_file).read().splitlines():
         root, name, flag, *rest = line.split("\t")
+        if list_size(root) not in cfg["topos"]:
+            continue
         if root.startswith("tcp_arms/ident"):
             ident += 1
             continue
@@ -377,17 +387,22 @@ def report(cfg, res, hl, at, nlist, ncells):
 
 
 def main(argv):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cells")
+    ap.add_argument("--size", type=int, required=True, choices=sorted(TOPOS))
+    ap.add_argument("--out")
+    a = ap.parse_args(argv[1:])
     U = os.environ.get("TCP_ARMS_U", "/share/nikola.lukic/uncut_groups")
-    cells_file = argv[1] if len(argv) > 1 else os.path.join(HERE, "..", "docs/lineages/uncut_groups_s0_v1/anomaly/tcp_arms_cells.txt")
-    out = argv[2] if len(argv) > 2 else f"{U}/anomaly/tcp_arms_read.txt"
+    out = a.out or f"{U}/anomaly/tcp_arms_read_{a.size}.txt"
     cfg = make_cfg(U)
-    nlist = check_list(cfg, cells_file, CELLS_MD5)
+    cfg["topos"] = {a.size: TOPOS[a.size]}
+    nlist = check_list(cfg, a.cells, CELLS_MD5)
     cells, rows, ncells = load_all(cfg, Ckpt(cfg))
     res = build(cfg, cells, rows)
     txt = report(cfg, res, health(cfg, cells, rows), arm_table(cfg, rows), nlist, ncells)
     print(txt)
     if os.path.exists(out):
-        raise SystemExit("FAIL LOUD: output exists, written once")
+        raise SystemExit("FAIL LOUD: output exists, each size is read once")
     open(out + ".partial", "w").write(txt + "\n")
     os.replace(out + ".partial", out)
 
