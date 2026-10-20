@@ -230,6 +230,9 @@ class NetworkFabric:
             name: str(spec["class"]) for name, spec in (link_topology.get("access_classes") or {}).items()
         }
         self.exchange_by_class: Dict[str, Dict[str, float]] = {}
+        # Per sending node (its access link): (start, end, class pair) of every peer exchange it sends. Telemetry
+        # only; exchanges are charged size/bottleneck + latency with no shared pipe, and this is what exposes it.
+        self.exchange_intervals: Dict[str, List[Tuple[float, float, str]]] = {}
 
     @property
     def link_topology(self) -> Mapping[str, Any]:
@@ -256,12 +259,70 @@ class NetworkFabric:
             hops.append((key, bandwidth))
         return hops
 
-    def record_exchange(self, node_a: str, node_b: str, seconds: float) -> None:
-        """Add one peer exchange to its unordered class pair, e.g. ``cellular+wired``."""
+    def record_exchange(self, node_a: str, node_b: str, seconds: float, bytes_: Optional[float] = None,
+                        sender: Optional[str] = None, start: Optional[float] = None) -> None:
+        """Add one peer exchange to its unordered class pair, e.g. ``cellular+wired``. ``bytes_`` is the payload the
+        caller charged; ``sender`` and ``start`` (the sending node and the exchange's start time) feed
+        `exchange_overlap`. Each is optional and adds a key or an interval only when given."""
         pair = "+".join(sorted((self.access_classes[node_a], self.access_classes[node_b])))
         slot = self.exchange_by_class.setdefault(pair, {"seconds": 0.0, "transfers": 0})
         slot["seconds"] += float(seconds)
         slot["transfers"] += 1
+        if bytes_ is not None:
+            slot["bytes"] = slot.get("bytes", 0.0) + float(bytes_)
+        if sender is not None and start is not None:
+            self.exchange_intervals.setdefault(sender, []).append((float(start), float(start) + float(seconds), pair))
+
+    def exchange_overlap(self) -> Dict[str, Any]:
+        """Share of exchange seconds that run concurrently with another exchange leaving the same source access
+        link, and the share of transfers with any such overlap (open intervals: touching ends do not overlap).
+        ``union_over_sum`` is sum over sources of the union length over the sum of lengths."""
+        total = overlapped = union = 0.0
+        n = n_over = 0
+        by: Dict[str, Dict[str, float]] = {}
+        for items in self.exchange_intervals.values():
+            events = []
+            for i, (a, b, pair) in enumerate(items):
+                if b > a:
+                    events.append((b, 0, i))
+                    events.append((a, 1, i))
+            events.sort()
+            active: Dict[int, None] = {}
+            flagged = set()
+            prev = None
+            for t, kind, i in events:
+                if prev is not None and active and t > prev:
+                    seg = t - prev
+                    union += seg
+                    if len(active) >= 2:
+                        for j in active:
+                            slot = by.setdefault(items[j][2], {"seconds": 0.0, "overlap_seconds": 0.0, "transfers": 0,
+                                                               "transfers_with_overlap": 0})
+                            slot["overlap_seconds"] += seg
+                        overlapped += seg * len(active)
+                if kind == 0:
+                    active.pop(i, None)
+                else:
+                    if active:
+                        flagged.add(i)
+                        flagged.update(active)
+                    active[i] = None
+                prev = t
+            for i, (a, b, pair) in enumerate(items):
+                slot = by.setdefault(pair, {"seconds": 0.0, "overlap_seconds": 0.0, "transfers": 0,
+                                            "transfers_with_overlap": 0})
+                slot["seconds"] += b - a
+                slot["transfers"] += 1
+                slot["transfers_with_overlap"] += i in flagged
+                total += b - a
+                n += 1
+                n_over += i in flagged
+        return {"overlap_seconds_share": overlapped / total if total else 0.0,
+                "transfers_with_overlap_share": n_over / n if n else 0.0,
+                "union_over_sum": union / total if total else 1.0,
+                "exchange_seconds": total, "transfers": n,
+                "by_class": {k: {**v, "overlap_seconds_share": v["overlap_seconds"] / v["seconds"] if v["seconds"] else 0.0}
+                             for k, v in sorted(by.items())}}
 
     def has_route(self, src: str, dst: str) -> bool:
         try:
