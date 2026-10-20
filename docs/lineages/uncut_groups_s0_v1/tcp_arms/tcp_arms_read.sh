@@ -1,4 +1,5 @@
 #!/bin/bash
+# usage: sbatch --export=ALL tcp_arms_read.sh <24|64|128>   (one size per run)
 #SBATCH --job-name=s6-tcparms-read
 #SBATCH --partition=CPU-amd
 #SBATCH --cpus-per-task=1
@@ -7,8 +8,9 @@
 #SBATCH --exclude=os-cpu-slurm-[21,15,13,14,16,10,17]
 #SBATCH --output=/share/nikola.lukic/uncut_groups/anomaly/s6-tcparms-read-%j.out
 set -uo pipefail
+SIZE=${1:?size 24, 64 or 128}
 eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn
 cd $HOME/s6_scripts/tcp_arms
-[[ $(md5sum < tcp_arms_read.py | cut -c1-32) == c0d46bca0a04b89ab5934e9ae105b647 ]] || { echo "FAIL LOUD: tcp_arms_read.py md5"; exit 1; }
-python3 tcp_arms_read.py tcp_arms_cells.txt || { echo "read FAILED"; exit 1; }
-echo "[read] tcp_arms_read.txt md5 $(md5sum < /share/nikola.lukic/uncut_groups/anomaly/tcp_arms_read.txt | cut -c1-32)"
+[[ $(md5sum < tcp_arms_read.py | cut -c1-32) == 5e34b83eb944c3768a9b2fb27d02708c ]] || { echo "FAIL LOUD: tcp_arms_read.py md5"; exit 1; }
+python3 tcp_arms_read.py tcp_arms_cells.txt --size $SIZE || { echo "read $SIZE FAILED"; exit 1; }
+echo "[read $SIZE] tcp_arms_read_${SIZE}.txt md5 $(md5sum < /share/nikola.lukic/uncut_groups/anomaly/tcp_arms_read_${SIZE}.txt | cut -c1-32)"

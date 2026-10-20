@@ -313,6 +313,16 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **TCP-on arm study: the reader and the identity checker gain a per-size mode (`--size`) and are frozen again, filed before any cell of the study is read (S6; SCIENTIST's audit of the first freeze; descriptive, no label).** This supersedes the files of the line below; their blobs there were never run on a cell. Branch `s6/tcp-arms-reader`.
+  - **Change.** `tcp_arms_read.py` and `tcp_arms_ident.py` take a required `--size {24,64,128}`. The cell list must still match md5 `3e94b9af` as a whole; the grid and the list's entries are restricted to that size. Output `anomaly/tcp_arms_read_<size>.txt` / `anomaly/tcp_arms_ident_check_<size>.txt`, written once. The prediction items print for that size only. The Holm families are per size, so a size read on its own gives the same statistics as in a joint read.
+  - **Rules.** Each size is read exactly once, when that size's grid is complete: a missing or failed cell fails the read, and a second run on a size fails because its output exists. A size's identity cells (24: 1; 64: 4; 128: 3) go through `tcp_arms_ident.py --size` and pass before that size's grid is read. The wrappers take the size as their argument.
+  - **Files (git blob / md5).**
+    - `scripts_cosim/tcp_arms_read.py`: blob `751ab8a6d4d972ad91e67028abcc0d98196acf75`, md5 `5e34b83eb944c3768a9b2fb27d02708c`.
+    - `scripts_cosim/tcp_arms_ident.py`: blob `c2783d735a7b691a1cd96d0f08b36ba36d8fb36f`, md5 `84164f40a6431c56985fc9ca01af71ad`.
+    - `tests/test_tcp_arms_read.py` (24 tests): blob `4a399ada1bc8bed67244e736085b4c6d567fd36c`.
+    - Wrappers `tcp_arms/tcp_arms_read.sh` (md5 `2685237a`) and `tcp_arms/tcp_arms_ident.sh` (md5 `39160cd7`); datalab copies in `~/s6_scripts/tcp_arms/` with the same md5s.
+  - **Everything else stands** as in the line below: the primary is the frozen `contrast`, window-mean is a secondary column, nine Holm families, the per-cell asserts, collapse against the same-mode bar, the two admitted rerun-only fields. SCIENTIST audited the first freeze (blobs `2a7edf0a`, `a466f07f` from `51fb991b`, md5s `c0d46bca`, `374d637d`) and accepted both decisions.
+  - **Open on the identity cells (SCIENTIST).** The 128 bar identity cell S5 reported is not at `tcp_arms/ident128` (there is a `smoke128`); it must be at the listed path and pass `tcp_arms_ident.py --size 128`, or be rerun there, before the 128 grid is read. The 24 FL MLP cell in `ident24` goes through the checker before the 24 grid is read.
 - 2026-10-20 — **TCP-on arm study: the reader and the identity-cell checker are frozen, filed before any cell of the study is read (S6; descriptive, no label).** Branch `s6/tcp-arms-reader`, off the registration merge `7a30f2fb`; nothing in `src/` changes.
   - **Files (git blob / md5).**
     - `scripts_cosim/tcp_arms_read.py`: blob `2a7edf0a495ef90451e8742e74247241f74ef561`, md5 `c0d46bca0a04b89ab5934e9ae105b647`.

@@ -6,7 +6,8 @@ tasks_lock) byte-equal, and every summary field of the filed cell equal in the r
 (code, host, python_env, env_fingerprint, wallclock_s, decisionTiming, total_rtt_plus_inference). A field only the rerun carries must be one of the two
 named additions (peerExchangeOverlap; `bytes` in a peerExchangeByAccessClass pair); anything else fails loud (unknown is not a pass). A field only the
 filed cell carries fails. The rerun must be at e8b3f53c, clean, with no peerExchangeTcp block and no TCP switch in its env, and, for a learned cell, the
-served checkpoint's md5 (comb/md5_comball.json or fl3/md5_twin.json). This script opens only the identity cells and their filed twins. A size passes only if all its cells do."""
+served checkpoint's md5 (comb/md5_comball.json or fl3/md5_twin.json). This script opens only the identity cells and their filed twins. A size passes only if all its cells do. One size per run (--size); the ident cells of a size go through this before that size's grid is read."""
+import argparse
 import hashlib
 import json
 import os
@@ -83,30 +84,35 @@ def judge(new_stem, old_stem, md5s, ckpt_seen):
 
 
 def main(argv):
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cells")
+    ap.add_argument("--size", type=int, required=True, choices=(24, 64, 128))
+    ap.add_argument("--out")
+    a = ap.parse_args(argv[1:])
     U = os.environ.get("TCP_ARMS_U", "/share/nikola.lukic/uncut_groups")
-    cells_file = argv[1]
-    out_path = argv[2] if len(argv) > 2 else f"{U}/anomaly/tcp_arms_ident_check.txt"
-    if hashlib.md5(open(cells_file, "rb").read()).hexdigest() != CELLS_MD5:
+    out_path = a.out or f"{U}/anomaly/tcp_arms_ident_check_{a.size}.txt"
+    if hashlib.md5(open(a.cells, "rb").read()).hexdigest() != CELLS_MD5:
         raise SystemExit("FAIL LOUD: cell list md5")
     md5s = {**json.load(open(f"{U}/comb/md5_comball.json")), **json.load(open(f"{U}/fl3/md5_twin.json"))}
-    rows = [ln.split("\t") for ln in open(cells_file).read().splitlines() if ln.startswith("tcp_arms/ident")]
-    assert len(rows) == 8, f"FAIL LOUD: {len(rows)} identity entries, want 8"
-    L, seen, size_ok = [__doc__.strip(), ""], {}, {}
+    rows = [ln.split("\t") for ln in open(a.cells).read().splitlines() if ln.startswith(f"tcp_arms/ident{a.size}\t")]
+    want = {24: 1, 64: 4, 128: 3}[a.size]
+    if len(rows) != want:
+        raise SystemExit(f"FAIL LOUD: {len(rows)} identity entries at {a.size}, want {want}")
+    L, seen, ok = [__doc__.strip(), ""], {}, True
     for root, name, flag, vs in rows:
-        assert flag == "TCP=0" and vs.startswith("vs "), f"FAIL LOUD: {root} {name} {flag} {vs}"
-        size = root.replace("tcp_arms/ident", "")
+        if flag != "TCP=0" or not vs.startswith("vs "):
+            raise SystemExit(f"FAIL LOUD: {root} {name} {flag} {vs}")
         why, news, arrs = judge(f"{U}/anomaly/{root}/{name}", f"{U}/{vs[3:]}/{name}", md5s, seen)
-        size_ok[size] = size_ok.get(size, True) and not why
-        L.append(f"  {'PASS' if not why else 'FAIL'}  {size:>3s}  {name}  vs {vs[3:]}  rerun-only fields {news}  arrays {arrs}" + (f"  WHY {why}" if why else ""))
-    for size, ok in size_ok.items():
-        L.append(f"=== size {size}: {'PASS' if ok else 'FAIL, stop this size'}")
+        ok = ok and not why
+        L.append(f"  {'PASS' if not why else 'FAIL'}  {a.size:>3d}  {name}  vs {vs[3:]}  rerun-only fields {news}  arrays {arrs}" + (f"  WHY {why}" if why else ""))
+    L.append(f"=== size {a.size}: {'PASS' if ok else 'FAIL, stop this size'}")
     txt = "\n".join(L)
     print(txt)
     if os.path.exists(out_path):
         raise SystemExit("FAIL LOUD: output exists, written once")
     open(out_path + ".partial", "w").write(txt + "\n")
     os.replace(out_path + ".partial", out_path)
-    if not all(size_ok.values()):
+    if not ok:
         raise SystemExit(1)
 
 
