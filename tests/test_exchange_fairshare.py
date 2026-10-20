@@ -21,7 +21,7 @@ sys.path.insert(0, str(REPO_ROOT / "tests"))
 
 from src.placement.infrastructure import Platform  # noqa: E402
 from src.placement.network_fabric import (  # noqa: E402
-    FairShare, NetworkFabric, TCP_FRAME, TCP_MSS, exchange_fairshare_enabled, exchange_fairshare_partners, tcp_startup_and_rest,
+    FairShare, NetworkFabric, exchange_fairshare_enabled, exchange_fairshare_partners, tcp_startup_delay,
     tcp_transfer,
 )
 from test_peer_exchange_cost import FakeNode, FakeOrchestrator, FakeTask  # noqa: E402
@@ -95,12 +95,13 @@ def test_goodput_scale_and_determinism():
     assert run_flows(specs)[0] == run_flows(specs)[0]
 
 
-def test_tcp_split_is_exact():
-    for bn in (4.0, 7.2, 13.5, 75.0, 117.0):
-        for lat in (0.01, 0.054, 0.09):
-            for size in (0.5 * MiB, 4 * MiB, 50 * MiB, 500 * MiB):
-                b, rest = tcp_startup_and_rest(size, bn, lat)
-                assert b + rest / (bn * MiB / (TCP_FRAME / TCP_MSS)) == pytest.approx(tcp_transfer(size, bn, lat), abs=1e-9)
+def test_tcp_startup_delay_is_exact_nonnegative_and_additive():
+    # A1 amendment "ramp as an additive start-up delay; all bytes shared": delay + size / bottleneck == tcp_transfer, a lone flow pays exactly that
+    for bn in (4.0, 7.2, 13.5, 75.0, 117.0, 1000.0):
+        for lat in (0.0005, 0.01, 0.054, 0.09):
+            for size in (0.01 * MiB, 0.5 * MiB, 4 * MiB, 50 * MiB, 500 * MiB):
+                d = tcp_startup_delay(size, bn, lat)
+                assert d >= 0 and d + size / (bn * MiB) == pytest.approx(tcp_transfer(size, bn, lat), abs=1e-9)
 
 
 @pytest.mark.parametrize("bad", ["", "2", "yes", "true", "-1"])
@@ -220,21 +221,28 @@ def test_flows_of_different_tasks_share_a_link_under_serial(peer_exchange_on, mo
     assert fabric.exchange_fairshare["peak_flows_on_a_link"] == 2 and fabric.exchange_fairshare["shared_transfers"] == 2
 
 
-def test_composes_with_tcp_startup_per_transfer_and_shared_rest(peer_exchange_on, monkeypatch):
-    monkeypatch.setenv("HEROSIM_EXCHANGE_TCP", "1")
+def test_composes_with_tcp_as_an_additive_startup_delay_and_all_bytes_shared(peer_exchange_on, monkeypatch):
     payload, lat = 50 * MiB, 0.05
+    monkeypatch.setenv("HEROSIM_EXCHANGE_TCP", "1")
     env, fabric, platform, t = world(monkeypatch, [payload])
-    got, flows = exchange(env, platform, t)
-    assert got == pytest.approx(tcp_transfer(payload, 10.0, lat) + lat)   # one flow = the TCP charge
+    got_tcp, flows = exchange(env, platform, t)
+    assert got_tcp == pytest.approx(tcp_transfer(payload, 10.0, lat) + lat)   # one flow = the TCP charge
+    assert flows[0]["b"] == pytest.approx(tcp_startup_delay(payload, 10.0, lat)) and flows[0]["rest"] == payload
     env, fabric, platform, t = world(monkeypatch, [payload] * 2)
     got_serial, _ = exchange(env, platform, t)
-    assert got_serial == pytest.approx(2 * got)                          # serial partners: one after another, nothing shared
+    assert got_serial == pytest.approx(2 * got_tcp)                           # serial partners: one after another, nothing shared
     monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS", "concurrent")
     env, fabric, platform, t = world(monkeypatch, [payload] * 2)
     got2, _ = exchange(env, platform, t)
-    b, rest = tcp_startup_and_rest(payload, 10.0, lat)
-    assert got2 == pytest.approx(b + 2 * rest / (10 * MiB * TCP_MSS / TCP_FRAME) + lat)
+    d = tcp_startup_delay(payload, 10.0, lat)
+    assert got2 == pytest.approx(d + 2 * payload / (10 * MiB) + lat)           # delay once, then ALL bytes shared
     assert fabric.exchange_tcp["transfers"] == 2
+    # A1 R1 (SCIENTIST): two simultaneous equal flows under TCP + fair share take at least as long as TCP alone, and at least as long as
+    # fair share alone
+    monkeypatch.delenv("HEROSIM_EXCHANGE_TCP")
+    env, fabric, platform, t = world(monkeypatch, [payload] * 2)
+    got_fs_only, _ = exchange(env, platform, t)
+    assert got2 >= got_tcp and got2 >= got_fs_only - 1e-9 and got_fs_only == pytest.approx(2 * payload / (10 * MiB) + lat)
 
 
 def test_co_located_partner_is_free_and_absent(peer_exchange_on, monkeypatch):
@@ -291,5 +299,5 @@ def test_netns_validation_n2_and_n4():
     qs = [r for r in V.rows() if r["quotable"]]
     assert len(qs) == 16 and {r["n"] for r in qs} == {2, 4}
     e = [abs(r["tcp_err"]) for r in qs]
-    assert statistics.median(e) <= 0.03 and max(e) <= 0.15       # filed result: median 1.0 %, max 12.0 %
+    assert statistics.median(e) <= 0.03 and max(e) <= 0.15 and sum(x <= 0.10 for x in e) == 15   # filed result: median 2.4 %, max 13.9 %, 15 of 16 within 10 %
     assert all(r["plain_err"] < 0 for r in qs)                    # without the start-up the model is faster than the measured flows
