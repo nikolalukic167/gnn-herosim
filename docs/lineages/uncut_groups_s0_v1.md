@@ -328,8 +328,9 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - The only differences: S4's new fields (`bytes` per access-class pair, `peerExchangeOverlap`), and provenance or wall clock (`code`, `host`, `python_env`, `wallclock_s`, `decisionTiming`, `total_rtt_plus_inference`, which adds the measured decision wall).
     - No `knative_panic` key in `scaleOut`.
   - **The switch is seen.** The same cell with `R1A_KPA_KNATIVE_PANIC=1`, job 889794, `kpa_conf/smoke_65db9c82_on`: `scaleOut.knative_panic` true.
-    - **Disclosed:** its numbers were seen before this prediction was written: panic ticks 9,686 → 10,597, panic entries 153 → 165, replica time mean 55.92 → 58.06, averageElapsedTime 2.070 → 2.153 s.
-    - It is a smoke cell, not data. It is deleted before the grid runs, and the grid's own cell for this identity is the one read.
+    - **Disclosed:** both S6 and SCIENTIST saw its numbers before the prediction was written: panic ticks 9,686 → 10,597, panic entries 153 → 165, replica time mean 55.92 → 58.06, averageElapsedTime 2.070 → 2.153 s.
+    - It is a smoke cell, not data. It is kept (SCIENTIST's condition), outside every grid root, at `kpa_conf/smoke_65db9c82_on`: summary md5 `aa062f48f70fc72e446444f31d62a0fc`; `.tasks.npy` `55a69182`, `.tasks_bsz.npy` `635c1488`, `.tasks_lock.npy` `c45e4639`.
+    - **R0, a determinism check:** its grid twin (cc40s19537 / g0heavy, bar, switch on, at the shared pin) must reproduce it field for field, apart from provenance and wall clock.
   - **Identity at the shared pin** (the merge of this branch; the expert names the sha): the same rerun, switch unset, plus one FL gnn cell (cc40s19537 / g0heavy / `ra_gnn_eng_combfl_nosplit_k100` s1 against `comb/cells_comb_fl`). Both results go into this line before the first grid cell.
   - **Grid** (switch set; everything else exactly as S4's 0.7 arms, which are the switch-off comparison at the same pin):
     - Gate topologies 19537–19548, windows g0–g3, `R1A_SLATE=declared_pruning_v1_uncapped`, inputs `comb/in_comball`, selection `arm1_selected.json`, split `uncut_arm1_split.json`.
@@ -342,12 +343,19 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - (R2) paired FL-vs-bar median % per rung × statistic (whole, after-360);
     - (R3) mean replicas (`replica_count_series.time_mean`) per arm × rung;
     - (R4) panic ticks (`scaleOut.panic_ticks`) per arm × rung.
-  - **Prediction** (S6's proposal; SCIENTIST confirms or replaces it before any grid cell):
-    - (R4) panic ticks rise at both rungs, for both arms;
-    - (R3) mean replicas rise at both rungs, by under 6 %;
-    - (R1) heavy < moderate after 360 s persists for the bar (the sign of heavy − moderate elapsed after-360 is unchanged, 12/12 topologies stay negative or at most one flips), and bar elapsed whole moves by under 5 % at each rung;
-    - (R2) each paired FL-vs-bar median moves by under 1.5 percentage points and keeps its sign.
-    - If R1's sign flips, the panic departures carry part of the anomaly, and the paper must say so.
+    - (R0) the smoke cell's grid twin reproduces it field for field.
+  - **S6's prediction was withdrawn**, because S6 was not blind to the smoke cell. SCIENTIST's prediction replaces it, verbatim:
+    - **PREDICTION (SCIENTIST, 2026-10-20; written after seeing the open-loop conformance result and S6's single smoke cell, cc40s19537/g0heavy bar: panic ticks 9,686 → 10,597, replica time mean 55.92 → 58.06, elapsed 2.070 → 2.153 s; that cell is disclosed and is not data):**
+      - R4: panic ticks rise at both rungs for both arms. D1 enters panic earlier.
+      - R3: mean replicas rise at both rungs, by under 6 %, and by more at moderate than at heavy for the bar. Open-loop desired was +3.3 % vs +1.8 %.
+      - R1: the bar's heavy < moderate holds, whole run and after 360 s, on at least 11 of 12 topologies with the switch on. The heavy − moderate elapsed gap (filed −0.585 s whole) changes by less than 0.15 s. No sign is predicted for the change in bar elapsed at either rung.
+      - R2: each paired FL-vs-bar median, per rung × {whole, after-360}, moves by under 1.5 pp and keeps its sign.
+      - Reading rules, fixed now:
+        - (a) If R1's sign flips, the panic departures carry part of the anomaly, and the paper says so.
+        - (b) If replicas rise and bar elapsed also rises (as in the smoke cell), "more replicas → faster" is incomplete as stated. Panic-added replicas pay image pulls and cold starts before they help, so R1 is decomposed with P and K shown, and the dose-series reading is phrased in terms of replicas alive in steady state, not replica count alone.
+        - (c) If R2 moves by 1.5 pp or more on any test, the paper's KPA disclosure gains one sentence with that number.
+    - SCIENTIST confirmed the rest of the design: rows R1–R4, 288 cells, paired Wilcoxon unadjusted, node exclusions, and S4's 0.7 arms at the same pin as the switch-off comparison.
+  - **Before any grid cell:** the full test suite passes; the identity check at the shared pin (bar and one FL gnn cell) is filed in this line.
 - 2026-10-20 — **KPA conformance check (ii): our decider follows Knative v0.50.0's except D1 (panic entry un-ceiled), D2 (panic sizing without the stable count), D3 (one-tick un-panic boundary) and D6 (Knative's binary-float ceil at exact multiples of the target), on 1,328 of 15,516 window-full ticks at heavy (8.6 %) and 4,194 of 37,436 at moderate (11.2 %); UNEXPLAINED 0; joint residual 0.** (SCIENTIST's wording; not "conforms".) Knative asks for more on 1,199 of 1,328 and 3,731 of 4,194 differing ticks; ours is about 1.8 % and 3.2 % below in summed desired. Descriptive, no label, open loop.
   - **Decision.** `KpaScaler` is not changed before submission: a change there is a physics change and would invalidate every filed cell (the expert). The paper names D1, D2, D3 and D6 as departures. A closed-loop rerun with Knative's choices applied is the only way to know their latency effect. That is a separate decision.
   - **Design and approvals.** Designed by S6; reviewed by SCIENTIST (cells, linear aggregation only, a defaults-equality row, D8 named, joint residual); accepted by the expert.
