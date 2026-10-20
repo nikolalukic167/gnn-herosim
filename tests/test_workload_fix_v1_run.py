@@ -366,3 +366,18 @@ def test_placement_wait_and_arrival_end(tmp_path):
     f.write_text(json.dumps({"events": [{"timestamp": 5.0}, {"timestamp": 40.0}, {"timestamp": 12.0}]}))
     assert arrival_end(str(f), 50.0) == {"last_arrival_s": 40.0, "end_time_s": 50.0, "end_over_last_arrival": 1.25}
     assert arrival_end(str(f), None) is None
+
+
+def _kpa_block(target):
+    return {"mode": "kpa", "target": target, "stable_window_s": 60.0, "panic_window_s": 6.0, "panic_threshold": 2.0}
+
+
+def test_kpa_scaleout_check_default_and_dose(monkeypatch):
+    G = sys.modules.get("fresh_topo_burst_v1_gate") or __import__("fresh_topo_burst_v1_gate")
+    monkeypatch.delenv("HEROSIM_QUEUE_LENGTH", raising=False)
+    assert G.kpa_scaleout_problem(_kpa_block(0.7), 1.0) is None
+    assert "not served as registered" in G.kpa_scaleout_problem(_kpa_block(0.45), 1.0)
+    monkeypatch.setenv("HEROSIM_QUEUE_LENGTH", "0.45")
+    assert G.kpa_scaleout_problem(_kpa_block(0.45), 1.0) is None
+    assert "not served as registered" in G.kpa_scaleout_problem(_kpa_block(0.7), 1.0)
+    assert "not served as registered" in G.kpa_scaleout_problem(None, 1.0)
