@@ -19,7 +19,8 @@ from src.placement.decision_timing import SIZE_BUCKETS
 
 ENV = "HEROSIM_DECISION_COST_MS"
 BUCKET_ENV = "HEROSIM_DECISION_COST_MS_BY_BUCKET"
-COUNTERS = ("sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
+S_BUCKET_ENV = "HEROSIM_DECISION_COST_MS_S_BY_BUCKET"
+COUNTERS = ("sched_plan_evals", "sched_plan_evals_s", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max")
 
 
@@ -56,6 +57,30 @@ def bucket_rates() -> Optional[Dict[str, float]]:
     if out is None or any(type(rates[t]) is bool or v < 0 for t, v in out.items()):
         raise ValueError(f"FAIL LOUD: {BUCKET_ENV} must be a JSON object of ms per plan >= 0 keyed exactly {tags}, got {raw!r}")
     return out
+
+
+def s_bucket_rates() -> Optional[Dict[str, float]]:
+    """cd_ib0_ils: ms per plan the ILS phase's whole-plan scores are charged (``sched_plan_evals_s``), by batch-size bucket; the bar's own plans keep
+    the ordinary rate. Unset: no S rate. It needs the ordinary charge on (the bar's part), else it fails loud."""
+    raw = os.environ.get(S_BUCKET_ENV, "").strip()
+    if not raw:
+        return None
+    if not enabled():
+        raise ValueError(f"FAIL LOUD: {S_BUCKET_ENV} is set but the ordinary decision charge is off; the ILS arm charges the bar's plans too")
+    tags = [tag for _hi, tag in SIZE_BUCKETS]
+    try:
+        rates = json.loads(raw)
+        ok = isinstance(rates, dict) and sorted(rates) == sorted(tags) and all(type(v) in (int, float) and v >= 0 for v in rates.values())
+    except (ValueError, TypeError):
+        ok = False
+    if not ok:
+        raise ValueError(f"FAIL LOUD: {S_BUCKET_ENV} must be a JSON object of ms per plan >= 0 keyed exactly {tags}, got {raw!r}")
+    return {tag: float(rates[tag]) for tag in tags}
+
+
+def s_rate_ms(n_tasks: int) -> float:
+    rates = s_bucket_rates()
+    return rates[bucket_of(n_tasks)] if rates is not None else 0.0
 
 
 def enabled() -> bool:
