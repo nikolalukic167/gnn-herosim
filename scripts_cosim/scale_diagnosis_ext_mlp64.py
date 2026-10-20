@@ -59,7 +59,7 @@ def main():
                 for sd in (1, 2):
                     p = f"{ROOT}/cc40s{t}__{w}{rung}__{MLP}_s{sd}.summary.json"
                     s = json.load(open(p))
-                    if s["arm"] != "ra_mlp_same_combfl_nosplit_k100" and not s["arm"].startswith("ra_mlp_same_combfl_nosplit"): raise SystemExit(f"FAIL LOUD: arm {s['arm']}")
+                    if s["arm"] != f"cc40s{t}__{w}{rung}__{MLP}_s{sd}" or s["arm_kind"] != "ra_mlp_same_combfl_nosplit": raise SystemExit(f"FAIL LOUD: arm {s['arm']} / {s['arm_kind']}")
                     if "_k100_" not in os.path.basename(p) or "_kr" in os.path.basename(p): raise SystemExit(f"FAIL LOUD: not a _k100 cell {p}")
                     if s["code"]["describe"] != PIN or s["servers"] != SERVERS or s["checkpoint_seed"] != sd: raise SystemExit(f"FAIL LOUD: provenance {p}")
                     rows.append(cell(p, SERVERS)); res.setdefault("n", []).append(p)
