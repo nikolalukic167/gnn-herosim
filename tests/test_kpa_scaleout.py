@@ -403,3 +403,81 @@ def test_a4_shared_autoscaler_flag(monkeypatch):
     monkeypatch.setenv("HEROSIM_SHARED_AUTOSCALER", "yes")
     with pytest.raises(ValueError):
         scaleout.shared_autoscaler()
+
+
+# ---------------------------------------------------------------- HEROSIM_KPA_KNATIVE_PANIC (D1-D3 aligned to Knative)
+
+KN = KpaConfig(target=0.7, stable_window=60.0, panic_window=6.0, knative_panic=True)
+
+
+def test_knative_panic_switch_is_off_by_default_and_only_described_when_on(monkeypatch):
+    monkeypatch.delenv("HEROSIM_KPA_KNATIVE_PANIC", raising=False)
+    monkeypatch.delenv("HEROSIM_POLICY_TIME_SCALE", raising=False)
+    cfg = KpaConfig.from_env(0.7)
+    assert cfg.knative_panic is False and "knative_panic" not in cfg.describe()
+    assert cfg == KpaConfig(0.7, 60.0, 6.0)
+    monkeypatch.setenv("HEROSIM_KPA_KNATIVE_PANIC", "0")
+    assert KpaConfig.from_env(0.7).knative_panic is False
+    monkeypatch.setenv("HEROSIM_KPA_KNATIVE_PANIC", "1")
+    cfg = KpaConfig.from_env(0.7)
+    assert cfg.knative_panic is True and cfg.describe()["knative_panic"] is True
+    for bad in ("2", "yes", "true"):
+        monkeypatch.setenv("HEROSIM_KPA_KNATIVE_PANIC", bad)
+        with pytest.raises(ValueError, match="HEROSIM_KPA_KNATIVE_PANIC"):
+            KpaConfig.from_env(0.7)
+
+
+def _quiet_then(s, fn, value, upto=60):
+    _feed(s, fn, [(float(t), 0.0) for t in range(0, upto)])
+    for t in range(upto, upto + 6):
+        s.observe(fn, float(t), value)
+
+
+def test_d1_knative_enters_panic_on_the_ceiled_count():
+    # panic avg 1.05 over one ready replica: 1.05 / 0.7 = 1.5 < 2 unceiled, ceil -> 2 >= 2 for Knative
+    off, on = KpaScaler(CFG), KpaScaler(KN)
+    for s in (off, on):
+        _quiet_then(s, "f", 1.05)
+    assert not off.decide("f", 65.0, current=1, ready=1).panicking
+    d = on.decide("f", 65.0, current=1, ready=1)
+    assert d.panicking and d.entered_panic
+
+
+def test_d2_knative_panic_size_is_max_of_stable_and_panic_without_current():
+    off, on = KpaScaler(CFG), KpaScaler(KN)
+    for s in (off, on):
+        _quiet_then(s, "f", 6.0)
+        assert s.decide("f", 65.0, current=10, ready=1).panicking
+    # ours keeps `current` (10); Knative sizes from the counts alone: ceil(6 / 0.7) = 9 panic, stable 1
+    assert off.decide("f", 65.0, current=10, ready=1).desired == 10
+    on2 = KpaScaler(KN)
+    _quiet_then(on2, "f", 6.0)
+    assert on2.decide("f", 65.0, current=10, ready=1).desired == 9
+
+
+def test_d2_knative_panic_size_takes_the_stable_count_when_larger():
+    # stable demand high, a quiet panic window: in panic Knative takes the stable count, ours does not
+    on, off = KpaScaler(KN), KpaScaler(CFG)
+    for s in (on, off):
+        _feed(s, "f", [(float(t), 7.0) for t in range(0, 54)])
+        _feed(s, "f", [(float(t), 0.0) for t in range(54, 60)])
+        s.functions["f"].panic_since = s.functions["f"].panic_last_over = 59.0
+    d_on, d_off = on.decide("f", 60.0, current=1, ready=1), off.decide("f", 60.0, current=1, ready=1)
+    assert d_on.panicking and d_off.panicking
+    assert d_on.desired == math.ceil(d_on.stable_avg / 0.7 - 1e-9) > 1
+    assert d_off.desired == 1
+
+
+def test_d3_knative_leaves_panic_strictly_after_one_stable_window():
+    off, on = KpaScaler(CFG), KpaScaler(KN)
+    for s in (off, on):
+        _quiet_then(s, "f", 6.0)
+        assert s.decide("f", 65.0, current=9, ready=1).panicking
+        for t in range(66, 125):
+            s.observe("f", float(t), 0.0)
+            s.decide("f", float(t), current=9, ready=9)
+        s.observe("f", 125.0, 0.0)
+    assert not off.decide("f", 125.0, current=9, ready=9).panicking   # 125 - 65 = 60: ours leaves at >=
+    assert on.decide("f", 125.0, current=9, ready=9).panicking        # Knative needs > 60
+    on.observe("f", 126.0, 0.0)
+    assert not on.decide("f", 126.0, current=9, ready=9).panicking
