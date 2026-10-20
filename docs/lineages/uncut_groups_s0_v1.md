@@ -10,7 +10,7 @@
 - **Per-term latency breakdown (2026-10-19; descriptive, no label; Record):** the FL gnn's gain over `cd_ib0_inflightfull` is peer-exchange time (Δ −0.18 to −0.70 s per task, 12/12 topologies, gate and size 64 at both rungs), paid for in scheduler wait, residual queue and lock wait; its co-location share is *lower* than the bar's, so the saving is not more co-located pairs.
 - **FL gnn s3–6 at 64 servers (2026-10-19; descriptive, no label, no registration; Record):** 768 cells (`size64/cells_learned_s36`), the four conf2 `-final.pt`, `_k100` and `_kr`, topologies 30129–30140; cell list filed (md5 `cb0b2c39…`) before submission; read filed: seeds 3–6 beat the bar in all four tests under both charges (heavy whole −9.07 % `_k100`, −7.67 % `_kr`, 12/12), descriptive, no verdict.
 - **FL + λ and twin decision-cost pins (2026-10-20; Record):** P7 `91269ec0` (FL + λ GNN and MLP w, on G8d) and P7b `f8a55ff0` (twin w, on P7) filed with the real serving check; the FL + λ cells read at the frozen P8.1 reader with `--w-pins 91269ec0`; the twin's read needs P9, which must admit the twin kind on the chain to P7b. No label changes.
-- **KPA closed-loop sensitivity (2026-10-20; descriptive, no label; Record):** D1–D3 aligned to Knative; heavy < moderate holds 12/12; R3 (replicas) not as predicted; rule (c) fires (heavy after-360 FL-vs-bar median +1.88 pp). Details in the Record entry.
+- **KPA closed-loop sensitivity (2026-10-20; descriptive, no label; Record):** D1–D3 aligned to Knative; heavy < moderate holds 12/12; R3 (replicas) FAILED; rule (c) fires (heavy after-360 FL-vs-bar median +1.88 pp). Details in the Record entry.
 - **KPA conformance (ii) (2026-10-20; descriptive, open loop; Record):** our KPA decider against Knative v0.50.0's on two re-traced bar cells; departures D1, D2, D3 and D6, unexplained 0. Verdict, table and limits are in the Record entry.
 - **Simulator component check, TCP over shaped links (2026-10-20; descriptive, no label; Record):** TCP vs the pipelined charge on five real server pairs: 6 of 12 required n = 1 points within 10 % (measured ≈ 1.045 × charge + 0.5–1.1 s, MTU framing and slow start); concurrent flows take about n × the additive charge; wired rows not quotable (sender probe 758 MB/s). Rates are the simulator's own.
 - **Heavy < moderate, additions (2026-10-20; descriptive, no label; Record):** after 360 s heavy is faster than moderate at both 24 and 64 servers (bar −1.04 / −0.76 s, 12/12); the heavy lock-wait rise (+0.29 / +0.98 s whole) is almost all in the first 360 s (+0.025 / +0.019 s after). FL gnn saves exchange by cheaper, mostly non-cellular transfers, with lower co-location than the bar.
@@ -312,7 +312,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
-- 2026-10-20 — **KPA closed-loop sensitivity, read (descriptive, no label; a disclosed sensitivity row that replaces no filed result).** With D1–D3 aligned to Knative, the bar's heavy < moderate holds on 12/12 topologies, whole and after 360 s, and the gap changes by +0.04 s. Panic ticks rise 7–13 % (12/12 in every arm × rung). Mean replicas barely move. One prediction misses: R3. Reading rule (c) fires: the heavy after-360 FL-vs-bar median moves +1.88 pp.
+- 2026-10-20 — **KPA closed-loop sensitivity, read (descriptive, no label; a disclosed sensitivity row that replaces no filed result).** With D1–D3 aligned to Knative, the bar's heavy < moderate holds on 12/12 topologies, whole and after 360 s, and the gap changes by +0.04 s. Panic ticks rise 7–13 % (12/12 in every arm × rung). Mean replicas stay flat: R3 of SCIENTIST's prediction FAILED. Reading rule (c) fires: the heavy after-360 FL-vs-bar median moves +1.88 pp. Verdict per row (SCIENTIST, accepted as filed, 18cc1cc5 verified): R0 deterministic; R4 held; R3 FAILED; R1 held; R2 signs kept, rule (c) fires.
   - **How it was read.**
     - S6, `uncut_groups_s0_v1/kpa_conf/knp_read.py` (md5 `e15677cd`, filed before any grid cell finished), job 894013 (os-cpu-slurm-19, 0:0).
     - Output `/share/nikola.lukic/uncut_groups/anomaly/knpanic_read.txt`, md5 `18cc1cc528e543ff9567d6837051661a` (job log md5 `e6928dfe`; wrapper `knp_read.sh` `8a892ed0`).
@@ -324,11 +324,11 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - bar: moderate 19,864 → 22,430 (+12.9 %), heavy 9,214 → 10,023 (+8.8 %);
     - FL gnn: moderate 20,454 → 23,046 (+12.7 %), heavy 9,412 → 10,101 (+7.3 %);
     - panic entries: +7.3 % to +11.7 %.
-  - **R3, mean replicas** (`replica_count_series.time_mean`). **Prediction not held:** replicas do not rise at moderate, and the bar's rise is not larger at moderate than at heavy.
+  - **R3, mean replicas** (`replica_count_series.time_mean`). **SCIENTIST's prediction FAILED:** replicas stay flat. They do not rise at moderate (FL gnn −1.06 %, p .012), and the bar's change is not larger at moderate than at heavy.
     - bar: moderate 41.33 → 41.31 (−0.04 %, 5/12 rising, p .91), heavy 55.94 → 56.25 (+0.56 %, 8/12, p .38);
     - FL gnn: moderate 40.30 → 39.88 (−1.06 %, 2/12, p .012), heavy 54.97 → 54.98 (+0.02 %).
-    - The open-loop +3.3 % / +1.8 % in desired does not carry into the time-mean of live replicas.
-  - **R1, the bar's heavy − moderate.** **Prediction held:** heavy < moderate on 12/12 topologies both whole and after 360 s with the switch on (≥ 11 predicted), and the gap changes by +0.040 s (< 0.15 s predicted).
+    - No mechanism for the flat replica count is written (SCIENTIST's ruling).
+  - **R1, the bar's heavy − moderate.** **Prediction held:** heavy < moderate on 12/12 topologies both whole and after 360 s with the switch on (≥ 11 predicted), and the gap changes by +0.040 s whole and +0.046 s after 360 s (< 0.15 s predicted).
     - Elapsed, whole: −0.585 → −0.545 s (change p .092). After 360 s: −1.037 → −0.991 s (p .052).
     - Per rung, on − off: moderate −0.060 s whole (p .0005) and −0.069 s after-360 (p .0005); heavy −0.020 s (p .092) and −0.024 s (p .077). So with the switch on the bar is faster, mostly at moderate.
     - The moderate gain is mostly exchange: X −0.054 s per task (p .0024), seconds per transfer −0.036 s, co-location +0.004.
