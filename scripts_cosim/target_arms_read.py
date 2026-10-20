@@ -11,8 +11,8 @@ per-topology value is recomputed unrounded and the median must equal contrast()'
 the %; printed beside the primary, never Holm-ed.
 F-target (Holm 4): FL gnn vs the bar at the same target, targets 0.45 and 0.294 x {whole, after 360 s}. Descriptive, raw p, no Holm: the same contrast at 0.7; the
 per-topology change of that contrast 0.7 -> 0.45 -> 0.294 (median, topologies toward the bar, p); FL gnn at each target vs the bar at 0.294; FL gnn at 0.7 vs the
-bar at 0.294. Beside every latency row: mean replicas and replica-seconds per task of both arms (replica_count_series.time_mean x endTime / num_tasks; the series'
-last time must equal endTime). Per arm x target: replicas, replica-seconds per task, share of series samples at the 120 cap, exchange per task, transfers per
+bar at 0.294. Beside every latency row: mean replicas and replica-seconds per task of both arms (replica_count_series.time_mean x endTime / num_tasks: exact, time_mean is the area over the
+one-second record divided by endTime, not a grid estimate; the series' last time must equal endTime). Per arm x target: replicas, replica-seconds per task, share of the 121 uniform grid points at the 120 cap, exchange per task, transfers per
 task, seconds per transfer, co-location share, lock wait, cold start. Health: collapse (a seed cell over 3 x the bar at its target, either statistic), tail flags,
 per arm x target. Latency keys only; never total_rtt_plus_inference.
 Per cell, asserted (FAIL LOUD): the exact grid (the 192 new cells equal the list's entries; every filed cell present; none failed); code.commit 7cb483c5 clean;
@@ -286,9 +286,10 @@ def report(res, rows, hl, nlist, ncells):
     d7, d45, d294 = (res["desc"][("gnn", t, "bar", t)] for t in TARGETS)
     med = lambda es: {e["stat"]: e["median_pct"] for e in es}
     m7, m45, m294 = med(d7), med(d45), med(d294)
-    L.append(f"  1 gain shrinks as the target falls (whole median less negative at each step): {m45['whole'] > m7['whole'] and m294['whole'] > m45['whole']} "
-             f"(0.7 {m7['whole']:+.2f}, 0.45 {m45['whole']:+.2f}, 0.294 {m294['whole']:+.2f}); after 360 s: {m45['after360'] > m7['after360'] and m294['after360'] > m45['after360']} "
-             f"({m7['after360']:+.2f}, {m45['after360']:+.2f}, {m294['after360']:+.2f})")
+    sh = {k: m45[k] > m7[k] and m294[k] > m45[k] for k in ("whole", "after360")}
+    L.append(f"  1 gain shrinks as the target falls (median less negative at every step 0.7 -> 0.45 -> 0.294): whole {sh['whole']} "
+             f"({m7['whole']:+.2f}, {m45['whole']:+.2f}, {m294['whole']:+.2f}); after 360 s {sh['after360']} "
+             f"({m7['after360']:+.2f}, {m45['after360']:+.2f}, {m294['after360']:+.2f}); the item holds only if both: {all(sh.values())}")
     L.append(f"  2 @0.45: both medians < 0 and >= 9/12: {all(e['median_pct'] < 0 and e['faster'] >= 9 for e in d45)}; whole in [-5, -1] %: {-5 <= m45['whole'] <= -1}; "
              f"less negative than at 0.7: {m45['whole'] > m7['whole']}")
     L.append(f"  3 @0.294: |median| <= 3 % on both: {all(abs(e['median_pct']) <= 3 for e in d294)}; whole {m294['whole']:+.2f} % ({d294[0]['faster']}/12 ahead)")

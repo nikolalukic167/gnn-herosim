@@ -92,6 +92,7 @@ def test_primary_holm_and_descriptive_rows(tree):
     txt = T.report(res, rows, T.health(cells, rows), 192, n)
     assert "primary (Table I)" in txt and "replica-s/task" in txt and "F-target (Holm 4)" in txt
     assert "slower than the bar @0.294 on 12/12" in txt
+    assert "the item holds only if both: True" in txt and "whole True" in txt and "after 360 s True" in txt
 
 
 def test_replica_seconds_per_task(tree):
