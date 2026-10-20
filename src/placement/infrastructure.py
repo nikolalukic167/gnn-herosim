@@ -30,7 +30,9 @@ from src.placement.warmth import NODE_DISK_V2, sandbox_is_warm
 from src.placement.scheduling_cost import (
     transfer_time as _transfer_time,
 )
-from src.placement.network_fabric import NetworkFabric, transfer_model, transmission_hops
+from src.placement.network_fabric import (
+    EXCHANGE_TCP_ENV, NetworkFabric, exchange_tcp_enabled, tcp_transfer, transfer_model, transmission_hops,
+)
 from src.placement.physics_audit import AUDIT as _AUDIT
 
 # network_contention_v1 spelling, kept where the ingress pipe is charged.
@@ -1253,6 +1255,27 @@ class Platform:
             self.executing = False
         return duration
 
+    def _exchange_tcp_term(self, plain_term: SimTime, peer_node_name: str, payload: float, record: bool) -> SimTime:
+        """HEROSIM_EXCHANGE_TCP=1: the peer exchange as one TCP connection (handshake, slow start, goodput) instead of size /
+        bottleneck. ``plain_term`` is the unchanged transfer + latency; the latency is kept and added once, the transfer part
+        is replaced by `tcp_transfer`. Charged per remote partner, each with its own handshake. Pipelined model only."""
+        if transfer_model() != "pipelined":
+            raise RuntimeError(f"{EXCHANGE_TCP_ENV}=1 is defined for the pipelined transfer model only")
+        latency = self.peer_link_latency(peer_node_name, context="exchange tcp")
+        plain_transfer = plain_term - latency
+        fabric = getattr(self.node, "fabric", None)
+        hops = []
+        if fabric is not None:
+            try:
+                hops = fabric.hops(peer_node_name, self.node.node_name)
+            except Exception:
+                hops = []
+        bottleneck = min(bw for _k, bw in hops) if hops else float(self.node.network.get("bandwidth", 0.0) or 0.0)
+        tcp = tcp_transfer(payload, bottleneck, latency)
+        if record and fabric is not None and fabric.exchange_tcp is not None:
+            fabric.record_exchange_tcp(tcp - plain_transfer)
+        return tcp + latency
+
     def _peer_exchange_time(self, task: "Task", record: bool = True) -> SimTime:
         """peer_affinity_v1: cost of exchanging state with this task's peers.
 
@@ -1313,6 +1336,8 @@ class Platform:
                     peer_node_name, context=f"peer {peer_id} of task {task.id}"))
             term = self._payload_transfer_time(peer_node_name, payload) + self.peer_link_latency(
                 peer_node_name, context=f"peer {peer_id} of task {task.id}")
+            if exchange_tcp_enabled():
+                term = self._exchange_tcp_term(term, peer_node_name, payload, record)
             exchange_start = total
             total += term
             fabric = getattr(self.node, "fabric", None)

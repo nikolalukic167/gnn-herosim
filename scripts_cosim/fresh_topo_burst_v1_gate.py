@@ -219,6 +219,23 @@ def ib0_alpha(kind: str) -> dict:
     return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
+W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp")
+
+
+def exchange_tcp_problems(out, driver_value):
+    """HEROSIM_EXCHANGE_TCP (the peer-exchange TCP sensitivity): a cell driven with the switch on must carry the summary's
+    `peerExchangeTcp` block and record the switch in its env; a cell driven with it off must carry neither."""
+    on = driver_value == "1"
+    carried = out.get("peerExchangeTcp") is not None
+    recorded = (out.get("env") or {}).get("HEROSIM_EXCHANGE_TCP") == "1"
+    problems = []
+    if on and not (carried and recorded):
+        problems.append(f"HEROSIM_EXCHANGE_TCP=1 driven but peerExchangeTcp carried={carried}, switch recorded={recorded}")
+    if not on and (carried or recorded):
+        problems.append(f"HEROSIM_EXCHANGE_TCP driven as {driver_value!r} but peerExchangeTcp carried={carried}, switch recorded={recorded}")
+    return problems
+
+
 def check_alias(kind: str) -> str:
     """ib0_confirm_v1: the registered arm whose instrument checks an ib0-surrogate expansion arm shares (the alpha and seed are checked on top)."""
     if kind == "cdx_ib0":
@@ -1299,7 +1316,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         for k in ("averageColdStartTime", "averageInitializationTime", "averagePullTime", "averageExecutionTime",
                   "averageComputeTime", "averageCommunicationsTime", "averageNetworkLatency"):
             out[k] = st.get(k)
-    for k in ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses"):  # workload_fix_v1 W3 telemetry; absent otherwise
+    for k in W3_TELEMETRY_KEYS:  # workload_fix_v1 W3 telemetry (+ HEROSIM_EXCHANGE_TCP's booking); absent otherwise
         if k in st:
             out[k] = st[k]
     c = out.get("schedulerCounters") or {}
@@ -1321,6 +1338,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     n = out.get("num_tasks")
     problems = []
     orig_kind, kind = kind, check_alias(kind)
+    problems += exchange_tcp_problems(out, os.environ.get("HEROSIM_EXCHANGE_TCP"))
     for k, default in (("HEROSIM_TRANSFER_MODEL", "store_forward"), ("HEROSIM_REPLICA_RELEASE", "0"),
                        ("HEROSIM_SCALEOUT", "legacy"), ("HEROSIM_SHARED_AUTOSCALER", "0")):
         if out["env"].get(k, default) != os.environ.get(k, default):
