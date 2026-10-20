@@ -167,9 +167,9 @@ def _gate():
 def test_gate_whitelists_the_block_and_checks_it_against_the_driver():
     G = _gate()
     assert "peerExchangeTcp" in G.W3_TELEMETRY_KEYS
-    on = {"peerExchangeTcp": {"model": "slow_start_v1"}, "env": {"HEROSIM_EXCHANGE_TCP": "1"}}
+    on = {"peerExchangeTcp": {"model": "slow_start_v1"}, "env": {}}      # the run provenance's env list does not carry this variable
     off = {"env": {}}
     assert G.exchange_tcp_problems(on, "1") == [] and G.exchange_tcp_problems(off, None) == [] and G.exchange_tcp_problems(off, "0") == []
     assert G.exchange_tcp_problems(off, "1")                                   # driven on, block missing
-    assert G.exchange_tcp_problems({"peerExchangeTcp": {}, "env": {}}, "1")     # block without the switch in the env
     assert G.exchange_tcp_problems(on, None) and G.exchange_tcp_problems(on, "0")   # driven off, block present
+    assert G.exchange_tcp_problems({"env": {"HEROSIM_EXCHANGE_TCP": "1"}}, "0")     # driven off, variable recorded
