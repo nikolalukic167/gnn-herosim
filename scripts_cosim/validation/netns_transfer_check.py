@@ -136,10 +136,10 @@ class Lab:
         sh(f"ip -n {self.a} link add va type veth peer name vb netns {self.b}")   # created in the namespaces, never in the root one
         for ns, dev, ip in ((self.a, "va", "10.77.0.1/24"), (self.b, "vb", "10.77.0.2/24")):
             sh(f"ip -n {ns} addr add {ip} dev {dev}"); sh(f"ip -n {ns} link set {dev} up"); sh(f"ip -n {ns} link set lo up")
-            sh(f"ip netns exec {ns} sysctl -qw net.ipv4.tcp_rmem='4096 131072 67108864' net.ipv4.tcp_wmem='4096 131072 67108864' net.core.rmem_max=67108864 net.core.wmem_max=67108864")
+            sh(f"ip netns exec {ns} sysctl -qw net.ipv4.tcp_rmem='4096 131072 67108864' net.ipv4.tcp_wmem='4096 131072 67108864'")
 
     def sysctls(self):
-        return {ns: {k: sh(f"ip netns exec {ns} sysctl -n {k}").stdout.strip() for k in ("net.ipv4.tcp_rmem", "net.ipv4.tcp_wmem", "net.core.rmem_max", "net.core.wmem_max", "net.ipv4.tcp_congestion_control")} for ns in (self.a, self.b)}
+        return {ns: {k: sh(f"ip netns exec {ns} sysctl -n {k}").stdout.strip() for k in ("net.ipv4.tcp_rmem", "net.ipv4.tcp_wmem", "net.ipv4.tcp_congestion_control")} for ns in (self.a, self.b)}
 
     def unshape(self):
         for ns, dev in ((self.a, "va"), (self.b, "vb")): sh(f"ip netns exec {ns} tc qdisc del dev {dev} root", check=False)
