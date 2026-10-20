@@ -316,6 +316,12 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-20 — **Scale diagnosis, one-root addendum: FL MLP at 64 servers (S5; EXPLORATORY; descriptive, no label).**
+  - `scripts_cosim/scale_diagnosis_ext_mlp64.py`, root `size64/cells_desc`, arm `ra_mlp_same_combfl_nosplit_k100`, seeds 1-2, topologies 30129-30140, g0-g3, both rungs = 192 cells, pin `74ddf70e`. The `_k100` cells only: the root's uncharged and `_kr` cells are excluded, and the script asserts the stem, the `arm_kind` and the pin of every cell and a count of exactly 192 distinct files. Its `cell()`, `means()` and table code is copied unchanged from `scale_diagnosis_ext.py`.
+  - **Frozen before its run:** blob `a60c58f5caf91f971ead8883f8e2f38255561511`, md5 `eae0074c1536c503ae8886561a79ef71`, commit `a46ac607`. Run once via sbatch, job 895744 (COMPLETED, 1 s); output `anomaly/scale_diagnosis_ext_mlp64.txt`, md5 `d76f318dcf0213638f15601c700f88af`, beside `scale_diagnosis_ext.txt` (`fdf39741`).
+  - **A first attempt failed and is kept:** job 895743 on the first commit (blob `2dc0a740fad5885d79516c11287e380588ded2c6`, `7300efbd`) stopped at its own arm assertion on the first cell (the summary's `arm` field holds the cell stem, not the arm name), before reading any number and without writing output. The assertion was corrected in `a46ac607` and nothing else changed.
+  - Byte shares are ABSENT here too. No id-decile rerun (declined by SCIENTIST).
+
 - 2026-10-20 — **HEROSIM_EXCHANGE_FAIRSHARE: default-off processor-sharing links for the peer exchange, built to SCIENTIST's amendment A1, with acceptance R0, R1, R3 passed, R2 reported with two points over 10 %, and the cell list (S6; the expert's decision, "GO ALL"; descriptive, no label). A breaking-physics switch: nothing is compared across it.** Branch `s6/exchange-fairshare`, code pin `677c398f5fb25f29deaab08b49085f37759337c6` (off reference-physics `c0be440a`). No cell of any study has run with it.
   - **Physics.** Peer-exchange flows that overlap in time share each link. A flow's rate is the minimum over the directed links of its route of (link capacity / flows active on that link), recomputed event by event whenever a flow starts or ends (`FairShare` in `network_fabric.py`). A flow alone gets its bottleneck, so a single exchange costs what it cost before. This is the specified equal-split rule, not max-min: a flow held down by a narrow link does not release its unused share on a wide link.
   - **Choices, documented in the code.**
