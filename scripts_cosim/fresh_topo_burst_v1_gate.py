@@ -43,6 +43,15 @@ CANDIDATES = OLD_POOL + NEW_POOL + EXT_POOL
 # raw_plan_v2 Phase C: unseen confirmation topologies, screened under the same rule (phase rp2screen); 9521-9568 is
 # its Amendment A1 extension (0 of 9473-9520 admitted)
 RP2C_POOL = tuple(range(9473, 9569))
+# ILS-live (registered 2026-10-20, docs/lineages/uncut_groups_s0_v1.md "Label search and exact search under the decision charge"): the bar's plan
+# (cd_ib0_inflightfull, its own decision and charge), then the label engine's ILS on the bar's S from that plan with the engine's own settings:
+# 200 distinct plans per (task x mean candidates) (uncut_ils.default_budget), seed 0, batches of > 10 tasks only. The ILS phase's plans are charged
+# at w_S (decision_cost_w.json "w_S_ms_per_plan_by_bucket"), the bar's plans at the bar's rate.
+ILS_PER = {"cd_ib0_ils": 200}
+# exact-live: cd_exactS_ib0 over the FULL candidate product (no top-k cut, no plan cap) on batches of at most G tasks, the bar's plan above G. G is the
+# calibration's (decision_cost_w.json "exact_live_G"), filed before any cell; absent = FAIL LOUD.
+EXACT_LIVE = "cd_exactS_ib0_live"
+EXACT_LIVE_TOP_K, EXACT_LIVE_MAX_PLANS = 10 ** 6, 10 ** 15   # no slate cut and no plan cap: the enumeration is bounded by G alone
 RULE_POLICY = {
     "reactive": "knative_network",
     "batched": "peer_greedy_network_batch",
@@ -67,6 +76,7 @@ RULE_POLICY = {
         "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
     "cd_ib0_inflightfull": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity, complete variant: cd_ib0 with HEROSIM_PG_INFLIGHT_FULL=1 (the remaining service of every task in platform.inflight is added to the drain); descriptive
     "cd_ib0_inflight": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity: cd_ib0 with HEROSIM_PG_INFLIGHT=1 (the service end of the task a platform is serving is added to its drain); descriptive
+    **{k: "peer_greedy_network_cd" for k in (*ILS_PER, EXACT_LIVE)},
     "cd_ib0": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: plain CD greedy on the ib0 surrogate (HEROSIM_PG_BATCH_ALPHA=0)
     "cd_exactS_ib0_prune": "peer_greedy_network_cd",  # decision_cost_s0_v1 hand frontier: cd_exactS_ib0 with cost-ordered top-k pruning of over-cap batches (HEROSIM_PG_CD_EXACT_PRUNE=cost)
     "cd_exactS_ib0": "peer_greedy_network_cd",  # plan_rerank_v1 descriptive: cd_exactS with only the in-batch stacking term zeroed (HEROSIM_PG_BATCH_ALPHA=0)
@@ -216,7 +226,7 @@ ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA",
 
 def ib0_alpha(kind: str) -> dict:
     """ib0_confirm_v1: the batch alpha the expansion arms on the ib0 surrogate must serve (none for every other arm)."""
-    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull") or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
+    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull") or kind in ILS_PER or kind == EXACT_LIVE or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
 W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp")
@@ -246,8 +256,10 @@ def check_alias(kind: str) -> str:
         return "cd"
     if kind == "cd_ib0_inflight":
         return "cd_inflight"
-    if kind == "cd_ib0_inflightfull":
+    if kind == "cd_ib0_inflightfull" or kind in ILS_PER:
         return "cd"
+    if kind == EXACT_LIVE:
+        return "cd_exactS_ib0"
     for suffix in ("_cdxib0", "_cdxhib0"):
         if kind.endswith(suffix):
             return kind[:-len(suffix)] + "_cdxapply"
@@ -323,6 +335,24 @@ def split_dc(kind: str) -> Tuple[str, Optional[float]]:
 
 
 DC_ENV, DC_BUCKET_ENV = "HEROSIM_DECISION_COST_MS", "HEROSIM_DECISION_COST_MS_BY_BUCKET"
+DC_S_ENV = "HEROSIM_DECISION_COST_MS_S_BY_BUCKET"
+
+
+def exact_live_g() -> int:
+    g = json.load(open(DC_W_FILE)).get("exact_live_G")
+    if type(g) is not int or g < 1:
+        raise SystemExit(f"FAIL LOUD: {DC_W_FILE} has no exact_live_G (got {g!r}); the {EXACT_LIVE} cells serve only after the calibration fixes it")
+    return g
+
+
+def dc_s_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[str]:
+    """ILS-live: k x w_S by size bucket (a JSON object), the rate the ILS phase's plans are charged; None for every other arm."""
+    if k is None or kind not in ILS_PER:
+        return None
+    byb = json.load(open(DC_W_FILE)).get("w_S_ms_per_plan_by_bucket", {}).get(kind, {})
+    if rung not in byb or byb[rung] is None:
+        raise SystemExit(f"FAIL LOUD: no w_S_ms_per_plan_by_bucket[{kind!r}][{rung!r}] in {DC_W_FILE}")
+    return json.dumps({b: k * float(v) for b, v in byb[rung].items()}, sort_keys=True)
 
 
 def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, str]]:
@@ -343,7 +373,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
     return DC_ENV, repr(k * float(w[kind][rung]))
 
 
-R1A_DIAG = (*OBS_ARMS, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_DIAG = (*OBS_ARMS, *ILS_PER, EXACT_LIVE, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
                *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS),
                *COMB_KINDS, *COMB_FAST, *COMB_FLREG, *COMB_TWIN, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS; bare COMB_FLREG / COMB_TWIN here keep them out of the unset default grid
@@ -1037,6 +1067,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     kind, dc_k = split_dc(kind)
     dc_ms = dc_cost_ms(kind, dc_k, window[2:])
+    dc_s = dc_s_cost_ms(kind, dc_k, window[2:])
     if R1A_ON:
         state = pw.rung_state(out_dir, window[2:])
         if pw.paused(state):
@@ -1077,8 +1108,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         env.pop(k, None)
     env.pop(DC_ENV, None)
     env.pop(DC_BUCKET_ENV, None)
+    env.pop(DC_S_ENV, None)
     if dc_ms is not None:
         env[dc_ms[0]] = dc_ms[1]
+    if dc_s is not None:
+        env[DC_S_ENV] = dc_s
     for k in SNAP_ENV:
         env.pop(k, None)
     sealed = sealed_triggers(int(t["topo"]), window)
@@ -1205,7 +1239,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", *ILS_PER, EXACT_LIVE, *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
@@ -1219,8 +1253,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / rate_scale)
         if kind in ("cd_inflight", "cd_ib0_inflight"):
             env["HEROSIM_PG_INFLIGHT"] = "1"
-        if kind == "cd_ib0_inflightfull":
+        if kind == "cd_ib0_inflightfull" or kind in ILS_PER or kind == EXACT_LIVE:
             env["HEROSIM_PG_INFLIGHT_FULL"] = "1"
+        if kind in ILS_PER:
+            env.update(HEROSIM_PG_ILS_PER=str(ILS_PER[kind]), HEROSIM_PG_ILS_SEED="0")
+        if kind == EXACT_LIVE:
+            env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_CD_EXACT_TOP_K=str(EXACT_LIVE_TOP_K),
+                       HEROSIM_PG_CD_EXACT_MAX_PLANS=str(EXACT_LIVE_MAX_PLANS), HEROSIM_PG_EXACT_G=str(exact_live_g()))
         if kind == "cd_pull":
             env.update(HEROSIM_PG_PULL_HOLD="1", HEROSIM_PULL_LEDGER="1")
         if kind == "cd_ledger":
@@ -1249,7 +1288,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                 env["HEROSIM_OBS_SEED"] = str(seed)
         if kind == "cd_exactS_ib0_prune":
             env["HEROSIM_PG_CD_EXACT_PRUNE"] = "cost"
-        if kind in ("cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull"):
+        if kind in ("cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", *ILS_PER):
             env.update(ib0_alpha(kind))
         if kind == "cd_oracle":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
@@ -1444,6 +1483,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         want_dc = dc_ms[1] if dc_ms and dc_ms[0] == var else None
         if (parse(served_dc) if served_dc else None) != (parse(want_dc) if want_dc else None):
             problems.append(f"{var} served {served_dc!r}, want {want_dc!r}")
+    served_s = out["env"].get(DC_S_ENV)
+    want_s = dc_s
+    if (json.loads(served_s) if served_s else None) != (json.loads(want_s) if want_s else None):
+        problems.append(f"{DC_S_ENV} served {served_s!r}, want {want_s!r}")
     if int(c.get("sched_plan_evals") or 0) == 0 and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
         problems.append("plan-evaluation meter off: sched_plan_evals == 0")
     charged = int(c.get("sched_batches_charged") or 0)
@@ -1519,15 +1562,35 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                             f"{c.get('pg_ext_charged')} charged")
     elif out["env"].get("HEROSIM_PG_EXT_RATE") or int(c.get("pg_ext_batches") or 0):
         problems.append("a non-externality arm charged the externality")
+    if orig_kind in ILS_PER:
+        if out["env"].get("HEROSIM_PG_ILS_PER") != str(ILS_PER[orig_kind]) or out["env"].get("HEROSIM_PG_ILS_SEED") != "0":
+            problems.append(f"ILS budget not served: HEROSIM_PG_ILS_PER={out['env'].get('HEROSIM_PG_ILS_PER')!r}, want {ILS_PER[orig_kind]}")
+        if int(c.get("pg_ils_batches") or 0) == 0 or int(c.get("pg_ils_evals") or 0) == 0:
+            problems.append("ILS instrument off: pg_ils_batches/pg_ils_evals == 0")
+        if int(c.get("pg_ils_stop_other") or 0):
+            problems.append(f"ILS stopped for a reason other than evals/converged in {c.get('pg_ils_stop_other')} batches")
+        if int(c.get("pg_expand_batches") or 0) or int(c.get("pg_exact_batches") or 0):
+            problems.append("ILS arm ran the expansion or the exact search")
+        if int(c.get("sched_plan_evals_s") or 0) == 0:
+            problems.append("ILS arm charged no S plans: sched_plan_evals_s == 0")
+    elif out["env"].get("HEROSIM_PG_ILS_PER") or int(c.get("pg_ils_batches") or 0) or int(c.get("sched_plan_evals_s") or 0):
+        problems.append("a non-ILS arm ran the ILS")
+    if orig_kind == EXACT_LIVE:
+        if out["env"].get("HEROSIM_PG_EXACT_G") != str(exact_live_g()) or int(c.get("pg_exact_batches") or 0) == 0:
+            problems.append(f"exact-live instrument off: HEROSIM_PG_EXACT_G {out['env'].get('HEROSIM_PG_EXACT_G')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
+        if int(c.get("pg_exact_fallbacks") or 0):
+            problems.append(f"exact-live fell back to the expansion in {c.get('pg_exact_fallbacks')} batches")
+    elif out["env"].get("HEROSIM_PG_EXACT_G") or int(c.get("pg_exact_g_skipped") or 0):
+        problems.append("a non-exact-live arm served the size cap G")
     if kind == "cd_blind" and int(c.get("pg_partners_blinded") or 0) == 0:
         problems.append("blind instrument off: pg_partners_blinded == 0")
     if kind == "cd" and int(c.get("pg_partners_blinded") or 0) != 0:
         problems.append("CD ran blind")
     if kind == "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") != "1" or int(c.get("pg_inflight_charged") or 0) == 0):
         problems.append("inflight instrument off: HEROSIM_PG_INFLIGHT not served or pg_inflight_charged == 0")
-    if orig_kind == "cd_ib0_inflightfull" and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") != "1" or int(c.get("pg_inflight_full_charged") or 0) == 0):
+    if orig_kind in ("cd_ib0_inflightfull", *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") != "1" or int(c.get("pg_inflight_full_charged") or 0) == 0):
         problems.append("full in-flight instrument off: HEROSIM_PG_INFLIGHT_FULL not served or pg_inflight_full_charged == 0")
-    if orig_kind != "cd_ib0_inflightfull" and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") or int(c.get("pg_inflight_full_charged") or 0)):
+    if orig_kind not in ("cd_ib0_inflightfull", *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") or int(c.get("pg_inflight_full_charged") or 0)):
         problems.append("a non-full arm charged the full in-flight drain")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
         problems.append("a non-inflight arm charged the in-flight task")
