@@ -53,6 +53,12 @@ built {rps, duration, events} hash are each equal across levels and every group 
 P10 (a rung saturated on every topology is excluded and listed); the primary is Page's L of the paired FL gnn vs FL MLP % over k = 1 < 2 < 4 < 8 at
 moderate, whole and after-360, Holm 2, on the ids admitted at every level (VOID if a level loses > 4); DEGREE-TREND iff Holm < .025 on both;
 the secondary adds per-level descriptive rows (vs the bar, realised structure, exchange saved / net gained, decision-charge miss per arm);
+--confirm-mp-twin (FL MP-OFF twin, registered 2026-10-19 at 0a251dd9): read only after FL + lambda's primary md5 is filed (--fll-primary-read,
+--fll-record); --gate is FL + lambda's (only FL gnn s1-2 _k100 / _kr, cd_ib0_inflightfull and cd are taken, as their exact grid) and --twin-gate the
+twin's own 384 cells (ra_twin_eng_combfl_nosplit s1-2 _k100 / _kr), every cell at servers = 24 on fl3 30149-30160; --w-pins ends P7, P7b and the
+link P7 -> P7b may add only the twin's keys; every twin cell ran at P7b and served k x its w there; F2 = FL gnn vs the twin, Holm 4 per charge,
+seed-matched: TWIN-FASTER / MP-ATTRIBUTED / MP-DIRECTION / TIE, the weaker of the two charges; the secondary adds the twin vs FL MLP and vs the bar
+(--desc-gate, FL + lambda's FL MLP cells) and the twin at 64 servers (--desc64-gate, vs --s64-gate's bar and FL gnn), servers = 64;
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
 every cell has a .tasks_bsz.npy with a groupSize and servedBatchSize per task (never filled in), and a .tasks_lock.npy on the same
@@ -1759,6 +1765,220 @@ def read_degree_trend(a):
     return res
 
 
+# FL MP-OFF twin (uncut_groups_s0_v1, registered 2026-10-19 at 0a251dd9, merged 8251858f): FL gnn vs its MP-OFF twin, seed-matched, on fl3
+TWIN = "ra_twin_eng_combfl_nosplit"
+TWIN_W_KINDS = (TWIN,)
+TW_P7 = "91269ec0171fd0362d2379c3f3102ad678aedc74"
+TW_P7B = "f8a55ff07283c5b6159d3775a94e2ad8d0ee6bbc"
+TW_TOPOS_SHA256 = "f6c5af0a8f74a8caa83ba45a97903ec47798ae8898e8e226b3ff22291bb59379"  # fl3 30149-30160, FL + lambda's mint line
+TW_64_TOPOS = tuple(range(30129, 30141))
+TW_SERVERS, TW_64_SERVERS = 24, 64
+TW_ORDER = ("MP-ATTRIBUTED", "MP-DIRECTION", "TIE", "TWIN-FASTER")
+TW_WHY = ("FL MP-OFF twin (F2, Holm 4 per charge, combined by the weaker label): TWIN-FASTER if the twin is Holm-faster (< .025) on any test; else "
+          "MP-ATTRIBUTED iff FL gnn vs the twin has median <= -2 % and Holm < .025 on all four, FL seed s vs twin seed s <= -1 % on all four for each s, "
+          "FL seed s's collapses <= twin seed s's at each rung, and FL gnn's decision share >= the twin's at each rung (the anchor clause, SCIENTIST's "
+          "ruling (b)); else MP-DIRECTION iff every median < 0 and Holm < .025 on at least two; else TIE. "
+          "Only MP-ATTRIBUTED licenses a message-passing claim")
+TW_DESC = "descriptive, p unadjusted, never a label"
+
+
+def tw_args(a):
+    if a.confirm or a.confirm2 or a.confirm_size64 or a.confirm_fl_lambda or a.confirm_exchange_trend or a.confirm_size128 or a.confirm_degree_trend:
+        raise SystemExit("FAIL LOUD: --confirm-mp-twin is its own family; pass no other --confirm flag")
+    if a.primary != CONFIRM_PRIMARY or a.twin != TWIN or a.reference or a.compare or a.after_read or a.xs_root or a.deg_root or a.mlp_gate:
+        raise SystemExit(f"FAIL LOUD: --confirm-mp-twin reads --primary {CONFIRM_PRIMARY} --twin {TWIN}; no reference, compare, after-read, xs-root, deg-root or mlp-gate")
+    if a.cotenancy != "required" or a.bar != "cd_ib0_inflightfull" or a.stage not in ("primary", "secondary") or a.seeds != "1,2" or a.suffix != "_k100":
+        raise SystemExit("FAIL LOUD: --confirm-mp-twin needs --cotenancy required, --bar cd_ib0_inflightfull, --seeds 1,2, --suffix _k100 and --stage primary or secondary")
+    if not (a.repo and a.w_pins and a.twin_gate and a.fll_primary_read and a.fll_record):
+        raise SystemExit("FAIL LOUD: --confirm-mp-twin needs --repo, --w-pins, --twin-gate, --fll-primary-read and --fll-record (read only after FL + lambda's primary is filed)")
+    if a.topos_sha256 != TW_TOPOS_SHA256:
+        raise SystemExit("FAIL LOUD: --confirm-mp-twin reads fl3 30149-30160 (sha256 f6c5af0a...) only")
+    if a.stage == "primary" and (a.desc_gate or a.desc64_gate or a.s64_gate or a.mlp or a.primary_read or a.record):
+        raise SystemExit("FAIL LOUD: --desc-gate / --desc64-gate / --s64-gate / --mlp / --primary-read / --record belong to --stage secondary (seal)")
+    if a.stage == "secondary" and not (a.desc_gate and a.desc64_gate and a.s64_gate and a.mlp == CONFIRM_MLP and a.primary_read and a.record):
+        raise SystemExit(f"FAIL LOUD: --confirm-mp-twin --stage secondary needs --desc-gate, --desc64-gate, --s64-gate, --mlp {CONFIRM_MLP}, --primary-read and --record")
+
+
+def tw_filed(repo, read, record, filed_ref, what, node="docs/lineages/uncut_groups_s0_v1.md"):
+    """A read's full md5 is in the lineage node at `record`, and `record` is on `filed_ref`."""
+    m = md5(read)
+    if m not in git(repo, "show", f"{record}:{node}"):
+        raise SystemExit(f"FAIL LOUD: {what} {read} (md5 {m}) is not filed in {node} at {record}")
+    if subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", record, filed_ref]).returncode:
+        raise SystemExit(f"FAIL LOUD: {record} is not on {filed_ref}: {what} is not filed")
+    return m
+
+
+def tw_chain(repo, base, w_pins, gate_change):
+    """The w chain through P7b: the registered chain up to P7 through w_pin_chain unchanged, then the one link P7 -> P7b, admitted only for
+    exactly those two commits, touching only the w file and adding only the twin's keys (w_frozen with TWIN_W_KINDS); every other key frozen."""
+    pins = w_pins.split(",")
+    rev = lambda p: git(repo, "rev-parse", "--verify", p + "^{commit}").strip()
+    if len(pins) < 2 or rev(pins[-1]) != TW_P7B or rev(pins[-2]) != TW_P7:
+        raise SystemExit(f"FAIL LOUD: --confirm-mp-twin --w-pins must end {TW_P7[:8]},{TW_P7B[:8]} (P7, then P7b with the twin's w)")
+    ws = w_pin_chain(repo, base, pins[:-1], gate_change)
+    if git(repo, "rev-parse", TW_P7B + "^").strip() != TW_P7:
+        raise SystemExit(f"FAIL LOUD: P7b {TW_P7B} is not a child of P7 {TW_P7}")
+    names = git(repo, "diff", "--name-only", TW_P7, TW_P7B).split()
+    if names != [W_FILE]:
+        raise SystemExit(f"FAIL LOUD: P7b differs from P7 in {names}, not only {W_FILE}")
+    w7b = json.loads(git(repo, "show", f"{TW_P7B}:{W_FILE}"))
+    w_frozen(ws[TW_P7], w7b, TW_P7B, LEARNED_W_KINDS + TWIN_W_KINDS)
+    w_guard(w7b, TW_P7B)
+    for top in ("w_ms_per_plan", "w_ms_per_plan_by_bucket"):
+        if TWIN not in w7b.get(top, {}):
+            raise SystemExit(f"FAIL LOUD: P7b has no {top}[{TWIN!r}]")
+    ws[TW_P7B] = w7b
+    return ws
+
+
+def tw_twin_cells(cells, ws, kr):
+    """Every twin cell ran at P7b and served k x the twin's frozen w there (asserts() charge-checks only its learned w kinds)."""
+    k = float(ws[TW_P7B]["k_cotenancy"]) if kr else 1.0
+    for key, s in cells.items():
+        if key[0] != TWIN:
+            continue
+        if pin_match((s.get("code") or {}).get("commit"), [TW_P7B]) is None:
+            raise SystemExit(f"FAIL LOUD: twin cell {key} ran at {(s.get('code') or {}).get('commit')}, not P7b {TW_P7B[:8]}")
+        charge_check(key, s, ws[TW_P7B], k)
+
+
+def tw_pick(cells, failed, kinds):
+    keep = lambda d: {k: v for k, v in d.items() if k[0] in kinds}
+    return keep(cells), keep(failed)
+
+
+def tw_label(f2, seeds_alone, h_fl, h_tw, anchor_ok):
+    if any(e["median_pct"] is not None and e["median_pct"] > 0 and e["p_holm"] < PROG_ALPHA for e in f2):
+        return "TWIN-FASTER", "the twin is Holm-faster on: " + ", ".join(f"{e['rung']}/{e['stat']}" for e in f2 if e["median_pct"] is not None and e["median_pct"] > 0 and e["p_holm"] < PROG_ALPHA)
+    if win_four(f2, WIN_MED, PROG_ALPHA):
+        seed_ok = all(e["median_pct"] is not None and e["median_pct"] <= SEED_MED for es in seeds_alone.values() for e in es)
+        col_ok = all(h_fl[r]["per_seed"][sd]["collapse_any"] <= h_tw[r]["per_seed"][sd]["collapse_any"] for r in RUNGS for sd in SEEDS)
+        anc = all(anchor_ok.values())
+        if seed_ok and col_ok and anc:
+            return "MP-ATTRIBUTED", "every clause holds"
+        why = f"WIN line met but seeds_alone_ok={seed_ok} collapse_ok={col_ok} (seed-matched) anchor_ok={anc}"
+    else:
+        why = "the full win rule fails"
+    if all(e["median_pct"] is not None and e["median_pct"] < 0 for e in f2) and sum(e["p_holm"] < PROG_ALPHA for e in f2) >= 2:
+        return "MP-DIRECTION", why + "; every median < 0 and Holm < .025 on at least two"
+    return "TIE", why
+
+
+def tw_verdict(cells, topos):
+    """One charge: F2 (FL gnn vs the twin, Holm 4), the seed-matched seeds alone and collapses (against cd, per seed cell)."""
+    arms = ((CONFIRM_PRIMARY, SEEDS), (TWIN, SEEDS), (BAR, (0,)), (CD, (0,)))
+    res = {"health": {arm: health(cells, {}, arm, sd, topos) for arm, sd in arms},
+           "decision_share_pct": {arm: decision_share(cells, arm, sd, topos) for arm, sd in arms}}
+    f2 = family(four(cells, CONFIRM_PRIMARY, SEEDS, TWIN, SEEDS, topos))
+    seeds_alone = {sd: four(cells, CONFIRM_PRIMARY, (sd,), TWIN, (sd,), topos) for sd in SEEDS}
+    ds = res["decision_share_pct"]
+    anchor = {r: (ds[CONFIRM_PRIMARY][r] or 0) >= (ds[TWIN][r] or 0) for r in RUNGS}
+    lab, why = tw_label(f2, seeds_alone, res["health"][CONFIRM_PRIMARY], res["health"][TWIN], anchor)
+    res["F2"] = {"contrast": f"{CONFIRM_PRIMARY} vs {TWIN} (seed-matched clauses)", "tests": f2, "seeds_alone": seeds_alone, "anchor_ok": anchor,
+                 "anchor": "FL gnn's decision share >= the twin's at each rung (MP-ATTRIBUTED only; no F3)", "label": lab, "why": why}
+    return res
+
+
+def read_mp_twin(a):
+    """--confirm-mp-twin: --stage primary = F2 (FL gnn vs the MP-OFF twin) under both charges; --stage secondary = the descriptive rows (the twin vs
+    FL MLP and vs the bar at 24 servers, the twin at 64 servers), after this read's primary md5 is filed. Both stages only after FL + lambda's
+    primary md5 is filed (--fll-primary-read, --fll-record)."""
+    global SEEDS, BAR, PROG_ALPHA
+    tw_args(a)
+    SEEDS, BAR, PROG_ALPHA = (1, 2), a.bar, PROG_ALPHA_FILED
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; gate pin {a.pin}")
+    if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
+        raise SystemExit("FAIL LOUD: the topology list hash differs from the filed one")
+    topos = [int(x) for x in a.topos.split(",")]
+    fll_md5 = tw_filed(a.repo, a.fll_primary_read, a.fll_record, a.filed_ref, "FL + lambda's primary read")
+    with open(a.fll_primary_read) as fh:
+        if json.load(fh).get("confirmation", {}).get("family") != "FL + lambda":
+            raise SystemExit(f"FAIL LOUD: {a.fll_primary_read} is not FL + lambda's primary read")
+    gc, gf = tw_pick(*load(a.gate, a.suffix), (CONFIRM_PRIMARY, CONFIRM_PRIMARY + KR, BAR, CD))
+    tc, tf = load(a.twin_gate, a.suffix)
+    stray = sorted({k[0] for k in list(tc) + list(tf) if k[0] not in (TWIN, TWIN + KR)})
+    if stray:
+        raise SystemExit(f"FAIL LOUD: --twin-gate holds cells other than the twin: {stray[:3]}")
+    grid_n = grid_or_void(gc, gf, [(CONFIRM_PRIMARY, SEEDS), (CONFIRM_PRIMARY + KR, SEEDS), (BAR, (0,)), (CD, (0,))], topos, "--gate (FL gnn and the bars)")
+    twin_n = grid_or_void(tc, tf, [(TWIN, SEEDS), (TWIN + KR, SEEDS)], topos, "--twin-gate")
+    servers_eq({**gc, **tc}, TW_SERVERS, "--gate / --twin-gate")
+    ckpt = ckpt_md5s(a.checkpoint_md5)
+    ws = tw_chain(a.repo, a.pin, a.w_pins, a.gate_change)
+    learned = [CONFIRM_PRIMARY, TWIN]
+    cells, cells_kr = split_kr({**gc, **tc})
+    warmth = asserts(cells, a.pin, learned, ckpt, ws)
+    if asserts(cells_kr, a.pin, learned, ckpt, ws, kr=True) != warmth:
+        raise SystemExit("FAIL LOUD: the co-tenancy cells record another HEROSIM_WARMTH_PHYSICS")
+    tw_twin_cells(cells, ws, False)
+    tw_twin_cells(cells_kr, ws, True)
+    cells_kr.update({k: v for k, v in cells.items() if k[0] not in learned})
+    res = {"filed": FILED, "family": "FL MP-OFF twin", "pin": a.pin, "gate_change": a.gate_change, "topos": topos, "warmth_physics": warmth,
+           "primary": CONFIRM_PRIMARY, "twin": TWIN, "seeds": list(SEEDS), "bar": BAR, "servers": TW_SERVERS,
+           "fll_primary_read": {"path": os.path.abspath(a.fll_primary_read), "md5": fll_md5, "record": a.fll_record},
+           "w_pins": {sha: sorted(k for k in LEARNED_W_KINDS + ARM2_W_KINDS + TWIN_W_KINDS if k in w.get("w_ms_per_plan", {})) for sha, w in ws.items()},
+           "hosts": hosts({**cells, **{(k[0] + KR,) + k[1:]: v for k, v in cells_kr.items() if k[0] in learned}})}
+    res.update(tw_verdict(cells, topos))
+    res["cotenancy"] = tw_verdict(cells_kr, topos)
+    m, c = res["F2"]["label"], res["cotenancy"]["F2"]["label"]
+    lab = max(m, c, key=TW_ORDER.index)
+    res["combined"] = {"F2": lab, "why": f"weaker of frozen {m!r} and co-tenancy {c!r}"}
+    res["confirmation"] = {"label": lab, "stage": a.stage, "rule": TW_WHY, "family": "FL MP-OFF twin", "grid_cells": grid_n, "twin_grid_cells": twin_n}
+    if a.stage == "secondary":
+        mm = tw_filed(a.repo, a.primary_read, a.record, a.filed_ref, "the twin's primary read")
+        with open(a.primary_read) as fh:
+            p = json.load(fh)
+        same = lambda x, y: json.dumps(x, sort_keys=True, default=str) == json.dumps(y, sort_keys=True, default=str)
+        if p.get("confirmation", {}).get("stage") != "primary" or not all(same(res[k], p[k]) for k in ("F2", "combined", "topos")) \
+                or not same(res["cotenancy"]["F2"], p["cotenancy"]["F2"]) or res["confirmation"]["label"] != p["confirmation"]["label"]:
+            raise SystemExit(f"FAIL LOUD: the secondary run's primary parts differ from the filed primary read {a.primary_read}")
+        res["confirmation"]["primary_read"] = {"path": os.path.abspath(a.primary_read), "md5": mm, "record": a.record}
+        dc, df = tw_pick(*load(a.desc_gate, a.suffix), (CONFIRM_MLP, CONFIRM_MLP + KR))
+        res["confirmation"]["desc_grid_cells"] = grid_or_void(dc, df, [(CONFIRM_MLP, SEEDS), (CONFIRM_MLP + KR, SEEDS)], topos, "--desc-gate (FL MLP)")
+        servers_eq(dc, TW_SERVERS, "--desc-gate")
+        d100, dkr = split_kr(dc)
+        if asserts(d100, a.pin, [CONFIRM_MLP], ckpt, ws) != warmth or asserts(dkr, a.pin, [CONFIRM_MLP], ckpt, ws, kr=True) != warmth:
+            raise SystemExit("FAIL LOUD: the --desc-gate cells record another HEROSIM_WARMTH_PHYSICS")
+        c64, f64 = load(a.desc64_gate, a.suffix)
+        stray = sorted({k[0] for k in list(c64) + list(f64) if k[0] != TWIN})
+        if stray:
+            raise SystemExit(f"FAIL LOUD: --desc64-gate holds cells other than the twin _k100: {stray[:3]}")
+        res["confirmation"]["desc64_grid_cells"] = grid_or_void(c64, f64, [(TWIN, SEEDS)], list(TW_64_TOPOS), "--desc64-gate")
+        s64, s64f = tw_pick(*load(a.s64_gate, a.suffix), (CONFIRM_PRIMARY, BAR))
+        res["confirmation"]["s64_grid_cells"] = grid_or_void(s64, s64f, [(CONFIRM_PRIMARY, SEEDS), (BAR, (0,))], list(TW_64_TOPOS), "--s64-gate (size-64 FL gnn and bar)")
+        servers_eq({**c64, **s64}, TW_64_SERVERS, "--desc64-gate / --s64-gate")
+        if asserts({**c64, **s64}, a.pin, [CONFIRM_PRIMARY, TWIN], ckpt, ws) != warmth:
+            raise SystemExit("FAIL LOUD: the 64-server cells record another HEROSIM_WARMTH_PHYSICS")
+        tw_twin_cells(c64, ws, False)
+        for v, base, dd in ((res, cells, d100), (res["cotenancy"], cells_kr, dkr)):
+            both = {**base, **dd}
+            v["descriptive"] = {"twin_vs_mlp": {"note": TW_DESC + "; is the GNN without message passing still ahead of the pointwise model", "tests": four(both, TWIN, SEEDS, CONFIRM_MLP, SEEDS, topos)},
+                                "twin_vs_bar": {"note": TW_DESC, "tests": four(both, TWIN, SEEDS, BAR, (0,), topos)}}
+        both64 = {**c64, **s64}
+        pins64 = {arm: sorted({str((v.get("code") or {}).get("commit", ""))[:8] for k, v in both64.items() if k[0] == arm}) for arm in (TWIN, CONFIRM_PRIMARY, BAR)}
+        res["descriptive_64"] = {"label": "topologies already read in size-64", "note": TW_DESC + "; _k100, 64 servers, 30129-30140",
+                                 "pins": {"twin_vs_bar": {"twin": pins64[TWIN], "bar": pins64[BAR]}, "fl_vs_twin": {"fl": pins64[CONFIRM_PRIMARY], "twin": pins64[TWIN]}},
+                                 "twin_vs_bar": four(both64, TWIN, SEEDS, BAR, (0,), list(TW_64_TOPOS)),
+                                 "fl_vs_twin": four(both64, CONFIRM_PRIMARY, SEEDS, TWIN, SEEDS, list(TW_64_TOPOS))}
+    txt = json.dumps(res, indent=1, default=str)
+    if a.out:
+        if os.path.exists(a.out):
+            raise SystemExit(f"FAIL LOUD: {a.out} exists; a confirmation read is written once")
+        with open(a.out + ".tmp", "w") as fh:
+            fh.write(txt)
+        os.replace(a.out + ".tmp", a.out)
+    print(f"MP-TWIN {lab} ({res['combined']['why']})")
+    for tag, x in (("", res), ("_kr ", res["cotenancy"])):
+        ds = x["decision_share_pct"]
+        print(f"  F2 {tag or '_k100 '}{x['F2']['label']} ({x['F2']['why']}); anchor " + ", ".join(
+            f"{r} FL {ds[CONFIRM_PRIMARY][r]} vs twin {ds[TWIN][r]} {'ok' if x['F2']['anchor_ok'][r] else 'FAILS'}" for r in RUNGS))
+        for e in x["F2"]["tests"]:
+            print(f"  F2 {tag}{e['rung']:8s} {e['stat']:8s} median {e['median_pct']} faster {e['faster']}/{e['n_topologies']} p {e['p']} holm {e['p_holm']}")
+    if "descriptive_64" in res:
+        print(f"  64-server rows (descriptive), pins: {json.dumps(res['descriptive_64']['pins'])}")
+    return res
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -1806,7 +2026,18 @@ def main(argv=None):
     ap.add_argument("--confirm-degree-trend", action="store_true",
                     help="partner structure (registered 2026-10-19): Page's trend of FL gnn vs FL MLP over partners drawn per task k = 1 < 2 < 4 < 8 under --deg-root")
     ap.add_argument("--deg-root", default="", help="--confirm-degree-trend: the directory holding k1 k2 k4 k8")
+    ap.add_argument("--confirm-mp-twin", action="store_true",
+                    help="FL MP-OFF twin (registered 2026-10-19): F2 FL gnn vs ra_twin_eng_combfl_nosplit on fl3, seed-matched, both charges")
+    ap.add_argument("--twin-gate", default="", help="--confirm-mp-twin: the twin's own cells (s1-2, _k100 and _kr)")
+    ap.add_argument("--fll-primary-read", default="", help="--confirm-mp-twin: FL + lambda's primary read, which must be filed first")
+    ap.add_argument("--fll-record", default="", help="--confirm-mp-twin: the commit whose node files FL + lambda's primary md5")
+    ap.add_argument("--desc64-gate", default="", help="--confirm-mp-twin --stage secondary: the twin at 64 servers (s1-2 _k100, 30129-30140)")
+    ap.add_argument("--s64-gate", default="", help="--confirm-mp-twin --stage secondary: size-64's bar and FL gnn cells (30129-30140)")
     a = ap.parse_args(argv)
+    if a.confirm_mp_twin:
+        return read_mp_twin(a)
+    if a.twin_gate or a.fll_primary_read or a.fll_record or a.desc64_gate or a.s64_gate:
+        raise SystemExit("FAIL LOUD: --twin-gate / --fll-primary-read / --fll-record / --desc64-gate / --s64-gate belong to --confirm-mp-twin")
     if a.confirm_size128:
         return read_size128(a)
     if a.confirm_degree_trend:

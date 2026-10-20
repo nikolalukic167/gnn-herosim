@@ -2259,3 +2259,199 @@ def test_deg_secondary_reads_descriptive_rows_only_after_the_primary_is_filed(de
 
 def test_size128_guard_keeps_the_free_runs_the_node_names_open():
     assert not ({30164, 30170, 30174} & G.S128_USED_TOPOS) and not (set(range(30240, 30252)) & G.S128_USED_TOPOS)
+
+
+TW_TOPS = ",".join(map(str, range(30149, 30161)))
+
+
+@pytest.fixture
+def tw(tmp_path, monkeypatch):
+    """An FL MP-OFF twin read: FL + lambda's --gate (FL gnn s1-2 _k100 / _kr at P7, the bars at the base, and a lambda kind it must ignore),
+    the twin's own --twin-gate (s1-2 _k100 / _kr at P7b), FL + lambda's primary read filed; secondary: FL MLP (--desc-gate), the twin at 64
+    servers (--desc64-gate) and size-64's bar and FL gnn (--s64-gate). The real P7 / P7b shas are monkeypatched to this repo's commits."""
+    for g in ("BAR", "SEEDS", "PROG_ALPHA"):
+        monkeypatch.setattr(G, g, getattr(G, g))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    fl, mlp, twin = G.CONFIRM_PRIMARY, G.CONFIRM_MLP, G.TWIN
+    base = commit(repo, {G.W_FILE: W0, "scripts_cosim/gate.py": "x = 1\n", "docs/lineages/uncut_groups_s0_v1.md": "# node\n"}, "base")
+    w7 = commit(repo, {G.W_FILE: {**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}}, "P7")
+    w7b_body = json.loads(json.dumps({**w_with(W0, (fl, mlp)), "k_cotenancy": 1.468}))
+    w7b_body["w_ms_per_plan"][twin] = {"heavy": 5.5, "moderate": 5.9}
+    w7b_body["w_ms_per_plan_by_bucket"][twin] = {"heavy": {"le10": 5.5, "11_50": 2.0, "gt50": 2.2}, "moderate": {"le10": 5.9, "11_50": 2.1, "gt50": 2.3}}
+    w7b_body[f"_source_{twin}"] = "twin w"
+    w7b = commit(repo, {G.W_FILE: w7b_body}, "P7b")
+    monkeypatch.setattr(G, "TW_P7", w7)
+    monkeypatch.setattr(G, "TW_P7B", w7b)
+    ck = tmp_path / "m.pt"
+    ck.write_bytes(b"weights")
+    cm = tmp_path / "ck.json"
+    cm.write_text(json.dumps({f"{k}|s{s}": hashlib.md5(b"weights").hexdigest() for k in (fl, mlp, twin) for s in (1, 2)}))
+    d, td, dd, d64, s64 = (tmp_path / x for x in ("fll", "twin", "fll_desc", "twin64", "size64"))
+    for x in (d, td, dd, d64, s64):
+        x.mkdir()
+    fread = tmp_path / "fll_primary.json"
+    fread.write_text(json.dumps({"family": "FL + lambda", "confirmation": {"family": "FL + lambda", "stage": "primary", "label": "NOT-WIN"}}))
+    frec = commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- FL + lambda primary md5 `{G.md5(str(fread))}`\n"}, "file FL + lambda")
+    twin_byb = lambda r, k: json.dumps({b: k * v for b, v in w7b_body["w_ms_per_plan_by_bucket"][twin][r].items()}, sort_keys=True)
+
+    def fill(fl_mean=1.8, tw_mean=2.0, seed2_fl=None, twin_at=None, twin_env=None, twin_busy=1.0):
+        for t in range(30149, 30161):
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                    jit = 0.0007 * (t - 30148)
+                    cell(str(d), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=24)
+                    cell(str(d), "cd", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=24)
+                    cell(str(d), "ra_gnn_eng_flreg_nosplit", 1, t, w, r, 1.7, str(ck), commit=w7, servers=24)  # another family's kind: ignored
+                    for sd in (1, 2):
+                        fm = (seed2_fl if (sd == 2 and seed2_fl is not None) else fl_mean) - jit
+                        cell(str(d), fl, sd, t, w, r, fm, str(ck), commit=w7, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=24)
+                        cell(str(d), fl, sd, t, w, r, fm, str(ck), commit=w7, sfx="_kr", env={"HEROSIM_DECISION_COST_MS": repr(1.468 * wr)}, servers=24)
+                        for sfx, k in (("_k100", 1.0), ("_kr", 1.468)):
+                            env = twin_env or {"HEROSIM_DECISION_COST_MS_BY_BUCKET": twin_byb(r, k)}
+                            cell(str(td), twin, sd, t, w, r, tw_mean - jit, str(ck), commit=twin_at or w7b, sfx=sfx, env=env, servers=24, busy=twin_busy)
+                            cell(str(dd), mlp, sd, t, w, r, 1.9 - jit, str(ck), commit=w7, sfx=sfx,
+                                 env={"HEROSIM_DECISION_COST_MS": repr(k * wr)}, servers=24)
+        for t in range(30129, 30141):
+            for w in G.WINDOWS:
+                for r in G.RUNGS:
+                    wr = {"heavy": 6.5, "moderate": 6.9}[r]
+                    cell(str(s64), "cd_ib0_inflightfull", 0, t, w, r, 2.0, busy=0.1, commit=base, servers=64)
+                    for sd in (1, 2):
+                        cell(str(s64), fl, sd, t, w, r, 1.8, str(ck), commit=w7, env={"HEROSIM_DECISION_COST_MS": repr(wr)}, servers=64)
+                        cell(str(d64), twin, sd, t, w, r, 1.95, str(ck), commit=w7b, env={"HEROSIM_DECISION_COST_MS_BY_BUCKET": twin_byb(r, 1.0)}, servers=64)
+
+    def read(stage, out, **kw):
+        args = ["--gate", str(d), "--topos", TW_TOPS, "--topos-sha256", hashlib.sha256(TW_TOPS.encode()).hexdigest(), "--pin", base[:8],
+                "--repo", str(repo), "--w-pins", f"{w7[:8]},{w7b[:8]}", "--primary", fl, "--twin", twin, "--checkpoint-md5", str(cm),
+                "--bar", "cd_ib0_inflightfull", "--confirm-mp-twin", "--twin-gate", str(td), "--fll-primary-read", str(fread),
+                "--fll-record", frec, "--filed-ref", "HEAD", "--stage", stage, "--out", str(tmp_path / out)]
+        for k, v in kw.items():
+            args += [f"--{k}"] + ([] if v is None else [v])
+        return G.main(args)
+
+    def secondary(p, **kw):
+        rec = commit(repo, {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- FL + lambda primary md5 `{G.md5(str(fread))}`\n- twin primary md5 `{G.md5(p)}`\n"},
+                     "file the twin primary")
+        sec = {"mlp": mlp, "primary-read": p, "record": rec, "desc-gate": str(dd), "desc64-gate": str(d64), "s64-gate": str(s64), **kw}
+        return read("secondary", "s.json", **sec)
+
+    return {"fill": fill, "read": read, "secondary": secondary, "tmp": tmp_path, "repo": repo, "d": d, "td": td, "dd": dd, "d64": d64, "s64": s64,
+            "base": base, "w7": w7, "w7b": w7b, "fread": fread}
+
+
+@pytest.mark.parametrize("fl_mean, tw_mean, seed2, label", [(1.8, 2.0, None, "MP-ATTRIBUTED"), (2.0, 2.0, None, "TIE"), (2.0, 1.8, None, "TWIN-FASTER"),
+                                                             (1.985, 2.0, None, "MP-DIRECTION"), (1.8, 2.0, 1.99, "MP-DIRECTION")])
+def test_twin_f2_labels_seed_matched_both_charges(tw, fl_mean, tw_mean, seed2, label):
+    tw["fill"](fl_mean=fl_mean, tw_mean=tw_mean, seed2_fl=seed2)
+    res = tw["read"]("primary", "p.json")
+    assert res["confirmation"]["label"] == label and res["F2"]["label"] == res["cotenancy"]["F2"]["label"] == label
+    n = 12 * 4 * 2
+    assert res["confirmation"]["grid_cells"] == n * (2 * 2 + 2) and res["confirmation"]["twin_grid_cells"] == n * 4
+    assert "descriptive" not in res and "descriptive_64" not in res and res["fll_primary_read"]["md5"] == G.md5(str(tw["fread"]))
+    assert len(res["F2"]["tests"]) == 4 and sorted(res["F2"]["seeds_alone"]) == [1, 2]
+
+
+def test_twin_read_waits_for_fl_lambda_primary_to_be_filed(tw):
+    tw["fill"]()
+    with pytest.raises(SystemExit, match="FL \\+ lambda's primary read .* is not filed"):
+        tw["read"]("primary", "p.json", **{"fll-record": tw["base"]})
+
+
+@pytest.mark.parametrize("case, match", [("twin_at_p7", "not P7b"), ("twin_fl_w", "served decision cost"),
+                                         ("pins", "must end"), ("missing", "VOID: --twin-gate"), ("stray", "other than the twin")])
+def test_twin_chain_charges_and_grid_fail_loud(tw, case, match):
+    if case == "twin_at_p7":
+        tw["fill"](twin_at=tw["w7"])
+    elif case == "twin_fl_w":
+        tw["fill"](twin_env={"HEROSIM_DECISION_COST_MS": "6.5"})
+    else:
+        tw["fill"]()
+    kw = {}
+    if case == "pins":
+        kw = {"w-pins": tw["w7"][:8]}
+    elif case == "missing":
+        _drop(str(tw["td"]), f"cc40s30150__g2heavy__{G.TWIN}_kr_s2.")
+    elif case == "stray":
+        cell(str(tw["td"]), G.CONFIRM_PRIMARY, 1, 30149, "g0", "heavy", 1.8, servers=24, sfx="_k100")
+    with pytest.raises(SystemExit, match=match):
+        tw["read"]("primary", "p.json", **kw)
+
+
+def test_twin_chain_refuses_any_other_key_change_at_p7b(tw, monkeypatch):
+    tw["fill"]()
+    w = json.loads(subprocess.run(["git", "-C", str(tw["repo"]), "show", f"{tw['w7b']}:{G.W_FILE}"], capture_output=True, text=True).stdout)
+    w["w_ms_per_plan"]["cd_ib0"]["heavy"] = 1.5  # P7b's twin keys plus a moved bar w
+    subprocess.run(["git", "-C", str(tw["repo"]), "checkout", "-q", "-b", "bad", tw["w7"]], check=True)
+    bad = commit(tw["repo"], {G.W_FILE: w}, "bad P7b")
+    monkeypatch.setattr(G, "TW_P7B", bad)
+    with pytest.raises(SystemExit, match="changes frozen"):
+        G.tw_chain(str(tw["repo"]), tw["base"][:8], f"{tw['w7'][:8]},{bad[:8]}", "")
+    w3 = json.loads(json.dumps(w))
+    w3["w_ms_per_plan"]["cd_ib0"]["heavy"] = 1.0  # back to P7's value; now another learned kind is added instead
+    w3["w_ms_per_plan"]["ra_gnn_eng_x_nosplit"] = {"heavy": 1.0}
+    subprocess.run(["git", "-C", str(tw["repo"]), "checkout", "-q", "-b", "bad2", tw["w7"]], check=True)
+    bad2 = commit(tw["repo"], {G.W_FILE: w3}, "P7b adding another kind")
+    monkeypatch.setattr(G, "TW_P7B", bad2)
+    with pytest.raises(SystemExit, match="outside the learned arms"):
+        G.tw_chain(str(tw["repo"]), tw["base"][:8], f"{tw['w7'][:8]},{bad2[:8]}", "")
+
+
+@pytest.mark.parametrize("kw, match", [({"seeds": "1,2,3"}, "--seeds 1,2"), ({"confirm-size128": None}, "its own family"),
+                                       ({"twin": "ra_twin_eng_nosplit"}, "--twin ra_twin_eng_combfl_nosplit"), ({"desc-gate": "x"}, "seal"),
+                                       ({"record": "x"}, "seal"), ({"topos-sha256": "0" * 64}, "fl3 30149-30160")])
+def test_twin_arguments_fail_loud(tw, kw, match):
+    tw["fill"]()
+    with pytest.raises(SystemExit, match=match):
+        tw["read"]("primary", "x.json", **kw)
+
+
+def test_twin_secondary_descriptive_rows_only_after_the_primary_is_filed(tw):
+    tw["fill"]()
+    tw["read"]("primary", "p.json")
+    p = str(tw["tmp"] / "p.json")
+    head = subprocess.run(["git", "-C", str(tw["repo"]), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    with pytest.raises(SystemExit, match="the twin's primary read .* is not filed"):
+        tw["read"]("secondary", "s.json", **{"mlp": G.CONFIRM_MLP, "primary-read": p, "record": head, "desc-gate": str(tw["dd"]),
+                                             "desc64-gate": str(tw["d64"]), "s64-gate": str(tw["s64"])})
+    res = tw["secondary"](p)
+    n = 12 * 4 * 2
+    c = res["confirmation"]
+    assert (c["desc_grid_cells"], c["desc64_grid_cells"], c["s64_grid_cells"]) == (n * 4, n * 2, n * 3)
+    for v in (res, res["cotenancy"]):
+        assert len(v["descriptive"]["twin_vs_mlp"]["tests"]) == 4 and all("p_holm" not in e for e in v["descriptive"]["twin_vs_mlp"]["tests"])
+        assert all(e["median_pct"] > 0 for e in v["descriptive"]["twin_vs_mlp"]["tests"])
+    d64 = res["descriptive_64"]
+    assert d64["label"] == "topologies already read in size-64" and all(e["median_pct"] < 0 for e in d64["fl_vs_twin"])
+    assert d64["pins"] == {"twin_vs_bar": {"twin": [tw["w7b"][:8]], "bar": [tw["base"][:8]]}, "fl_vs_twin": {"fl": [tw["w7"][:8]], "twin": [tw["w7b"][:8]]}}
+    assert all(v["F2"]["anchor_ok"] == {"moderate": True, "heavy": True} for v in (res, res["cotenancy"]))
+    assert res["confirmation"]["primary_read"]["md5"] == G.md5(p) and res["confirmation"]["label"] == "MP-ATTRIBUTED"
+
+
+@pytest.mark.parametrize("where", ["desc64", "s64"])
+def test_twin_64_server_rows_fail_loud_off_64_servers(tw, where):
+    tw["fill"]()
+    tw["read"]("primary", "p.json")
+    d, name = {"desc64": (tw["d64"], f"cc40s30131__g1heavy__{G.TWIN}_k100_s2"), "s64": (tw["s64"], "cc40s30131__g1heavy__cd_ib0_inflightfull_k100_s0")}[where]
+    sp = d / f"{name}.summary.json"
+    x = json.loads(sp.read_text())
+    x["servers"] = 24
+    sp.write_text(json.dumps(x))
+    with pytest.raises(SystemExit, match="servers = 64"):
+        tw["secondary"](str(tw["tmp"] / "p.json"))
+
+
+def test_twin_flags_are_refused_by_the_filed_modes():
+    with pytest.raises(SystemExit, match="belong to --confirm-mp-twin"):
+        G.main(["--gate", "x", "--topos", "1", "--topos-sha256", "y", "--pin", "x", "--primary", "p", "--checkpoint-md5", "c", "--twin-gate", "m"])
+
+
+def test_twin_anchor_clause_drops_attributed_to_direction(tw):
+    tw["fill"](twin_busy=5.0)  # the twin spends more decision time per task than FL gnn: FL's share is below the twin's at both rungs
+    res = tw["read"]("primary", "p.json")
+    for v in (res, res["cotenancy"]):
+        assert v["F2"]["anchor_ok"] == {"moderate": False, "heavy": False} and v["F2"]["label"] == "MP-DIRECTION" and "anchor_ok=False" in v["F2"]["why"]
+        assert all(e["median_pct"] <= -2 and e["p_holm"] < G.PROG_ALPHA for e in v["F2"]["tests"])
+    assert res["confirmation"]["label"] == "MP-DIRECTION"
