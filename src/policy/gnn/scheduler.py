@@ -1430,6 +1430,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 waiting = len(self.mutex.get_queue)
                 yield self.env.timeout(charge)
                 decision_cost.book(self, "sched_busy_seconds", charge)
+                decision_cost.book(self, "sched_felt_task_seconds", len(batch_tasks) * charge)   # every task of the batch waits the batch's whole charge
                 decision_cost.book(self, "sched_batches_charged", 1)
                 decision_cost.book(self, "sched_mutex_blocked_lb_s", waiting * charge)
                 decision_cost.book(self, "sched_mutex_waiters_max", max(waiting, len(self.mutex.get_queue)), mx=True)
