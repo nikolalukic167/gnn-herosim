@@ -37,12 +37,12 @@ ARM=$1; W=$2; RUNG=$3; T=$4
 case $ARM in bar) KIND=cd_ib0_inflightfull_k100; SEED=0; IN=$INB; FILED=$FB ;; gnn) KIND=ra_gnn_eng_combfl_nosplit_k100; SEED=1; IN=$INM; [ $SIZE = 128 ] && IN=$INB; FILED=$FG ;; mlp) KIND=ra_mlp_same_combfl_nosplit_k100; SEED=1; IN=$INM; FILED=$FM ;; esac
 OUTJ=$R/$ARM/${W}_${RUNG}_$T.json; [ -e $OUTJ ] && exit 0
 mkdir -p $R/$ARM; TAG=${ARM}_${W}_${RUNG}_$T; OUTC=$R/$ARM/cell_$TAG; TRACE_OUT=/tmp/rho3_${SLURM_JOB_ID}_$TAG.jsonl; rm -rf $OUTC $TRACE_OUT
+# the gate's EXIT trap removes /tmp/herosim_raw_${SLURM_JOB_ID:-$$}: a job-wide id would let one finishing cell delete the raw output of the cells still running
 ( export TRACE_OUT WT=$WTP EXPECT_HEAD=${PIN:0:8} IN OUT=$OUTC SELECT=$SEL R1A_ARMS=$KIND R1A_SEEDS=$SEED R1A_TOPOS=$T R1A_WINDOWS=$W WF1_RUNGS=$RUNG PAR=1 CELL_MEM=16G LIMIT=14400 R1A_SPLIT=uncut_arm1_split.json R1A_SLATE=declared_pruning_v1_uncapped
-  unset R1A_EXCHANGE_TCP R1A_EXCHANGE_FAIRSHARE R1A_EXCHANGE_FAIRSHARE_PARTNERS
+  unset R1A_EXCHANGE_TCP R1A_EXCHANGE_FAIRSHARE R1A_EXCHANGE_FAIRSHARE_PARTNERS SLURM_JOB_ID SLURM_ARRAY_TASK_ID
   bash $GATE ) > $R/$ARM/log_$TAG.txt 2>&1 || { echo "FAIL cell $TAG"; tail -3 $R/$ARM/log_$TAG.txt; rm -f $TRACE_OUT; exit 0; }
 N=cc40s${T}__${W}${RUNG}__${KIND}_s$SEED
-python3 $HERE/rho_extract2.py $TRACE_OUT $OUTC/$N.summary.json $FILED/$N.summary.json $OUTJ || echo "FAIL extract $TAG"
-rm -rf $OUTC $TRACE_OUT
+if python3 $HERE/rho_extract2.py $TRACE_OUT $OUTC/$N.summary.json $FILED/$N.summary.json $OUTJ; then rm -rf $OUTC $TRACE_OUT; else echo "FAIL extract $TAG (cell dir and trace kept)"; fi
 W
 chmod +x /tmp/rho3_worker_$SLURM_JOB_ID.sh
 eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn
