@@ -1338,6 +1338,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if wl not in _LAST_ARRIVAL:
             _LAST_ARRIVAL[wl] = max(float(e["timestamp"]) for e in json.load(open(wl))["events"])
         rule = {k: float(os.environ[e]) for k, e in (("warmup_s", "R1A_GRACE_S"), ("stall_s", "R1A_STALL_S")) if e in os.environ}
+        if os.environ.get("R1A_WD_WHOLE_RUN_RATE") == "1":  # per-job: project from the whole-run rate (a long frozen-sim decision inside the last 300 s must not read as a collapse)
+            rule["window_s"] = 1e12
         dog = pw.Watchdog(prog, _LAST_ARRIVAL[wl], float(timeout_s), poll_s=float(os.environ.get("R1A_POLL_S", pw.POLL_S)), **rule)
         if "R1A_POLL_S" in os.environ:  # a test run with short cells: report as often as the watchdog polls
             env["HEROSIM_PROGRESS_INTERVAL_S"] = os.environ["R1A_POLL_S"]

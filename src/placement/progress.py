@@ -2,6 +2,7 @@
 
 A daemon thread writes ``{"sim_now", "wall"}`` to ``HEROSIM_PROGRESS_FILE`` every few wall seconds. It reads ``env.now`` and
 schedules nothing in SimPy, so event order and every simulated field are unchanged; unset, nothing starts.
+Every sample is also appended to ``<path>.series`` as ``wall sim_now`` lines, so a watchdog kill can be proved from the run's own progress history.
 """
 from __future__ import annotations
 
@@ -28,6 +29,8 @@ def start_progress_reporter(env, path: str | None = None, interval: float | None
                 with open(tmp, "w") as fh:
                     json.dump({"sim_now": float(env.now), "wall": time.time()}, fh)
                 os.replace(tmp, path)
+                with open(path + ".series", "a") as fh:
+                    fh.write(f"{time.time():.1f} {float(env.now):.3f}\n")
             except OSError:
                 pass  # the watchdog treats a missing file as no progress; a full disk must not kill the run
             stop.wait(interval)

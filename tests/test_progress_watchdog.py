@@ -74,3 +74,35 @@ def test_a_sweep_that_cannot_finish_in_its_budget_is_stopped_early():
         for f in futs:
             f.cancel()
     assert 0 < len(got) < 30 and stall["pending"] == 30 - len(got) and "projected" in stall["watchdog"]
+
+
+def _lumpy(t):
+    """a cell on track (1.6 sim-s per wall-s) whose clock sits almost still for 400 s inside one big ILS burst (0.0223/s, the rate that killed the PER 200 cells)"""
+    return 1.6 * t if t < 3000 else 4800 + 0.0223 * (t - 3000) if t < 3400 else 4809 + 1.6 * (t - 3400)
+
+
+def test_a_frozen_sim_window_inside_an_on_track_run_kills_the_default_rule_but_not_the_whole_run_rate():
+    out, _ = run(ProgressWatchdog(9354, 72000, stall_s=7200), _lumpy, 3400)
+    assert out == PROJECTED  # 300 s window: the projected finish is ~120,000 s
+    out, _ = run(ProgressWatchdog(9354, 72000, stall_s=7200, window_s=1e12), _lumpy, 4800)
+    assert out is None
+
+
+def test_the_whole_run_rate_still_kills_a_genuine_sustained_slowdown():
+    out, t = run(ProgressWatchdog(9354, 72000, stall_s=7200, window_s=1e12), lambda t: 0.02 * t, 4800)  # 0.02 sim-s/s: finish at ~468,000 s
+    assert out == PROJECTED and 600 <= t <= 660
+
+
+def test_the_progress_reporter_appends_a_series(tmp_path):
+    import time
+
+    import simpy
+
+    from src.placement.progress import start_progress_reporter
+
+    p = tmp_path / "x.progress"
+    stop = start_progress_reporter(simpy.Environment(), str(p), interval=0.05)
+    time.sleep(0.4)
+    stop.set()
+    rows = (tmp_path / "x.progress.series").read_text().split()
+    assert len(rows) >= 4 and len(rows) % 2 == 0
