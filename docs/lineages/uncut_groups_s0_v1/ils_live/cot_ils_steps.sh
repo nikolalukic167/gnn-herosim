@@ -5,11 +5,13 @@
 set -euo pipefail
 ARM=${1:?}; SER=${2:?}; W=${WT:?FAIL LOUD: set WT}; HEAD8=${EXPECT_HEAD:?}
 C=/share/nikola.lukic/uncut_groups/cotenancy; U=/share/nikola.lukic/uncut_groups
-export COT_DIR=$C PAR=1 WF1_RUNGS=moderate,heavy R1A_WINDOWS=g0 LOAD_THREADS=8 R1A_TOPOS=19461
+export COT_DIR=$C PAR=1 WF1_RUNGS=${RUNGS:-moderate,heavy} R1A_WINDOWS=g0 LOAD_THREADS=8 R1A_TOPOS=19461
 export R1A_SPLIT=uncut_arm1_split.json R1A_SLATE=declared_pruning_v1_uncapped SELECT=$U/hand_selected.json
-export EXPECT_SMT=$(cat /sys/devices/system/cpu/smt/control)
-export EXPECT_CPU_MODEL=$(lscpu | sed -n "s/^Model name:[[:space:]]*//p")
-[[ "$EXPECT_SMT" == off ]] || { echo "FAIL LOUD: smt/control=$EXPECT_SMT, the recipe is the SMT-off venue"; exit 1; }
+# A3: the node must have the CPU model and SMT state of the PER 10 / 50 calibration (WANT_SMT, WANT_CPU_MODEL), else the series is redone elsewhere, not averaged
+export EXPECT_SMT=${WANT_SMT:-$(cat /sys/devices/system/cpu/smt/control)}
+export EXPECT_CPU_MODEL=${WANT_CPU_MODEL:-$(lscpu | sed -n "s/^Model name:[[:space:]]*//p")}
+[[ "$(cat /sys/devices/system/cpu/smt/control)" == "$EXPECT_SMT" && "$EXPECT_SMT" == off ]] || { echo "FAIL LOUD: smt/control=$(cat /sys/devices/system/cpu/smt/control), want $EXPECT_SMT (the recipe is the SMT-off venue)"; exit 1; }
+[[ "$(lscpu | sed -n "s/^Model name:[[:space:]]*//p")" == "$EXPECT_CPU_MODEL" ]] || { echo "FAIL LOUD: CPU model differs from $EXPECT_CPU_MODEL"; exit 1; }
 echo "[series $ARM] host=$(hostname) smt=$EXPECT_SMT model=\"$EXPECT_CPU_MODEL\" nproc=$(nproc) cpuset=$(taskset -pc $$ | sed "s/.*: //")"
 mkdir -p "$SER"
 H3IN=$U/gate_inputs_e2738e37/inputs_group

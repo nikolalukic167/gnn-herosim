@@ -7,11 +7,11 @@ Batch sizes and counts are the bar's (dose_7cb483c5, cells_ref_{mod,heavy}070, t
 the ILS never runs on a batch of at most 10 tasks) at each budget: 200 = the filed K1(b) rows (rows_all.jsonl, 190 of 194 stopped on the budget), 10 and 50 =
 this study's runs of `uncut_ils.py run --arm cd_ib0 --seed 0 --replay none` at the identity-checked pin e8c14124 (a wall cap of 1800 s per state; the number of
 states that stopped on it is printed: a capped state is a lower bound on its evaluations). The states were captured under cd_ib0, whose S has no in-flight term;
-the live arm's S has it, so the counts are an approximation, disclosed. w_S is the frozen per-bucket rate of decision_cost_w.json (k = 1, per rung).
+the live arm's S has it, so the counts are an approximation, disclosed. w_S is each budget's own frozen per-bucket rate of decision_cost_w.json (A3; k = 1, per rung).
 The bar's own charge is the cell's sched_busy_seconds. Run length: the arrival window (arrival_end.last_arrival_s), the time a single scheduler server has to
 serve every batch; the cell's end time is printed beside it. rho_sched >= 1 at a load = "infeasible live at that load".
 
-usage: ils_live_projection.py --u /share/nikola.lukic/uncut_groups --w decision_cost_w.json --kind cd_ib0_ils [--out OUT.json]"""
+usage: ils_live_projection.py --u /share/nikola.lukic/uncut_groups --w decision_cost_w.json [--out OUT.json]   (A3: each budget uses its own w_S)"""
 import argparse
 import glob
 import json
@@ -56,11 +56,14 @@ def batch_counts(stem):
     return out
 
 
-def project(u, w, kind):
+KIND = {10: "cd_ib0_ils_p10", 50: "cd_ib0_ils_p50", 200: "cd_ib0_ils"}      # A3: each budget is charged with its own w_S
+
+
+def project(u, w):
     ev = evals_per_batch(u)
     res = {}
     for r in RUNGS:
-        ws = {b: float(v) for b, v in w["w_S_ms_per_plan_by_bucket"][kind][r].items()}
+        wsb = {B: {b: float(v) for b, v in w["w_S_ms_per_plan_by_bucket"][KIND[B]][r].items()} for B in BUDGETS}
         per = {B: {} for B in BUDGETS}
         for t in TOPOS:
             for win in WINDOWS:
@@ -70,7 +73,7 @@ def project(u, w, kind):
                 bar_s = float(s["schedulerCounters"]["sched_busy_seconds"])
                 run = float(s["arrival_end"]["last_arrival_s"])
                 for B in BUDGETS:
-                    ils_s = sum(c * ev[B][dbucket(n)][0] * ws[dbucket(n)] * 1e-3 for n, c in cnt.items() if n > 10)
+                    ils_s = sum(c * ev[B][dbucket(n)][0] * wsb[B][dbucket(n)] * 1e-3 for n, c in cnt.items() if n > 10)
                     per[B].setdefault(t, []).append(((ils_s + bar_s) / run, bar_s / run, ils_s / run, (ils_s + bar_s) / float(s["endTime"])))
         res[r] = {}
         for B in BUDGETS:
@@ -86,12 +89,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--u", default="/share/nikola.lukic/uncut_groups")
     ap.add_argument("--w", required=True)
-    ap.add_argument("--kind", default="cd_ib0_ils")
     ap.add_argument("--out")
     a = ap.parse_args()
     w = json.load(open(a.w))
-    ev, res = project(a.u, w, a.kind)
-    L = [__doc__.strip().split("\n\n")[0], "", f"w file {a.w}; kind {a.kind}; w_S per rung (ms per plan): " + json.dumps(w["w_S_ms_per_plan_by_bucket"][a.kind]), "",
+    ev, res = project(a.u, w)
+    L = [__doc__.strip().split("\n\n")[0], "", f"w file {a.w}; w_S per budget kind and rung (ms per plan): " + json.dumps({str(B): w["w_S_ms_per_plan_by_bucket"][KIND[B]] for B in BUDGETS}), "",
          "evaluations per ILS batch (median; states; stopped on the wall cap), by decision size bucket:"]
     for B in BUDGETS:
         L.append(f"  budget {B:3d}: " + "; ".join(f"{k} {v[0]:.0f} ({v[1]} states, {v[2]} capped)" for k, v in sorted(ev[B].items()) if k != "_states"))

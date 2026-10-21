@@ -5,7 +5,7 @@ both rungs, seed 0). Pooled per rung and size bucket: w = 1000 x sum(seconds) / 
   ILS-live    cd_ib0_ils: the ILS phase's own wall / plans per bucket (pg_ils_wall_<b> / pg_ils_evals_<b>) -> w_S_ms_per_plan_by_bucket; the bar's plans keep the
               bar's filed w (w_ms_per_plan[cd_ib0_ils] = cd_ib0_inflightfull's, unchanged). The ILS never runs on a batch of at most 10 tasks, so le10 has no
               evals; it is set to the 11_50 value and never charges.
-usage: ils_live_freeze_w.py [--exact <ser_cd_exactS_ib0_live>] [--ils <ser_cd_ib0_ils_p50>] [--write scripts_cosim/decision_cost_w.json]   (series dir holds ARM/)"""
+usage: ils_live_freeze_w.py [--exact <series>] [--ils10 <series>] [--ils50 <series>] [--ils200 <series[,series]>] [--write scripts_cosim/decision_cost_w.json]   (series dir holds ARM/)"""
 import glob
 import json
 import sys
@@ -15,8 +15,9 @@ RUNGS = ("moderate", "heavy")
 
 
 def cells(series):
+    """series = one dir or several joined with "," (A3: PER 200 is one job per rung); each rung must come out with exactly one cell."""
     out = {r: [] for r in RUNGS}
-    for f in sorted(glob.glob(f"{series}/ARM/*.summary.json")):
+    for f in sorted(x for d in series.split(",") for x in glob.glob(f"{d}/ARM/*.summary.json")):
         s = json.load(open(f))
         r = "heavy" if "g0heavy" in f else "moderate" if "g0moderate" in f else None
         if r is None:
@@ -59,14 +60,16 @@ def ils_w(series):
 
 
 def main(argv):
-    """--exact <series dir> and/or --ils <series dir> [--write decision_cost_w.json]. --ils takes the PER 50 series (A2: w_S = the PER 50 value) and sets it for every
-    ILS budget kind (cd_ib0_ils, cd_ib0_ils_p50, cd_ib0_ils_p10), which all charge the same w_S."""
+    """--exact <series dir>, --ils10 / --ils50 / --ils200 <series dir[,dir]> [--write decision_cost_w.json]. A3: each ILS budget kind is charged with ITS OWN w_S, measured on its
+    own served configuration (cd_ib0_ils_p10, cd_ib0_ils_p50, cd_ib0_ils); a budget not given keeps its entry."""
     arg = lambda k: argv[argv.index(k) + 1] if k in argv else None
+    kinds = {"--ils10": "cd_ib0_ils_p10", "--ils50": "cd_ib0_ils_p50", "--ils200": "cd_ib0_ils"}
     tab = {}
     if arg("--exact"):
         tab["exact"] = exact_w(arg("--exact"))
-    if arg("--ils"):
-        tab["ils"] = ils_w(arg("--ils"))
+    for flag, kind in kinds.items():
+        if arg(flag):
+            tab[kind] = ils_w(arg(flag))
     print(json.dumps(tab, indent=1))
     p = arg("--write")
     if not p:
@@ -75,20 +78,17 @@ def main(argv):
     if "exact" in tab:
         d["w_ms_per_plan_by_bucket"]["cd_exactS_ib0_live"] = tab["exact"]
         d["w_ms_per_plan"]["cd_exactS_ib0_live"] = {r: tab["exact"][r]["le10"] for r in RUNGS}
-        d["_source_exact_live_w"] = ("FROZEN (calibration series ils_cal/ser_cd_exactS_ib0_live, the filed hand recipe on one exclusive SMT-off node: k = 0, 19461 g0, both rungs, seed 0, "
-                                     "H3 drift references cd_ib0 at 114cc0e7, drift -0.25 / -0.03 %). w_ms_per_plan_by_bucket[cd_exactS_ib0_live] = decisionTiming wall per plan, pooled; "
-                                     "its scalar is the le10 bucket.")
-    if "ils" in tab:
-        for k in ("cd_ib0_ils", "cd_ib0_ils_p50", "cd_ib0_ils_p10"):
-            d["w_S_ms_per_plan_by_bucket"][k] = tab["ils"]
-        d["_source_ils_w_S"] = ("FROZEN (A2): w_S_ms_per_plan_by_bucket = the ILS phase's wall per _pg_plan_cost evaluation measured at PER = 50 (calibration series "
-                                "ils_cal/ser_cd_ib0_ils_p50, the filed hand recipe, exclusive SMT-off node, k = 0, 19461 g0, both rungs, seed 0, H3 references at 114cc0e7); le10 = the 11_50 "
-                                "value, never charged (the ILS runs on batches of more than 10 tasks only). The bar's plans before the ILS keep the bar's filed w (w_ms_per_plan).")
-    if "ils" in tab:
-        d.pop("_source_ils_exact_live", None)
-    else:
-        d["_source_ils_exact_live"] = ("PROVISIONAL, NOT FROZEN (2026-10-21): w_S_ms_per_plan_by_bucket (every cd_ib0_ils budget kind) copies cd_exactS_ib0's bucketed whole-plan w until A2's "
-                                       "PER 10 / PER 50 calibration is filed; exact-live's w is frozen (_source_exact_live_w). The ILS cells serve only after w_S is frozen.")
+    for kind in kinds.values():
+        if kind in tab:
+            d["w_S_ms_per_plan_by_bucket"][kind] = tab[kind]
+    done = [k for k in kinds.values() if k in tab]
+    if done:
+        d["_source_ils_w_S"] = ("A3: each ILS budget kind is charged with its own w_S = the ILS phase's wall per _pg_plan_cost evaluation on its own served configuration (the filed hand "
+                                "recipe: exclusive SMT-off node, k = 0, 19461 g0, seed 0, H3 references cd_ib0 at 114cc0e7 before and after). Frozen so far: " + ", ".join(sorted(
+                                    d.get("_source_ils_w_S_frozen", [] ) + done)) + ". le10 = the 11_50 value, never charged (the ILS runs on batches of more than 10 tasks only). "
+                                "Kinds not listed are PROVISIONAL (a copy of cd_exactS_ib0's bucketed w) and their cells do not serve. The bar's plans before the ILS keep the bar's filed w.")
+        d["_source_ils_w_S_frozen"] = sorted(set(d.get("_source_ils_w_S_frozen", [])) | set(done))
+    d.pop("_source_ils_exact_live", None)
     open(p, "w").write(json.dumps(d, indent=1) + "\n")
 
 
