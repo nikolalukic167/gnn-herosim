@@ -95,6 +95,14 @@
   "cd_exactS_ib0_live": {
    "moderate": 0.06882,
    "heavy": 0.06167
+  },
+  "cd_ib0_ils_p50": {
+   "moderate": 0.0116,
+   "heavy": 0.01098
+  },
+  "cd_ib0_ils_p10": {
+   "moderate": 0.0116,
+   "heavy": 0.01098
   }
  },
  "_source": "wall decision seconds / sched_plan_evals, k=0 cells: id/new (cd, cd_exactS, cd_exactS_ib0), id/new2 (nosplit), calib (cd_ib0, cd_exactS_ib0_prune, selfsearch, cdxapply); topologies 19405/19411 g0",
@@ -310,6 +318,30 @@
  "_source_ra_twin_eng_combfl_nosplit": "Frozen w for the FL MP-OFF twin (P7b), node B ONLY (ruling (a)), same job 888772 and series as the GNN+lambda entry. Table flreg/cal/gnn_twin/w_twin.json md5 429a485a4123e19ce1746811906ad351. DISCLOSURE: drift stop FIRED on node A (heavy -3.63 %, moderate -0.32 %); node B passed (heavy +0.28 %, moderate +1.37 %). A+B pooled heavy/moderate 2.593001/2.467000. Kind ra_twin_eng_combfl_nosplit.",
  "w_S_ms_per_plan_by_bucket": {
   "cd_ib0_ils": {
+   "heavy": {
+    "le10": 0.06167,
+    "11_50": 0.22317,
+    "gt50": 0.36801
+   },
+   "moderate": {
+    "le10": 0.06882,
+    "11_50": 0.23546,
+    "gt50": 0.47271
+   }
+  },
+  "cd_ib0_ils_p50": {
+   "heavy": {
+    "le10": 0.06167,
+    "11_50": 0.22317,
+    "gt50": 0.36801
+   },
+   "moderate": {
+    "le10": 0.06882,
+    "11_50": 0.23546,
+    "gt50": 0.47271
+   }
+  },
+  "cd_ib0_ils_p10": {
    "heavy": {
     "le10": 0.06167,
     "11_50": 0.22317,
