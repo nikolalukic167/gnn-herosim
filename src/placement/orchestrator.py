@@ -265,7 +265,7 @@ class Orchestrator:
             "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
             "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_exact_g_skipped", "sched_plan_evals_s",
             # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
-            "sched_plan_evals", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
+            "sched_plan_evals", "sched_busy_seconds", "sched_felt_task_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max",
         )
         out: Dict[str, Any] = {}

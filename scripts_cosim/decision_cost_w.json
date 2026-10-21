@@ -93,8 +93,16 @@
    "moderate": 2.468547
   },
   "cd_exactS_ib0_live": {
-   "moderate": 0.06882,
-   "heavy": 0.06167
+   "moderate": 0.050305,
+   "heavy": 0.049275
+  },
+  "cd_ib0_ils_p50": {
+   "moderate": 0.0116,
+   "heavy": 0.01098
+  },
+  "cd_ib0_ils_p10": {
+   "moderate": 0.0116,
+   "heavy": 0.01098
   }
  },
  "_source": "wall decision seconds / sched_plan_evals, k=0 cells: id/new (cd, cd_exactS, cd_exactS_ib0), id/new2 (nosplit), calib (cd_ib0, cd_exactS_ib0_prune, selfsearch, cdxapply); topologies 19405/19411 g0",
@@ -281,15 +289,15 @@
    }
   },
   "cd_exactS_ib0_live": {
-   "heavy": {
-    "le10": 0.06167,
-    "11_50": 0.22317,
-    "gt50": 0.36801
-   },
    "moderate": {
-    "le10": 0.06882,
-    "11_50": 0.23546,
-    "gt50": 0.47271
+    "le10": 0.050305,
+    "11_50": 0.008274,
+    "gt50": 0.008327
+   },
+   "heavy": {
+    "le10": 0.049275,
+    "11_50": 0.007944,
+    "gt50": 0.007996
    }
   }
  },
@@ -320,9 +328,34 @@
     "11_50": 0.23546,
     "gt50": 0.47271
    }
+  },
+  "cd_ib0_ils_p50": {
+   "heavy": {
+    "le10": 0.06167,
+    "11_50": 0.22317,
+    "gt50": 0.36801
+   },
+   "moderate": {
+    "le10": 0.06882,
+    "11_50": 0.23546,
+    "gt50": 0.47271
+   }
+  },
+  "cd_ib0_ils_p10": {
+   "heavy": {
+    "le10": 0.06167,
+    "11_50": 0.22317,
+    "gt50": 0.36801
+   },
+   "moderate": {
+    "le10": 0.06882,
+    "11_50": 0.23546,
+    "gt50": 0.47271
+   }
   }
  },
- "_source_ils_exact_live": "PROVISIONAL, SMOKE ONLY, NOT FROZEN (2026-10-20): w_S_ms_per_plan_by_bucket[cd_ib0_ils] and w_ms_per_plan_by_bucket[cd_exactS_ib0_live] copy cd_exactS_ib0's bucketed whole-plan w. cd_ib0_ils' ordinary w is the bar's (cd_ib0_inflightfull), exact by registration. Both must be re-measured exclusive on the arm itself and frozen before any study cell.",
+ "_source_ils_exact_live": "PROVISIONAL, NOT FROZEN (2026-10-21): w_S_ms_per_plan_by_bucket (every cd_ib0_ils budget kind) copies cd_exactS_ib0's bucketed whole-plan w until A2's PER 10 / PER 50 calibration is filed; exact-live's w is frozen (_source_exact_live_w). The ILS cells serve only after w_S is frozen.",
  "exact_live_G": 8,
- "_source_exact_live_G": "SCIENTIST's ruling 2026-10-20: G = 8, the group cap of the configuration main.tex:146 cites, fixed without calibration; groups of more than 8 tasks are served by the bar's plan (HEROSIM_PG_EXACT_G)."
+ "_source_exact_live_G": "SCIENTIST's ruling 2026-10-20: G = 8, the group cap of the configuration main.tex:146 cites, fixed without calibration; groups of more than 8 tasks are served by the bar's plan (HEROSIM_PG_EXACT_G).",
+ "_source_exact_live_w": "FROZEN (calibration series ils_cal/ser_cd_exactS_ib0_live, the filed hand recipe on one exclusive SMT-off node: k = 0, 19461 g0, both rungs, seed 0, H3 drift references cd_ib0 at 114cc0e7, drift -0.25 / -0.03 %). w_ms_per_plan_by_bucket[cd_exactS_ib0_live] = decisionTiming wall per plan, pooled; its scalar is the le10 bucket."
 }
