@@ -62,9 +62,11 @@ KIND = {10: "cd_ib0_ils_p10", 50: "cd_ib0_ils_p50", 200: "cd_ib0_ils"}      # A3
 def project(u, w):
     ev = evals_per_batch(u)
     res = {}
+    frozen = set(w.get("_source_ils_w_S_frozen", []))
+    budgets = tuple(B for B in BUDGETS if KIND[B] in frozen)       # a budget with no frozen w_S (PER 200: calibration killed) is marked, not projected
     for r in RUNGS:
-        wsb = {B: {b: float(v) for b, v in w["w_S_ms_per_plan_by_bucket"][KIND[B]][r].items()} for B in BUDGETS}
-        per = {B: {} for B in BUDGETS}
+        wsb = {B: {b: float(v) for b, v in w["w_S_ms_per_plan_by_bucket"][KIND[B]][r].items()} for B in budgets}
+        per = {B: {} for B in budgets}
         for t in TOPOS:
             for win in WINDOWS:
                 stem = f"{u}/anomaly/dose_7cb483c5/cells_ref_{SHORT[r]}070/cc40s{t}__{win}{r}__cd_ib0_inflightfull_k100_s0"
@@ -72,11 +74,11 @@ def project(u, w):
                 cnt = batch_counts(stem)
                 bar_s = float(s["schedulerCounters"]["sched_busy_seconds"])
                 run = float(s["arrival_end"]["last_arrival_s"])
-                for B in BUDGETS:
+                for B in budgets:
                     ils_s = sum(c * ev[B][dbucket(n)][0] * wsb[B][dbucket(n)] * 1e-3 for n, c in cnt.items() if n > 10)
                     per[B].setdefault(t, []).append(((ils_s + bar_s) / run, bar_s / run, ils_s / run, (ils_s + bar_s) / float(s["endTime"])))
         res[r] = {}
-        for B in BUDGETS:
+        for B in budgets:
             tv = {t: [st.median(x[i] for x in v) for i in range(4)] for t, v in per[B].items()}
             res[r][B] = {"rho_median": st.median(v[0] for v in tv.values()), "rho_min": min(v[0] for v in tv.values()), "rho_max": max(v[0] for v in tv.values()),
                          "bar_part_median": st.median(v[1] for v in tv.values()), "ils_part_median": st.median(v[2] for v in tv.values()),
@@ -93,14 +95,17 @@ def main():
     a = ap.parse_args()
     w = json.load(open(a.w))
     ev, res = project(a.u, w)
-    L = [__doc__.strip().split("\n\n")[0], "", f"w file {a.w}; w_S per budget kind and rung (ms per plan): " + json.dumps({str(B): w["w_S_ms_per_plan_by_bucket"][KIND[B]] for B in BUDGETS}), "",
+    L = [__doc__.strip().split("\n\n")[0], "", f"w file {a.w}; w_S per budget kind and rung (ms per plan): " + json.dumps({str(B): w["w_S_ms_per_plan_by_bucket"][KIND[B]] for B in BUDGETS if KIND[B] in w.get("_source_ils_w_S_frozen", [])}), "",
          "evaluations per ILS batch (median; states; stopped on the wall cap), by decision size bucket:"]
     for B in BUDGETS:
         L.append(f"  budget {B:3d}: " + "; ".join(f"{k} {v[0]:.0f} ({v[1]} states, {v[2]} capped)" for k, v in sorted(ev[B].items()) if k != "_states"))
     L.append("")
     L.append("rho_sched = charged decision seconds / arrival-window length, median over 12 topologies (min - max); topologies with rho >= 1; the bar's part and the ILS part")
+    for B in BUDGETS:
+        if KIND[B] not in w.get("_source_ils_w_S_frozen", []):
+            L.append(f"  budget {B:3d}: calibration killed, no w_S (no rho projected)")
     for r in RUNGS:
-        for B in BUDGETS:
+        for B in res[r]:
             x = res[r][B]
             L.append(f"  {r:8s} budget {B:3d}: rho {x['rho_median']:.4f} ({x['rho_min']:.4f} - {x['rho_max']:.4f}); topologies >= 1: {x['topologies_ge1']}/12; "
                      f"bar {x['bar_part_median']:.4f} + ILS {x['ils_part_median']:.4f}; over the end time {x['rho_over_end_median']:.4f}  ->  "
