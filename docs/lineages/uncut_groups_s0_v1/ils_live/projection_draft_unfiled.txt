@@ -1,0 +1,15 @@
+ILS-live feasibility projection (amendment A2; descriptive, filed before any live ILS cell).
+
+w file decision_cost_w.json; w_S per budget kind and rung (ms per plan): {"10": {"moderate": {"le10": 0.158743, "11_50": 0.158743, "gt50": 0.532837}, "heavy": {"le10": 0.147702, "11_50": 0.147702, "gt50": 0.467023}}, "50": {"moderate": {"le10": 0.162018, "11_50": 0.162018, "gt50": 0.514004}, "heavy": {"le10": 0.145096, "11_50": 0.145096, "gt50": 0.491168}}}
+
+evaluations per ILS batch (median; states; stopped on the wall cap), by decision size bucket:
+  budget  10: 11_50 1060 (144 states, 0 capped); gt50 5470 (49 states, 0 capped); le10 450 (1 states, 0 capped)
+  budget  50: 11_50 5300 (144 states, 0 capped); gt50 27350 (49 states, 0 capped); le10 2250 (1 states, 0 capped)
+  budget 200: 11_50 21200 (144 states, 0 capped); gt50 109400 (49 states, 0 capped); le10 9000 (1 states, 0 capped)
+
+rho_sched = charged decision seconds / arrival-window length, median over 12 topologies (min - max); topologies with rho >= 1; the bar's part and the ILS part
+  budget 200: calibration killed, no w_S (no rho projected)
+  moderate budget  10: rho 0.0319 (0.0313 - 0.0327); topologies >= 1: 0/12; bar 0.0010 + ILS 0.0308; over the end time 0.0316  ->  feasible
+  moderate budget  50: rho 0.1533 (0.1511 - 0.1574); topologies >= 1: 0/12; bar 0.0010 + ILS 0.1523; over the end time 0.1523  ->  feasible
+  heavy    budget  10: rho 0.0713 (0.0705 - 0.0720); topologies >= 1: 0/12; bar 0.0031 + ILS 0.0682; over the end time 0.0701  ->  feasible
+  heavy    budget  50: rho 0.3518 (0.3473 - 0.3549); topologies >= 1: 0/12; bar 0.0031 + ILS 0.3487; over the end time 0.3454  ->  feasible

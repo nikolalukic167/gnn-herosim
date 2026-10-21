@@ -330,32 +330,36 @@
    }
   },
   "cd_ib0_ils_p50": {
-   "heavy": {
-    "le10": 0.06167,
-    "11_50": 0.22317,
-    "gt50": 0.36801
-   },
    "moderate": {
-    "le10": 0.06882,
-    "11_50": 0.23546,
-    "gt50": 0.47271
+    "le10": 0.162018,
+    "11_50": 0.162018,
+    "gt50": 0.514004
+   },
+   "heavy": {
+    "le10": 0.145096,
+    "11_50": 0.145096,
+    "gt50": 0.491168
    }
   },
   "cd_ib0_ils_p10": {
-   "heavy": {
-    "le10": 0.06167,
-    "11_50": 0.22317,
-    "gt50": 0.36801
-   },
    "moderate": {
-    "le10": 0.06882,
-    "11_50": 0.23546,
-    "gt50": 0.47271
+    "le10": 0.158743,
+    "11_50": 0.158743,
+    "gt50": 0.532837
+   },
+   "heavy": {
+    "le10": 0.147702,
+    "11_50": 0.147702,
+    "gt50": 0.467023
    }
   }
  },
- "_source_ils_exact_live": "PROVISIONAL, NOT FROZEN (2026-10-21): w_S_ms_per_plan_by_bucket (every cd_ib0_ils budget kind) copies cd_exactS_ib0's bucketed whole-plan w until A2's PER 10 / PER 50 calibration is filed; exact-live's w is frozen (_source_exact_live_w). The ILS cells serve only after w_S is frozen.",
  "exact_live_G": 8,
  "_source_exact_live_G": "SCIENTIST's ruling 2026-10-20: G = 8, the group cap of the configuration main.tex:146 cites, fixed without calibration; groups of more than 8 tasks are served by the bar's plan (HEROSIM_PG_EXACT_G).",
- "_source_exact_live_w": "FROZEN (calibration series ils_cal/ser_cd_exactS_ib0_live, the filed hand recipe on one exclusive SMT-off node: k = 0, 19461 g0, both rungs, seed 0, H3 drift references cd_ib0 at 114cc0e7, drift -0.25 / -0.03 %). w_ms_per_plan_by_bucket[cd_exactS_ib0_live] = decisionTiming wall per plan, pooled; its scalar is the le10 bucket."
+ "_source_exact_live_w": "FROZEN (calibration series ils_cal/ser_cd_exactS_ib0_live, the filed hand recipe on one exclusive SMT-off node: k = 0, 19461 g0, both rungs, seed 0, H3 drift references cd_ib0 at 114cc0e7, drift -0.25 / -0.03 %). w_ms_per_plan_by_bucket[cd_exactS_ib0_live] = decisionTiming wall per plan, pooled; its scalar is the le10 bucket.",
+ "_source_ils_w_S": "A3: each ILS budget kind is charged with its own w_S = the ILS phase's wall per _pg_plan_cost evaluation on its own served configuration (the filed hand recipe: exclusive SMT-off node, k = 0, 19461 g0, seed 0, H3 references cd_ib0 at 114cc0e7 before and after). Frozen so far: cd_ib0_ils_p10, cd_ib0_ils_p50. le10 = the 11_50 value, never charged (the ILS runs on batches of more than 10 tasks only). Kinds not listed are PROVISIONAL (a copy of cd_exactS_ib0's bucketed w) and their cells do not serve. The bar's plans before the ILS keep the bar's filed w.",
+ "_source_ils_w_S_frozen": [
+  "cd_ib0_ils_p10",
+  "cd_ib0_ils_p50"
+ ]
 }

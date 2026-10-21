@@ -17,11 +17,11 @@ mkdir -p "$SER"
 H3IN=$U/gate_inputs_e2738e37/inputs_group
 step() {  # name worktree head arm stall_s
   echo "[series $ARM] step $1 start $(date -Is) arm=$4 head=$3"
-  env WT="$2" EXPECT_HEAD="$3" N_LOAD=0 PIN=0 IN="$H3IN" R1A_ARMS="$4" R1A_SEEDS=0 CELL_MEM=16G LIMIT=${LIMIT_S:-43200} ${5:+R1A_STALL_S=$5} OUT="$SER/$1" bash "$C/cot_calib_v2.sbatch"
+  env WT="$2" EXPECT_HEAD="$3" N_LOAD=0 PIN=0 IN="$H3IN" R1A_ARMS="$4" R1A_SEEDS=0 CELL_MEM=16G LIMIT=${LIMIT_S:-43200} ${5:+R1A_STALL_S=$5} ${6:+R1A_WD_WHOLE_RUN_RATE=1} OUT="$SER/$1" bash "$C/cot_calib_v2.sbatch"
   echo "[series $ARM] step $1 done $(date -Is)"
 }
 A1=$HOME/gnn-herosim-wt/s6_arm1_114cc0e7
 step H3pre $A1 114cc0e7 cd_ib0
-step ARM "$W" "$HEAD8" "$ARM" 7200
+step ARM "$W" "$HEAD8" "$ARM" 7200 ${WD_WHOLE:-}
 step H3end $A1 114cc0e7 cd_ib0
 echo "[series $ARM] all steps done"
