@@ -20,7 +20,7 @@ from src.placement.decision_timing import SIZE_BUCKETS
 ENV = "HEROSIM_DECISION_COST_MS"
 BUCKET_ENV = "HEROSIM_DECISION_COST_MS_BY_BUCKET"
 S_BUCKET_ENV = "HEROSIM_DECISION_COST_MS_S_BY_BUCKET"
-COUNTERS = ("sched_plan_evals", "sched_plan_evals_s", "sched_busy_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
+COUNTERS = ("sched_plan_evals", "sched_plan_evals_s", "sched_busy_seconds", "sched_felt_task_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max")
 
 
