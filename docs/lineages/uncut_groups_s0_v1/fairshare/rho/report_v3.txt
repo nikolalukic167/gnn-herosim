@@ -1,0 +1,58 @@
+Fair-share utilisation report v3 (uncut_groups_s0_v1; descriptive; no rerun). Reads the same cells as rho_report2.py
+(anomaly/fairshare/rho3/<size>/<arm>/<window>_<rung>_<topology>.json from rho_extract2.py) but sums the two kinds on each directed link:
+rho_sum(link) = (peer usage_s + ingress usage_s) / endTime, where usage_s = sum bytes / (bw x 1024**2) as in rho_extract2.py.
+Per size, load and arm (bar, gnn, mlp), pooled over windows g0-g3 and the 12 topologies: for every link type (role + access class + direction; core) the
+number of links with rho_sum > 1 over the links of that type (access links: every node's in and out link; core: links that carry any transfer, the cells
+do not list unused core links), the max rho_sum and the type and name of the link that attains it. Also the peer-only count of CELLULAR-server uplinks with
+rho > 1 next to the summed count, and the check that no ingress transfer uses a server uplink (so the two counts must be equal).
+Missing cells fail loud.
+
+##### 24 servers; producing job: node os-cpu-slurm-18 job 895910 cpus-per-task 32 nproc 16 threads-per-core 1 cpu-model AMD EPYC 9335 32-Core Processor cpuset 0-63 parallel-cells 14
+=== 24 servers, moderate: links with rho_sum > 1 / links of the type, pooled over g0-g3 x 12 topologies (types with none over 1 omitted)
+    bar server cellular out 106/280 (37.86 %); server wifi in 2/364 (0.55 %); server wifi out 2/364 (0.55 %) | max rho_sum 3.77 on a 'server cellular out' link (node13>core3)
+        cellular-server uplinks rho>1: peer-only 106/280, summed 106/280; ingress usage on server uplinks 0.0 s; unchanged: True
+    gnn server cellular out 63/280 (22.50 %); server wifi in 18/364 (4.95 %); server wifi out 17/364 (4.67 %) | max rho_sum 2.28 on a 'server cellular out' link (node13>core3)
+        cellular-server uplinks rho>1: peer-only 63/280, summed 63/280; ingress usage on server uplinks 0.0 s; unchanged: True
+    mlp server cellular out 72/280 (25.71 %); server wifi in 24/364 (6.59 %); server wifi out 23/364 (6.32 %) | max rho_sum 2.48 on a 'server cellular out' link (node4>core1)
+        cellular-server uplinks rho>1: peer-only 72/280, summed 72/280; ingress usage on server uplinks 0.0 s; unchanged: True
+=== 24 servers, heavy: links with rho_sum > 1 / links of the type, pooled over g0-g3 x 12 topologies (types with none over 1 omitted)
+    bar server cellular out 109/280 (38.93 %); server wifi in 11/364 (3.02 %); server wifi out 7/364 (1.92 %) | max rho_sum 4.58 on a 'server cellular out' link (node13>core3)
+        cellular-server uplinks rho>1: peer-only 109/280, summed 109/280; ingress usage on server uplinks 0.0 s; unchanged: True
+    gnn server cellular out 77/280 (27.50 %); server wifi in 43/364 (11.81 %); server wifi out 41/364 (11.26 %) | max rho_sum 3.05 on a 'server cellular out' link (node4>core1)
+        cellular-server uplinks rho>1: peer-only 77/280, summed 77/280; ingress usage on server uplinks 0.0 s; unchanged: True
+    mlp server cellular out 74/280 (26.43 %); server wifi in 54/364 (14.84 %); server wifi out 53/364 (14.56 %) | max rho_sum 3.41 on a 'server cellular out' link (node13>core3)
+        cellular-server uplinks rho>1: peer-only 74/280, summed 74/280; ingress usage on server uplinks 0.0 s; unchanged: True
+
+##### 64 servers; producing job: node os-cpu-slurm-19 job 895911 cpus-per-task 32 nproc 16 threads-per-core 1 cpu-model AMD EPYC 9335 32-Core Processor cpuset 0-63 parallel-cells 14
+=== 64 servers, moderate: links with rho_sum > 1 / links of the type, pooled over g0-g3 x 12 topologies (types with none over 1 omitted)
+    bar server cellular out 176/544 (32.35 %); server wifi in 6/1220 (0.49 %); server wifi out 5/1220 (0.41 %) | max rho_sum 9.24 on a 'server cellular out' link (node55>core9)
+        cellular-server uplinks rho>1: peer-only 176/544, summed 176/544; ingress usage on server uplinks 0.0 s; unchanged: True
+    gnn server cellular out 2/544 (0.37 %); server wifi in 1/1220 (0.08 %); server wifi out 1/1220 (0.08 %) | max rho_sum 1.33 on a 'server cellular out' link (node4>core6)
+        cellular-server uplinks rho>1: peer-only 2/544, summed 2/544; ingress usage on server uplinks 0.0 s; unchanged: True
+    mlp server cellular out 24/544 (4.41 %); server wifi in 29/1220 (2.38 %); server wifi out 29/1220 (2.38 %) | max rho_sum 2.23 on a 'server cellular out' link (node16>core9)
+        cellular-server uplinks rho>1: peer-only 24/544, summed 24/544; ingress usage on server uplinks 0.0 s; unchanged: True
+=== 64 servers, heavy: links with rho_sum > 1 / links of the type, pooled over g0-g3 x 12 topologies (types with none over 1 omitted)
+    bar server cellular out 186/544 (34.19 %); server wifi in 48/1220 (3.93 %); server wifi out 40/1220 (3.28 %) | max rho_sum 14.86 on a 'server cellular out' link (node55>core9)
+        cellular-server uplinks rho>1: peer-only 186/544, summed 186/544; ingress usage on server uplinks 0.0 s; unchanged: True
+    gnn server cellular out 14/544 (2.57 %); server wifi in 19/1220 (1.56 %); server wifi out 18/1220 (1.48 %); server wired in 8/1308 (0.61 %); server wired out 7/1308 (0.54 %) | max rho_sum 2.70 on a 'server wifi in' link (core6>node37)
+        cellular-server uplinks rho>1: peer-only 14/544, summed 14/544; ingress usage on server uplinks 0.0 s; unchanged: True
+    mlp server cellular out 31/544 (5.70 %); server wifi in 54/1220 (4.43 %); server wifi out 53/1220 (4.34 %); server wired in 5/1308 (0.38 %); server wired out 5/1308 (0.38 %) | max rho_sum 3.60 on a 'server cellular out' link (node31>core9)
+        cellular-server uplinks rho>1: peer-only 31/544, summed 31/544; ingress usage on server uplinks 0.0 s; unchanged: True
+
+##### 128 servers; producing job: node os-cpu-slurm-20 job 895912 cpus-per-task 32 nproc 16 threads-per-core 1 cpu-model AMD EPYC 9335 32-Core Processor cpuset 0-63 parallel-cells 14
+=== 128 servers, moderate: links with rho_sum > 1 / links of the type, pooled over g0-g3 x 12 topologies (types with none over 1 omitted)
+    bar server cellular out 229/1204 (19.02 %); server wifi in 65/2512 (2.59 %); server wifi out 62/2512 (2.47 %) | max rho_sum 17.22 on a 'server cellular out' link (node88>core1)
+        cellular-server uplinks rho>1: peer-only 229/1204, summed 229/1204; ingress usage on server uplinks 0.0 s; unchanged: True
+    gnn server cellular out 3/1204 (0.25 %); server wifi in 2/2512 (0.08 %); server wifi out 2/2512 (0.08 %); server wired in 63/2428 (2.59 %); server wired out 62/2428 (2.55 %) | max rho_sum 2.59 on a 'server cellular out' link (node19>core7)
+        cellular-server uplinks rho>1: peer-only 3/1204, summed 3/1204; ingress usage on server uplinks 0.0 s; unchanged: True
+    mlp server cellular out 20/1204 (1.66 %); server wifi in 34/2512 (1.35 %); server wifi out 33/2512 (1.31 %); server wired in 52/2428 (2.14 %); server wired out 51/2428 (2.10 %) | max rho_sum 5.13 on a 'server wifi in' link (core5>node25)
+        cellular-server uplinks rho>1: peer-only 20/1204, summed 20/1204; ingress usage on server uplinks 0.0 s; unchanged: True
+=== 128 servers, heavy: links with rho_sum > 1 / links of the type, pooled over g0-g3 x 12 topologies (types with none over 1 omitted)
+    bar server cellular out 381/1204 (31.64 %); server wifi in 142/2512 (5.65 %); server wifi out 130/2512 (5.18 %); server wired in 2/2428 (0.08 %); server wired out 2/2428 (0.08 %) | max rho_sum 11.17 on a 'server cellular out' link (node1>core1)
+        cellular-server uplinks rho>1: peer-only 381/1204, summed 381/1204; ingress usage on server uplinks 0.0 s; unchanged: True
+    gnn server cellular out 23/1204 (1.91 %); server wifi in 32/2512 (1.27 %); server wifi out 31/2512 (1.23 %); server wired in 74/2428 (3.05 %); server wired out 72/2428 (2.97 %) | max rho_sum 6.33 on a 'server cellular out' link (node19>core7)
+        cellular-server uplinks rho>1: peer-only 23/1204, summed 23/1204; ingress usage on server uplinks 0.0 s; unchanged: True
+    mlp server cellular out 70/1204 (5.81 %); server wifi in 87/2512 (3.46 %); server wifi out 85/2512 (3.38 %); server wired in 37/2428 (1.52 %); server wired out 37/2428 (1.52 %) | max rho_sum 9.55 on a 'server cellular out' link (node13>core6)
+        cellular-server uplinks rho>1: peer-only 70/1204, summed 70/1204; ingress usage on server uplinks 0.0 s; unchanged: True
+
+cellular-server uplink counts unchanged by the sum, and no ingress usage on any server uplink, in every size/load/arm: True
