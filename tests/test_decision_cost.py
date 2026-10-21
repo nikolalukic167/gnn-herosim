@@ -76,3 +76,49 @@ def test_orchestrator_exports_the_books():
     src = inspect.getsource(orchestrator)
     for name in dc.COUNTERS:
         assert f'"{name}"' in src
+
+
+def test_felt_task_seconds_is_the_sum_of_tasks_times_the_batch_charge(monkeypatch):
+    """sched_felt_task_seconds books, per charged batch, (tasks in the batch) x (the batch's charge): every task waits the whole charge."""
+    from types import SimpleNamespace
+
+    import pytest as _pytest
+    from test_masked_topo_stale_placement import _prefix_batch_harness
+
+    import src.placement.replica_seeding as rs
+
+    monkeypatch.setenv("HEROSIM_DECISION_COST_MS", "2")       # 2 ms per plan evaluated
+    monkeypatch.delenv("HEROSIM_DECISION_COST_MS_BY_BUCKET", raising=False)
+    monkeypatch.delenv("GNN_SERVE_CORPUS_SLATE", raising=False)
+
+    class Stop(Exception):
+        pass
+
+    def boom(*a, **k):
+        raise Stop
+
+    monkeypatch.setattr(rs, "start_deferred_cold_init", boom)
+    env, sched, state, _task, _deferred = _prefix_batch_harness(evict_after_decode=False)
+    sched.gnn_pure_decisions = 0
+    sched.sched_plan_evals = 0
+    base_inference = sched._prefix_inference
+    plans = iter((500, 250))
+
+    def inference(tasks, st, q, t):
+        sched.sched_plan_evals += next(plans)                # this batch's metered plans
+        return base_inference(tasks, st, q, t)
+
+    sched._prefix_inference = inference
+    for n_tasks in (3, 2):
+        batch = [SimpleNamespace(id=100 * n_tasks + i, type={"name": "rf"}, planned_node_name=None) for i in range(n_tasks)]
+        env.process(sched._process_task_batch_prefix(batch))
+        try:
+            env.run()
+        except Stop:
+            pass
+        if state not in sched.mutex.items:                   # the stopped commit still holds the state; hand it back for the next batch
+            sched.mutex.items.append(state)
+    # batch 1: 3 tasks, 500 plans x 2 ms = 1.0 s; batch 2: 2 tasks, 250 plans x 2 ms = 0.5 s
+    assert sched.sched_busy_seconds == _pytest.approx(1.5)
+    assert sched.sched_felt_task_seconds == _pytest.approx(3 * 1.0 + 2 * 0.5)
+    assert sched.sched_batches_charged == 2
