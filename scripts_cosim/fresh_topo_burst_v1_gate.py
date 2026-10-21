@@ -47,7 +47,9 @@ RP2C_POOL = tuple(range(9473, 9569))
 # (cd_ib0_inflightfull, its own decision and charge), then the label engine's ILS on the bar's S from that plan with the engine's own settings:
 # 200 distinct plans per (task x mean candidates) (uncut_ils.default_budget), seed 0, batches of > 10 tasks only. The ILS phase's plans are charged
 # at w_S (decision_cost_w.json "w_S_ms_per_plan_by_bucket"), the bar's plans at the bar's rate.
-ILS_PER = {"cd_ib0_ils": 200}
+# A2 (2026-10-21): the budget ladder. "cd_ib0_ils" is the label engine's own budget (200); the lower budgets are the calibration pair (10, 50) and the
+# descriptive ladder. All three charge the same w_S (calibrated at 50).
+ILS_PER = {"cd_ib0_ils": 200, "cd_ib0_ils_p50": 50, "cd_ib0_ils_p10": 10}
 # exact-live (SCIENTIST's ruling 2026-10-20): cd_exactS_ib0 as its code defines it (exhaustive over its own top-5 slate, plan cap 100000, expansion above
 # the cap) on batches of at most G = 8 tasks (the group cap main.tex:146 cites, decision_cost_w.json "exact_live_G"); the bar's plan above G.
 EXACT_LIVE = "cd_exactS_ib0_live"
