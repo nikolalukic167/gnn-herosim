@@ -14,6 +14,7 @@
 - **Fair-share utilisation diagnostic (2026-10-21; descriptive; Record):** a third to two-fifths of the cellular-server uplinks are offered more than they carry (ρ > 1) at 24, 64 and 128 servers; the extractor is re-run under the bar, FL gnn and FL MLP placements. The fair-share grid is HELD. Details in the Record entries.
 - **ILS-live under the charge (2026-10-21; WITHDRAWN; Record):** withdrawn by the user before any live cell; A2–A4 void; no result exists.
 - **Own-state round, FL gnn vs its MP-OFF twin (2026-10-22; REGISTERED, not run; DIRECTION-ONLY by design; Record):** one DAgger round per arm on its own visited states (4 training topologies, PER 50 labels, 40-epoch fine-tune), retest on fl3 30149–30160; label MP-SEPARATES-DIRECTION / TWIN-AHEAD-DIRECTION / TIE; no magnitude is quoted.
+- **Set B with six seeds (2026-10-22; descriptive read, REGISTERED, not run; Record):** FL gnn seeds 1–2 already ran on confirmation 2's 19953–19976 (`conf2/cells_desc`, filed as secondary (a)); no new cell. A six-seed pooled read of set B is registered, descriptive, replacing no label.
 - **Fair-share peer exchange switch (2026-10-20; breaking physics, default off; Record):** `HEROSIM_EXCHANGE_FAIRSHARE` built with tests, identity and netns validation (with the TCP start-up: median error 1.0 % over 16 points); no study cell has run. Details in the Record entry.
 - **TCP-on arm study, 24 servers (2026-10-20; descriptive, no label; Record):** with TCP on, FL gnn stays ahead of the bar on all four tests (moderate whole −4.27 %), ahead of the FL MLP on three of four, and not separated from its MP-OFF twin; no message-passing claim at 24 servers. Details in the Record entry.
 - **Autoscaler-target arm study (2026-10-20; descriptive, no label; Record):** FL gnn stays ahead of the bar at KPA targets 0.45 and 0.294 by less than at 0.7 (moderate whole −6.38 → −5.39 → −2.64 %); Holm 4 passes at 0.45, not at 0.294; FL gnn at 0.7 is slower than the bar at 0.294 on 12/12. Details in the Record entry.
@@ -319,6 +320,19 @@ Read at reference-physics 18161421. "Cut" is where tasks are dropped; "cap" is w
 Not checked: the feature contract for very large batches (the `partial_state_v3` block is size-free by design), the memory of a 2,876-task decode, and the per-batch time of the GNN forward at that size. These are smoke-test items.
 
 ## Record (newest first)
+
+- 2026-10-22 — **Set B (confirmation 2, 19953–19976) with all six FL gnn seeds: a descriptive read, REGISTERED before it runs (SCIENTIST; the user's request via the expert). No new cells. Nothing pre-specified, no label. Confirmation 2's NOT-CONFIRMED (seeds 3–6, `c41f1527`) stands, unchanged.**
+  - **Correction to A1 (own-state round):** the `--k1-read-commit` is **`ca47cb62`**, the value carried by the Arm 1 label headers. A1 named `1ccb4487`, the record commit that `ca47cb62` merges. That was SCIENTIST's error; A1's binding rule (assert equality with the headers) is unchanged.
+  - **The cells already exist, so nothing is run.**
+    - FL gnn seeds 1–2: `conf2/cells_desc`, `ra_gnn_eng_combfl_nosplit_{k100,kr}_s{1,2}`, 192 summaries each (24 ids × g0–g3 × 2 loads). These were read as confirmation 2's secondary (a), `read_conf2_secondary.json` md5 `0b63511d`.
+    - Seeds 3–6: `conf2/cells_learned`.
+    - Bar: `conf2/cells_bar`.
+    - The staged checkpoints in `conf2/in_conf2/models` were checked against `comb/md5_comball.json` / `conf2/md5_conf2.json`: s1 `a670eb0c`, s2 `78c09cc0`, s3 `aaee53a5`, s4 `21c7ce30`, s5 `27e6efdf`, s6 `2680edb7`.
+    - All six seeds were served from the same staged inputs, against the same bar cells, at the same pin. No rerun is needed, so no identity cell is run: an identity rerun would test a rerun that does not happen.
+  - **Read.** The frozen confirmation-2 reader `13c9343d` (blob `60592d2d`), unchanged, with `--confirm2 --seeds 1,2,3,4,5,6`, run once into `conf2/reads/read_conf2_six.json`, md5 filed. If the reader needs a code change to accept seeds 1–2 from `cells_desc`, the change is reviewed and frozen by blob before the run.
+    - It reports Table I's statistic for FL gnn vs `cd_ib0_inflightfull_k100`, pooled over seeds 1–6 (seed-mean per cell), under `_k100` and `_kr`, raw p, and per seed.
+    - Assertions (fail loud): the seeds 3–6 pooled rows equal the filed primary `c41f1527`, and each per-seed row equals the filed primary's seed rows or secondary (a)'s seeds 1–2 rows; the grid is exact (6 seeds × 2 charges × 192 + bar 384), with 0 failed.
+  - **Use.** Descriptive only. Holm is not applied to the six-seed pool, and the pooled six-seed numbers are not a registered test. The paper may report "all six seeds on set B" next to, never instead of, the registered seeds 3–6 test and its label.
 
 - 2026-10-22 — **Own-state round, amendment A2 (SCIENTIST, on the expert's sizing proposal; before any collect job): the trigger plan is drawn before capture.** "Every 3rd state in capture order" would give about 100k states per arm (3,103 triggers on 16201 g0 alone), not about 2,000. It is replaced by:
   - **Pre-drawn triggers.** From the workload only (`groups_of`: trigger id, size, t, before any serving), draw **1,000 trigger ids** with seed **20261022**. They come from the 4 topologies × g0–g3 × both loads, half per load.
