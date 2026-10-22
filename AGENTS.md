@@ -318,6 +318,10 @@ end to end.
 ## Conventions
 
 - **Answer analysis questions in chat.** Do not write a markdown document unless asked.
+- **Paper text follows the narrative; process stays in the record.** Papers describe the method, setup and results the way
+  published papers do. Do not put internal process mechanics in paper text: frozen readers or blobs, registrations, amendments,
+  pilots, seals, seed or set logistics, identity reruns. Those belong in `docs/lineages/` and in agent messages. Use
+  plain names in the paper (e.g. "the calibrated decision charge", not "the frozen `_k100` charge").
 - **Commits carry only Nikola's name.** Commit as the configured git user (nikolalukic167) and
   add no agent attribution: no `Co-Authored-By:` trailer, no `Claude-Session:` or other session
   link, no "Generated with" line, in commit messages or PR descriptions. This overrides any
