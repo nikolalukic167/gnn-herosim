@@ -50,6 +50,8 @@ export WF1_RUNGS=${RUNGS_IN:-light,moderate,heavy}
 # peer-exchange fair share: R1A_EXCHANGE_FAIRSHARE=1 survives the wipe as HEROSIM_EXCHANGE_FAIRSHARE (processor-sharing links); R1A_EXCHANGE_FAIRSHARE_PARTNERS (concurrent|serial) likewise
 [[ -z "${R1A_EXCHANGE_FAIRSHARE:-}" ]] || export HEROSIM_EXCHANGE_FAIRSHARE="$R1A_EXCHANGE_FAIRSHARE"
 [[ -z "${R1A_EXCHANGE_FAIRSHARE_PARTNERS:-}" ]] || export HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS="$R1A_EXCHANGE_FAIRSHARE_PARTNERS"
+# cellular uplink sensitivity: R1A_ACCESS_CELLULAR_OUT_MBPS survives the wipe as HEROSIM_ACCESS_CELLULAR_OUT_MBPS (unset = 4.0 MB/s)
+[[ -z "${R1A_ACCESS_CELLULAR_OUT_MBPS:-}" ]] || export HEROSIM_ACCESS_CELLULAR_OUT_MBPS="$R1A_ACCESS_CELLULAR_OUT_MBPS"
 [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]] || export R1A_SHARD="${SLURM_ARRAY_TASK_ID}/${SLURM_ARRAY_TASK_COUNT}"
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$SELECT" --parallel "${PAR:-60}" --mem "${CELL_MEM:-8G}" \
   --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip"

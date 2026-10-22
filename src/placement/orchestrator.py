@@ -528,6 +528,10 @@ class Orchestrator:
                     fields["peerExchangeTcp"] = fabric.exchange_tcp
                 if fabric.exchange_fairshare is not None:
                     fields["peerExchangeFairshare"] = fabric.exchange_fairshare
+                from src.placement.network_fabric import access_cellular_out_override
+                cellular_out = access_cellular_out_override()
+                if cellular_out is not None:
+                    fields["accessCellularOutMbps"] = cellular_out
                 return fields
         return {}
 

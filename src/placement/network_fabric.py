@@ -86,6 +86,24 @@ ACCESS_CLASSES: Dict[str, Dict[str, Any]] = {
 }
 DEFAULT_ACCESS_MIX: Dict[str, float] = {"wired": 0.4, "wifi": 0.4, "cellular": 0.2}
 
+# HEROSIM_ACCESS_CELLULAR_OUT_MBPS (default unset = the 4.0 above): a disclosed sensitivity on the cellular uplink rate only. It
+# changes no class draw (the stream is unchanged), only the `out` rate every cellular node gets; the summary records it.
+ACCESS_CELLULAR_OUT_ENV = "HEROSIM_ACCESS_CELLULAR_OUT_MBPS"
+
+
+def access_cellular_out_override() -> Optional[float]:
+    """The cellular uplink rate under HEROSIM_ACCESS_CELLULAR_OUT_MBPS, or None when unset; a non-positive or non-numeric value raises."""
+    raw = os.environ.get(ACCESS_CELLULAR_OUT_ENV)
+    if raw is None or raw == "":
+        return None
+    try:
+        rate = float(raw)
+    except ValueError:
+        raise ValueError(f"{ACCESS_CELLULAR_OUT_ENV}={raw!r}; expected a positive number of MB/s") from None
+    if not rate > 0 or rate != rate or rate == float("inf"):
+        raise ValueError(f"{ACCESS_CELLULAR_OUT_ENV}={raw!r}; expected a positive finite number of MB/s")
+    return rate
+
 
 # HEROSIM_EXCHANGE_TCP=1 (default off): a disclosed sensitivity on the peer-exchange charge (uncut_groups_s0_v1 Record,
 # 2026-10-20 "Simulator component check" and the TCP-transfer sensitivity line). Real TCP over the simulator's own rates and
@@ -259,6 +277,7 @@ def draw_access_classes(
     if any(float(v) < 0 for v in mix.values()) or abs(total - 1.0) > 1e-9:
         raise ValueError(f"access_classes.mix must be non-negative and sum to 1, got {mix} (sum {total})")
     names = [name for name in ACCESS_CLASSES if mix.get(name, 0.0) > 0]
+    cellular_out = access_cellular_out_override()
     rng = random.Random(f"{seed}:access_classes_v1")
     drawn: Dict[str, Dict[str, Any]] = {}
     for node_name in node_names:
@@ -276,6 +295,8 @@ def draw_access_classes(
             out_mbps = in_mbps = rate
         else:
             out_mbps, in_mbps = spec["out"], spec["in"]
+            if chosen == "cellular" and cellular_out is not None:
+                out_mbps = cellular_out
         drawn[node_name] = {"class": chosen, "out_mbps": out_mbps, "in_mbps": in_mbps}
     return drawn
 
