@@ -165,9 +165,28 @@ def new_parents(new_corpus: Path, arms: Any) -> List[str]:
     return sorted(out)
 
 
-def combined_split(old: Dict[str, Any], parents: Sequence[str], new_only: bool) -> Dict[str, Any]:
+ACCEL_SPLIT = REPO / "experiments" / "accel_replica_v1_split.json"
+
+
+def accel_test_names(path: Path = ACCEL_SPLIT) -> List[str]:
+    return [str(x) for x in json.load(open(path))["test"]]
+
+
+def combined_split(old: Dict[str, Any], parents: Sequence[str], new_only: bool, accel_test: Sequence[str] = ()) -> Dict[str, Any]:
+    """`accel_test`: the 57 accel_replica_v1 test dataset names. No new dataset id may be one of them, and none of them may be in the resulting TRAIN (SCIENTIST, 2026-10-22)."""
     if not parents:
         raise SystemExit("FAIL LOUD: no new datasets")
+    hit = set(parents) & set(accel_test)
+    if hit:
+        raise SystemExit(f"FAIL LOUD: {len(hit)} new dataset ids are accel_replica_v1 test names, e.g. {sorted(hit)[:3]}")
+    out = _combined_split(old, parents, new_only)
+    leak = set(out["train"]) & set(accel_test)
+    if leak:
+        raise SystemExit(f"FAIL LOUD: {len(leak)} accel_replica_v1 test names are in the split's TRAIN, e.g. {sorted(leak)[:3]}")
+    return out
+
+
+def _combined_split(old: Dict[str, Any], parents: Sequence[str], new_only: bool) -> Dict[str, Any]:
     if new_only:
         return {"schema": "split_artifact_v1", "n_parents": len(parents), "train": sorted(parents), "val": [], "test": [], "test_placeholder": False, "dagger_new_only": True}
     seen = set(old["train"]) | set(old["val"]) | set(old["test"])
@@ -306,7 +325,7 @@ def main(argv=None) -> int:
     ml = sub.add_parser("merge-labels"); ml.add_argument("--old", required=True); ml.add_argument("--new", required=True); ml.add_argument("--out", required=True)
     p = sub.add_parser("split")
     p.add_argument("--old-split", required=True); p.add_argument("--new-corpus", required=True); p.add_argument("--arm", nargs="+", required=True); p.add_argument("--out", required=True)
-    p.add_argument("--new-only", action="store_true")
+    p.add_argument("--new-only", action="store_true"); p.add_argument("--accel-split", default=str(ACCEL_SPLIT))
     a = ap.parse_args(argv)
     if a.cmd == "states":
         res = make_states(a.arm, Path(a.cells), a.token, a.seed, json.load(open(a.plan)), Path(a.inputs), a.allow_topos)
@@ -343,7 +362,7 @@ def main(argv=None) -> int:
         print(json.dumps(merge_labels(Path(a.old), Path(a.new), Path(a.out))))
         return 0
     parents = new_parents(Path(a.new_corpus), a.arm)
-    payload = combined_split(json.load(open(a.old_split)), parents, a.new_only)
+    payload = combined_split(json.load(open(a.old_split)), parents, a.new_only, accel_test_names(Path(a.accel_split)))
     print(json.dumps({"n_new": len(parents), "n_parents": payload["n_parents"], "sha256": write_split(payload, Path(a.out))}))
     return 0
 
