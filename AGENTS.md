@@ -20,42 +20,30 @@ an assumption to write from.
 Routes 1–3 to a positive answer — better co-sim data, a changed environment, a changed objective — are all answered;
 lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `docs/lineages/throughline.md` → "Routes 1–3".
 
-**Where the research question stands (rewritten 2026-10-14).**
+**Where the research question stands (rewritten 2026-10-22).**
 
-**The bar is a hand search, and no learned arm beats it at any decision-time charge.** With decisions free (k = 0) it is `cd_exactS_ib0`
-(`ib0_confirm_v1`): exact search on CD's surrogate S over the top-5 slate with the in-batch stacking term zeroed, −4.7 / −2.3 % vs `cd_exactS`
-(12/12 fresh topologies), which is itself −7 to −11 % vs CD across the accel gates. A full-coverage oracle beats `ib0` by only −2.8 / −2.0 %. Charging
-the scheduler's decision time as simulated time (`decision_cost_s0_v1`, CLOSED 2026-10-13: `NO-LEARNED-WIN-AT-ANY-k` / `SEARCH-WIN-NOT-GNN` /
-`EXACT-ARMS-OUT-OF-BUDGET-AT-k=1` / `MP-NOT-ATTRIBUTED`) takes the exact arms off the frontier at k = 1 (`cd_exactS` +9.5 % moderate / +197 % heavy
-against itself at k = 0), and the in-budget hand bar there is `cd_expand` (CD seed + α-expansion; scoped to the capped seat, groups ≤ 8 split). The GNN seed with
-the same expansion (`cdxapply`) ties it within 1 pp, and its twin-seed control matches it within 0.6 %: the search wins, the GNN does not, and message passing is
-not attributed. Seat: R1.1 + WF1, warmth physics `node_disk_v2`, replicas on the fastest compatible platform, 160 clients × 24 servers, moderate and heavy
-rungs. Arm names: `CONTEXT.md` → Arms.
-> ⚠ GNN numbers measured on the cold-mispriced declared slate were re-measured in `slate_fix_v1` / `slate_fix_v2` (CLOSED 2026-10-12/13): the deficit stands. Audit: gate-tools → "Numbers measured before a change".
-- **Against plain `cd` a learned scorer wins at moderate, confirmed on fresh topologies:** `gnn_eng_nosplit` −6.9 / −7.7 % (`accel_nosplit_v1`),
-  `gnn_selfsearch` −8.5 / −10.1 % (`selfsearch_confirm_v1`); heavy −1 to −4 %, under the −5 % bar; `gnn_selfsearch` ties its MP-OFF twin.
-- **Against hand search** (`cd_exactS`, `cd_exactS_ib0`): the heavy deficit was first a candidate-set handicap (`slate_bar_v1`: with matched information the GNN
-  self-search beats `cd_exactS` −4.85 / −1.94 %), but retrained on the uncapped, correctly cold-priced corpus and served over the full candidate set it still
-  loses to `cd_exactS_ib0` +2.6 / +5.3 % (`slate_fix_v1`). After 360 s the self-search is +0.7 / +1.7 % behind the bar, not separated, and no-split is +3.6 / +7.1 % behind (`slate_fix_v2`). The only new signal is MP vs its twin on the
-  no-split decode, −2.6 % heavy (12/12), under every bar. No learned win in this programme is a message-passing win.
-- **Why learning has little room:** median decision 3 tasks, 0 % over the enumeration cap; argmin-S optimal 79 % (regret 6 %); platforms 95–99 % idle;
-  one-step lookahead headroom 3–5 %; more servers made it easier.
-- **Closed levers** (numbers in their index rows): post-batch value (`cost_to_go_v1`), bigger groups (`big_groups_s0_v1`), busy links (`link_bound_s0_v1`),
-  a high-but-stable rung (`high_rho_s0_v1`), a longer horizon (`long_horizon_s0_v1`), supervised plan reranking (`plan_rerank_v1`), GNN self-search or GNN-ordered
-  pruning on over-cap batches (`gnn_overcap_v1`, `prune_g8_s0_v1`: pruning wins, but any top-k order does), observation sparsity (`sparse_obs_s0_v1`), better uncapped data
-  (`slate_fix_v1`), the deploy transient (`slate_fix_v2`), a warm ×2/×3 surge (`warm_surge_s0_v1`: `cd_exactS_ib0` itself collapses on some heavy topologies, so any
-  heavy-surge % vs `ib0` needs its collapse count).
-- **Open: the GNN served on whole, uncut Alibaba peer groups with decision time charged** (`uncut_groups_s0_v1`, `REGISTERED`; prior P(WIN) ≈ 0.03). Arm 1,
-  Arm 1b (batched trainer), Arm 2 (committed-state re-encode, group anchor, random-prefix K = 2) and its K = 0 sibling train against the bar `cd_ib0` at k = 1 on whole groups; interim reads
-  are descriptive and the **final read has not been run**. The gate tests groups up to about 230 tasks, so no outcome may be quoted as covering groups in the thousands.
-  Arm 2's two K = 2 GNN runs train on an L40S and the twins on CPU, so every Arm 2 gnn-vs-twin line is not device-matched.
-- **Knative under R1:** quote only the concurrency-key arm (+48 / +68 % vs CD); the queue-keyed arm herds (gate-tools, 2026-10-11).
+**A replay-trained learned scorer beats the strongest hand rule at moderate load; the gain is the labels, not message passing.**
+Program `uncut_groups_s0_v1` (whole, uncut Alibaba peer groups up to about 230 tasks; decision time charged as simulated time). The bar is
+`cd_ib0_inflightfull_k100`: coordinate descent over the full in-flight work at k = 1. The learned arm is the FL GNN `ra_gnn_eng_combfl_nosplit_k100`.
+- **24 servers, moderate load, ahead on every set and seed:** 12 development topologies 19537–19548 (where design choices were made) −6.4 / −7.7 %
+  (whole / after 360 s); fresh set A 19707–19730 (seeds 1–2) −5.7 / −6.9 %; fresh set B 19953–19976 (seeds 3–6) −6.5 / −6.3 %. Never pool A and B.
+- **Heavy load: direction only.** −2 to −4 % whole run, size varies with seed (−0.1 to −5.3 %); set B after 360 s not significant.
+- **Size:** 64 servers 30129–30140 −21.5 % moderate, heavy direction only; **128 servers 30241–30252 NOT-CONFIRMED** (heavy whole +4.7 %, 0/12).
+  The 64 / 128 sizes were chosen after pilots, and their decision charge uses costs calibrated at 24 servers.
+- **Attribution:** the MP-off twin ties the GNN, and the same-input MLP recovers most of the gain (GNN ahead by 0.9–2.0 points at 24).
+  The margin comes from simulator-replay labels plus in-flight features. **No result in this program is a message-passing win.**
+- **Distribution:** the gain is in the mean and the tail. The task median is about 11 % higher; per request (development set), the mean is −14.8 / −8.7 % and the median +9.2 / +11.8 %.
+- **Boundary conditions:** the gain needs large peer payloads (gone at ×0.1 and with Azure blob-trace sizes). A per-transfer TCP charge removes 26–33 % of it.
+  Links are modelled uncontended, and some slow uplinks are offered more than they carry. A lower autoscaler target helps the hand rule more.
+  Exact search on the bar's cost loses at heavy load before its decision time is counted.
+- **Open:** the own-state (one DAgger round) GNN-vs-twin pilot (registered 31e0cf30, direction-only) and its full confirmation
+  (registered 6d6e1e54: union corpus, from scratch, 6 seeds, fresh ids 20508–20531). ILS-live was withdrawn by the user before any cell ran.
+- **Paper:** CCGrid 2027 draft, local only, never committed. Paper framing is not the record; quote the record.
 
-**Earlier settings, still true:** on the grounded workload with one origin per group no learned arm beats CD
-(`small_batch_so_v1`) — every grounded win before 2026-10-05 is scattered-origin; message passing helps raw inputs, not
-engineered ones (`local_features_v1`, `r1_attribution_v1`); self-predict is the per-arrival bar (`selfpredict_bar_v1`);
-the single-batch co-sim target is pointwise-separable (`program_verdict_v1`); every client-rung "vs reactive" number
-before 2026-09-20 flips sign when paired.
+**Earlier settings, still true** (details in their nodes): with decisions free, `cd_exactS_ib0` is the bar, and charging decision time takes the exact arms off
+the frontier (`decision_cost_s0_v1`: no learned win at any k, search wins, not the GNN). With one origin per group no learned arm beats CD (`small_batch_so_v1`).
+Message passing helps raw inputs, not engineered ones (`local_features_v1`). Self-predict is the per-arrival bar (`selfpredict_bar_v1`). The single-batch
+co-sim target is pointwise-separable (`program_verdict_v1`). Knative under R1: quote only the concurrency-key arm.
 
 **Pair on the environment before you take a median; quote a DIRECTION from a small design and a MAGNITUDE only from a
 large one; a rule with the model's information is the bar, never Knative alone; name the origin model with any grounded
