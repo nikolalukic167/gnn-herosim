@@ -313,11 +313,12 @@ def bucket_of(n: int) -> str:
     raise ValueError(f"group of {n} tasks is outside the K1 buckets")
 
 
-def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], rec: Dict[str, Any], state_id: Any) -> Dict[str, Any]:
+def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], rec: Dict[str, Any], state_id: Any, fatal_mismatch: bool = True) -> Dict[str, Any]:
     """The served plan the capture recorded in `<snapshots>.chosen.jsonl` (`live_audit.load_chosen`: {"chosen": [[task, node, platform]], "deferred", "arm", "plan_evals",
     "cap_hit"}) against the replayed re-decision (`hand`, batch order = gid ascending), bit-equal. Tasks the live decision deferred are not in `chosen`; the comparison is on
     the tasks it placed. With no deferral a mismatch stops the run (nothing is read until it is understood); in a state with deferrals the re-decision saw the whole batch,
-    so a mismatch is returned, flagged, not fatal."""
+    so a mismatch is returned, flagged, not fatal. `fatal_mismatch=False` (a state captured from a learned arm's cell, check_arm False): the served plan is the
+    learned arm's, so a mismatch with the cd_ib0 re-decision is expected and is counted (`mismatched_tasks`), never raised; the partition check above stays fatal."""
     gids = [int(r["gid"]) for r in sorted(snap["fidelity"]["batch"], key=lambda r: int(r["gid"]))]
     live = {int(t): [int(n), int(p)] for t, n, p in rec["chosen"]}
     deferred = {int(x) for x in rec.get("deferred") or []}
@@ -327,14 +328,15 @@ def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], rec: Dict[
     bad = sorted(g for g in live if live[g] != mine[g])
     out = {"match": not bad, "compared": len(live), "deferred": len(deferred), "mismatched_tasks": len(bad), "live_arm": rec.get("arm"), "live_cap_hit": rec.get("cap_hit"),
            "live_plan_evals": rec.get("plan_evals")}
-    if bad and not deferred:
+    if bad and not deferred and fatal_mismatch:
         raise RuntimeError(f"FAIL LOUD: state {state_id}: the replayed re-decision differs from the served plan on {len(bad)} of {len(gids)} tasks")
     return out
 
 
 def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float], replay: str) -> Dict[str, Any]:
     t0 = time.time()
-    d = decision_pass(job, arm, seed, max_evals, per, max_seconds)
+    check_arm = bool(job.get("check_arm", True))     # False: the state was captured from a learned arm's cell; recorded in the row
+    d = decision_pass(job, arm, seed, max_evals, per, max_seconds, check_arm)
     row = {k: d[k] for k in ("n", "n_batch", "n_pinned", "cands_mean", "start_S", "best_S", "n_evals", "budget", "stopped", "iters", "s_calls", "search_wall",
                              "hand", "best", "t0", "exhaustive", "slate_log10", "exact_cap_hit", "plan_space")}
     row["n_extra_captures"] = int(job.get("n_extra_captures") or 0)
@@ -343,7 +345,8 @@ def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int]
     from src.placement import live_audit
 
     rec = live_audit.load_chosen(job["snapfile"]).get(int(job["trigger_task_id"])) if job.get("snapfile") else None
-    ck = check_chosen(d["snap"], d["hand"], rec, job.get("state_id")) if rec is not None and job.get("role", "first") == "first" else None
+    ck = check_chosen(d["snap"], d["hand"], rec, job.get("state_id"), fatal_mismatch=check_arm) if rec is not None and job.get("role", "first") == "first" else None
+    row["check_arm"] = check_arm
     row["chosen_check"] = ck
     row["chosen_match"] = None if ck is None else ck["match"]
     row["revisits"], row["evals_full"] = d["revisits"], d["evals_full"]
@@ -393,6 +396,14 @@ def read_rows(rows: Sequence[Dict[str, Any]], missing: Sequence[Dict[str, Any]] 
         out[name] = block([r for r in main if r["bucket"] == name])
     out["chosen_check"] = {"match": sum(r.get("chosen_match") is True for r in firsts), "mismatch_in_deferral_states": sum(r.get("chosen_match") is False for r in firsts),
                            "not_checked_no_sidecar": sum(r.get("chosen_match") is None for r in firsts)}
+    by_arm: Dict[str, Dict[str, int]] = {}      # states captured from a learned arm's cell (check_arm False): a mismatch is expected and counted per capturing arm
+    for r in firsts:
+        if r.get("check_arm") is False and r.get("chosen_check"):
+            ck = r["chosen_check"]
+            c = by_arm.setdefault(str(ck.get("live_arm")), {"states": 0, "mismatch_states": 0, "mismatched_tasks": 0, "compared_tasks": 0})
+            c["states"] += 1; c["mismatch_states"] += int(ck["match"] is False); c["mismatched_tasks"] += int(ck["mismatched_tasks"]); c["compared_tasks"] += int(ck["compared"])
+    if by_arm:
+        out["chosen_check_check_arm_false"] = by_arm
     out["missing"] = {"total": len(missing), **{name: [m["state_id"] for m in missing if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}
     out["unreplayable"] = {"total": len(unreplayable), "share_of_sealed": len(unreplayable) / (len(firsts) + len(missing) + len(unreplayable)) if (firsts or missing or unreplayable) else None,
                            **{name: [m["state_id"] for m in unreplayable if m["bucket"] == name] for name, _lo, _hi in BUCKETS}}

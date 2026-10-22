@@ -282,3 +282,40 @@ def test_ils_counts_revisits_and_keeps_distinct_plans():
     cands, S = _problem(6, 3, 0)
     r = U.ils(cands, tuple(c[0] for c in cands), S, seed=0, max_evals=3000)
     assert r["revisits"] > 0 and len({e["plan"] for e in r["evals"]}) == len(r["evals"])
+
+
+def test_chosen_mismatch_is_counted_not_raised_when_the_capture_is_a_learned_arm():
+    hand = [[1, 2], [4, 5], [7, 8]]
+    bad = _rec([[3, 1, 2], [5, 4, 6], [9, 7, 9]])
+    with pytest.raises(RuntimeError, match="differs from the served plan on 2 of 3"):
+        U.check_chosen(_snap(), hand, bad, "s")                                  # default: unchanged, fail loud
+    r = U.check_chosen(_snap(), hand, bad, "s", fatal_mismatch=False)
+    assert r["match"] is False and r["mismatched_tasks"] == 2 and r["compared"] == 3
+    with pytest.raises(ValueError, match="do not partition"):
+        U.check_chosen(_snap(), hand, _rec([[3, 1, 2], [5, 4, 5]]), "s", fatal_mismatch=False)       # any other check stays fatal
+
+
+def test_run_state_passes_the_job_arm_check_flag_and_records_it(monkeypatch):
+    seen = {}
+
+    class _Stop(BaseException):
+        pass
+
+    def fake(job, arm, seed, max_evals, per, max_seconds, check_arm=True):
+        seen.update(check_arm=check_arm, per=per)
+        raise _Stop()
+    monkeypatch.setattr(U, "decision_pass", fake)
+    for flag, want in (({}, True), ({"check_arm": False}, False)):
+        with pytest.raises(_Stop):
+            U.run_state({"state_id": "s", **flag}, "cd_ib0", 0, None, 50, None, "none")
+        assert seen == {"check_arm": want, "per": 50}
+
+
+def test_read_rows_counts_learned_arm_mismatches_per_capturing_arm():
+    def row(i, match, nbad):
+        r = _r(f"s{i}", "11_50", 100, 100)
+        r.update(check_arm=False, chosen_match=match, chosen_check={"match": match, "mismatched_tasks": nbad, "compared": 10, "live_arm": "gnn"})
+        return r
+    out = U.read_rows([row(0, False, 3), row(1, True, 0), row(2, False, 1)])
+    assert out["chosen_check_check_arm_false"] == {"gnn": {"states": 3, "mismatch_states": 2, "mismatched_tasks": 4, "compared_tasks": 30}}
+    assert "chosen_check_check_arm_false" not in U.read_rows([_r("s0", "11_50", 100, 100)])
