@@ -53,6 +53,10 @@ ILS_PER = {"cd_ib0_ils": 200, "cd_ib0_ils_p50": 50, "cd_ib0_ils_p10": 10}
 # exact-live (SCIENTIST's ruling 2026-10-20): cd_exactS_ib0 as its code defines it (exhaustive over its own top-5 slate, plan cap 100000, expansion above
 # the cap) on batches of at most G = 8 tasks (the group cap main.tex:146 cites, decision_cost_w.json "exact_live_G"); the bar's plan above G.
 EXACT_LIVE = "cd_exactS_ib0_live"
+# fairshare_aware diagnostic variants (2026-10-22, the 127 s cell): (a) the drain walk keeps the solo price, (b) the batch's own other transfers are counted as flows
+FSAWARE_BASE = "cd_ib0_inflightfull_fsaware"
+FSAWARE_VARIANT_ENV = {"cd_ib0_inflightfull_fsaware_nodrain": {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}, "cd_ib0_inflightfull_fsaware_commit": {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}}
+FSAWARE_KINDS = (FSAWARE_BASE, *FSAWARE_VARIANT_ENV)
 RULE_POLICY = {
     "reactive": "knative_network",
     "batched": "peer_greedy_network_batch",
@@ -75,6 +79,7 @@ RULE_POLICY = {
     **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
         "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
         "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
+    **{k: "peer_greedy_network_cd" for k in FSAWARE_VARIANT_ENV},  # diagnostic variants of the fsaware kind (smoke only)
     "cd_ib0_inflightfull_fsaware": "peer_greedy_network_cd",  # fairshare_aware_v1: cd_ib0_inflightfull with HEROSIM_PG_FAIRSHARE_AWARE=1 (exchanges priced at the live fair-share rate; needs HEROSIM_EXCHANGE_FAIRSHARE=1)
     "cd_ib0_inflightfull": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity, complete variant: cd_ib0 with HEROSIM_PG_INFLIGHT_FULL=1 (the remaining service of every task in platform.inflight is added to the drain); descriptive
     "cd_ib0_inflight": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity: cd_ib0 with HEROSIM_PG_INFLIGHT=1 (the service end of the task a platform is serving is added to its drain); descriptive
@@ -232,11 +237,11 @@ ORACLE_ENV = ("GNN_CD_SEED", "HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA",
 
 def ib0_alpha(kind: str) -> dict:
     """ib0_confirm_v1: the batch alpha the expansion arms on the ib0 surrogate must serve (none for every other arm)."""
-    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware") or kind in ILS_PER or kind == EXACT_LIVE or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
+    return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", *FSAWARE_KINDS) or kind in ILS_PER or kind == EXACT_LIVE or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
 W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp", "peerExchangeFairshare",
-                     "accessCellularOutMbps", "pgFairshareAware")
+                     "accessCellularOutMbps", "pgFairshareAware", "pgHerd")
 
 
 def exchange_tcp_problems(out, driver_value):
@@ -279,7 +284,7 @@ def check_alias(kind: str) -> str:
         return "cd"
     if kind == "cd_ib0_inflight":
         return "cd_inflight"
-    if kind in ("cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware") or kind in ILS_PER:
+    if kind in ("cd_ib0_inflightfull", *FSAWARE_KINDS) or kind in ILS_PER:
         return "cd"
     if kind == EXACT_LIVE:
         return "cd_exactS_ib0"
@@ -397,7 +402,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
     return DC_ENV, repr(k * float(w[kind][rung]))
 
 
-R1A_DIAG = (*OBS_ARMS, *ILS_PER, EXACT_LIVE, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
+R1A_DIAG = (*OBS_ARMS, *ILS_PER, EXACT_LIVE, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", *FSAWARE_KINDS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
                *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS),
                *COMB_KINDS, *COMB_FAST, *COMB_FLREG, *COMB_TWIN, *COMB_PHYSMP, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS; bare COMB_FLREG / COMB_TWIN here keep them out of the unset default grid
@@ -1125,7 +1130,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_PG_INFLIGHT_FULL", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_FAIRSHARE_AWARE", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_PG_INFLIGHT_FULL", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_FAIRSHARE_AWARE", "HEROSIM_PG_FAIRSHARE_AWARE_DRAIN", "HEROSIM_PG_FAIRSHARE_AWARE_COMMIT", "HEROSIM_PG_HERD", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
               "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV, *ORACLE_ENV):
         env.pop(k, None)
     for k in OBS_ENV:
@@ -1263,7 +1268,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
-        if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware", *ILS_PER, EXACT_LIVE, *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
+        if kind in ("batched", "heft", "locality", "cd", "cd_blind", "cd_inflight", "cd_pull", "cd_ledger", "cd_declared", "cd_expand", "cd_exactS", "cd_oracle", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", *FSAWARE_KINDS, *ILS_PER, EXACT_LIVE, *EXACT_ALPHA, "cd_random_seed", *EXT_KINDS) or policy == "decima_wfair_network":
             env.update(GNN_DECODE_MODE="masked_topo", GNN_BATCH_BY_PEER_GROUP="1")
         if kind == "cd_declared":
             env["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"
@@ -1277,10 +1282,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_EXT_RATE"] = repr(EXT_LABEL_RATE / rate_scale)
         if kind in ("cd_inflight", "cd_ib0_inflight"):
             env["HEROSIM_PG_INFLIGHT"] = "1"
-        if kind in ("cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware") or kind in ILS_PER or kind == EXACT_LIVE:
+        if kind in ("cd_ib0_inflightfull", *FSAWARE_KINDS) or kind in ILS_PER or kind == EXACT_LIVE:
             env["HEROSIM_PG_INFLIGHT_FULL"] = "1"
-        if kind == "cd_ib0_inflightfull_fsaware":
+        if kind in FSAWARE_KINDS:
             env["HEROSIM_PG_FAIRSHARE_AWARE"] = "1"
+            env.update(FSAWARE_VARIANT_ENV.get(kind, {}))
+        if os.environ.get("R1A_PG_HERD") == "1" and RULE_POLICY.get(kind, "").startswith("peer_greedy_network"):
+            env["HEROSIM_PG_HERD"] = "1"  # diagnostic: pgHerd block in the summary
         if kind in ILS_PER:
             env.update(HEROSIM_PG_ILS_PER=str(ILS_PER[kind]), HEROSIM_PG_ILS_SEED="0")
         if kind == EXACT_LIVE:
@@ -1313,7 +1321,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                 env["HEROSIM_OBS_SEED"] = str(seed)
         if kind == "cd_exactS_ib0_prune":
             env["HEROSIM_PG_CD_EXACT_PRUNE"] = "cost"
-        if kind in ("cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware", *ILS_PER):
+        if kind in ("cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull", *FSAWARE_KINDS, *ILS_PER):
             env.update(ib0_alpha(kind))
         if kind == "cd_oracle":
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_ORACLE="1", HEROSIM_SNAPSHOT_FIDELITY="1", HEROSIM_ORACLE_CELL_CONFIG=os.path.abspath(cfg),
@@ -1614,12 +1622,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("CD ran blind")
     if kind == "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") != "1" or int(c.get("pg_inflight_charged") or 0) == 0):
         problems.append("inflight instrument off: HEROSIM_PG_INFLIGHT not served or pg_inflight_charged == 0")
-    if orig_kind in ("cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware", *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") != "1" or int(c.get("pg_inflight_full_charged") or 0) == 0):
+    if orig_kind in ("cd_ib0_inflightfull", *FSAWARE_KINDS, *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") != "1" or int(c.get("pg_inflight_full_charged") or 0) == 0):
         problems.append("full in-flight instrument off: HEROSIM_PG_INFLIGHT_FULL not served or pg_inflight_full_charged == 0")
-    if orig_kind not in ("cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware", *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") or int(c.get("pg_inflight_full_charged") or 0)):
+    if orig_kind not in ("cd_ib0_inflightfull", *FSAWARE_KINDS, *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") or int(c.get("pg_inflight_full_charged") or 0)):
         problems.append("a non-full arm charged the full in-flight drain")
     fsa = out.get("pgFairshareAware")
-    if orig_kind == "cd_ib0_inflightfull_fsaware":
+    if orig_kind in FSAWARE_KINDS:
         off = [w for w, bad in (("HEROSIM_PG_FAIRSHARE_AWARE not served", out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") != "1"),
                                 ("no peerExchangeFairshare block (HEROSIM_EXCHANGE_FAIRSHARE off)", out.get("peerExchangeFairshare") is None),
                                 ("no pgFairshareAware block", fsa is None),
