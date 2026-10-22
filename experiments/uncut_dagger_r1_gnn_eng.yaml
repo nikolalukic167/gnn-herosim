@@ -1,0 +1,53 @@
+# uncut_groups_s0_v1 DAgger round 1, GNN arm (PREP; not registered until SCIENTIST's registration is merged): FL gnn recipe (experiments/uncut_comb_fl_gnn_eng.yaml,
+# f9a41cce) fine-tuned from the served -final.pt of the same seed on old + new labels, 40 epochs. Per-seed init: TRAIN_INIT_CHECKPOINT is exported by the sbatch
+# (run_experiment.py has no per-seed env), so it is NOT in unset_env here. Open before registration: learning rate (kept at the from-scratch 0.001 pending SCIENTIST),
+# the split artifact (new dataset ids must be assigned to TRAIN), and cache_dir / label override paths, which exist only after steps 1-2 and the v6 recache.
+trainer: gnn
+lineage: uncut_groups_s0_v1
+cache_dir: /share/nikola.lukic/uncut_groups/dagger/cache_v6/cache
+unset_env:
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_BATCHED_TF: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v6
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_groups/dagger/sim_labels_old_new.json
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 40
+  patience: 40
+  min-epochs: 40
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-dagger-r1-fl-gnn-eng
+  tags:
+  - uncut-comb
+  - dagger-r1
+  - batched-tf
+  - ils-r010
+  - opening30
+  - gnn-eng
