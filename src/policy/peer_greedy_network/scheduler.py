@@ -436,6 +436,7 @@ class _PeerGreedyCore:
         self.pg_oracle_search_budget = _pg_int(PG_ORACLE_SEARCH_BUDGET_ENV, 1500)
         if self.pg_oracle_search and not self.pg_oracle:
             raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_SEARCH_ENV}=1 needs {PG_ORACLE_ENV}=1")
+        self.pg_sfs = False        # S_fs: set around a label search by the offline driver (uncut_ils._search_at_decision), never from the environment
         self.pg_shared_link = _pg_flag(PG_SHARED_LINK_ENV)
         if self.pg_shared_link and not (self._pg_batched and self.exchange_on):
             raise RuntimeError(f"FAIL LOUD: {PG_SHARED_LINK_ENV}=1 prices a batch's pairs over shared links: it needs a batched flavour with peer exchange; "
@@ -1186,7 +1187,9 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             others.pop(int(batch_tasks[i].id), None)
             peer_nodes_of.append(self._pg_peer_nodes(batch_tasks[i], orch, others) if self.exchange_on else [])
         self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
-        if self.pg_shared_link:
+        if self.pg_sfs:
+            exch = self._pg_exchange_sfs(batch_tasks, plan, peer_nodes_of)
+        elif self.pg_shared_link:
             exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
         else:
             exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
@@ -1243,7 +1246,9 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             others.pop(int(batch_tasks[i].id), None)
             peer_nodes_of.append(self._pg_peer_nodes(batch_tasks[i], orch, others) if self.exchange_on else [])
         self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
-        if self.pg_shared_link:
+        if self.pg_sfs:
+            exch = self._pg_exchange_sfs(batch_tasks, plan, peer_nodes_of)
+        elif self.pg_shared_link:
             exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
         else:
             exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
@@ -1314,6 +1319,52 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             for k, v in h.items():
                 load[k] = load.get(k, 0.0) + v
         return [max((load[k] - v for k, v in holds[i].items()), default=0.0) for i in range(n)]
+
+    def _pg_exchange_sfs(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]],
+                         peer_nodes_of: List[Sequence[Tuple[str, float]]]) -> List[float]:
+        """S_fs exchange seconds per task: S's exchange term with every remote transfer priced at the max-min shared rate, static (not time-resolved). The transfers are the ones
+        S charges (`peer_nodes_of[i]`: each known partner node of task i, the partner's payload); a transfer over the directed route of hops h is priced
+        payload / min over h of (bandwidth / (flows already in flight on the hop at the captured state + this plan's own transfers on the hop)). Latency as in S.
+        Where no hop of a transfer carries more than itself the price is `_payload_transfer_time`, so with no shared link S_fs equals S to the digit."""
+        fabric = next(iter(self.nodes.items)).fabric
+        share = getattr(fabric, "fairshare", None)
+        if share is None:
+            raise RuntimeError("FAIL LOUD: S_fs prices transfers at the fair-share rate: it needs the link fabric of the run built with HEROSIM_EXCHANGE_FAIRSHARE=1")
+        live: Dict[str, int] = {}
+        for flow in share.flows:
+            for key, _bw in flow.hops:
+                live[key] = live.get(key, 0) + 1
+        routes = self.__dict__.setdefault("_pg_sfs_routes", {})
+
+        def hops_of(src: str, dst: str):
+            h = routes.get((src, dst))
+            if h is None:
+                h = routes[(src, dst)] = fabric.directed_hops(src, dst)
+            return h
+
+        n = len(batch_tasks)
+        own: Dict[str, int] = {}
+        for i in range(n):
+            dst = plan[i][0].node_name
+            for src, _payload in peer_nodes_of[i]:
+                if src != dst:
+                    for key, _bw in hops_of(src, dst):
+                        own[key] = own.get(key, 0) + 1
+        out = []
+        for i in range(n):
+            node, platform = plan[i]
+            total = 0.0
+            for src, payload in peer_nodes_of[i]:
+                if src == node.node_name:
+                    continue
+                hops = hops_of(src, node.node_name)
+                if not hops or all(live.get(key, 0) + own.get(key, 0) <= 1 for key, _bw in hops):
+                    transfer = platform._payload_transfer_time(src, payload)
+                else:
+                    transfer = payload / min(bw * 1024 ** 2 / (live.get(key, 0) + own.get(key, 0)) for key, bw in hops)
+                total += transfer + platform.peer_link_latency(src, context="peer-greedy estimate")
+            out.append(total)
+        return out
 
     def _pg_exchange_shared(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch,
                             peer_nodes_of: List[Sequence[Tuple[str, float]]]) -> List[float]:
