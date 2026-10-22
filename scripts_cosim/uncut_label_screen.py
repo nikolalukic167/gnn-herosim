@@ -351,41 +351,42 @@ def cmd_relabel(a):
     with open(a.out, "a") as fh:
         if a.workers <= 1:
             results = (_work((a.corpus, st)) for st in todo)
-            ex = futs = None
         else:
-            # concurrent.futures: a worker that dies (the kernel's OOM kill) raises BrokenProcessPool instead of leaving the ordered result queue waiting forever; every wait has a timeout;
-            # a worker is replaced after max_tasks_per_child states, so the memory a replay leaves behind in its process cannot add up over a shard (fork cannot recycle workers).
+            # concurrent.futures: a worker that dies (the kernel's OOM kill) raises BrokenProcessPool instead of leaving the ordered result queue waiting forever; every wait has a timeout.
+            # Memory a replay leaves behind in its process must not add up over a shard, so a FRESH pool serves each chunk of workers x max_tasks_per_child states. The executor's own max_tasks_per_child
+            # was dropped: with every worker reaching its limit together the pool stopped dead after exactly workers x limit states (measured 2026-10-22, 4 x 8 = 32 rows per shard in two relabels).
             import concurrent.futures as cf
             import multiprocessing as mp
 
             method = os.environ.get("LABEL_SCREEN_MP", "spawn")
-            ex = cf.ProcessPoolExecutor(a.workers, mp_context=mp.get_context(method), initializer=_init_worker,
-                                        **({"max_tasks_per_child": a.max_tasks_per_child} if method != "fork" and a.max_tasks_per_child else {}))
-            futs = [ex.submit(_work, (a.corpus, st)) for st in todo]
+            size = a.workers * a.max_tasks_per_child if a.max_tasks_per_child else max(len(todo), 1)
 
             def ordered():
-                for st, f in zip(todo, futs):
+                for lo in range(0, len(todo), size):
+                    chunk = todo[lo:lo + size]
+                    pool = cf.ProcessPoolExecutor(a.workers, mp_context=mp.get_context(method), initializer=_init_worker)
+                    fs = [pool.submit(_work, (a.corpus, st)) for st in chunk]
                     try:
-                        yield f.result(timeout=a.state_timeout)
-                    except Exception as err:        # BrokenProcessPool, TimeoutError, or the state's own FAIL LOUD
-                        raise SystemExit(f"FAIL LOUD: state {st['gid']}: {type(err).__name__}: {err}")
+                        for st, f in zip(chunk, fs):
+                            try:
+                                yield f.result(timeout=a.state_timeout)
+                            except Exception as err:        # BrokenProcessPool, TimeoutError, or the state's own FAIL LOUD
+                                raise SystemExit(f"FAIL LOUD: state {st['gid']}: {type(err).__name__}: {err}")
+                    finally:
+                        procs = list((getattr(pool, "_processes", None) or {}).values())
+                        for f in fs:
+                            f.cancel()
+                        pool.shutdown(wait=False, cancel_futures=True)
+                        for proc in procs:
+                            proc.terminate()
             results = ordered()
-        try:
-            for k, e in enumerate(results):
-                rss = float(e.pop("_rss_mb", 0.0))
-                max_rss = max(max_rss, rss)
-                fh.write(json.dumps(e) + "\n")
-                fh.flush()
-                if k % 25 == 0:
-                    print(f"[{len(done) + k + 1}/{len(mine)}] {e['gid']} {e['split']} {e['bucket']} plans={e['n_plans_replayed']} {time.time() - t0:.0f}s maxrss_worker={max_rss:.0f}MB", flush=True)
-        finally:
-            if ex is not None:
-                procs = list((getattr(ex, "_processes", None) or {}).values())
-                for f in futs:
-                    f.cancel()
-                ex.shutdown(wait=False, cancel_futures=True)
-                for proc in procs:
-                    proc.terminate()
+        for k, e in enumerate(results):
+            rss = float(e.pop("_rss_mb", 0.0))
+            max_rss = max(max_rss, rss)
+            fh.write(json.dumps(e) + "\n")
+            fh.flush()
+            if k % 25 == 0:
+                print(f"[{len(done) + k + 1}/{len(mine)}] {e['gid']} {e['split']} {e['bucket']} plans={e['n_plans_replayed']} {time.time() - t0:.0f}s maxrss_worker={max_rss:.0f}MB", flush=True)
     print(f"relabel shard {i}/{n}: {len(mine)} states ({len(done)} already done), {a.workers} workers, {time.time() - t0:.0f} s, largest worker RSS {max_rss:.0f} MB")
 
 
@@ -459,5 +460,19 @@ def main(argv=None):
     return 0
 
 
+def run_cli(argv=None) -> None:
+    """Run `main` and end the process at once. A SystemExit (FAIL LOUD) leaves through os._exit: the interpreter's normal exit joins the process pool's threads, and a pool holding a hung worker kept the job RUNNING for hours after the failure was printed."""
+    try:
+        rc = main(argv)
+    except SystemExit as e:
+        rc = e.code
+        if isinstance(rc, str):
+            print(rc, file=sys.stderr, flush=True)
+            rc = 1
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(int(rc or 0))
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    run_cli()
