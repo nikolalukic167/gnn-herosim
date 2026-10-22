@@ -40,11 +40,11 @@ Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups (≤ 226 tasks in
 - **Attribution:** the MP-off twin ties the GNN, and the same-input MLP recovers most of the gain (GNN ahead by 0.9–2.0 points on set A,
   MODEL-CLASS-DIRECTION). The margin comes from simulator-replay labels plus in-flight features. **No result in this program is a message-passing win.**
 - **Distribution (development set):** the gain is in the mean and the tail, and the task median is about 11 % higher. Per request: mean −14.8 / −8.7 %, median +9.2 / +11.8 %.
-- **Boundary conditions:**
+- **Boundary conditions** (TCP, autoscaler target and exact search measured on the development set):
   - The gain needs large peer payloads. It is gone at ×0.1 and with Azure blob-trace sizes.
   - A per-transfer TCP charge removes 26–33 % of it.
   - Links are modelled uncontended, and some slow uplinks are offered more than they carry.
-  - Lowering the autoscaler target cuts the hand rule's latency more (−34 % at 0.294) than our gain at the default target. Only the hand rule was dosed.
+  - Lowering the autoscaler target cuts the hand rule's latency by 34 % (0.7 → 0.294), more than our gain at the default target. At the lower targets the GNN stays ahead of the hand rule at the same target (−5.4 % at 0.45, Holm .004; −2.6 % at 0.294, not significant).
   - Exact search on the bar's cost (groups ≤ 8) is +17.5 % slower at heavy load (0/12). Subtracting its charge leaves most of the gap; that is arithmetic, not a run.
 - **Open:**
   - The own-state (one DAgger round) GNN-vs-twin pilot, registered 31e0cf30, direction-only.
