@@ -282,3 +282,37 @@ def test_ils_counts_revisits_and_keeps_distinct_plans():
     cands, S = _problem(6, 3, 0)
     r = U.ils(cands, tuple(c[0] for c in cands), S, seed=0, max_evals=3000)
     assert r["revisits"] > 0 and len({e["plan"] for e in r["evals"]}) == len(r["evals"])
+
+
+class _Stop(BaseException):
+    pass
+
+
+def _stub_decision_pass(monkeypatch, seen, mod=None):
+    def fake(job, arm, seed, max_evals, per, max_seconds, check_arm=True):
+        seen.update(check_arm=check_arm, per=per)
+        raise _Stop()
+    monkeypatch.setattr(mod or U, "decision_pass", fake)
+
+
+@pytest.mark.parametrize("job_flag,expected", [({}, True), ({"check_arm": True}, True), ({"check_arm": False}, False)])
+def test_run_state_passes_the_job_arm_check_flag(monkeypatch, job_flag, expected):
+    seen = {}
+    _stub_decision_pass(monkeypatch, seen)
+    with pytest.raises(_Stop):
+        U.run_state({"state_id": "s", **job_flag}, "cd_ib0", 0, None, 50, None, "none")
+    assert seen == {"check_arm": expected, "per": 50}
+
+
+def test_label_state_default_budget_and_arm_check_are_unchanged(monkeypatch):
+    from scripts_cosim import uncut_arm1 as A
+    from scripts_cosim import uncut_ils as UI      # the module label_state imports (the top-level `U` above is a second copy)
+    seen = {}
+    _stub_decision_pass(monkeypatch, seen, UI)
+    job = {"state_id": "s", "bucket": "11_50", "group_size": 20, "snapfile": "/nonexistent", "trigger_task_id": 1}
+    with pytest.raises(_Stop):
+        A.label_state(job)
+    assert seen == {"check_arm": True, "per": 200}
+    with pytest.raises(_Stop):
+        A.label_state(dict(job, check_arm=False), per=50)
+    assert seen == {"check_arm": False, "per": 50}

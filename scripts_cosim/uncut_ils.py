@@ -334,10 +334,12 @@ def check_chosen(snap: Dict[str, Any], hand: Sequence[Sequence[int]], rec: Dict[
 
 def run_state(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[int], per: int, max_seconds: Optional[float], replay: str) -> Dict[str, Any]:
     t0 = time.time()
-    d = decision_pass(job, arm, seed, max_evals, per, max_seconds)
+    check_arm = bool(job.get("check_arm", True))     # DAgger r1: False for a state captured from a learned arm's cell; recorded in the row
+    d = decision_pass(job, arm, seed, max_evals, per, max_seconds, check_arm)
     row = {k: d[k] for k in ("n", "n_batch", "n_pinned", "cands_mean", "start_S", "best_S", "n_evals", "budget", "stopped", "iters", "s_calls", "search_wall",
                              "hand", "best", "t0", "exhaustive", "slate_log10", "exact_cap_hit", "plan_space")}
     row["n_extra_captures"] = int(job.get("n_extra_captures") or 0)
+    row["check_arm"] = check_arm
     row["role"], row["parent"] = job.get("role", "first"), job.get("parent")
     row["time_bound"] = d["stopped"] == "seconds"          # the per-state --max-seconds bound, logged where it binds
     from src.placement import live_audit

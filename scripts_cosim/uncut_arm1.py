@@ -230,7 +230,7 @@ def lock_wait_summary(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
-def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = None) -> Dict[str, Any]:
+def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = None, per: int = 200) -> Dict[str, Any]:
     """The Arm 1 label of one state. <= 10 tasks: the exact S-optimum when the candidate product has <= EXACT_CAP plans. Otherwise ILS from the hand (cd_ib0) plan at the K1(b)
     budget, one replay each of the hand and ILS plans, label = ILS iff r >= R_MIN else hand. A state whose hand plan cannot be re-decided whole (SPLIT / UNPLACED) takes the served
     plan from the capture's chosen sidecar (hand label); one with deferrals in the served plan is dropped and reported."""
@@ -239,12 +239,12 @@ def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = N
     base = {"state_id": job["state_id"], "bucket": job["bucket"], "n_batch": job["group_size"], "trigger_task_id": job["trigger_task_id"], "snapfile": job["snapfile"]}
     try:
         if job["group_size"] <= 10:
-            d = U.decision_pass(dict(job, exhaustive_cap=EXACT_CAP), "cd_ib0", seed, 5, 200, 30.0)
+            d = U.decision_pass(dict(job, exhaustive_cap=EXACT_CAP), "cd_ib0", seed, 5, per, 30.0, bool(job.get("check_arm", True)))
             base.update(plan_space=d["plan_space"], slate_log10=d["slate_log10"], hand=d["hand"], start_S=d["start_S"])
             if d["exhaustive"]:
                 return {**base, "source": "exact", "label": d["exhaustive"]["argmin_batch"], "label_S": d["exhaustive"]["s_opt"], "exact_plans": d["exhaustive"]["plans"],
                         "hand_equals_label": d["hand"] == d["exhaustive"]["argmin_batch"]}
-        row = U.run_state(dict(job, keep_plans=evals_dir is not None), "cd_ib0", seed, None, 200, ILS_SECONDS, "final")
+        row = U.run_state(dict(job, keep_plans=evals_dir is not None), "cd_ib0", seed, None, per, ILS_SECONDS, "final")
     except RuntimeError as exc:
         from src.placement import live_audit
 
@@ -271,7 +271,7 @@ def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = N
     return {**base, "source": "ils" if use_ils else "hand", "label": row["best"] if use_ils else row["hand"], "r": r, "rtt_hand": row["rtt_hand"], "rtt_ils": row["rtt_ils"],
             "hand": row["hand"], "ils": row["best"], "start_S": row["start_S"], "best_S": row["best_S"], "n_evals": row["n_evals"], "budget": row["budget"], "stopped": row["stopped"],
             "time_bound": row["time_bound"], "evals_file": evals_file, "iters": row["iters"], "plan_space": row["plan_space"], "slate_log10": row["slate_log10"], "cands_mean": row["cands_mean"], "search_wall": row["search_wall"],
-            "chosen_match": row.get("chosen_match")}
+            "chosen_match": row.get("chosen_match"), "per": per, "check_arm": row.get("check_arm", True)}
 
 
 def draw_extra(rows: Sequence[Dict[str, Any]], exclude_keys: Sequence[str], seed: int, quotas: Dict[str, int]) -> List[Dict[str, Any]]:
