@@ -1037,11 +1037,17 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                 prev_key, prev_service = service_of[tid]
                 committed_service[prev_key] -= prev_service
                 planned.pop(tid, None)
-            node, platform, service = self._pg_choose(
-                task, candidates, orch,
-                memo=memo, committed_service=committed_service, planned=planned,
-                nodes=self.nodes.items,
-            )
+            if self.pg_fsaware and fairshare_aware.commit_enabled():
+                fairshare_aware.PENDING.clear()
+                fairshare_aware.PENDING.update(self._pg_fsaware_pending(task, batch_tasks, orch, planned))
+            try:
+                node, platform, service = self._pg_choose(
+                    task, candidates, orch,
+                    memo=memo, committed_service=committed_service, planned=planned,
+                    nodes=self.nodes.items,
+                )
+            finally:
+                fairshare_aware.PENDING.clear()
             key = f"{node.node_name}:{platform.id}"
             committed_service[key] = committed_service.get(key, 0.0) + service
             planned[tid] = node.node_name
@@ -1050,6 +1056,33 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             placements[idx] = (node.id, platform.id)
             service_of[tid] = (key, service)
         return moved
+
+    def _pg_remote_edges(self, batch_tasks: List["Task"], orch, planned: Dict[int, str], skip: Optional[int] = None) -> List[Tuple[str, str]]:
+        """(partner node, task node) for every remote exchange the batch's tasks will run, given the nodes in `planned` (and the placed partners
+        outside the batch). `skip` leaves out the transfers of that task id and those pulled from it."""
+        table = getattr(orch, "peer_exchange", None) or {}
+        edges: List[Tuple[str, str]] = []
+        for u in batch_tasks:
+            uid = int(u.id)
+            nu = planned.get(uid)
+            if nu is None or uid == skip:
+                continue
+            for v in sorted(table.get(uid) or {}):
+                if int(v) == skip:
+                    continue
+                nv = planned.get(int(v))
+                if nv is None:
+                    peer = orch.task_by_id.get(int(v))
+                    plat = getattr(peer, "platform", None) if peer is not None else None
+                    nv = plat.node.node_name if plat is not None else getattr(peer, "planned_node_name", None)
+                if nv is not None and nv != nu:
+                    edges.append((nv, nu))
+        return edges
+
+    def _pg_fsaware_pending(self, task: "Task", batch_tasks: List["Task"], orch, planned: Dict[int, str]) -> Dict[str, int]:
+        """Variant (b): the flows the rest of the batch has committed to so far, per directed link, added to the live counts while `task` is priced."""
+        node0 = next(iter(self.nodes.items))
+        return fairshare_aware.pending_flows(node0.fabric, self._pg_remote_edges(batch_tasks, orch, planned, skip=int(task.id)))
 
     def _prefix_inference(
         self,
@@ -1115,6 +1148,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         )
         self._pg_refine(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         self.pg_batches += 1
+        if fairshare_aware.herd_enabled():
+            fairshare_aware.record_herd(next(iter(self.nodes.items)).fabric, self._pg_remote_edges(batch_tasks, orch, planned))
         if self.pg_fsaware:
             self.pg_fsaware_decisions += 1
             self.pg_fsaware_decisions_nonzero += int(FSAWARE_STATS["nonzero"] > fsaware_nonzero_before)

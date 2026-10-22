@@ -89,7 +89,7 @@ def platform_queue_drain_seconds(
 
     def _transfer(other_node_name: str, payload: float) -> float:
         if other_node_name not in per_byte:
-            per_byte[other_node_name] = float(payload_seconds(platform, other_node_name, 1.0))
+            per_byte[other_node_name] = float(payload_seconds(platform, other_node_name, 1.0, drain=True))
         return per_byte[other_node_name] * payload
 
     for task in platform.queue.items:

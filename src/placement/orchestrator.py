@@ -518,7 +518,10 @@ class Orchestrator:
     def _fsaware_fields(self) -> Dict[str, Any]:
         """`pgFairshareAware` (HEROSIM_PG_FAIRSHARE_AWARE=1): the hand rule priced exchanges at the live fair-share rate; absent otherwise."""
         from src.placement import fairshare_aware
-        return {"pgFairshareAware": fairshare_aware.summary_block()} if fairshare_aware.fairshare_aware_enabled() else {}
+        fields = {"pgFairshareAware": fairshare_aware.summary_block()} if fairshare_aware.fairshare_aware_enabled() else {}
+        if fairshare_aware.herd_enabled():
+            fields["pgHerd"] = fairshare_aware.herd_block()
+        return fields
 
     def _access_class_fields(self) -> Dict[str, Any]:
         """`peerExchangeByAccessClass` (workload_fix_v1 W3) only on a topology with access classes, so every other

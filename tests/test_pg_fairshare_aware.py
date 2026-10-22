@@ -174,3 +174,82 @@ def test_the_gate_names_what_is_missing_when_the_instrument_is_off():
     src = (REPO_ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py").read_text()
     assert 'out.get("peerExchangeFairshare") is None' in src and '"fair-share-aware instrument off: " + "; ".join(off)' in src
     assert 'out["env"].get("HEROSIM_EXCHANGE_FAIRSHARE") != "1" or fsa' not in src
+
+
+def test_variant_a_keeps_the_drain_walk_at_the_solo_price_and_the_default_shares_it(monkeypatch):
+    from types import SimpleNamespace
+    from src.placement.live_audit import platform_queue_drain_seconds
+    env, fabric, platform, task = world(monkeypatch, [50 * MiB])
+    platform.type = {"shortName": "t0"}
+    platform.id = 0
+    platform.queue = SimpleNamespace(items=[task])
+    platform.node.network_map = {"p0": {"latency": 0.01}}
+    task.type = {"executionTime": {"t0": 0.0}, "stateSize": {}}
+    task.id = 0
+    task.node_name = None
+    orch = platform.node.orchestrator_ref
+    solo = platform_queue_drain_seconds(platform, orch, None)
+    monkeypatch.setenv(FA.DRAIN_ENV, "0")
+    aware(monkeypatch)
+    occupy(fabric, 1)
+    assert platform_queue_drain_seconds(platform, orch, None) == solo and not FA.drain_enabled()
+    assert FA.payload_seconds(platform, "p0", 50 * MiB) == pytest.approx(10.0)   # the candidate exchange is still priced at the live rate
+    monkeypatch.delenv(FA.DRAIN_ENV)
+    FA.reset()
+    assert FA.drain_enabled() and platform_queue_drain_seconds(platform, orch, None) == pytest.approx(solo + 5.0)
+
+
+def test_variant_b_counts_the_batchs_own_transfers_on_each_route_link(monkeypatch):
+    monkeypatch.setenv(FA.COMMIT_ENV, "1")
+    aware(monkeypatch)
+    env, fabric, platform, _t = world(monkeypatch, [50 * MiB])
+    solo = platform._payload_transfer_time("p0", 50 * MiB)
+    assert FA.commit_enabled() and FA.payload_seconds(platform, "p0", 50 * MiB) == solo
+    pend = FA.pending_flows(fabric, [("p0", "a"), ("p0", "a"), ("a", "a")])
+    assert pend and all(v == 2 for v in pend.values()) and set(pend) == {k for k, _ in fabric.directed_hops("p0", "a")}
+    FA.PENDING.update(pend)
+    assert FA.payload_seconds(platform, "p0", 50 * MiB) == pytest.approx(3 * solo)
+    assert FA.payload_seconds(platform, "p0", 50 * MiB, drain=True) == solo     # the drain walk never reads the batch's pending flows
+    FA.PENDING.clear()
+    assert FA.payload_seconds(platform, "p0", 50 * MiB) == solo
+
+
+def test_the_variant_flags_fail_loud_without_the_switch_or_with_a_bad_value(monkeypatch):
+    monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
+    for env in (FA.DRAIN_ENV, FA.COMMIT_ENV):
+        monkeypatch.setenv(env, "0")
+        FA.reset()
+        with pytest.raises(RuntimeError, match=env):
+            FA.fairshare_aware_enabled()
+        monkeypatch.setenv(FA.AWARE_ENV, "1")
+        monkeypatch.setenv(env, "2")
+        FA.reset()
+        with pytest.raises(ValueError):
+            FA.fairshare_aware_enabled()
+        monkeypatch.delenv(env)
+        monkeypatch.delenv(FA.AWARE_ENV)
+    monkeypatch.setenv(FA.HERD_ENV, "x")
+    with pytest.raises(ValueError):
+        FA.herd_enabled()
+
+
+def test_the_herd_record_is_the_share_of_a_batchs_remote_transfers_on_its_busiest_link(monkeypatch):
+    env, fabric, platform, _t = world(monkeypatch, [50 * MiB, 50 * MiB, 50 * MiB])
+    FA.record_herd(fabric, [("p0", "a"), ("p1", "a"), ("p2", "a")])      # all three enter through the one link core0>a
+    b = FA.herd_block()
+    assert b["batches_with_2plus_remote_transfers"] == 1 and b["mean_share_on_busiest_link"] == 1.0 and b["mean_flows_on_busiest_link"] == 3
+    FA.record_herd(fabric, [("p0", "a")])                                  # fewer than two remote transfers: not a batch for the statistic
+    FA.record_herd(fabric, [("p0", "a"), ("p1", "a")])                     # a second batch: both cross core0>a
+    b = FA.herd_block()
+    assert b["batches_with_2plus_remote_transfers"] == 2 and b["remote_transfers"] == 5 and b["batches_with_half_or_more_on_one_link"] == 2
+
+
+def test_the_gate_carries_the_diagnostic_variants():
+    import fresh_topo_burst_v1_gate as G
+    assert G.FSAWARE_KINDS[0] == KIND and len(G.FSAWARE_KINDS) == 3
+    for k in G.FSAWARE_KINDS:
+        assert G.RULE_POLICY[k] == "peer_greedy_network_cd" and G.check_alias(k) == "cd" and k in G.R1A_DIAG and G.split_dc(k + "_k100") == (k, 1.0)
+        assert G.dc_cost_ms(k + "_k100"[:0], 1.0, "moderate") == G.dc_cost_ms("cd_ib0_inflightfull", 1.0, "moderate")
+    assert G.FSAWARE_VARIANT_ENV["cd_ib0_inflightfull_fsaware_nodrain"] == {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}
+    assert G.FSAWARE_VARIANT_ENV["cd_ib0_inflightfull_fsaware_commit"] == {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}
+    assert "pgHerd" in G.W3_TELEMETRY_KEYS
