@@ -196,9 +196,13 @@ COMB_STEMS.update({"ra_gnn_eng_flreg": "uncut-flreg-gnn-eng", "ra_mlp_same_flreg
 # lambda 0, partial_state_v6, batched; sidecheck ra_twin_eng_v6. Kept out of COMB_KINDS, COMB_FAST and COMB_FLREG so those kind sets are unchanged.
 COMB_TWIN = ("ra_twin_eng_combfl",)
 COMB_STEMS.update({"ra_twin_eng_combfl": "uncut-comb-fl-twin"})
+# physMP quick look (user, 2026-10-22): FL gnn with the physics columns live inside message passing (NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO=0), one seed, 20 epochs;
+# partial_state_v6 like FL, sidecheck ra_gnn_eng_physmp_v6, served nosplit; the decision-time w is the FL gnn's by alias (decision_cost_w.json).
+COMB_PHYSMP = ("ra_gnn_eng_physmp_combfl",)
+COMB_STEMS.update({"ra_gnn_eng_physmp_combfl": "uncut-comb-fl-gnn-physmp"})
 COMB_V6 = ("ra_gnn_eng_combf", "ra_gnn_eng_combfl", "ra_mlp_same_combfl")  # partial_state_v6; combl keeps partial_state_v5
-COMB_CHECK = {"ra_twin_eng_combfl": "ra_twin_eng_v6", "ra_gnn_eng_flreg": "ra_gnn_eng_v6", "ra_mlp_same_flreg": "ra_mlp_same_v6", "ra_gnn_eng_a3l": "ra_gnn_eng", "ra_gnn_eng_a3lft": "ra_gnn_eng", "ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
-RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN
+COMB_CHECK = {"ra_gnn_eng_physmp_combfl": "ra_gnn_eng_physmp_v6", "ra_twin_eng_combfl": "ra_twin_eng_v6", "ra_gnn_eng_flreg": "ra_gnn_eng_v6", "ra_mlp_same_flreg": "ra_mlp_same_v6", "ra_gnn_eng_a3l": "ra_gnn_eng", "ra_gnn_eng_a3lft": "ra_gnn_eng", "ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1", "ra_twin_eng_combfl")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
@@ -308,13 +312,13 @@ def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
 
 def comb_contract(base_kind: str) -> str:
     """The partial-state contract a learned RA cell serves: partial_state_v6 for the combined lever's in-flight kinds, partial_state_v5 otherwise."""
-    return "partial_state_v6" if base_kind in COMB_V6 + COMB_FLREG + COMB_TWIN else "partial_state_v5"
+    return "partial_state_v6" if base_kind in COMB_V6 + COMB_FLREG + COMB_TWIN + COMB_PHYSMP else "partial_state_v5"
 
 
 def comb_trainer_check(base_kind: str, side: str) -> None:
     """A combined-lever sidecar records the batched loss, its own contract (v6 for F, FL and the MLP; v5 for L) and no regret lever. Other kinds are
     not checked."""
-    if base_kind not in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN:
+    if base_kind not in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP:
         return
     sc = json.load(open(side))
     if sc.get("batched_teacher_forced") is not True:
@@ -381,13 +385,13 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
     if k is None:
         return None
     f = json.load(open(DC_W_FILE))
+    kind = f.get("w_ms_per_plan_alias", {}).get(kind, kind)  # an aliased kind is charged the named kind's frozen w (the alias's source is in the file)
     byb = f.get("w_ms_per_plan_by_bucket", {}).get(kind, {})
     if rung in byb:
         if byb[rung] is None:
             raise SystemExit(f"FAIL LOUD: w_ms_per_plan_by_bucket[{kind!r}][{rung!r}] is null in {DC_W_FILE}")
         return DC_BUCKET_ENV, json.dumps({b: k * float(v) for b, v in byb[rung].items()}, sort_keys=True)
     w = f["w_ms_per_plan"]
-    kind = f.get("w_ms_per_plan_alias", {}).get(kind, kind)  # an aliased kind is charged the named kind's frozen w (the alias's source is in the file)
     if kind not in w or rung not in w[kind]:
         raise SystemExit(f"FAIL LOUD: no calibrated w (ms per plan) for {kind!r} at rung {rung!r} in {DC_W_FILE}")
     return DC_ENV, repr(k * float(w[kind][rung]))
@@ -396,7 +400,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
 R1A_DIAG = (*OBS_ARMS, *ILS_PER, EXACT_LIVE, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", "cd_ib0_inflightfull_fsaware", "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
                *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS),
-               *COMB_KINDS, *COMB_FAST, *COMB_FLREG, *COMB_TWIN, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS; bare COMB_FLREG / COMB_TWIN here keep them out of the unset default grid
+               *COMB_KINDS, *COMB_FAST, *COMB_FLREG, *COMB_TWIN, *COMB_PHYSMP, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS; bare COMB_FLREG / COMB_TWIN here keep them out of the unset default grid
 # (the bare uncut and combined-lever kinds sit here or in R1A_CDX only so the unset default stays r1_attribution_v1's registered grid)
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",
