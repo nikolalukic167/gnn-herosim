@@ -133,8 +133,24 @@ def cmd_read(a):
             if line.strip():
                 r = json.loads(line)
                 rows[r["gid"]] = r
-    rows = list(rows.values())
+    ref = {}
+    for f in a.ref_rows:
+        for line in open(f):
+            if line.strip():
+                r = json.loads(line)
+                ref[r["gid"]] = r
     res = {"n": len(rows), "by_bucket": {}}
+    if ref:
+        bad = []
+        for r in rows.values():       # BLIND on S must reproduce the fs-label test: large states the same best plan and RTT, small states the exact optimum
+            t = ref[r["gid"]]
+            same = (abs(r["rtt_exact"] - t["rtt_sim"]) <= 1e-9 * abs(t["rtt_sim"])) if "rtt_exact" in r else \
+                (r["plan_blind"] == t["plans"][0] and abs(r["rtt_blind"] - t["rtt_sim"]) <= 1e-9 * abs(t["rtt_sim"]))
+            if not same:
+                bad.append(r["gid"])
+        res["blind_reproduces_fs_label_test"] = f"{len(rows) - len(bad)} of {len(rows)}"
+        res["blind_not_reproduced"] = bad[:10]
+    rows = list(rows.values())
     for key, sel in [("ALL", lambda r: True)] + [(b, (lambda b: lambda r: r["bucket"] == b)(b)) for b in L.__dict__.get("BUCKET_NAMES", ("le10", "11_50", "51_100", "101_256"))] + \
             [("small (exact reference)", lambda r: "rtt_exact" in r), ("large (no exact reference)", lambda r: "rtt_exact" not in r)]:
         R = [r for r in rows if sel(r)]
@@ -172,6 +188,7 @@ def main():
     r.add_argument("--state-timeout", type=float, default=14400.0)
     q = sub.add_parser("read")
     q.add_argument("--rows", nargs="+", required=True)
+    q.add_argument("--ref-rows", nargs="*", default=[], help="the fs-label test's fair-share rows (fs_*_of_4.jsonl): BLIND must reproduce them")
     q.add_argument("--out", default="")
     a = ap.parse_args()
     if a.cmd == "run":
