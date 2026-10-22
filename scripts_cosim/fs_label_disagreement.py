@@ -59,7 +59,7 @@ def cmd_read(a):
     per = defaultdict(lambda: {"n": 0, "changed": 0, "gap": [], "task_changed": 0, "task_total": 0, "task_changed_in_changed": 0, "task_total_in_changed": 0, "inflation": []})
     for g in sample:
         e = on[g]
-        for key in ("ALL", e["bucket"]):
+        for key in ("ALL", e["bucket"], "exhaustive (change rate exact)" if e["method"] == "exhaustive" else "sampled candidates (change rate is a lower bound)"):
             p = per[key]
             filed_plan, new_plan = filed[g]["plans"][0], e["plans"][0]
             moved = sum(1 for x, y in zip(filed_plan, new_plan) if x[0] != y[0])
