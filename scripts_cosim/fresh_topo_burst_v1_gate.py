@@ -1616,9 +1616,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("a non-full arm charged the full in-flight drain")
     fsa = out.get("pgFairshareAware")
     if orig_kind == "cd_ib0_inflightfull_fsaware":
-        if out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") != "1" or out["env"].get("HEROSIM_EXCHANGE_FAIRSHARE") != "1" or fsa is None or int(fsa.get("priced_transfers") or 0) == 0 \
-                or int(c.get("pg_fsaware_decisions") or 0) == 0:
-            problems.append("fair-share-aware instrument off: HEROSIM_PG_FAIRSHARE_AWARE / HEROSIM_EXCHANGE_FAIRSHARE not served, no pgFairshareAware block, or nothing priced")
+        off = [w for w, bad in (("HEROSIM_PG_FAIRSHARE_AWARE not served", out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") != "1"),
+                                ("no peerExchangeFairshare block (HEROSIM_EXCHANGE_FAIRSHARE off)", out.get("peerExchangeFairshare") is None),
+                                ("no pgFairshareAware block", fsa is None),
+                                ("priced_transfers == 0", fsa is not None and int(fsa.get("priced_transfers") or 0) == 0),
+                                ("pg_fsaware_decisions == 0", int(c.get("pg_fsaware_decisions") or 0) == 0)) if bad]
+        if off:
+            problems.append("fair-share-aware instrument off: " + "; ".join(off))
     elif out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") or fsa is not None or int(c.get("pg_fsaware_decisions") or 0):
         problems.append("a non-fsaware arm priced exchanges at the live fair-share rate")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
