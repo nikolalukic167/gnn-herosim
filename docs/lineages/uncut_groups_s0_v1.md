@@ -14,6 +14,7 @@
 - **Fair-share utilisation diagnostic (2026-10-21; descriptive; Record):** a third to two-fifths of the cellular-server uplinks are offered more than they carry (ρ > 1) at 24, 64 and 128 servers; the extractor is re-run under the bar, FL gnn and FL MLP placements. The fair-share grid is HELD. Details in the Record entries.
 - **ILS-live under the charge (2026-10-21; WITHDRAWN; Record):** withdrawn by the user before any live cell; A2–A4 void; no result exists.
 - **Request-level completion time at 24 servers (2026-10-22; descriptive, no label; for audit; Record):** FL gnn is ahead of the bar on the fan-out request mean by about twice its task-level gain (−14.8 % moderate, −8.7 % heavy, whole run; 12/12 topologies), the request median is slower (+9 to +13 %), the same-input MLP carries nearly all of it.
+- **Request-level completion time at 64 and 128 servers and on the 48 fresh 24-server topologies (2026-10-22; descriptive, no label; for audit; Record):** same shape as at 24 servers on every set: request mean and request p99 ahead of the bar, request p50 slower (+5 to +26 %); the one exception is 128 servers heavy whole (request mean +8.1 %, 0/12). Sets A and B are read separately.
 - **Own-state round, FL gnn vs its MP-OFF twin (2026-10-22; REGISTERED, not run; DIRECTION-ONLY by design; Record):** one DAgger round per arm on its own visited states (4 training topologies, PER 50 labels, 40-epoch fine-tune), retest on fl3 30149–30160; label MP-SEPARATES-DIRECTION / TWIN-AHEAD-DIRECTION / TIE; no magnitude is quoted. The A2 trigger plan is drawn (970 ids, sha256 `6d964f4a…`; Record), no collect job yet.
 - **Own-state round, full version (2026-10-22; REGISTERED, not run; Record):** FL gnn vs its MP-OFF twin, both trained from scratch (seeds 1–6, 100 epochs) on one shared corpus, the old corpus plus both arms' visited-state labels (the pilot's capture, 4 training topologies); retest on 24 newly minted 24-server topologies under P9's labels (MP-ATTRIBUTED needs the full program rule under both charges). Registered before any pilot retest cell.
 - **Set B with six seeds (2026-10-22; descriptive read, DONE, no label; Record):** FL gnn seeds 1–2 already ran on confirmation 2's 19953–19976 (`conf2/cells_desc`, filed as secondary (a)); no new cell. The pooled six-seed read (`read_conf2_six.json`, md5 `f0cfd1be`) gives moderate whole −6.21 % (`_k100`, 21/24) and heavy whole −3.00 % (17/24), raw p, replacing no label.
@@ -323,6 +324,97 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-22 — **Request-level completion time at 64 and 128 servers and on the 48 fresh 24-server topologies of confirmations 1 and 2 (S4; descriptive, no label, replaces no filed result; for SCIENTIST's audit; the user asked for it).** The same signed script and statistic as the 24-server entry above, on existing cells only (no new simulation), for the reviewer point that the measured objective does not establish faster fan-out completion. The shape is the one at 24 servers: FL gnn is ahead of the bar on the fan-out request mean and on the request p99, and the typical request (p50) is slower, on every set except one row, 128 servers heavy whole run, where the request mean and the request p99 are also slower.
+  - **Cells, roots and pins (the filed reads').** Bar `cd_ib0_inflightfull_k100` s0 at `a459dd98`; FL gnn `ra_gnn_eng_combfl_nosplit_k100` at `74ddf70e`; FL MLP `ra_mlp_same_combfl_nosplit_k100` at `74ddf70e` (64 and 128 servers only; the confirmation sets have no MLP rows). 64 servers: `size64/cells_bar`, `size64/cells_learned`, `size64/cells_desc` (MLP), topologies 30129–30140, seeds 1–2. 128 servers: `size128/cells_bar`, `size128/cells_learned`, `size128/mlp_cells`, 30241–30252, seeds 1–2. Set A (confirmation 1): `conf/cells_bar`, `conf/cells_learned`, 19707–19730, seeds 1–2 (480 + 96 = 576 cells). Set B (confirmation 2): `conf2/cells_bar`, `conf2/cells_learned` (seeds 3–6, registered) and `conf2/cells_desc` (seeds 1–2), 19953–19976 (1,344 cells); seeds 3–6 are the registered set, seeds 1–6 are descriptive, each seed is also read alone. Sets A and B are never pooled into one median. All `_k100`; the `_kr` cells are not read here.
+  - **SCIENTIST's six conditions, each met.** (1) Roots and pins as each filed read, and its task-mean medians reproduced to 1e−9 before any request number is written (the script fails otherwise): 64 and 128, 12 values each (gnn vs bar, MLP vs bar, gnn vs MLP, four tests each; the secondary reads' F1 and descriptive blocks); set A 12 (the primary's F1 and seeds-alone); set B 56 (the primary's F1 and seeds-alone for seeds 3–6, and the six-seed read's pooled s1–6 and per-seed 1–6, `read_conf2_six.json`). (2) Completeness: 0 incomplete tasks, 0 incomplete groups, no completion before its arrival or after `endTime`, in all 480 + 480 + 576 + 1,344 cells; task, group and fan-out counts equal across arms per (topology, window, rung); arrivals equal the workload timestamps (max difference 4.9e−4 s, float32); group size equals the workload's. (3) Table I's statistic with raw p (per topology the median over the four windows of the paired % to the bar in the same cell, a learned cell being the mean over the seeds; then the median over the topologies, the faster count, the exact two-sided Wilcoxon; no Holm). (4) Per seed and seed mean. (5) The definitions of the 24-server entry (request = the workload peer group, fan-out ≥ 2 tasks, completion = latest member completion minus earliest member arrival; after 360 s = the request's first member arrives at t ≥ 360 s, earlier-starting requests excluded whole). (6) One identity cell per arm per set, each at its cells' own pin and launched as the filed cells were: 64 servers 30129 g2 heavy bar / FL gnn s1 / FL MLP s1 (jobs 899665–899667, IDENTITY PASS, `req_ident_s64_check.txt`); 128 servers 30241 g2 heavy, same arms (899680–899682, IDENTITY PASS, `req_ident_s128_check.txt`); set A 19707 bar and FL gnn s1 (899697, 899698), set B 19953 bar, FL gnn s3 from `cells_learned` and FL gnn s1 from `cells_desc` (899699–899701), IDENTITY PASS (`req_ident_conf_check.txt`): the three `.npy` sidecars byte-equal and every summary field equal outside provenance and timing.
+  - **Reading the tables.** Each cell is the median % of FL gnn against the bar (negative = FL gnn faster), then (topologies faster; raw p). "req" = fan-out request completion time; "task" = task completion time. Seed mean = the mean over the seeds of the per-seed cell statistic.
+  - **64 servers, FL gnn vs the bar, seed mean (12 topologies).**
+
+| rung, window | req mean | req p50 | req p90 | req p99 | task mean | task p50 | task p90 | task p99 |
+|---|---|---|---|---|---|---|---|---|
+| moderate, whole run | −37.58 (12; 0.00049) | +8.32 (2; 0.016) | −54.14 (12; 0.00049) | −17.52 (12; 0.00049) | −21.47 (12; 0.00049) | +8.33 (1; 0.00098) | −23.56 (12; 0.00049) | −21.96 (12; 0.00049) |
+| moderate, after 360 s | −51.45 (12; 0.00049) | +10.28 (2; 0.0024) | −46.45 (12; 0.00049) | −62.34 (12; 0.00049) | −32.89 (12; 0.00049) | +11.70 (0; 0.00049) | −20.00 (12; 0.00049) | −51.03 (12; 0.00049) |
+| heavy, whole run | −9.87 (11; 0.00098) | +16.42 (0; 0.00049) | −34.67 (11; 0.00098) | −1.09 (11; 0.0034) | −4.29 (11; 0.0049) | +12.35 (1; 0.0015) | −18.33 (12; 0.00049) | +0.24 (6; 0.79) |
+| heavy, after 360 s | −46.48 (12; 0.00049) | +15.53 (0; 0.00049) | −27.96 (12; 0.00049) | −67.61 (12; 0.00049) | −27.27 (12; 0.00049) | +15.33 (0; 0.00049) | −17.26 (12; 0.00049) | −46.27 (12; 0.00049) |
+
+  - **128 servers, FL gnn vs the bar, seed mean (12 topologies).** The negative row is heavy, whole run.
+
+| rung, window | req mean | req p50 | req p90 | req p99 | task mean | task p50 | task p90 | task p99 |
+|---|---|---|---|---|---|---|---|---|
+| moderate, whole run | −33.61 (12; 0.00049) | +13.35 (2; 0.0093) | −58.54 (12; 0.00049) | −9.67 (12; 0.00049) | −18.98 (12; 0.00049) | +3.83 (3; 0.064) | −31.89 (12; 0.00049) | −6.05 (12; 0.00049) |
+| moderate, after 360 s | −66.68 (12; 0.00049) | +13.27 (0; 0.00049) | −43.65 (12; 0.00049) | −86.47 (12; 0.00049) | −46.45 (12; 0.00049) | +9.12 (1; 0.0015) | −30.07 (12; 0.00049) | −77.18 (12; 0.00049) |
+| heavy, whole run | +8.13 (0; 0.00049) | +22.94 (0; 0.00049) | +27.86 (0; 0.00049) | +4.15 (2; 0.0093) | +4.65 (0; 0.00049) | +4.22 (4; 0.15) | +31.05 (0; 0.00049) | +1.32 (3; 0.042) |
+| heavy, after 360 s | −45.70 (12; 0.00049) | +26.30 (0; 0.00049) | −26.63 (12; 0.00049) | −70.13 (12; 0.00049) | −27.86 (12; 0.00049) | +12.55 (1; 0.00098) | −21.31 (12; 0.00049) | −39.65 (11; 0.00098) |
+
+  - **Set A (confirmation 1, 19707–19730), FL gnn s1–2 vs the bar, seed mean (24 topologies).**
+
+| rung, window | req mean | req p50 | req p90 | req p99 | task mean | task p50 | task p90 | task p99 |
+|---|---|---|---|---|---|---|---|---|
+| moderate, whole run | −12.91 (23; 3.6e-07) | +11.29 (8; 0.0031) | −9.07 (22; 3.9e-06) | −15.55 (23; 2.4e-07) | −5.73 (22; 1.3e-05) | +6.47 (2; 1.3e-05) | −2.56 (18; 0.034) | −12.67 (23; 2.4e-07) |
+| moderate, after 360 s | −13.58 (23; 3.6e-07) | +12.38 (6; 0.0012) | −6.23 (22; 1e-05) | −25.52 (23; 2.4e-07) | −6.94 (22; 3e-05) | +7.15 (2; 1.3e-05) | −2.76 (20; 0.0065) | −8.48 (22; 1.3e-05) |
+| heavy, whole run | −6.64 (22; 6e-07) | +13.00 (3; 0.0012) | −2.54 (16; 0.049) | −7.87 (24; 1.2e-07) | −2.11 (19; 0.0048) | +8.15 (3; 7.6e-05) | −3.02 (16; 0.019) | −6.54 (23; 3.6e-07) |
+| heavy, after 360 s | −10.34 (23; 8.3e-07) | +11.16 (3; 0.0018) | −7.53 (20; 4.4e-05) | −18.39 (23; 4.4e-05) | −4.31 (19; 0.00037) | +9.03 (3; 3e-05) | −3.22 (20; 0.00024) | −1.50 (13; 0.6) |
+
+  - **Set B (confirmation 2, 19953–19976), FL gnn seeds 3–6 (registered) vs the bar, seed mean (24 topologies).**
+
+| rung, window | req mean | req p50 | req p90 | req p99 | task mean | task p50 | task p90 | task p99 |
+|---|---|---|---|---|---|---|---|---|
+| moderate, whole run | −12.80 (24; 1.2e-07) | +5.22 (5; 0.00074) | −9.52 (22; 2.3e-06) | −12.53 (24; 1.2e-07) | −6.46 (22; 1.2e-06) | +6.51 (2; 1.2e-06) | −4.18 (13; 0.12) | −14.02 (24; 1.2e-07) |
+| moderate, after 360 s | −13.61 (24; 1.2e-07) | +6.13 (3; 6.4e-05) | −6.03 (21; 2.3e-06) | −19.67 (24; 1.2e-07) | −6.30 (20; 1.6e-05) | +6.99 (2; 1.2e-06) | −4.44 (15; 0.039) | −9.83 (21; 5.1e-06) |
+| heavy, whole run | −4.32 (21; 1.3e-05) | +9.94 (10; 0.065) | +3.61 (8; 0.21) | −6.56 (24; 1.2e-07) | −3.56 (17; 0.00057) | +7.05 (6; 0.0012) | −2.98 (16; 0.056) | −8.83 (24; 1.2e-07) |
+| heavy, after 360 s | −8.51 (22; 1.3e-05) | +10.15 (9; 0.037) | −0.34 (13; 0.41) | −17.25 (21; 5.1e-06) | −1.77 (17; 0.056) | +7.56 (5; 0.00032) | −3.01 (16; 0.013) | +3.80 (9; 0.2) |
+
+  - **Set B, FL gnn seeds 1–6 (descriptive) vs the bar, seed mean (24 topologies).**
+
+| rung, window | req mean | req p50 | req p90 | req p99 | task mean | task p50 | task p90 | task p99 |
+|---|---|---|---|---|---|---|---|---|
+| moderate, whole run | −12.77 (24; 1.2e-07) | +4.03 (5; 0.00096) | −8.97 (22; 3e-06) | −12.80 (24; 1.2e-07) | −6.21 (21; 3.9e-06) | +6.55 (2; 2.3e-06) | −3.51 (13; 0.17) | −14.03 (23; 2.4e-07) |
+| moderate, after 360 s | −13.45 (24; 1.2e-07) | +6.24 (4; 6.4e-05) | −5.75 (21; 3.9e-06) | −20.31 (24; 1.2e-07) | −6.27 (20; 2e-05) | +7.33 (2; 1.7e-06) | −4.35 (15; 0.056) | −8.89 (22; 6.6e-06) |
+| heavy, whole run | −5.02 (22; 3e-06) | +8.34 (10; 0.039) | +3.80 (8; 0.28) | −6.51 (24; 1.2e-07) | −3.00 (17; 0.0016) | +7.72 (6; 0.0011) | −3.43 (15; 0.046) | −8.23 (24; 1.2e-07) |
+| heavy, after 360 s | −7.97 (22; 8.3e-06) | +10.06 (7; 0.013) | −0.29 (14; 0.17) | −17.68 (21; 3.9e-06) | −2.44 (16; 0.027) | +7.80 (4; 0.00028) | −2.89 (17; 0.0053) | +4.83 (9; 0.22) |
+
+  - **Per seed, request mean (median %; topologies faster in parentheses).** 64 servers (seed mean | s1 | s2):
+
+| rung, window | seed_mean | s1 | s2 |
+|---|---|---|---|
+| moderate, whole run | −37.58 (12) | −37.16 (12) | −38.83 (12) |
+| moderate, after 360 s | −51.45 (12) | −51.99 (12) | −50.99 (12) |
+| heavy, whole run | −9.87 (11) | −9.21 (11) | −10.71 (12) |
+| heavy, after 360 s | −46.48 (12) | −48.26 (12) | −42.88 (12) |
+
+    128 servers:
+
+| rung, window | seed_mean | s1 | s2 |
+|---|---|---|---|
+| moderate, whole run | −33.61 (12) | −33.68 (12) | −34.17 (12) |
+| moderate, after 360 s | −66.68 (12) | −67.66 (12) | −65.94 (12) |
+| heavy, whole run | +8.13 (0) | +13.41 (0) | +0.93 (3) |
+| heavy, after 360 s | −45.70 (12) | −44.87 (12) | −43.19 (12) |
+
+    Set A (s1–2 | s1 | s2):
+
+| rung, window | s1_2 | s1 | s2 |
+|---|---|---|---|
+| moderate, whole run | −12.91 (23) | −13.32 (23) | −12.41 (23) |
+| moderate, after 360 s | −13.58 (23) | −14.34 (23) | −13.25 (23) |
+| heavy, whole run | −6.64 (22) | −6.91 (22) | −7.15 (22) |
+| heavy, after 360 s | −10.34 (23) | −10.36 (23) | −9.93 (22) |
+
+    Set B (s3–6 | s1–6 | s1 … s6):
+
+| rung, window | s3_6 | s1_6 | s1 | s2 | s3 | s4 | s5 | s6 |
+|---|---|---|---|---|---|---|---|---|
+| moderate, whole run | −12.80 (24) | −12.77 (24) | −12.49 (24) | −11.86 (23) | −12.82 (24) | −12.73 (24) | −12.63 (24) | −13.10 (24) |
+| moderate, after 360 s | −13.61 (24) | −13.45 (24) | −13.80 (24) | −12.55 (23) | −12.87 (23) | −13.46 (24) | −13.88 (24) | −13.79 (24) |
+| heavy, whole run | −4.32 (21) | −5.02 (22) | −5.23 (21) | −7.08 (23) | −5.47 (22) | −6.64 (21) | −3.44 (20) | −4.18 (22) |
+| heavy, after 360 s | −8.51 (22) | −7.97 (22) | −8.53 (21) | −8.80 (22) | −7.59 (20) | −6.84 (21) | −7.59 (22) | −7.63 (22) |
+
+    The per-seed rows for request p50, p90 and p99 and for every task statistic are in the JSON files (`tests` keys `gnn_vs_bar|<seed set>|<rung>|<statistic>`).
+
+  - **FL MLP at 64 and 128 servers (seed mean; request mean / p50 / p90 / p99, median %).** MLP vs the bar, 64 servers: moderate whole −35.05 / +14.32 / −46.97 / −17.16, moderate after 360 s −44.68 / +15.25 / −40.80 / −56.37, heavy whole −12.15 / +13.43 / −34.80 / −1.52, heavy after 360 s −41.49 / +11.70 / −26.22 / −62.38 (request mean 12/12 topologies faster on every row). MLP vs the bar, 128 servers: −30.21 / +22.35 / −56.35 / −7.28, −58.84 / +23.73 / −37.63 / −76.75, **+3.00 / +28.49 / +22.37 / +4.52** (heavy whole; request mean 1/12 faster), −41.56 / +28.15 / −17.05 / −69.80. FL gnn vs the MLP, request mean (topologies faster; raw p): 64 servers −5.06 (12/12), −10.95 (12/12), +0.77 (3/12; .13), −5.81 (12/12); 128 servers −3.40 (12/12), −17.53 (12/12), +3.59 (3/12; .034), −4.56 (9/12; .092). The MLP has the same slow typical request and the same heavy-whole loss at 128 servers. FL gnn is ahead of the MLP on the request mean on six of eight rows (12/12 topologies, p .0005 on each), and not on the two heavy-whole rows (3/12 each; +0.77 and +3.59 %, i.e. FL gnn slower, not separated at 64) nor at 128 heavy after 360 s (−4.56 %, 9/12, p .092).
+  - **What the tables show, descriptive and without a mechanism.** (a) Request mean: negative on every row of every set except 128 servers heavy whole (+8.13 %, 0/12 faster, p .0005; seeds 1 and 2 alone +13.41 and +0.93 %, 0/12 and 3/12). On sets A and B (seeds 3–6 for B) 21–24 of 24 topologies are faster on all eight rows, p ≤ 1.3e−5. (b) Request p99: negative on all eight A and B rows (21–24 of 24 faster) and on the four seeds 1–6 rows of B; at 64 servers on all four rows (heavy whole only −1.09 %, 11/12); at 128 servers on three of four, heavy whole +4.15 % (2/12). (c) Request p50: positive on every row of every set (+5.2 to +26.3 %), the typical request is slower; 3–10 of 24 topologies are faster on the confirmation sets, and the p50 is not separated from the bar only on set B heavy whole (+9.94 %, 10/24, p .065). (d) Request p90: on set B seeds 3–6 negative on moderate whole and after 360 s and on heavy after 360 s (−0.34 %, 13/24, p .41, not separated), positive on heavy whole (+3.61 %, 8/24, p .21, not separated); at 128 servers heavy whole +27.86 % (0/12). (e) Task level, for the paper's median and tail claims: the task p50 is positive on every row of both sets (+6.5 to +9.0 % on A, +6.5 to +7.6 % on B seeds 3–6, 2–6 of 24 faster); the task p99 is negative on seven of the eight rows and not separated on two: set A heavy after 360 s (−1.50 %, 13/24, p .60) and set B seeds 3–6 heavy after 360 s (+3.80 %, 9/24, p .20; +4.83 %, 9/24, p .22 on seeds 1–6). So on the fresh confirmation sets the typical-request slowdown and the request-level tail gain both hold on every row except as listed; the task-level tail gain does not separate from the bar in the heavy after-360-s window of either set.
+  - **Scale.** At 64 and 128 servers the request-mean gain is larger than the task-mean gain on every row where both are negative (64: −37.6 vs −21.5 %, −51.5 vs −32.9, −9.9 vs −4.3, −46.5 vs −27.3; 128: −33.6 vs −19.0, −66.7 vs −46.5, −45.7 vs −27.9). At 128 servers heavy whole both are positive (+8.13 vs +4.65 %). On sets A and B it is larger as well (A −12.9 vs −5.7, −13.6 vs −6.9, −6.6 vs −2.1, −10.3 vs −4.3 %).
+  - **Files** (`docs/lineages/uncut_groups_s0_v1/anomaly/`; run on datalab from `/share/nikola.lukic/uncut_groups/anomaly`): `request_stats_size.py` md5 `bb0ec1afee9e6daa2957b108eb2f8334` and `request_stats_size.sh` `fa0dfd08f806da2e9cb59350f8c06537` (job 899664, 14 s, both sizes; the signed `request_stats.py` md5 `9264eff6…` generalised to the size's roots, nothing else); `request_stats_s64.json` `80f61f87665cf7db1e9129e8baf65f2f`, `.txt` `c8cc85d141e3f643e9bdc80e48c64022`; `request_stats_s128.json` `d0b27a7357a330d24914918ea2fb2566`, `.txt` `3eccd1e24699275b61bffcc7ea306f71`; `request_stats_conf.py` `10cf851feb1aa40995382fbb865c0a26` and `request_stats_conf.sh` `e214ef267b34720bd5e7ab0799bcb878` (job 899696, 29 s, sets A and B); `request_stats_confA.json` `e1894281f84267c6aee32c26b7e031aa`, `.txt` `7b97d40e24ae892ea3999962b18de48b`; `request_stats_confB.json` `bd6b52ae911558e1a8d2693450ed5607`, `.txt` `ee3c9ccc6bb99596a9a3318440af73f4`; `req_ident_size.sh` `1beb2a7ad15b4699c9abc5cd24701799`, `req_ident_size_check.py` `22327eb7ca9518d12c57c5b44034a63e`, `req_ident_s64_check.txt` `6a58d3e39f01e4e80711d718c803234f`, `req_ident_s128_check.txt` `9a2bc93589e27421df0e1c9dd25f968d`; `req_ident_conf.sh` `0231d8631e3f2bc16bf7d267380a8d6b`, `req_ident_conf_check.py` `cdd7557458ad8c8efd498807789a5a62`, `req_ident_conf_check.txt` `39eb5da4a1c37dbcdf03b51f0a259848`.
 - 2026-10-22 — **Own-state round, full version: retest topologies minted (ids 20508–20531), 192 bar and 192 reactive cells run. Sealed, no outcome read** (S5; after amendment A1 at `c810a270`, the user's GO via the expert; descriptive prep, no label). Files: `docs/lineages/uncut_groups_s0_v1/own24/`.
   - **Ids.** 20508–20531, the list A1 signed; sha256 of the comma-joined decimal list `d4b1fb268c14af65a7c201ef27a97fbfb3a3033a964218cfbf443f060032ac37`. Rule and scan as A1 records (scan10; token files and md5s in `own24/`: `tok_git.txt` `14c901c8`, `tok_share.txt` `da844407`, `tok_simdata_names.txt` `15956e84`, `sh_tok.txt` `8c517a35`, `prov_seeds.json` `99914b93`; the scan jobs were 899569 and 899570).
   - **Mint.** `own24_mint.sh` (md5 `8563a26e056bbb3d373dcaa0c8c05235`), from `fl3_mint.sh` with 24 ids, root `gate_inputs_own24`, ids ≥ 20508; it checks the id-list sha256, that the root does not exist, the worktree `uh_f8814905` HEAD `f8814905` (clean), `big_groups_inputs.sbatch` md5 `cf6e4f426e8122187233d0c9c6844670` and `uncut_groups_group_inputs.py` md5 `9efb1da057cb85a2f9eececd0f5b684c`. Recipe as the conf2 / fl3 mint: 160 clients × 24 servers, p 0.6, single origin `x1_uncut`, `M_MODERATE` 11.6139, `M_HEAVY` 27.622665025860204 (unscaled), `REPLICA_RULE` fastest_compatible, BASECFG `cc40s16345.json`. Mint job 899622 (41 s) and group job 899623 (afterok), both COMPLETED; `md5sum -c` 0 differences on both trees; the cfg check reads "cfgs OK: 160 x 24" (48 cell cfgs rewritten 10 → "group", 58 files). `inputs/MD5SUMS` md5 `b25aaf22a5f27411f4b047b820118726`; `inputs_group/MD5SUMS` md5 `72a7db697771082a14916ad82e540507` (both filed). The tree to serve is `/share/nikola.lukic/uncut_groups/gate_inputs_own24/inputs_group`. Selection file `own24_selected.json` (fl3's with topologies 20508–20531, windows g0–g3, servers 24; md5 `b89d6bf460bba2acb1b17dce8f195d6e`).
