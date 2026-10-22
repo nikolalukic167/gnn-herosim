@@ -1,0 +1,4 @@
+bar: cc40s30241__g2heavy__cd_ib0_inflightfull_k100_s0 identity OK | pin a459dd98 rerun+filed True | fields differing outside provenance/timing: [] | new [] gone [] | npy byte-equal {'tasks': True, 'tasks_bsz': True, 'tasks_lock': True} | allowed diffs 15
+gnn: cc40s30241__g2heavy__ra_gnn_eng_combfl_nosplit_k100_s1 identity OK | pin 74ddf70e rerun+filed True | fields differing outside provenance/timing: [] | new [] gone [] | npy byte-equal {'tasks': True, 'tasks_bsz': True, 'tasks_lock': True} | allowed diffs 16
+mlp: cc40s30241__g2heavy__ra_mlp_same_combfl_nosplit_k100_s1 identity OK | pin 74ddf70e rerun+filed True | fields differing outside provenance/timing: [] | new [] gone [] | npy byte-equal {'tasks': True, 'tasks_bsz': True, 'tasks_lock': True} | allowed diffs 16
+IDENTITY PASS
