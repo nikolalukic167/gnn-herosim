@@ -264,3 +264,27 @@ def test_relabel_fails_loud_on_a_state_that_never_returns(tmp_path, monkeypatch)
     # the first states must not time out on a slow machine (worker start-up counts), so the wait is generous and the hung state sleeps far longer; the message of a TimeoutError is empty
     with pytest.raises(SystemExit, match=r"FAIL LOUD: state a/ds_\d+: TimeoutError"):
         L.cmd_relabel(_args(tmp_path, tmp_path / "y.jsonl", 3, timeout=5.0))
+
+
+def test_a_timed_out_state_ends_the_process_nonzero_within_seconds(tmp_path):
+    """The hung worker must not keep the process alive after FAIL LOUD (the cluster job stayed RUNNING for 3 h). A real subprocess, one state that never returns."""
+    import subprocess
+    import time as _t
+    driver = tmp_path / "drive.py"
+    driver.write_text(
+        "import sys, time\n"
+        f"sys.path.insert(0, {str(Path(L.__file__).parent)!r})\n"
+        "import uncut_label_screen as L\n"
+        "def replay(corpus, st):\n"
+        "    if st['gid'] == 'a/ds_001': time.sleep(600)\n"
+        "    return {'wall_s': 0.0}\n"
+        "L.all_states = lambda split, corpus: [{'gid': 'a/ds_%03d' % i, 'split': 'train'} for i in range(4)]\n"
+        "L.replay_state = replay\n"
+        "L.sidecar_entry = lambda r, split: {'split': split, 'bucket': 'b', 'n_plans_replayed': 1}\n"
+        "if __name__ == '__main__':\n"
+        f"    L.run_cli(['relabel', '--split', 'x', '--corpus', 'x', '--shard', '0/1', '--out', {str(tmp_path / 'o.jsonl')!r}, '--workers', '2', '--state-timeout', '4'])\n")
+    t0 = _t.time()
+    r = subprocess.run([sys.executable, str(driver)], env={**os.environ, "LABEL_SCREEN_MP": "fork"}, capture_output=True, text=True, timeout=60)
+    assert r.returncode != 0
+    assert _t.time() - t0 < 30
+    assert "FAIL LOUD: state a/ds_001: TimeoutError" in r.stderr
