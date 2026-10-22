@@ -22,28 +22,45 @@ lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `doc
 
 **Where the research question stands (rewritten 2026-10-22).**
 
-**A replay-trained learned scorer beats the strongest hand rule at moderate load; the gain is the labels, not message passing.**
-Program `uncut_groups_s0_v1` (whole, uncut Alibaba peer groups up to about 230 tasks; decision time charged as simulated time). The bar is
-`cd_ib0_inflightfull_k100`: coordinate descent over the full in-flight work at k = 1. The learned arm is the FL GNN `ra_gnn_eng_combfl_nosplit_k100`.
-- **24 servers, moderate load, ahead on every set and seed:** 12 development topologies 19537–19548 (where design choices were made) −6.4 / −7.7 %
-  (whole / after 360 s); fresh set A 19707–19730 (seeds 1–2) −5.7 / −6.9 %; fresh set B 19953–19976 (seeds 3–6) −6.5 / −6.3 %. Never pool A and B.
-- **Heavy load: direction only.** −2 to −4 % whole run, size varies with seed (−0.1 to −5.3 %); set B after 360 s not significant.
-- **Size:** 64 servers 30129–30140 −21.5 % moderate, heavy direction only; **128 servers 30241–30252 NOT-CONFIRMED** (heavy whole +4.7 %, 0/12).
-  The 64 / 128 sizes were chosen after pilots, and their decision charge uses costs calibrated at 24 servers.
-- **Attribution:** the MP-off twin ties the GNN, and the same-input MLP recovers most of the gain (GNN ahead by 0.9–2.0 points at 24).
-  The margin comes from simulator-replay labels plus in-flight features. **No result in this program is a message-passing win.**
-- **Distribution:** the gain is in the mean and the tail. The task median is about 11 % higher; per request (development set), the mean is −14.8 / −8.7 % and the median +9.2 / +11.8 %.
-- **Boundary conditions:** the gain needs large peer payloads (gone at ×0.1 and with Azure blob-trace sizes). A per-transfer TCP charge removes 26–33 % of it.
-  Links are modelled uncontended, and some slow uplinks are offered more than they carry. A lower autoscaler target helps the hand rule more.
-  Exact search on the bar's cost loses at heavy load before its decision time is counted.
-- **Open:** the own-state (one DAgger round) GNN-vs-twin pilot (registered 31e0cf30, direction-only) and its full confirmation
-  (registered 6d6e1e54: union corpus, from scratch, 6 seeds, fresh ids 20508–20531). ILS-live was withdrawn by the user before any cell ran.
-- **Paper:** CCGrid 2027 draft, local only, never committed. Paper framing is not the record; quote the record.
+**A replay-trained learned scorer beats the strongest hand rule at moderate load. The gain is the labels, not message passing.**
+Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups (≤ 226 tasks in the gate), with decision time charged as simulated time. The bar is
+`cd_ib0_inflightfull_k100`, coordinate descent over the full in-flight work at k = 1. The learned arm is the FL GNN `ra_gnn_eng_combfl_nosplit_k100`.
+- **Registered labels:** WIN-ARM-ONLY on the 12 development topologies. NOT-CONFIRMED on fresh sets A and B, at 64 servers and at 128 servers,
+  each time on a heavy-load clause. Moderate load passes every pooled test.
+- **24 servers, moderate load, ahead on every set and seed** (whole run / after 360 s):
+  - 12 development topologies 19537–19548, where design choices were made: −6.4 / −7.7 %.
+  - Fresh set A 19707–19730, seeds 1–2: −5.7 / −6.9 %.
+  - Fresh set B 19953–19976, seeds 3–6: −6.5 / −6.3 %.
+  - Never pool A and B.
+- **Heavy load:** direction only. −2 to −4 % over the whole run; the size varies with seed (−0.1 to −5.3 %); set B after 360 s is not significant.
+- **Size:**
+  - 64 servers 30129–30140: NOT-CONFIRMED. −21.5 % moderate whole; heavy direction only (seed 1 heavy whole −0.66 / +0.02 %).
+  - 128 servers 30241–30252: NOT-CONFIRMED. −19.0 % moderate whole (12/12), but heavy whole +4.7 % (0/12; seed 1 +12.3 %).
+  - Both sizes were chosen after exploratory pilots.
+- **Attribution:** the MP-off twin ties the GNN, and the same-input MLP recovers most of the gain (GNN ahead by 0.9–2.0 points on set A,
+  MODEL-CLASS-DIRECTION). The margin comes from simulator-replay labels plus in-flight features. **No result in this program is a message-passing win.**
+- **Distribution (development set):** the gain is in the mean and the tail, and the task median is about 11 % higher. Per request: mean −14.8 / −8.7 %, median +9.2 / +11.8 %.
+- **Boundary conditions:**
+  - The gain needs large peer payloads. It is gone at ×0.1 and with Azure blob-trace sizes.
+  - A per-transfer TCP charge removes 26–33 % of it.
+  - Links are modelled uncontended, and some slow uplinks are offered more than they carry.
+  - Lowering the autoscaler target cuts the hand rule's latency more (−34 % at 0.294) than our gain at the default target. Only the hand rule was dosed.
+  - Exact search on the bar's cost (groups ≤ 8) is +17.5 % slower at heavy load (0/12). Subtracting its charge leaves most of the gap; that is arithmetic, not a run.
+- **Open:**
+  - The own-state (one DAgger round) GNN-vs-twin pilot, registered 31e0cf30, direction-only.
+  - Its full confirmation, registered 6d6e1e54 and c810a270: union corpus, from scratch, 6 seeds, fresh ids 20508–20531.
+  - ILS-live was withdrawn by the user before any cell ran.
+- **Paper:** the CCGrid 2027 draft is local only and never committed. Paper framing is not the record; quote the record.
 
-**Earlier settings, still true** (details in their nodes): with decisions free, `cd_exactS_ib0` is the bar, and charging decision time takes the exact arms off
-the frontier (`decision_cost_s0_v1`: no learned win at any k, search wins, not the GNN). With one origin per group no learned arm beats CD (`small_batch_so_v1`).
-Message passing helps raw inputs, not engineered ones (`local_features_v1`). Self-predict is the per-arrival bar (`selfpredict_bar_v1`). The single-batch
-co-sim target is pointwise-separable (`program_verdict_v1`). Knative under R1: quote only the concurrency-key arm.
+**Earlier settings, still true** (details in their nodes):
+- With decisions free, `cd_exactS_ib0` is the bar (`ib0_confirm_v1`).
+- Charging decision time takes the exact arms off the frontier: no learned win at any k; the search wins, not the GNN (`decision_cost_s0_v1`).
+- With one origin per group, no learned arm beats CD (`small_batch_so_v1`).
+- On engineered inputs the GNN beats the same-input MLP but is still slower than CD (`local_features_v1`).
+- On raw inputs message passing beats its twin, but CD is faster (`raw_plan_v1`).
+- Self-predict is the per-arrival bar (`selfpredict_bar_v1`).
+- The single-batch co-sim target is pointwise-separable (`program_verdict_v1`).
+- A reactive or Knative number under R1 reflects a blind queue key; see `docs/gates/gate-tools.md`, "Knative under R1".
 
 **Pair on the environment before you take a median; quote a DIRECTION from a small design and a MAGNITUDE only from a
 large one; a rule with the model's information is the bar, never Knative alone; name the origin model with any grounded
