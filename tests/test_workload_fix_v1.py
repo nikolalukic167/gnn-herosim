@@ -506,3 +506,25 @@ def test_azblob_sampler_is_seeded_two_draws_and_interpolates(tmp_path):
     with pytest.raises(ValueError, match="non-decreasing"):
         WP.load_azblob_table(str(p))
     assert WP.payload_sampler_meta("azblob", azblob_table=table)["sampler"] == "azblob"
+
+
+def test_cellular_uplink_override_changes_only_the_cellular_out_rate(monkeypatch):
+    names = [f"n{i}" for i in range(200)]
+    monkeypatch.delenv("HEROSIM_ACCESS_CELLULAR_OUT_MBPS", raising=False)
+    base = draw_access_classes(names, seed=5)
+    monkeypatch.setenv("HEROSIM_ACCESS_CELLULAR_OUT_MBPS", "16")
+    over = draw_access_classes(names, seed=5)
+    assert {n: s["class"] for n, s in base.items()} == {n: s["class"] for n, s in over.items()}
+    assert any(s["class"] == "cellular" for s in base.values())
+    for n, s in base.items():
+        if s["class"] == "cellular":
+            assert (s["out_mbps"], over[n]["out_mbps"], over[n]["in_mbps"]) == (4.0, 16.0, s["in_mbps"])
+        else:
+            assert over[n] == s
+
+
+def test_cellular_uplink_override_refuses_a_bad_value(monkeypatch):
+    for bad in ("0", "-1", "fast", "nan", "inf"):
+        monkeypatch.setenv("HEROSIM_ACCESS_CELLULAR_OUT_MBPS", bad)
+        with pytest.raises(ValueError):
+            draw_access_classes(["a"], 1)
