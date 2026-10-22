@@ -459,5 +459,19 @@ def main(argv=None):
     return 0
 
 
+def run_cli(argv=None) -> None:
+    """Run `main` and end the process at once. A SystemExit (FAIL LOUD) leaves through os._exit: the interpreter's normal exit joins the process pool's threads, and a pool holding a hung worker kept the job RUNNING for hours after the failure was printed."""
+    try:
+        rc = main(argv)
+    except SystemExit as e:
+        rc = e.code
+        if isinstance(rc, str):
+            print(rc, file=sys.stderr, flush=True)
+            rc = 1
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(int(rc or 0))
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    run_cli()
