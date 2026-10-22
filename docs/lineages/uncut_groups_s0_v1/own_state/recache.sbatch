@@ -17,8 +17,33 @@ for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|Q
 eval "$(micromamba shell hook --shell bash)"; micromamba activate gnn
 export HEROSIM_PY=python3 PYTHONPATH="$WT:$WT/src/notebooks" PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
 [[ "$(git rev-parse HEAD)" == ${PIN}* ]] || { echo "FAIL LOUD: HEAD $(git rev-parse HEAD)"; exit 1; }
-C=/share/nikola.lukic/uncut_groups/dagger/corpus_$ARM; V=$C/view; OUT=$C/cache_v6
+C=/share/nikola.lukic/uncut_groups/dagger/corpus_$ARM; V=$C/view_ssc; OUT=$C/cache_v6
 [[ ! -e "$OUT" ]] || { echo "FAIL LOUD: $OUT exists"; exit 1; }
+# The new datasets have no system_state_captured_unique.json (S4's job 899571 failed on that): as uncut_arm1_cache.sbatch does, build a PRIVATE mirror (every file a symlink, optimal_result.json a copy)
+# and rewrite the SSC files in the mirror (refresh_optimal_full_stats.py --rewrite-ssc, no simulation). The corpus dirs are only read; the cache is built from the mirror.
+[[ ! -e "$C/new_mirror" && ! -e "$V" ]] || { echo "FAIL LOUD: $C/new_mirror or $V exists"; exit 1; }
+python3 - "$C" <<'PY2'
+import os, shutil, sys
+from pathlib import Path
+C = Path(sys.argv[1]); mir = C / "new_mirror"; view = C / "view_ssc"; mir.mkdir(); view.mkdir()
+for b in sorted((C / "view").iterdir()):
+    if "dagger" not in b.name:
+        os.symlink(os.path.realpath(b), view / b.name); continue
+    dst = mir / b.name; dst.mkdir(); n = 0
+    for d in sorted(Path(os.path.realpath(b)).glob("ds_*")):
+        t = dst / d.name; t.mkdir()
+        for f in d.iterdir():
+            if f.name == "optimal_result.json":
+                shutil.copyfile(f, t / f.name)
+            else:
+                os.symlink(f.resolve(), t / f.name)
+        n += 1
+    os.symlink(dst, view / b.name)
+    print(f"mirror {b.name}: {n} datasets")
+PY2
+for B in "$C"/new_mirror/*/; do python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$B" --rewrite-ssc | tail -1; done
+NEW=$(ls "$C"/new_mirror/*/ds_*/optimal_result.json | wc -l)
+[[ "$(ls "$C"/new_mirror/*/ds_*/system_state_captured_unique.json | wc -l)" == "$NEW" ]] || { echo "FAIL LOUD: SSC files != $NEW"; exit 1; }
 mkdir -p "$OUT"
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
 export DAG_PRIMARY_ALPHA_KEY=inf PARTIAL_STATE_CONTRACT=partial_state_v6 NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded
