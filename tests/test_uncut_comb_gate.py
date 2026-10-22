@@ -90,3 +90,11 @@ def test_comb_arm_charges_its_own_frozen_w(tmp_path, monkeypatch):
     for k in G.COMB_KINDS:
         with pytest.raises(SystemExit, match="no calibrated w|null"):
             G.dc_cost_ms(f"{k}_nosplit", 1.0, "heavy")
+
+
+def test_wide_mlp_is_a_nosplit_gate_arm_outside_the_other_kind_sets():
+    (base,) = G.COMB_WIDE
+    k = base + "_nosplit"
+    assert base == "ra_mlp_wide_combfl" and G.COMB_STEMS[base] == "uncut-comb-fl-mlp-wide"
+    assert k in G.R1A_ARMS and k in G.R1A_NOSPLIT and base in G.RA_KINDS and base not in G.RA_MP_OFF and base not in G.COMB_KINDS
+    assert G.split_dc(f"{k}_k100") == (k, 1.0) and G.comb_contract(base) == "partial_state_v6" and G.COMB_CHECK[base] == "ra_mlp_same_v6"
