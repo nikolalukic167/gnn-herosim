@@ -1216,6 +1216,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "GNN_SEQBLEND_QUEUE_MARGIN",
             "HEROSIM_GNN_DEVICE",
             "HEROSIM_PEER_EXCHANGE",
+            "HEROSIM_ACCESS_CELLULAR_OUT_MBPS",
             # peer_affinity_v1 stage 3: what the prefix-conditioned arm was served with
             "GNN_BATCH_BY_PEER_GROUP",
             "GNN_PREFIX_ALPHA_KEY",

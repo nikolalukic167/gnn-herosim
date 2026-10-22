@@ -230,7 +230,8 @@ def ib0_alpha(kind: str) -> dict:
     return {"HEROSIM_PG_BATCH_ALPHA": "0"} if kind in ("cdx_ib0", "cd_oracle_ib0", "cd_ib0", "cd_ib0_inflight", "cd_ib0_inflightfull") or kind in ILS_PER or kind == EXACT_LIVE or kind.endswith(("_cdxib0", "_cdxhib0")) else {}
 
 
-W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp", "peerExchangeFairshare")
+W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp", "peerExchangeFairshare",
+                     "accessCellularOutMbps")
 
 
 def exchange_tcp_problems(out, driver_value):
