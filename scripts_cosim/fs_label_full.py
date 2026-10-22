@@ -2,7 +2,7 @@
 """Assemble the fair-share label override for the Arm 1 corpus: the filed sim_labels_arm1.json with the TRAIN entries replaced by the fair-share relabel (same keys per entry, same `_meta` plus a fair-share note);
 val and test entries are copied as filed. Also: the identity of the 500-state test's fair-share rows against the full run, and the change statistics.
 
-  fs_label_full.py build --labels sim_labels_arm1.json --rows fs_*_of_20.jsonl --test-rows fs_*_of_4.jsonl --out label_override_fs.json --stats stats.json"""
+  fs_label_full.py --labels sim_labels_arm1.json --rows fs_*_of_20.jsonl --test-rows fs_*_of_4.jsonl --out label_override_fs.json --stats stats.json"""
 from __future__ import annotations
 
 import argparse
