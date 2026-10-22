@@ -28,7 +28,7 @@ CITATIONS = [
     ("LINEAGES.md", "cd_exactS_ib0"),
     ("docs/gates/gate-tools.md", "cd_exactS_ib0"),
     ("docs/gates/gate-tools.md", "src/placement/declared_slate.py"),
-    ("docs/lineages/slate_bar_v1.md", "declared_pruning_v1"),
+    ("docs/lineages/archive/slate_bar_v1.md", "declared_pruning_v1"),
 ]
 
 

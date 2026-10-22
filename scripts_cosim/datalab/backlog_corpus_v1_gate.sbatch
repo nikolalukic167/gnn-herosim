@@ -1,5 +1,5 @@
 #!/bin/bash
-# backlog_corpus_v1 live gate, phase bc1 (docs/lineages/backlog_corpus_v1.md): bc1load x4, bc1mpoff x4 and
+# backlog_corpus_v1 live gate, phase bc1 (docs/lineages/archive/backlog_corpus_v1.md): bc1load x4, bc1mpoff x4 and
 # v4load_se x4 on the fresh_topo_burst_v1 study, as cd_gap_v1's phase_fix.sbatch (--no-scope, 2.5 GB, 1800 s).
 # CD, self-predict and v4load (legacy capture) are the existing runs, licensed by the witness job.
 # Inputs: $B/inputs = cfg/, wl/ and selected.json from the fresh inputs, both split files, and models/ holding

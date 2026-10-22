@@ -9,7 +9,7 @@
 #SBATCH --array=0-23
 # rollout_imitation_v1 Phase A: label the multi-candidate decisions on each of the 24 training
 # topologies (seeds 9201-9224), forced-rollout at N in {20,50,100}. The pooled read
-# (rollout_imitation_v1_phaseA_read.py) fires R0 (rank stability). See docs/lineages/rollout_imitation_v1.md.
+# (rollout_imitation_v1_phaseA_read.py) fires R0 (rank stability). See docs/lineages/archive/rollout_imitation_v1.md.
 set -euo pipefail
 cd /home/nikola.lukic/gnn-herosim
 eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn

@@ -1,5 +1,5 @@
 # partial_state_v3 -- mpoff: the drainable_objective_v1 V = 1 recipe under the size-free
-# partial-state contract. docs/lineages/partial_state_v3.md.
+# partial-state contract. docs/lineages/archive/partial_state_v3.md.
 #
 # Everything is the v1_mpoff recipe (T1b, lr 2e-3 NOT re-tuned, CE-only, teacher-forced
 # masked_topo, T1b split, 16 seeds) except: the cache is the SAME 516 parents rebuilt under

@@ -1,5 +1,5 @@
 #!/bin/bash
-# load_repr_v1 -- the jb2 cache rebuilt under partial_state_v4 (docs/lineages/load_repr_v1.md).
+# load_repr_v1 -- the jb2 cache rebuilt under partial_state_v4 (docs/lineages/archive/load_repr_v1.md).
 # joint_burst_v2_cache.sbatch with the contract swapped. The corpus is not touched (its SSC rewrite
 # ran for jb2) and the frozen jb2 split is checked, never rebuilt. Runs in the worktree
 # ~/gnn-herosim-wt/load_repr; simulation_data/* and models are symlinks into ~/gnn-herosim.

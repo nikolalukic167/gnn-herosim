@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """objective_pivot_v1 Phase 3 — closed-loop policy-gradient training on the live metric.
 
-Registered in `docs/lineages/objective_pivot_v1.md` (Phase 3 registration, 2026-09-01,
+Registered in `docs/lineages/archive/objective_pivot_v1.md` (Phase 3 registration, 2026-09-01,
 with Amendments A-C). This is the trainer for the CL-GNN and CL-MLP arms; Frozen-GNN,
 Frozen-MLP and Knative are served, not trained, and are produced by the existing gates.
 

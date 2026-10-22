@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""slate_fix_v1 live-gate reader (docs/lineages/slate_fix_v1.md). Written before the data.
+"""slate_fix_v1 live-gate reader (docs/lineages/archive/slate_fix_v1.md). Written before the data.
 
 Topologies 19420-19431 (anything else is refused), windows g0-g1, moderate and heavy. Two gate submissions run the same harness kinds on
 different checkpoints, so the reader renames a learned kind by the directory it came from: --new (R1A_STEM=slate-fix-v1, the uncapped retrain)

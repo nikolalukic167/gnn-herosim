@@ -1018,7 +1018,7 @@ CONTENTION_V2_GRID: GridPreset = {
 }
 
 # link_mp_v1: BINDING-backbone training corpus for the link-graph MP ablation
-# (docs/lineages/link_mp_v1.md). Three fabric variants, one per live-gate backbone family
+# (docs/lineages/archive/link_mp_v1.md). Three fabric variants, one per live-gate backbone family
 # (a1_backbone_bw1p5 = core4/bw1.5, bbrob = core8/bw1.5 and core4/bw0.5), so the trained
 # fabric distribution covers exactly the fabrics the 20 registered backbone gate cells
 # carry. This is deliberately NOT topo_transfer_v1's corpus: that one pinned bandwidth at

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """drainable_regime_v1 S1 read -- the registered live-gate read at the x4000 rung.
 
-Bars are in docs/lineages/drainable_regime_v1.md, stage 2, and are not repeated as prose
+Bars are in docs/lineages/archive/drainable_regime_v1.md, stage 2, and are not repeated as prose
 here; the constants below ARE the bars and must not move once a number has been read.
 
 Sign convention is the live one used everywhere in peer_affinity_v1: "% vs X" is

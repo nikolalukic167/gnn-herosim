@@ -10,7 +10,7 @@
 
 **Datasets:** whole `legacy_v0_node_disk_v2_4task` group
 
-**Related:** [mp_parity](mp_parity.md) · [cache_live_divergence_audit](cache_live_divergence_audit.md) · `queue_feature_contract` (index only)
+**Related:** [mp_parity](archive/mp_parity.md) · [cache_live_divergence_audit](archive/cache_live_divergence_audit.md) · `queue_feature_contract` (index only)
 
 ## Standing (from the index table)
 

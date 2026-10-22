@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""raw_plan_v2 reader (docs/lineages/raw_plan_v2.md).
+"""raw_plan_v2 reader (docs/lineages/archive/raw_plan_v2.md).
 
   raw_plan_v2_read.py dev  --dirs <groundedladder> <peakctl> <rawgnn> <rawmlp> <rawE> <rawS> <rawES> <rawStwin>
                            --selection selected.json [--out dev_read.json]

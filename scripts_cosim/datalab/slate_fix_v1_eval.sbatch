@@ -1,5 +1,5 @@
 #!/bin/bash
-# slate_fix_v1 offline screen (ORDERING ONLY, docs/lineages/slate_fix_v1.md): each checkpoint's val regret on the UNCAPPED cache's held-out tables
+# slate_fix_v1 offline screen (ORDERING ONLY, docs/lineages/archive/slate_fix_v1.md): each checkpoint's val regret on the UNCAPPED cache's held-out tables
 # (the 438 wf1_heldout parents of experiments/accel_replica_v1_split.json), through train_near_rtt's evaluate() (NEAR_RTT_EVAL_ONLY_JSON; no
 # gradient step, no checkpoint written). Task T in 0-7: (new | old) x (gnn_eng | twin_eng) x seed (1 | 2). New = slate-fix-v1-<arm>-seed<s>.pt;
 # old = the capped g4 checkpoints the gates served: accel-replica-v1-gnn-eng-seed<s>.pt (OLD_GNN_MODELS, md5 0f915a36 / 446f99fd) and the twin

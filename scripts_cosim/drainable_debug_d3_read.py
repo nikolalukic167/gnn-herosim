@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """drainable_debug_v1 D3 -- is the drainable regime an artifact of the target concurrency?
 
-Registered in `docs/lineages/drainable_debug_v1.md`; the bar is the module constant below and
+Registered in `docs/lineages/archive/drainable_debug_v1.md`; the bar is the module constant below and
 was committed before any probe ran.
 
 The Knative autoscaler adds a replica when `ceil(total_queued / Q) > replicas`, with

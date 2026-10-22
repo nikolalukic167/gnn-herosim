@@ -16,7 +16,7 @@
 # DISCLOSED: these rungs are overloaded (6 servers cannot drain 6.139 arrivals/s). Their
 # LATENCY numbers are meaningless and are not read. Collection time is the only statistic.
 #
-# Registered in docs/lineages/cluster_scale_v1.md. Three rungs holding rho ~ 0.16 by adding
+# Registered in docs/lineages/archive/cluster_scale_v1.md. Three rungs holding rho ~ 0.16 by adding
 # capacity as arrivals speed up. Workloads already exist; no trace is regenerated.
 #
 #   rung 0: drainable_f4000  0.460 arrivals/s   6 servers   group assembles in ~21.7 s

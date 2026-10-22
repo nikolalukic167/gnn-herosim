@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hidden_exec_s0_v1 -- read the headroom screen. See docs/lineages/hidden_exec_s0_v1.md.
+"""hidden_exec_s0_v1 -- read the headroom screen. See docs/lineages/archive/hidden_exec_s0_v1.md.
 
 Pairs `oracle` against `table` per (rung, env) on total_rtt under hidden_node_v1 and applies the
 registered bar. Optionally discloses the physics cost against the selfpredict_bar_v1 gate's

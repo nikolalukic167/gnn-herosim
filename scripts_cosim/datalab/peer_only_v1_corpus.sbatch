@@ -1,6 +1,6 @@
 #!/bin/bash
 # peer_only_v1 -- Phase B corpus: the 1,670-dataset cache under partial_state_v3, on datalab.
-# docs/lineages/peer_only_v1.md, bar B0.
+# docs/lineages/archive/peer_only_v1.md, bar B0.
 #
 # gnn_datasets_peer_affinity_v1_c3_x200_train2 on datalab is the 1,500-dataset in-place
 # extension; its 1,154 post-T1b datasets never received the T1b preparation, which is why

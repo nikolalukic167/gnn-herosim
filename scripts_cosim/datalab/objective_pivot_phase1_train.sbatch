@@ -1,7 +1,7 @@
 #!/bin/bash
 # objective_pivot_v1 Phase 1 — train GNN draw seeds 9-16 AT THE PINNED COMMIT c08aa7e.
 #
-# Registration: docs/lineages/objective_pivot_v1/phase1-registration-draft.md (signed off
+# Registration: docs/lineages/archive/objective_pivot_v1/phase1-registration-draft.md (signed off
 # 2026-08-28). This extends gnn_draw_study_v1's 8 seeded draws to 16; the frozen
 # comparison arms were produced at commit c08aa7e in a clean tree (verified from job
 # 712389's run_provenance), and HEAD has since gained ~5,000 route_b lines in

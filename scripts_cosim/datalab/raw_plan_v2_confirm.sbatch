@@ -1,5 +1,5 @@
 #!/bin/bash
-# raw_plan_v2 Phase C gate (docs/lineages/raw_plan_v2.md) on the unseen topologies that raw_plan_v2_mint_screen.sbatch
+# raw_plan_v2 Phase C gate (docs/lineages/archive/raw_plan_v2.md) on the unseen topologies that raw_plan_v2_mint_screen.sbatch
 # admitted. It builds a separate inputs tree, $C/inputs, so the development cells are never touched:
 #   cfg from the Phase C mint; the grounded g0-g3 windows linked from the development tree (topology-independent,
 #   sha-checked); grounded_x20/x30/x50 built with cd_gap_v1_build_b.py exactly as peak_load_v2 built them.

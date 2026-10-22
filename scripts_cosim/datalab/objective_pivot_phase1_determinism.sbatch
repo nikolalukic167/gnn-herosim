@@ -1,7 +1,7 @@
 #!/bin/bash
 # objective_pivot_v1 Phase 1 — precondition: trainer determinism, green in the PINNED tree.
 #
-# The registration (docs/lineages/objective_pivot_v1/phase1-registration-draft.md, signed
+# The registration (docs/lineages/archive/objective_pivot_v1/phase1-registration-draft.md, signed
 # off 2026-08-28) requires tests/test_trainer_determinism.py green on the GNN trainer
 # BEFORE seed 9 is queued — and it must be green in the tree the draws will actually be
 # trained from, which is the pinned worktree at c08aa7e, not the main checkout at HEAD.

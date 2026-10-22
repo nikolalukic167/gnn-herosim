@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""burst_ladder_v1 Amendment 1 -- a perturbed draw of a built ladder rung (docs/lineages/burst_ladder_v1.md).
+"""burst_ladder_v1 Amendment 1 -- a perturbed draw of a built ladder rung (docs/lineages/archive/burst_ladder_v1.md).
 
 Every peer group's shared timestamp moves LATER by u * min(cap, gap_frac * gap to the next group), u ~ U(0, 1)
 from Random(seed). Groups stay dispatched together (one timestamp per group), the event order is unchanged

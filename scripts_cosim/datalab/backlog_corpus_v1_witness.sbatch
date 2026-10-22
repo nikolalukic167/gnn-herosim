@@ -1,5 +1,5 @@
 #!/bin/bash
-# backlog_corpus_v1 venue/code witness (docs/lineages/backlog_corpus_v1.md, Amendment 2): at this branch's code
+# backlog_corpus_v1 venue/code witness (docs/lineages/archive/backlog_corpus_v1.md, Amendment 2): at this branch's code
 # the default (legacy-capture) path must reproduce, to the digit, CD s0 (cd_gap_v1 witness, = the fresh gate)
 # and v4load s1 (load_repr_v1 phase fix, 807153) on cc40s9119 w1. v4load_se s1 is the smoke of the capture
 # arm: it must run clean and record HEROSIM_INFLIGHT_CAPTURE=service_end_v1.

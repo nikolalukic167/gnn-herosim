@@ -1,5 +1,5 @@
 #!/bin/bash
-# small_batch_v1 check A (docs/lineages/small_batch_v1.md): the existing 10-task-trained checkpoints (rawgnn, rawmlp,
+# small_batch_v1 check A (docs/lineages/archive/small_batch_v1.md): the existing 10-task-trained checkpoints (rawgnn, rawmlp,
 # xs1load, xs1mpoff; 4 seeds; self-refine 0 and 3) decoded on the small-batch VAL, plus the CD-replica and independent-argmin
 # rules on both the small-batch and the 10-task VAL. The 10-task checkpoints' regrets on the 10-task VAL come from the
 # queue-gap diagnostic (raw_plan_v2/qgap), run once already.

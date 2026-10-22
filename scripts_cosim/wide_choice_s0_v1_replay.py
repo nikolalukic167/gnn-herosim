@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""wide_choice_s0_v1 (docs/lineages/wide_choice_s0_v1.md): replay CD, the 1-pass greedy and the
+"""wide_choice_s0_v1 (docs/lineages/archive/wide_choice_s0_v1.md): replay CD, the 1-pass greedy and the
 `xs1load` checkpoints (one-pass, self-refine, GNN-seeded CD) through the real engine on every
 wide-slate co-sim group, against the group's exhaustive sweep optimum.
 

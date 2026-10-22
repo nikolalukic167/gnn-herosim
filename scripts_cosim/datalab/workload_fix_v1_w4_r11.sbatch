@@ -1,5 +1,5 @@
 #!/bin/bash
-# workload_fix_v1 W2+W3+W4 stage rerun on R1.1 (docs/lineages/workload_fix_v1.md, "Identity result and amendment R1.1-T"):
+# workload_fix_v1 W2+W3+W4 stage rerun on R1.1 (docs/lineages/archive/workload_fix_v1.md, "Identity result and amendment R1.1-T"):
 # the 19 test topologies x 4 windows x 5 classical arms x 2 provisional rungs, batching window fixed at 1 s (WB2), W2 payloads.
 # Replaces the provisional W2 read. Inputs: stage_w234_wb2/inputs (W2 payloads, W3 access classes, W4 mix + repair; cfg_w4; rungs lo = x0.2666,
 # hi = x11.6139, batch_timeout 1 s); their window files are verified against the manifests before the first run.

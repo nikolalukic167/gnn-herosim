@@ -1,6 +1,6 @@
 """The arrival rescaler: stretching and truncation must move the rate and nothing else.
 
-Used by drainable_regime_v1's S0 load ladder (docs/lineages/drainable_regime_v1.md), whose
+Used by drainable_regime_v1's S0 load ladder (docs/lineages/archive/drainable_regime_v1.md), whose
 S5 control asserts the overloaded rung still reproduces the overloaded regime -- which is only
 meaningful if the rescale provably touches timestamps and the event count, never the payloads.
 """

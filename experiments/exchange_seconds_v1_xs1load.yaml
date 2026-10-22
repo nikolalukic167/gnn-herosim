@@ -1,6 +1,6 @@
 # exchange_seconds_v1 -- fullctx_refine_v1's fc1load recipe verbatim (backlog_corpus_v1 cache and split, partial_state_v4,
 # full-context CE) plus PARTIAL_STATE_EXCHANGE_SECONDS=1: peer-block columns 7-8 in log1p seconds instead of divided
-# by the per-batch peer_norm (docs/lineages/exchange_seconds_v1.md).
+# by the per-batch peer_norm (docs/lineages/archive/exchange_seconds_v1.md).
 trainer: gnn
 lineage: exchange_seconds_v1
 cache_dir: simulation_data/graphs_cache_backlog_corpus_v1_psv4_inf

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """drainable_debug_v1 D1 -- on the states the arms were actually served, how good is each plan?
 
-Registered in `docs/lineages/drainable_debug_v1.md`. Bars are the module constants below and
+Registered in `docs/lineages/archive/drainable_debug_v1.md`. Bars are the module constants below and
 were committed before any dataset was cut.
 
 This is the read that arbitrates the lineage's three hypotheses. For every captured live batch

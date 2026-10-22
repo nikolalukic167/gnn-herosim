@@ -8,9 +8,9 @@ measurements; the new reservation example is explicitly constructed after
 exploration, not a preregistered discovery. The live-control correction is disclosed below.
 
 **Outcome so far.** The three earlier learned children are closed negative:
-[total-rank imitation](mixed_dispatch_learning_v1.md),
-[ready-set imitation](mixed_dispatch_state_v1.md), and
-[unguarded action values](mixed_dispatch_value_v1.md). The scaled block/joint
+[total-rank imitation](archive/mixed_dispatch_learning_v1.md),
+[ready-set imitation](archive/mixed_dispatch_state_v1.md), and
+[unguarded action values](archive/mixed_dispatch_value_v1.md). The scaled block/joint
 screens expose 5.06%/0.91% reference headroom and four-operation region S0 finds
 0.55%; these fail their registered 8% funding bar, not a theorem against learning.
 All use non-delay dispatch, which cannot deliberately reserve an idle resource.
@@ -26,11 +26,11 @@ The first irregular-DAG screen finds 3.94% reference headroom and passes all
 finds **5.43%** on fresh inputs, below the 8% funding bar. All 58 successor live
 runs, resource-event checks and full search-reproduction audit pass.
 Reservations supply the best observed schedules on 11/16 inputs. The
-[trained DAG successor](dag_reservation_learning_v1.md) also found no GNN
+[trained DAG successor](archive/dag_reservation_learning_v1.md) also found no GNN
 advantage; residual graph information remains unanswered. The
-[resumable continuation child](dag_resume_s0_v1.md) passes its execution contract
+[resumable continuation child](archive/dag_resume_s0_v1.md) passes its execution contract
 but closes its bounded one/two-decision recipe without gain over matched hand
-search. A [hidden-arrival successor](online_reservation_s0_v1.md) also finds no
+search. A [hidden-arrival successor](archive/online_reservation_s0_v1.md) also finds no
 gain for its two-decision search over a matched hand rollout portfolio after
 fresh live replay. Broader stepwise reservation learning remains unanswered.
 No GPU was allocated.
@@ -248,7 +248,7 @@ there is no trained checkpoint or GNN gain to deploy or report yet.
 ## 2026-09-22 — Matched priority-learning pilot completed
 
 The registered pilot completed and is owned by
-[mixed_dispatch_learning_v1](mixed_dispatch_learning_v1.md). Nine models and
+[mixed_dispatch_learning_v1](archive/mixed_dispatch_learning_v1.md). Nine models and
 384 fresh live runs reject normalized total-rank regression with direct decode:
 GNN is 19.03% slower than `srpt:128`, slightly worse than both learned controls,
 and comfortably within the time budget. This does not reverse the ordering
@@ -256,7 +256,7 @@ headroom screens; it shows that this supervised target fails to recover them.
 
 ## 2026-09-22 — State/action successor completed
 
-[mixed_dispatch_state_v1](mixed_dispatch_state_v1.md) repaired the unstable
+[mixed_dispatch_state_v1](archive/mixed_dispatch_state_v1.md) repaired the unstable
 total-rank label by teaching choices only among currently feasible operations.
 The fresh corpus retained 10.10% teacher headroom and meaningful choices, but
 nine models and 384 live runs leave GNN tied with both learned controls and
@@ -266,7 +266,7 @@ of either total ranks or teacher actions is closed.
 
 ## 2026-09-22 — Outcome-value successor completed
 
-[mixed_dispatch_value_v1](mixed_dispatch_value_v1.md) labels all feasible
+[mixed_dispatch_value_v1](archive/mixed_dispatch_value_v1.md) labels all feasible
 actions by counterfactual final cost and removes repeated PyTorch head calls.
 The GNN develops a small but uncertain 1.90% edge over MP-OFF, yet remains 8.98%
 behind `srpt:128` and over the serving budget across 384 fresh live runs. Full
@@ -912,7 +912,7 @@ matched learned comparisons remain unanswered. Record hygiene passes **97 tests*
 ## 2026-09-22 — Trained DAG successor
 
 The user explicitly authorized training despite the CPU funding bar. The
-[new child](dag_reservation_learning_v1.md) owns the complete data, training and
+[new child](archive/dag_reservation_learning_v1.md) owns the complete data, training and
 live-gate record. It closes guarded one-shot complete-plan proposals with no
 GNN win. The parent stays ACTIVE for different reservation decisions; the
 earlier CPU recipe verdict and its finite-reference caveat still stand.

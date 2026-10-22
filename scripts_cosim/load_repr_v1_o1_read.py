@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """load_repr_v1 O1 -- offline held-out regret of v4load / v4twin next to CD and jb2 gnnedge0
-(docs/lineages/load_repr_v1.md). Offline: orders nothing, closes nothing (rule 6).
+(docs/lineages/archive/load_repr_v1.md). Offline: orders nothing, closes nothing (rule 6).
 
 Protocol is cd_gap_v1 A1's: per held-out group, regret % = 100 x (decoded rtt - sweep optimum) / optimum,
 learned arm = median over its seeds; CD from the D0 engine replay.

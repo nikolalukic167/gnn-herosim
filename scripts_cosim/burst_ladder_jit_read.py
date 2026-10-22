@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""burst_ladder_v1 Amendment 1 -- read the perturbed-draw rerun (docs/lineages/burst_ladder_v1.md).
+"""burst_ladder_v1 Amendment 1 -- read the perturbed-draw rerun (docs/lineages/archive/burst_ladder_v1.md).
 
   burst_ladder_jit_read.py --dir <ladderjit gate dir> --selection selected.json [--out read.json]
 

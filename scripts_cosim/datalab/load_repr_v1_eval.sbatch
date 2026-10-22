@@ -1,5 +1,5 @@
 #!/bin/bash
-# load_repr_v1 O1 (docs/lineages/load_repr_v1.md) -- the 8 checkpoints offline on the v4 cache, exactly as
+# load_repr_v1 O1 (docs/lineages/archive/load_repr_v1.md) -- the 8 checkpoints offline on the v4 cache, exactly as
 # cd_gap_v1 A1/D0 (eval_route_b_stage2_arm.py, alpha key inf, the yaml env block + EVAL_DECODE_*).
 # Tasks 0-3 v4load seeds 1-4, 4-7 v4twin seeds 1-4. Runs in the worktree ~/gnn-herosim-wt/load_repr.
 #   sbatch --array=0-7 load_repr_v1_eval.sbatch

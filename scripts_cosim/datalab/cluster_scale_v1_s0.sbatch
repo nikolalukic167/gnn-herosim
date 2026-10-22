@@ -1,7 +1,7 @@
 #!/bin/bash
 # cluster_scale_v1 -- S0: does peer-group assembly cost actually fall when arrivals speed up?
 #
-# Registered in docs/lineages/cluster_scale_v1.md. Three rungs holding rho ~ 0.16 by adding
+# Registered in docs/lineages/archive/cluster_scale_v1.md. Three rungs holding rho ~ 0.16 by adding
 # capacity as arrivals speed up. Workloads already exist; no trace is regenerated.
 #
 #   rung 0: drainable_f4000  0.460 arrivals/s   6 servers   group assembles in ~21.7 s

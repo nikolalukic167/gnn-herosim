@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""capacity_sweep_v1 -- the C1 capacity and C2 keep-alive reads (docs/lineages/capacity_sweep_v1.md).
+"""capacity_sweep_v1 -- the C1 capacity and C2 keep-alive reads (docs/lineages/archive/capacity_sweep_v1.md).
 
   capacity_sweep_v1_read.py --dirs <ladderjit dir> <capacity dir> --selection selected.json [--out read.json]
 

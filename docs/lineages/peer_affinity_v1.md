@@ -34,9 +34,9 @@ dropped; α₄ = 1.25 fails S0b by two control datasets. T1's own entry is kept 
 n = 8 reading it was.
 
 **Related:** [throughline](throughline.md) (2026-09-09 section — the argument this lineage is
-the one untried exception to) · [dag_fabric_contention_v1](dag_fabric_contention_v1.md) (the
+the one untried exception to) · [dag_fabric_contention_v1](archive/dag_fabric_contention_v1.md) (the
 paper-screen pattern) · [route_b_env_pivot_v1](route_b_env_pivot_v1.md) (count columns, α caps,
-the "void rung" lesson) · [route_b_v1](route_b_v1.md) · [literature_reeval_v1](literature_reeval_v1.md)
+the "void rung" lesson) · [route_b_v1](archive/route_b_v1.md) · [literature_reeval_v1](literature_reeval_v1.md)
 (reading vocabulary for the later training registration).
 
 **Entry points:** `scripts_cosim/peer_affinity_probe.py` → `simulation_data/peer_affinity_probe.json`;

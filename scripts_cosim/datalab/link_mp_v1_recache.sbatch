@@ -1,6 +1,6 @@
 #!/bin/bash
 # link_mp_v1 — build BOTH graph caches from the binding-backbone corpus, AT THE PINNED
-# COMMIT. Registration: docs/lineages/link_mp_v1.md.
+# COMMIT. Registration: docs/lineages/archive/link_mp_v1.md.
 #
 #   graphs_cache_link_mp_v1_dim14          NETWORK_GRAPH_CONTRACT unset ("off")
 #   graphs_cache_link_mp_v1_core_v1_dim14  NETWORK_GRAPH_CONTRACT=core_v1

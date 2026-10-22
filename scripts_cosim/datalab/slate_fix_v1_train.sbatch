@@ -1,5 +1,5 @@
 #!/bin/bash
-# slate_fix_v1 training (docs/lineages/slate_fix_v1.md): the accel_replica_v1 g4 recipe and its MP-OFF twin on the UNCAPPED accel cache, seeds 1 and 2.
+# slate_fix_v1 training (docs/lineages/archive/slate_fix_v1.md): the accel_replica_v1 g4 recipe and its MP-OFF twin on the UNCAPPED accel cache, seeds 1 and 2.
 # Task 0 = gnn_eng, task 1 = twin_eng; both seeds run in parallel inside the task (as r1a_prod_train.sbatch). CPU-amd, no GPU (r1a: an A40 was ~5x slower).
 # Checkpoints land in ~/gnn-herosim/models/ (the worktree's models/ symlink) as slate-fix-v1-<arm>-seed<s>.pt with .contract.json and .val.json.
 #   sbatch --array=0-1 --export=ALL,WT=<pinned worktree>,EXPECT_HEAD=<sha>,OLD_CACHE=<accel_replica_v1 cache dir> slate_fix_v1_train.sbatch

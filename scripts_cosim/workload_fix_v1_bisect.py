@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """workload_fix_v1 provisional load: arrival multipliers at which CD's median queue share is ~0.1 and ~0.3.
 
-Protocol of load_recalibration_v1 (docs/lineages/workload_fix_v1.md, "Provisional load"): the calibration
+Protocol of load_recalibration_v1 (docs/lineages/archive/workload_fix_v1.md, "Provisional load"): the calibration
 topologies x two windows, the CURRENT workload (legacy payloads, single origin), R1 physics, at most 8 evaluated
 multipliers per target. A multiplier m scales the x1 arrival rate (timestamps and batch_timeout by 1/m, the ladder
 protocol). Bisection is in log m. The two bracket ends are evaluated first (steps 1-2, shared by the targets), then

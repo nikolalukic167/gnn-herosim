@@ -2,7 +2,7 @@
 # joint_burst_v2 -- the gate under bursts on the SAME 16 study environments as joint_burst_v1,
 # with checkpoints trained UNCAPPED (alpha=inf) on the corpus that keeps the loaded/cap-
 # infeasible states v1's corpus rejected, served uncapped (the greedy's own seat), plus the
-# coordinate-descent greedy as the honest bar. docs/lineages/joint_burst_v2.md.
+# coordinate-descent greedy as the honest bar. docs/lineages/archive/joint_burst_v2.md.
 #
 # Task table (848 tasks), read from simulation_data/joint_burst_v1/selected.json (same screen):
 #     0-15     random_network

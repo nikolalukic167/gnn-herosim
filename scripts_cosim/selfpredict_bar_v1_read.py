@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """selfpredict_bar_v1 -- read the live gate that sizes the new hand-rule bar.
-See docs/lineages/selfpredict_bar_v1.md.
+See docs/lineages/archive/selfpredict_bar_v1.md.
 
 Pairs peer_greedy_selfpredict_network against each other arm PER (rung, env) over the 16
 unsaturated_edge_v1 environments per rung, primary metric total_rtt, with the per-task

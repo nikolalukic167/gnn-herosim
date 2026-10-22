@@ -1,7 +1,7 @@
 #!/bin/bash
 # scheduler_residence_v1 R3 -- does topology lopsidedness predict the queue blow-up?
 #
-# Registered in docs/lineages/scheduler_residence_v1.md, Amendment 1, signed before any R3
+# Registered in docs/lineages/archive/scheduler_residence_v1.md, Amendment 1, signed before any R3
 # cell had been served a task. R1 found that the one cell of three WITHOUT a queue blow-up is
 # separated from the other two with no overlap on two structural statistics -- every client
 # can reach >= 2 servers (the others have a client that can reach exactly 1), and its

@@ -28,7 +28,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from scripts_cosim.scheduler_residence_v1_read import cell_structure  # noqa: E402
 
-# Measured, not guessed. See the module docstring and docs/lineages/cluster_scale_v1.md.
+# Measured, not guessed. See the module docstring and docs/lineages/archive/cluster_scale_v1.md.
 S0_CORPUS_CANDIDATE_MAX = 5.0
 SEED_PATH = "/network/topology/seed"
 SERVERS_PATH = "/nodes/server_nodes/count"

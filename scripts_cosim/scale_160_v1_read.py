@@ -1,4 +1,4 @@
-"""scale_160_v1 live-gate reader (docs/lineages/scale_160_v1.md, "Gate" / "Primary family" / "Win").
+"""scale_160_v1 live-gate reader (docs/lineages/archive/scale_160_v1.md, "Gate" / "Primary family" / "Win").
 
 Statistic as r1_attribution_v1_read.py: per topology the median over (window, seed) of the paired % of an arm's mean latency
 against CD on the same (topology, window, seed-or-seed-0); then the median over topologies and an exact two-sided Wilcoxon.

@@ -1,5 +1,5 @@
 #!/bin/bash
-# accel_replica_v1 corpus (docs/lineages/accel_replica_v1.md; a clone of scale160_corpus_submit.sh on the rp/accel-calib code): the full submit, in two phases. Submit only on the coordinator's GO, after S5's
+# accel_replica_v1 corpus (docs/lineages/archive/accel_replica_v1.md; a clone of scale160_corpus_submit.sh on the rp/accel-calib code): the full submit, in two phases. Submit only on the coordinator's GO, after S5's
 # go/no-go passed and the rung multipliers are signed into the node. Run on the login node (or elsewhere with REMOTE='ssh datalab').
 #
 #   phase capture: inputs for the whole POOL (160c x 24s p0.6 cfgs minted per seed, WF1 windows remapped over the clients), then the

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """load_recalibration_v1: arrival multipliers at which CD's median queue share sits in the light / moderate / heavy band.
 
-Registered protocol (docs/lineages/load_recalibration_v1.md and its 2026-10-08 pre-run amendments): the calibration
+Registered protocol (docs/lineages/archive/load_recalibration_v1.md and its 2026-10-08 pre-run amendments): the calibration
 topologies x two windows, WF1 (W2 payloads, W3 access classes, W4 mix and repair), batching window 1 s, R1 flags with policy
 time scale 1.0, at most 8 evaluated multipliers per rung. A multiplier m scales the x1 arrival rate (timestamps by 1/m).
 Steering evaluations run CD alone (2,700 s limit, no rerun: a CD cell that hits the limit is unfinished and the step fails the

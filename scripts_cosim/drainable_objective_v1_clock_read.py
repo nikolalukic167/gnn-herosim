@@ -11,7 +11,7 @@ the two side by side on the same (task type, platform type) cells, using the liv
 snapshots the parent lineage already captured, and emits the measured table that Phase B
 generates its corpus with.
 
-BAR A1 (signed in docs/lineages/drainable_objective_v1.md before this ran):
+BAR A1 (signed in docs/lineages/archive/drainable_objective_v1.md before this ran):
     median(measured / formula) >= 3.0  =>  CLOCK-DEFECT
 
 Inputs are the D1 capture files: JSONL, one live-audit snapshot per line, each carrying

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""small_batch_v1 check A reader (docs/lineages/small_batch_v1.md).
+"""small_batch_v1 check A reader (docs/lineages/archive/small_batch_v1.md).
 
   small_batch_check_read.py --old-diag <qgap dir, 10-task VAL> --new-diag <qgap dir, small-batch VAL>
       --old-rules <json> --new-rules <json> --old-root <simulation_data of the 10-task corpus>

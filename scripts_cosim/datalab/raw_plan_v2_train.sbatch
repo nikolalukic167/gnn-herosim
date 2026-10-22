@@ -1,5 +1,5 @@
 #!/bin/bash
-# raw_plan_v2 (docs/lineages/raw_plan_v2.md) -- ARM=rawE|rawS|rawES|rawStwin, seeds 1-4 (tasks 0-3); SMOKE=1 runs
+# raw_plan_v2 (docs/lineages/archive/raw_plan_v2.md) -- ARM=rawE|rawS|rawES|rawStwin, seeds 1-4 (tasks 0-3); SMOKE=1 runs
 # the 2-epoch smoke config (checkpoint named -smoke, never served). raw_plan_v1_train.sbatch but for the arms and the
 # per-arm flag checks. Worktree ~/gnn-herosim-wt/grounded; cache, datasets and models are symlinks.
 #   sbatch --array=0-3 --export=ALL,ARM=rawS raw_plan_v2_train.sbatch

@@ -50,7 +50,7 @@ export GNN_CAPTURE_DATASET_STATE=0
 export COSIM_SUPPRESS_SIM_PRINTS=1
 
 # NOT the runner's default of 1. route_b's decode mask is "no replica reuse"
-# (docs/lineages/route_b_v1/stage2-preregistration.md §4), and the globally-distinct-replica
+# (docs/lineages/archive/route_b_v1/stage2-preregistration.md §4), and the globally-distinct-replica
 # constraint is exactly what defines H3's pool law (pool = per_server x n_hosting_nodes must
 # seat all 8 tasks). Allowing reuse would silently change what this rung measures.
 export ALLOW_NON_UNIQUE=0

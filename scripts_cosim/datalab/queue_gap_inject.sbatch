@@ -1,5 +1,5 @@
 #!/bin/bash
-# Information-injection test (docs/lineages/raw_plan_v2.md): hand exchange / in-batch-load terms subtracted from the
+# Information-injection test (docs/lineages/archive/raw_plan_v2.md): hand exchange / in-batch-load terms subtracted from the
 # model's own logits at decode, 5x5 grid, raw GNN, raw MLP and the engineered-context GNN as the reference, 4 seeds.
 # The zero setting must reproduce the diagnostic's refine-0 regrets.
 #   sbatch --export=ALL,WT=<grounded worktree>[,STAGE=2] queue_gap_inject.sbatch

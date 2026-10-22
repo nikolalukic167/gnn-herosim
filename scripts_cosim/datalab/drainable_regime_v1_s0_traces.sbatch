@@ -1,5 +1,5 @@
 #!/bin/bash
-# drainable_regime_v1 -- S0, step 1: build the load ladder (docs/lineages/drainable_regime_v1.md).
+# drainable_regime_v1 -- S0, step 1: build the load ladder (docs/lineages/archive/drainable_regime_v1.md).
 # Four rescaled copies of the gate trace. Only the timestamp scale and the event count move:
 # same events, types, peer groups, 200 MB payloads, demand scales, seed.
 #   sbatch scripts_cosim/datalab/drainable_regime_v1_s0_traces.sbatch

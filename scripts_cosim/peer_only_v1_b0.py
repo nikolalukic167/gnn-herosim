@@ -3,7 +3,7 @@
     python3 scripts_cosim/peer_only_v1_b0.py --big-cache DIR --small-cache DIR \
         --split experiments/peer_affinity_v1_t1b_split.json --out b0.json
 
-Checks, all registered in docs/lineages/peer_only_v1.md:
+Checks, all registered in docs/lineages/archive/peer_only_v1.md:
   * metadata agrees on contract (partial_state_v3), label, alpha, platform width;
   * >= B0_MIN_DATASETS datasets in the big cache;
   * every dataset of the small cache is in the big cache with IDENTICAL partial-state

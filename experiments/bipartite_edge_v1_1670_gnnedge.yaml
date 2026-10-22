@@ -1,5 +1,5 @@
 # bipartite_edge_v1 -- D1/D2 TREATMENT: the bipartite stage as an EDGE-CONDITIONED conv.
-# docs/lineages/bipartite_edge_v1.md.
+# docs/lineages/archive/bipartite_edge_v1.md.
 #
 # BYTE-IDENTICAL to experiments/peer_only_v1_1670_gnn.yaml except NEAR_RTT_MP_BIPARTITE_EDGE_CONV
 # and the wandb name/tags. Same cache, same split artifact, same objective, same schedule, same
@@ -18,7 +18,7 @@
 # stays an ORTHOGONAL flag and {GIN, EdgeConv} x {replace, residual} remains a clean 2x2.
 #
 # This arm is not expected to win D3. The registered expectation
-# (docs/lineages/bipartite_edge_v1.md) is UNCERTAIN on D1/D2 and NEGATIVE on D3 -- no
+# (docs/lineages/archive/bipartite_edge_v1.md) is UNCERTAIN on D1/D2 and NEGATIVE on D3 -- no
 # architecture change in this programme has ever closed an 18.94 % live gap.
 trainer: gnn
 lineage: bipartite_edge_v1

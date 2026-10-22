@@ -1,6 +1,6 @@
 #!/bin/bash
 # peer_affinity_warm_v1 -- W0 screen: SSC rewrite, alpha pre-scan, cache, structure scorer, read.
-# Runs after both W0 generation arrays completed (docs/lineages/peer_affinity_warm_v1.md).
+# Runs after both W0 generation arrays completed (docs/lineages/archive/peer_affinity_warm_v1.md).
 #   sbatch scripts_cosim/datalab/peer_affinity_warm_v1_w0_read.sbatch
 #
 #SBATCH --job-name=pa-warm-w0-read

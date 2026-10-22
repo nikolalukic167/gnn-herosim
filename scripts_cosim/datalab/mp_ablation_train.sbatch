@@ -2,7 +2,7 @@
 # mp_ablation_v1 — train MESSAGE-PASSING-OFF draws, seeds 1-16, AT THE PINNED COMMIT
 # c08aa7e, so they pair seed-for-seed with the MP-ON arms gnndraws1-16.
 #
-# Registration: docs/lineages/objective_pivot_v1/phase1-registration-draft.md (signed off
+# Registration: docs/lineages/archive/objective_pivot_v1/phase1-registration-draft.md (signed off
 # 2026-08-28). This extends gnn_draw_study_v1's 8 seeded draws to 16; the frozen
 # comparison arms were produced at commit c08aa7e in a clean tree (verified from job
 # 712389's run_provenance), and HEAD has since gained ~5,000 route_b lines in

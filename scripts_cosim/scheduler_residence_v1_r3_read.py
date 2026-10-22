@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """scheduler_residence_v1 R3 -- does topology lopsidedness predict the queue blow-up?
 
-Registered in docs/lineages/scheduler_residence_v1.md, Amendment 1, on 2026-09-15. Every bar
+Registered in docs/lineages/archive/scheduler_residence_v1.md, Amendment 1, on 2026-09-15. Every bar
 below is a module constant and was committed before any R3 cell had been served a task.
 
 R1 found the one cell of three WITHOUT a queue blow-up separated from the other two with no

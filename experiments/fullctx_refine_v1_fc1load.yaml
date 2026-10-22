@@ -1,6 +1,6 @@
 # fullctx_refine_v1 -- backlog_corpus_v1's bc1load recipe verbatim (partial_state_v4 on the synthetic-backlog
 # cache and split) plus a second any-of-K CE scored with every other batch-mate committed
-# (NEAR_RTT_FULL_CONTEXT_CE_WEIGHT), the context GNN_PREFIX_SELF_REFINE serves in (docs/lineages/fullctx_refine_v1.md).
+# (NEAR_RTT_FULL_CONTEXT_CE_WEIGHT), the context GNN_PREFIX_SELF_REFINE serves in (docs/lineages/archive/fullctx_refine_v1.md).
 trainer: gnn
 lineage: fullctx_refine_v1
 cache_dir: simulation_data/graphs_cache_backlog_corpus_v1_psv4_inf

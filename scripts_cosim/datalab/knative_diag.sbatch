@@ -1,5 +1,5 @@
 #!/bin/bash
-# r1_attribution_v1 live gate (docs/lineages/r1_attribution_v1.md): arms x the 19 test topologies x light/moderate/heavy x g0-g3, on R1.1 + the T-fix.
+# r1_attribution_v1 live gate (docs/lineages/archive/r1_attribution_v1.md): arms x the 19 test topologies x light/moderate/heavy x g0-g3, on R1.1 + the T-fix.
 # Phase r1a of fresh_topo_burst_v1_gate.py, progress-rate watchdog instead of fixed reruns (a cell projected past LIMIT after 10 min is killed and
 # counted), production pauses for a rung when more than 5 % of its decided non-Knative cells hang. Array shards: R1A_SHARD=<task>/<count>.
 #   WT, EXPECT_HEAD   pinned detached worktree and its commit (never move it while jobs run)

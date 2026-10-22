@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score reliability_matched_v1 against its registration.
 
-Registration: docs/lineages/reliability_matched_v1.md, committed before any gate episode
+Registration: docs/lineages/archive/reliability_matched_v1.md, committed before any gate episode
 ran. Every threshold, statistic, alpha and reading rule below is inherited verbatim from
 the SIGNED objective_pivot_v1 Phase 1 registration; this file adds no new statistical
 decision and takes no tuning arguments.
@@ -182,7 +182,7 @@ def main() -> int:
                 )
 
     summary = {
-        "registration": "docs/lineages/reliability_matched_v1.md",
+        "registration": "docs/lineages/archive/reliability_matched_v1.md",
         "eval_dir": str(args.eval_dir),
         "n_cells": N_CELLS,
         "venue_control": venue,

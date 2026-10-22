@@ -1,5 +1,5 @@
 #!/bin/bash
-# Queue-gap diagnostic (docs/lineages/raw_plan_v2.md): the served decoder on every VAL graph for the v1 raw GNN / raw
+# Queue-gap diagnostic (docs/lineages/archive/raw_plan_v2.md): the served decoder on every VAL graph for the v1 raw GNN / raw
 # MLP and the engineered-context GNN / MP-OFF twin, 4 seeds each, self-refine 0 and 3. Seed 1 of the v1 raw GNN runs
 # first on its own: its refine-0 regret must reproduce the trainer's best val regret (19.10 s).
 #   sbatch --export=ALL,WT=<grounded worktree> queue_gap_diag.sbatch

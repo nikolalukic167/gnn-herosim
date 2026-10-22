@@ -1,6 +1,6 @@
 #!/bin/bash
 # partial_state_v3 -- training: the drainable_objective_v1 V = 1 recipe under the size-free
-# partial-state contract. docs/lineages/partial_state_v3.md.
+# partial-state contract. docs/lineages/archive/partial_state_v3.md.
 #
 # Template: drainable_objective_v1_train.sbatch. Same corpus (516 parents), same split, same
 # label, same lr (2e-3, NOT re-tuned), same 16 seeds per arm. Differences, all declared in

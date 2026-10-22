@@ -1,5 +1,5 @@
 #!/bin/bash
-# scale_160_v1 corpus (docs/lineages/scale_160_v1.md): the full submit, in two phases. Submit only on the coordinator's GO, after S5's
+# scale_160_v1 corpus (docs/lineages/archive/scale_160_v1.md): the full submit, in two phases. Submit only on the coordinator's GO, after S5's
 # go/no-go passed and the rung multipliers are signed into the node. Run on the login node (or elsewhere with REMOTE='ssh datalab').
 #
 #   phase capture: inputs for the whole POOL (160c x 24s p0.6 cfgs minted per seed, WF1 windows remapped over the clients), then the

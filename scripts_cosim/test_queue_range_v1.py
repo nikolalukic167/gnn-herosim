@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """queue_range_v1 -- the serving overrides and the mechanism instrument.
 
-Registered in docs/lineages/queue_range_v1.md. These tests exist because two of the three
+Registered in docs/lineages/archive/queue_range_v1.md. These tests exist because two of the three
 ways this experiment could silently become a different experiment are code, not statistics:
 a knob that never reaches the feature builder, and counters the orchestrator's scalar
 whitelist drops on the way out.

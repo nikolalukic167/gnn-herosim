@@ -1,5 +1,5 @@
 # load_repr_v1 -- the jb2 gnnedge0 recipe under partial_state_v4: the prefix block also carries the
-# candidate replica's backlog and the in-batch committed service, in seconds (docs/lineages/load_repr_v1.md).
+# candidate replica's backlog and the in-batch committed service, in seconds (docs/lineages/archive/load_repr_v1.md).
 # Everything else verbatim from joint_burst_v2_gnnedge0.yaml; the twin is load_repr_v1_v4twin.yaml.
 trainer: gnn
 lineage: load_repr_v1

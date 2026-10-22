@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""workload_fix_v1 read (docs/lineages/workload_fix_v1.md): CD against each other classical arm, one stage.
+"""workload_fix_v1 read (docs/lineages/archive/workload_fix_v1.md): CD against each other classical arm, one stage.
 
 Per rung and arm: latency, queue share, exchange per task and exchange share of latency (median over topologies of
 per-topology means over windows). Against CD: the paired % per topology (median over windows of

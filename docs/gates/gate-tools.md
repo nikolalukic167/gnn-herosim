@@ -20,18 +20,18 @@ One row per change after which earlier numbers no longer mean what they said. Ea
 | 2026-08-18 | Workload draw was unseeded (global `random.randint`, no seed) | Reproducing any corpus or live number from before it by its seed | `docs/lessons.md` "THE WORKLOAD DRAW WAS UNSEEDED" |
 | 2026-08-20 | Checkpoints carried no infrastructure provenance: the sealed holdout served 40–50-node cells to 20 × 20-trained models unnoticed; the feature-layout guess was closed 2026-08-23 | Live numbers read as in-distribution before the `corpus` sidecar block; checkpoints served under a guessed layout | [table](gate-tools-table-2026-08-19-to-09-14.md), rows 2026-08-20 and 2026-08-23 |
 | 2026-08-21 | Every datalab gate ran in an undeclared third environment (`pipenv run` past `micromamba activate`) | Nothing: library versions measured at exactly 0.0 logit change, 0/256 argmax flips; it invalidates venue-gap explanations | [table](gate-tools-table-2026-08-19-to-09-14.md) row 2026-08-21; `PARITY.md` |
-| 2026-09-16 | Size-free served representation (`partial_state_v3`: rank one-hot → two scalars) | Serving a pre-v3 checkpoint at another cluster size; v3 ties v2 at 6 servers | [partial_state_v3](../lineages/partial_state_v3.md) |
+| 2026-09-16 | Size-free served representation (`partial_state_v3`: rank one-hot → two scalars) | Serving a pre-v3 checkpoint at another cluster size; v3 ties v2 at 6 servers | [partial_state_v3](../lineages/archive/partial_state_v3.md) |
 | 2026-09-18 | Bipartite penalty aggregates by `sum` over a candidate set that grows 3.55 → 47.92 per task (6 → 80 servers); use `mean` | `sum`-aggregated bipartite arms at 80 servers as an architecture verdict | [bipartite_aggr_v1](../lineages/bipartite_aggr_v1.md) |
-| 2026-09-20 | Paired statistic: pair on the environment before the median | Every client-rung "vs reactive" number before it (the −20.8 % headline was an unpaired ratio of medians) | [unsaturated_edge_v1](../lineages/unsaturated_edge_v1.md) |
-| 2026-09-20 | A hand rule with the model's information is the bar (peer-greedy rule −12.96 / −16.01 % vs reactive) | "Beats Knative" as evidence for a learned arm | [peer_greedy_live_v1](../lineages/peer_greedy_live_v1.md) |
-| 2026-09-20 | Serving cap blocked the label's co-location move (read 09-20, audit-confirmed 09-21) | Capped burst-seat learned-arm losses (`joint_burst_v1` +16.8 % vs the greedy) | [joint_burst_v2](../lineages/joint_burst_v2.md) |
-| 2026-09-25 | Uncapped-rung `krank` serving defect fixed at 721d44f (zero-demand nodes ranked first; 56/60 batches) | Uncapped burst-seat learned-arm numbers before 721d44f; bounded: the fix made `gnnedge0` +1.4 % slower | [load_repr_v1](../lineages/load_repr_v1.md) |
-| 2026-10-07 | Single request origin per group, not scattered | Every learned-vs-CD win before it (grounded, peak-load, small-batch): single-origin, no learned arm beats CD | [small_batch_so_v1](../lineages/small_batch_so_v1.md), [client_local_v1](../lineages/client_local_v1.md) |
-| 2026-10-08 | Reference physics R1 → R1.1 (pipelined, release, KPA, time scale 1.0) and workload WF1 frozen | Every pre-R1 number is another physics; R1 co-sim labels before the I11 fix 033811d6 | [physics_audit_v1](../lineages/physics_audit_v1.md), [workload_fix_v1](../lineages/workload_fix_v1.md) |
-| 2026-10-09 | Load rungs fixed by CD effective queue share (light ×1.26, moderate ×5.94, heavy ×11.61) | Rung labels from before it | [load_recalibration_v1](../lineages/load_recalibration_v1.md) |
-| 2026-10-10 | Multiplier convention: double scaling at 160 × 24 | "CD saturated at m0" (retracted) | [scale_160_v1](../lineages/scale_160_v1.md) |
-| 2026-10-10 | Hand bar moves above CD: `cd_expand` (α-expansion) and `cd_exactS` (exact S over the slate), −7 to −11 % vs CD | "Beats CD" as "beats the best hand search" | [accel_replica_v1 post-close diagnostics](../lineages/accel_replica_v1/post_close_diagnostics.md) |
-| 2026-10-12 | Declared top-5 slate charges cold 0 on initialized platforms; `cd_exactS` is not slate-restricted | GNN-vs-hand-search contrasts as scorer verdicts: matched-slate, the GNN self-search wins −4.85 / −1.94 % | [slate_bar_v1](../lineages/slate_bar_v1.md); the section below |
+| 2026-09-20 | Paired statistic: pair on the environment before the median | Every client-rung "vs reactive" number before it (the −20.8 % headline was an unpaired ratio of medians) | [unsaturated_edge_v1](../lineages/archive/unsaturated_edge_v1.md) |
+| 2026-09-20 | A hand rule with the model's information is the bar (peer-greedy rule −12.96 / −16.01 % vs reactive) | "Beats Knative" as evidence for a learned arm | [peer_greedy_live_v1](../lineages/archive/peer_greedy_live_v1.md) |
+| 2026-09-20 | Serving cap blocked the label's co-location move (read 09-20, audit-confirmed 09-21) | Capped burst-seat learned-arm losses (`joint_burst_v1` +16.8 % vs the greedy) | [joint_burst_v2](../lineages/archive/joint_burst_v2.md) |
+| 2026-09-25 | Uncapped-rung `krank` serving defect fixed at 721d44f (zero-demand nodes ranked first; 56/60 batches) | Uncapped burst-seat learned-arm numbers before 721d44f; bounded: the fix made `gnnedge0` +1.4 % slower | [load_repr_v1](../lineages/archive/load_repr_v1.md) |
+| 2026-10-07 | Single request origin per group, not scattered | Every learned-vs-CD win before it (grounded, peak-load, small-batch): single-origin, no learned arm beats CD | [small_batch_so_v1](../lineages/archive/small_batch_so_v1.md), [client_local_v1](../lineages/archive/client_local_v1.md) |
+| 2026-10-08 | Reference physics R1 → R1.1 (pipelined, release, KPA, time scale 1.0) and workload WF1 frozen | Every pre-R1 number is another physics; R1 co-sim labels before the I11 fix 033811d6 | [physics_audit_v1](../lineages/archive/physics_audit_v1.md), [workload_fix_v1](../lineages/archive/workload_fix_v1.md) |
+| 2026-10-09 | Load rungs fixed by CD effective queue share (light ×1.26, moderate ×5.94, heavy ×11.61) | Rung labels from before it | [load_recalibration_v1](../lineages/archive/load_recalibration_v1.md) |
+| 2026-10-10 | Multiplier convention: double scaling at 160 × 24 | "CD saturated at m0" (retracted) | [scale_160_v1](../lineages/archive/scale_160_v1.md) |
+| 2026-10-10 | Hand bar moves above CD: `cd_expand` (α-expansion) and `cd_exactS` (exact S over the slate), −7 to −11 % vs CD | "Beats CD" as "beats the best hand search" | [accel_replica_v1 post-close diagnostics](../lineages/archive/accel_replica_v1/post_close_diagnostics.md) |
+| 2026-10-12 | Declared top-5 slate charges cold 0 on initialized platforms; `cd_exactS` is not slate-restricted | GNN-vs-hand-search contrasts as scorer verdicts: matched-slate, the GNN self-search wins −4.85 / −1.94 % | [slate_bar_v1](../lineages/archive/slate_bar_v1.md); the section below |
 | 2026-10-12 | Hand bar moves to `cd_exactS_ib0` (S without in-batch stacking): −4.73 / −2.27 % vs `cd_exactS`, 12/12 | `cd_exactS` as the bar | [`ib0_confirm_v1`](../lineages/ib0_confirm_v1.md) |
 
 ### Numbers measured before a change that affects them (audit 2026-10-12)
@@ -43,25 +43,25 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | Number | Quoted in | Measured (date, against) | Affected by | Re-measured? |
 |---|---|---|---|---|
 | "The bar is `cd_exactS` … no learned arm beats it" | AGENTS lead | 2026-10-10/11, vs CD | ib0 | Superseded by [ib0_confirm_v1](../lineages/ib0_confirm_v1.md); caveat added |
-| `gnn_eng_nosplit` −6.9 / −7.7 % vs CD | AGENTS, throughline, [accel_nosplit_v1](../lineages/accel_nosplit_v1.md) | 2026-10-11, gnn-eng g4 on `declared_pruning_v1` | Slate | NO (`slate_fix_v1` closed E-FASTER: the corrected retrain still loses to `cd_exactS_ib0`) |
-| `gnn_selfsearch` −8.5 / −10.1 % vs CD; heavy −3.1 / −3.8 %; ties MP-OFF twin | AGENTS, throughline, [selfsearch_confirm_v1](../lineages/selfsearch_confirm_v1.md) | 2026-10-11/12, same corpus and slate | Slate (twin contrast: both sides) | vs CD NO; vs `cd_exactS` matched-slate by [slate_bar_v1](../lineages/slate_bar_v1.md) |
-| gnn_eng −5.45 % / physmp −6.05 % vs CD; CD←GNN −5.03 / −3.40 % | [accel_replica_v1](../lineages/accel_replica_v1.md) | 2026-10-10 | Slate | NO |
-| G8 self-search −9.7 / −1.5 % vs CD, +0.5 / +5.5 % vs `cd_exactS` | AGENTS (closed levers), [big_groups_s0_v1](../lineages/big_groups_s0_v1.md) | 2026-10-11 | Slate; ib0 | NO |
-| self-search −1.4 / +1.2 % vs CD; "hand search stays the bar" | [link_bound_s0_v1](../lineages/link_bound_s0_v1.md) row | 2026-10-11 | Slate; ib0 | NO |
-| GNN 4–12 % ahead of CD per block; deficit to `cd_exactS` +2.7 pp / 24 h | AGENTS, [long_horizon_s0_v1](../lineages/long_horizon_s0_v1.md) | 2026-10-12, vs `cd_exactS` | Slate; ib0 | NO |
-| over-cap self-search +0.2 / +2.5 % vs `cd_exactS` | AGENTS, [gnn_overcap_v1](../lineages/gnn_overcap_v1.md) | 2026-10-12 | Slate (in head); ib0 | NO |
-| top-k prune −1.4 / −2.1 % vs `cd_exactS`'s fallback; GNN order ties cost order | AGENTS, [prune_g8_s0_v1](../lineages/prune_g8_s0_v1.md) | 2026-10-12 | ib0 (prune not tried on `ib0`); slate (GNN order only) | NO |
+| `gnn_eng_nosplit` −6.9 / −7.7 % vs CD | AGENTS, throughline, [accel_nosplit_v1](../lineages/archive/accel_nosplit_v1.md) | 2026-10-11, gnn-eng g4 on `declared_pruning_v1` | Slate | NO (`slate_fix_v1` closed E-FASTER: the corrected retrain still loses to `cd_exactS_ib0`) |
+| `gnn_selfsearch` −8.5 / −10.1 % vs CD; heavy −3.1 / −3.8 %; ties MP-OFF twin | AGENTS, throughline, [selfsearch_confirm_v1](../lineages/archive/selfsearch_confirm_v1.md) | 2026-10-11/12, same corpus and slate | Slate (twin contrast: both sides) | vs CD NO; vs `cd_exactS` matched-slate by [slate_bar_v1](../lineages/archive/slate_bar_v1.md) |
+| gnn_eng −5.45 % / physmp −6.05 % vs CD; CD←GNN −5.03 / −3.40 % | [accel_replica_v1](../lineages/archive/accel_replica_v1.md) | 2026-10-10 | Slate | NO |
+| G8 self-search −9.7 / −1.5 % vs CD, +0.5 / +5.5 % vs `cd_exactS` | AGENTS (closed levers), [big_groups_s0_v1](../lineages/archive/big_groups_s0_v1.md) | 2026-10-11 | Slate; ib0 | NO |
+| self-search −1.4 / +1.2 % vs CD; "hand search stays the bar" | [link_bound_s0_v1](../lineages/archive/link_bound_s0_v1.md) row | 2026-10-11 | Slate; ib0 | NO |
+| GNN 4–12 % ahead of CD per block; deficit to `cd_exactS` +2.7 pp / 24 h | AGENTS, [long_horizon_s0_v1](../lineages/archive/long_horizon_s0_v1.md) | 2026-10-12, vs `cd_exactS` | Slate; ib0 | NO |
+| over-cap self-search +0.2 / +2.5 % vs `cd_exactS` | AGENTS, [gnn_overcap_v1](../lineages/archive/gnn_overcap_v1.md) | 2026-10-12 | Slate (in head); ib0 | NO |
+| top-k prune −1.4 / −2.1 % vs `cd_exactS`'s fallback; GNN order ties cost order | AGENTS, [prune_g8_s0_v1](../lineages/archive/prune_g8_s0_v1.md) | 2026-10-12 | ib0 (prune not tried on `ib0`); slate (GNN order only) | NO |
 | label oracle −0.9 / −4.2 % vs `cd_exactS`; hand ib0 −4.6 / −3.2 % | [plan_rerank_v1](../lineages/plan_rerank_v1.md) row | 2026-10-11/12, 6 topologies | ib0 | YES: [ib0_confirm_v1](../lineages/ib0_confirm_v1.md) (ib0 −4.73 / −2.27 % on 12 fresh topologies; oracle vs ib0 −2.82 / −1.96 %) |
 | matched-slate self-search −4.85 / −1.94 % vs restricted `cd_exactS` | AGENTS, throughline, rows | 2026-10-12 | None for its claim (scoped to `cd_exactS`; both sides on the same slate) | n/a |
 | GNN seed −0.99 / −1.22 % vs hand seed; +0.73 / +0.41 % vs `ib0` | throughline, [ib0_confirm_v1](../lineages/ib0_confirm_v1.md) | 2026-10-12 | Slate (seed checkpoint) | NO |
 | MLP V ties `cd_exactS` | [cost_to_go_v1](../lineages/cost_to_go_v1.md) row | 2026-10-11 | Slate (training tables); ib0 | NO (caveat already present) |
-| argmin-S optimal 79 % (regret 6.1 %), median 3 tasks | AGENTS ("little room"), [big_groups_s0_v1](../lineages/big_groups_s0_v1.md) | 2026-10-11, 413 held-out accel tables | Slate: tables enumerate the declared top 5 | NO |
+| argmin-S optimal 79 % (regret 6.1 %), median 3 tasks | AGENTS ("little room"), [big_groups_s0_v1](../lineages/archive/big_groups_s0_v1.md) | 2026-10-11, 413 held-out accel tables | Slate: tables enumerate the declared top 5 | NO |
 | raw MP vs twin −4.75 / −4.62 / −7.99 %; physmp +3.4 / +5.9 / +5.1 % vs CD | throughline, AGENTS | 2026-10-09/10, 40 × 6, declared pruning | Slate | NO |
 | +5.14 pp offline; −15.94 % live | [peer_affinity_v1](../lineages/peer_affinity_v1.md) row | 2026-09, pre-R1 | R1 | NO; caveat added |
-| −11.9 % vs one-pass; CD +12.5 % | [joint_burst_v2](../lineages/joint_burst_v2.md) row | 2026-09-20, burst seat | R1; `krank` fix 721d44f | krank bounded (+1.4 %, [load_repr_v1](../lineages/load_repr_v1.md)); R1 NO; caveat added |
-| Phase 2 TIE p = 0.25 | [route_b_v1](../lineages/route_b_v1.md) row | 2026-08/09, co-sim | R1 | NO; caveat added |
-| CD 5.6 / 5.0 / 5.6 % above the batch optimum | [live_headroom_v1](../lineages/live_headroom_v1.md) row | 2026-10-01, scattered origins | R1; origin (caveat present) | NO; physics caveat added |
-| D1: H-MYOPIA | [drainable_debug_v1](../lineages/drainable_debug_v1.md) row | 2026-09 | R1 | NO; caveat added |
+| −11.9 % vs one-pass; CD +12.5 % | [joint_burst_v2](../lineages/archive/joint_burst_v2.md) row | 2026-09-20, burst seat | R1; `krank` fix 721d44f | krank bounded (+1.4 %, [load_repr_v1](../lineages/archive/load_repr_v1.md)); R1 NO; caveat added |
+| Phase 2 TIE p = 0.25 | [route_b_v1](../lineages/archive/route_b_v1.md) row | 2026-08/09, co-sim | R1 | NO; caveat added |
+| CD 5.6 / 5.0 / 5.6 % above the batch optimum | [live_headroom_v1](../lineages/archive/live_headroom_v1.md) row | 2026-10-01, scattered origins | R1; origin (caveat present) | NO; physics caveat added |
+| D1: H-MYOPIA | [drainable_debug_v1](../lineages/archive/drainable_debug_v1.md) row | 2026-09 | R1 | NO; caveat added |
 | re-gate 5/5 | [siv1_full_corpus](../lineages/siv1_full_corpus.md) row | 2026-08 | R1 | NO; caveat added |
 | mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
 | L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
@@ -263,7 +263,7 @@ from 2026-10-07 (`transfer_physics_v1`). Quote every exchange number with its tr
 ## 2026-09-23 — Assert peer physics in mini co-sim screens
 
 The 32-task pair/triple/block move screens in
-[the fixed-replica MP ablation](../lineages/gnn_seeded_cd_mp_ablation_v1.md)
+[the fixed-replica MP ablation](../lineages/archive/gnn_seeded_cd_mp_ablation_v1.md)
 passed workloads containing `peer_exchange` to a direct co-sim evaluator but did
 not set `HEROSIM_PEER_EXCHANGE=1`. The evaluator silently assigned zero peer
 exchange time, making both screens' apparent headroom and hand-control gaps
@@ -279,7 +279,7 @@ it can remain unchanged even when peer physics is disabled.
 
 ## 2026-09-23 — Do not require peer transfer in every selected live arm
 
-The initial [proposal frontier gate](../lineages/proposal_frontier_v1.md#2026-09-23--initial-gate-invalid-at-peer-accounting-audit) rejected topology 10305 because its learned-selector arms measured zero peer-transfer time while the hand arm measured positive time. The audit treated positive transfer in *every* arm as proof that peer physics was enabled. A selected plan may co-locate communicating tasks and legitimately incur zero transfer, so that assertion confounds a policy outcome with the physics switch and invalidated the incomplete gate before quality metrics were read.
+The initial [proposal frontier gate](../lineages/archive/proposal_frontier_v1.md#2026-09-23--initial-gate-invalid-at-peer-accounting-audit) rejected topology 10305 because its learned-selector arms measured zero peer-transfer time while the hand arm measured positive time. The audit treated positive transfer in *every* arm as proof that peer physics was enabled. A selected plan may co-locate communicating tasks and legitimately incur zero transfer, so that assertion confounds a policy outcome with the physics switch and invalidated the incomplete gate before quality metrics were read.
 
 For live policy comparisons, check the effective peer-physics setting and frozen peer-enabled workload, then require each arm's peer accounting to be finite and nonnegative. Verify the switch separately with a discriminating placement that must transfer. Keep the positive peer-metric assertion for that probe, where transfer is expected by construction.
 
@@ -294,7 +294,7 @@ the dry run. Increasing `max_combos` alone cannot change that result.
 
 This is a corpus-apparatus limit, not evidence that the 32-task environment
 lacks headroom. The exploratory move screen and its scope are in the
-[owning diagnostic](../lineages/gnn_seeded_cd_mp_ablation_v1.md#2026-09-22--fixed-seat-debugging-and-move-screens).
+[owning diagnostic](../lineages/archive/gnn_seeded_cd_mp_ablation_v1.md#2026-09-22--fixed-seat-debugging-and-move-screens).
 The historical generator source remains unchanged; any successor must set a
 feasible `target_combos` or change the candidate-selection contract explicitly
 and account for the larger search cost.
@@ -314,7 +314,7 @@ The corrected replay and live adapter compute effective locks from cache
 state at dispatch and retain that lock for the active task. A regression
 checks that setting a recompute bit for an always-cached output leaves the
 objective unchanged. New calibration and fresh seeds are fixed in the
-[owning record](../lineages/dag_remat_s0_v1.md).
+[owning record](../lineages/archive/dag_remat_s0_v1.md).
 
 ## 2026-09-22 — Translate schedule semantics between search decoders
 
@@ -365,7 +365,7 @@ when no eligible control exists. New gates must apply this filter before
 selection. The experimental outcome belongs to
 [mixed_dispatch_v1](../lineages/mixed_dispatch_v1.md#2026-09-22--capacity-scaled-block-search-result).
 
-The [DAG memory screen](../lineages/dag_memory_lifetime_s0_v1.md) exposed the
+The [DAG memory screen](../lineages/archive/dag_memory_lifetime_s0_v1.md) exposed the
 other timing failure: allocating the whole budget to search omitted baseline
 construction and evaluation of the hand initializers. Its first calibration
 stopped before fresh inputs; the corrected gate charges the complete path and
@@ -691,7 +691,7 @@ reactive's median cell were never the same cluster, and the ratio said **−20.3
 that loses three cells of four (+4.6 / +75.8 / +9.7 / −36.8 %). Every "beats reactive" number
 read on `cc40*` / `cc80*` cells by `peer_only_v1`, `bipartite_edge_v1`, `bipartite_aggr_v1`,
 `best_arm_v1` and `corpus_matched_v1` used it; paired per cell every one flips sign
-(`docs/lineages/unsaturated_edge_v1.md`). Arm-vs-arm contrasts on the same cells are unaffected
+(`docs/lineages/archive/unsaturated_edge_v1.md`). Arm-vs-arm contrasts on the same cells are unaffected
 only where both arms' median cell happened to coincide — treat them as directions, not magnitudes.
 
 **The fix is the statistic `unsaturated_scale_v2` introduced**: relative % against the reference
@@ -733,7 +733,7 @@ validation reader assigned a worst-regret fallback when a decoded plan was not
 one of 16 pre-scored slate rows. Final-epoch models often proposed such plans;
 the lookup measured slate membership, not their simulator RTT. Exact replay on
 the assigned validation topology changed all three architecture selections to
-final checkpoints ([g32_exact_val_selection_v1](../lineages/g32_exact_val_selection_v1.md)).
+final checkpoints ([g32_exact_val_selection_v1](../lineages/archive/g32_exact_val_selection_v1.md)).
 
 For a decoder that can leave a finite label slate, select checkpoints using
 exact simulator replay of the decoded plans under the gate's physics. Verify

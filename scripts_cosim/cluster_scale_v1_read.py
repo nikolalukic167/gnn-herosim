@@ -1,6 +1,6 @@
 """cluster_scale_v1 -- the registered read. Every bar below is a module constant.
 
-Registered in docs/lineages/cluster_scale_v1.md before any arm ran. S0.a, S0.c and S0.d were
+Registered in docs/lineages/archive/cluster_scale_v1.md before any arm ran. S0.a, S0.c and S0.d were
 read by other tools at registration time (the cell minter carries S0_CORPUS_CANDIDATE_MAX);
 this module owns S0.b, the primary, and restates the others so the bars have one home.
 

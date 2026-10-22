@@ -1,6 +1,6 @@
 #!/bin/bash
 # peer_only_v1 -- the live gate at R0 (6 servers, f4000) and R3 (80 servers, f300), on the
-# cells partial_state_v3 P3 minted. docs/lineages/peer_only_v1.md.
+# cells partial_state_v3 P3 minted. docs/lineages/archive/peer_only_v1.md.
 #
 # Task table (SPECS below is the single source of truth; 4 cells x 4 checkpoint seeds each):
 #   A0     tasks   0-3    v3 gnn s1 and v3 mpoff s1 re-served on cs6s9001 and cs80s9001 -- must
@@ -141,7 +141,7 @@ for r in 1 0; do for c in 0 1 2 3; do for s in "${B3SEEDS[@]}"; do CORP+=("1670"
 # the repair has to show up. APPENDED: tasks 0-723 keep their arms.
 for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do CORP+=("1670"); ARMS+=("gnnres"); RI+=(1); CI+=("$c"); SEED+=("$s"); done; done
 # bipartite_edge_v1 D1/D2/D3/D4 (2026-09-18), tasks 788-915. A DIFFERENT LINEAGE runs here on
-# purpose: docs/lineages/bipartite_edge_v1.md compares gnnedge against gnn, peeronly and
+# purpose: docs/lineages/archive/bipartite_edge_v1.md compares gnnedge against gnn, peeronly and
 # reactive at this rung, and those arms live in this results directory under this script's
 # cells, workloads, window and summary schema. A fresh copy of this file could drift in one
 # constant and make the comparison a cross-gate one; appending cannot. Tasks 0-787 keep their
@@ -173,14 +173,14 @@ for a in gnnedgesum gnnedge0; do for c in 0 1 2 3; do for s in "${EXTSEEDS[@]}";
   if [[ $a == gnnedgesum ]]; then CORP+=("ba1670"); else CORP+=("be1670"); fi
   ARMS+=("$a"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done; done
 # corpus_matched_v1 H1 (2026-09-18), tasks 1300-1363. A DIFFERENT LINEAGE:
-# docs/lineages/corpus_matched_v1.md. gnnedge0 trained on the 516-dataset corpus, at R0 -- which
+# docs/lineages/archive/corpus_matched_v1.md. gnnedge0 trained on the 516-dataset corpus, at R0 -- which
 # IS the 20-client rung. The other three cells of the 2x2 are already in this directory
 # (be1670_gnnedge0, 1670_mpoff, v3ext_mpoff), so this block alone completes it. Needs
 # PO_TASK_OFFSET: 1300 is past MaxArraySize.
 for c in 0 1 2 3; do for s in "${ALLSEEDS[@]}"; do
   CORP+=("cm516"); ARMS+=("gnnedge0"); RI+=(0); CI+=("$c"); SEED+=("$s"); done; done
 # unsaturated_scale_v1 S2 (2026-09-19), tasks 1364-1683. A DIFFERENT LINEAGE:
-# docs/lineages/unsaturated_scale_v1.md. The five registered arms (K_ARMS) at rung index 4
+# docs/lineages/archive/unsaturated_scale_v1.md. The five registered arms (K_ARMS) at rung index 4
 # (U80 = 80 servers at f4000, the factor S1 selected), 4 cells x 16 checkpoints each:
 #   1364-1427 gnnedge0 (be1670)   1428-1491 mpoff (1670)   1492-1555 peeronly (1670)
 #   1556-1619 gnn (1670)          1620-1683 mpoff (v3ext = 516)

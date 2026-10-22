@@ -1,6 +1,6 @@
 #!/bin/bash
 # joint_burst_v2 -- the cache on the UNCAPPED burst corpus: v1 recipe, primary alpha rung inf, no alpha pre-scan (the loaded states are the point).
-# docs/lineages/joint_burst_v2.md. One task, ~30 min.
+# docs/lineages/archive/joint_burst_v2.md. One task, ~30 min.
 #
 #SBATCH --job-name=jb2-cache
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/jb2-cache-%j.out

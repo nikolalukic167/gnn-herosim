@@ -1,6 +1,6 @@
 """drainable_regime_v1 S0 read -- the registered bars, on synthetic screens.
 
-Written before the screen's data exists (docs/lineages/drainable_regime_v1.md). Each test
+Written before the screen's data exists (docs/lineages/archive/drainable_regime_v1.md). Each test
 builds summaries and audit snapshots on disk and runs the read end to end as a subprocess,
 so the bars, the control and the refusals are exercised through the real entry point.
 """

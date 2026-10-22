@@ -1,5 +1,5 @@
 #!/bin/bash
-# local_features_v1 (docs/lineages/local_features_v1.md) -- lf1gnn (tasks 0-7), lf1twin (8-15), lf1mlp (16-23), seeds 1-8,
+# local_features_v1 (docs/lineages/archive/local_features_v1.md) -- lf1gnn (tasks 0-7), lf1twin (8-15), lf1mlp (16-23), seeds 1-8,
 # on the small-batch cache and split: small_batch_v1_train.sbatch with the arms swapped for the raw-plan + local arms.
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/local_features_v1_train.sbatch
 # small_batch_so_v1 Amendment 1: CFG_PREFIX=small_batch_so_v1 CORPUS=small_batch_so_v1 LF_NAMES="so1lfgnn so1lfmlp" NSEEDS=4

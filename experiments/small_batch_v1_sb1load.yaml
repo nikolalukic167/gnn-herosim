@@ -1,5 +1,5 @@
 # small_batch_v1 -- exchange_seconds_v1 xs1load recipe verbatim on the live-sized-batch corpus
-# (docs/lineages/small_batch_v1.md): same synthetic backlog, labels, partial_state_v4 block and full-context CE; only the
+# (docs/lineages/archive/small_batch_v1.md): same synthetic backlog, labels, partial_state_v4 block and full-context CE; only the
 # batches differ (whole peer groups of the grounded workload, 2..~12 tasks, instead of aligned 10-task groups).
 trainer: gnn
 lineage: small_batch_v1

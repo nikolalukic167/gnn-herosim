@@ -1,4 +1,4 @@
-"""load_repr_v1's L1/L2 labels are the registered table (docs/lineages/load_repr_v1.md)."""
+"""load_repr_v1's L1/L2 labels are the registered table (docs/lineages/archive/load_repr_v1.md)."""
 import os
 import sys
 

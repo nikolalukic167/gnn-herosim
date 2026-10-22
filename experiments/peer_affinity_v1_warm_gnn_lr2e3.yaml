@@ -1,5 +1,5 @@
 # peer_affinity_warm_v1 W1 (T1b recipe verbatim; Amendment 1) -- gnn: message passing over bipartite + peer edges (PeerConv), lr 0.002.
-# Registration: docs/lineages/peer_affinity_warm_v1.md, W1. Seeds via --seed 1..16.
+# Registration: docs/lineages/archive/peer_affinity_warm_v1.md, W1. Seeds via --seed 1..16.
 trainer: gnn
 lineage: peer_affinity_warm_v1
 cache_dir: simulation_data/graphs_cache_peer_affinity_v1_warm

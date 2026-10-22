@@ -1,5 +1,5 @@
 #!/bin/bash
-# local_features_v1 gate (docs/lineages/local_features_v1.md) on small_batch_confirm_v1's 19 topologies and inputs tree.
+# local_features_v1 gate (docs/lineages/archive/local_features_v1.md) on small_batch_confirm_v1's 19 topologies and inputs tree.
 # The references (CD, cdextr, sb1load, sb1mpoff, xs1load) are read from that lineage's gate directory.
 #   SMOKE=1                 train/serve parity on cached graphs for seed 1 of each arm; one live run per arm, with
 #                           lf1gnn's live decisions dumped and replayed bitwise through the trainer's model
@@ -29,7 +29,7 @@ python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "HEAD $(git rev-parse HEAD)  node $(hostname)  P=$P  SMOKE=${SMOKE:-0} arms=${LF1_KINDS_RUN:-}"
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
 for R in x20 x30 x50; do [[ -f "$IN/grounded_$R/.built" ]] || { echo "FAIL LOUD: small_batch_confirm_v1 inputs missing"; exit 1; }; done
-cmp "$WT/docs/lineages/small_batch_confirm_v1/selected.json" "$IN/selected.json"
+cmp "$WT/docs/lineages/archive/small_batch_confirm_v1/selected.json" "$IN/selected.json"
 mkdir -p "$LF"
 
 copy_models() {  # <arm> <seeds...>

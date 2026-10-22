@@ -1,6 +1,6 @@
 #!/bin/bash
 # backlog_corpus_v1 -- the joint_burst_v2 corpus replayed WITH synthetic backlog
-# (docs/lineages/backlog_corpus_v1.md). Same snapshot shards, traces, cells, candidate draw
+# (docs/lineages/archive/backlog_corpus_v1.md). Same snapshot shards, traces, cells, candidate draw
 # (seed 9001) and filters as joint_burst_v2_corpus.sbatch, so each dataset's no-backlog twin is
 # the jb2 dataset of the same snapshot. Two passes with independent backlog draws (seeds 7001,
 # 7002): 96 units U -> pass U/48, cell/window U%48 exactly as jb2. Array task T runs units

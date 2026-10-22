@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Does the live learned-vs-CD gap depend on the live batch size? (docs/lineages/raw_plan_v2.md, pipeline review)
+"""Does the live learned-vs-CD gap depend on the live batch size? (docs/lineages/archive/raw_plan_v2.md, pipeline review)
 
   batch_size_strata_read.py --dirs <gate dirs> --arm rawgnn_selfref --ref cd [--out read.json]
 

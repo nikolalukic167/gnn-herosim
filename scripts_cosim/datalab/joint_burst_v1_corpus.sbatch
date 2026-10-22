@@ -1,6 +1,6 @@
 #!/bin/bash
 # joint_burst_v1 -- the corpus: one task per capture file (training cell x window), 12 datasets
-# each from its aligned snapshots, brute-force sweep on the measured clock. docs/lineages/joint_burst_v1.md.
+# each from its aligned snapshots, brute-force sweep on the measured clock. docs/lineages/archive/joint_burst_v1.md.
 #
 # 48 tasks = 24 training cells x {w0, w1}. Cells 9222-9224 form the HELD-OUT corpus (their
 # datasets go to ..._heldout and never train); everything else is training. A capture file that

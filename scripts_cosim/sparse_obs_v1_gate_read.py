@@ -1,4 +1,4 @@
-"""sparse_obs_s0_v1 stage-1 reader (written before the data lands; docs/lineages/sparse_obs_s0_v1.md).
+"""sparse_obs_s0_v1 stage-1 reader (written before the data lands; docs/lineages/archive/sparse_obs_s0_v1.md).
 
 Arms (g0, 12 fresh topologies 19440-19451, seed 0): A0 = cd_exactS_ib0 (full information); per degradation D in {queue, bundle} a NAIVE and an EC arm
 (cd_obs_<D>_naive, cd_obs_<D>_ec). Per rung the paired % of mean latency per topology (median over the topology's windows), its median over the 12 topologies

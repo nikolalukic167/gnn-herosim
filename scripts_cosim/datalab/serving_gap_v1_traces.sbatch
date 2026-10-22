@@ -1,5 +1,5 @@
 #!/bin/bash
-# serving_gap_v1 stage 1 — H1 traces (docs/lineages/serving_gap_v1.md).
+# serving_gap_v1 stage 1 — H1 traces (docs/lineages/archive/serving_gap_v1.md).
 # One live run per (corpus, arm, seed) on the matched production trace, writing a SLIM decode
 # trace (GNN_PREFIX_TRACE_SLIM=1 drops the served graph: 45,375 batches x ~50 kB would be
 # 2.3 GB per run and 96 of them do not fit the quota). The ~400 MB result JSON is deleted the

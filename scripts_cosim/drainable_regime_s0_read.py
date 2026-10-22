@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""drainable_regime_v1 -- the S0 screen read (docs/lineages/drainable_regime_v1.md, stage 1).
+"""drainable_regime_v1 -- the S0 screen read (docs/lineages/archive/drainable_regime_v1.md, stage 1).
 
 Everything here is fixed by the registration; this script only executes it. Per rung it reads
 the arm summaries written by drainable_regime_v1_s0_screen.sbatch and the LIVE_AUDIT snapshots
@@ -182,7 +182,7 @@ def main() -> int:
     out = {
         "lineage": "drainable_regime_v1",
         "stage": "S0",
-        "registration": "docs/lineages/drainable_regime_v1.md",
+        "registration": "docs/lineages/archive/drainable_regime_v1.md",
         "bars": BARS,
         "rungs": rungs,
         "S5_control_holds": s5,

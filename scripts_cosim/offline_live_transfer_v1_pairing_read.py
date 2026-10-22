@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """offline_live_transfer_v1 -- R0 (positive control) and R1 (the primary read).
 
-Registered in docs/lineages/offline_live_transfer_v1.md on 2026-09-15. Every bar below is
+Registered in docs/lineages/archive/offline_live_transfer_v1.md on 2026-09-15. Every bar below is
 a module constant and was committed BEFORE the registered families were read.
 
 The question: does the offline score -- held-out plan regret at the selected checkpoint,

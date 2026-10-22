@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""serving_gap_v1 stage 1 — the registered diagnostics (docs/lineages/serving_gap_v1.md).
+"""serving_gap_v1 stage 1 — the registered diagnostics (docs/lineages/archive/serving_gap_v1.md).
 
 Asks why message passing gets worse at its own objective when served on a stream. Nothing
 here trains, relabels or changes physics: it reads the decode traces the live scheduler

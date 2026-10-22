@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""local_features_v1 reader (docs/lineages/local_features_v1.md).
+"""local_features_v1 reader (docs/lineages/archive/local_features_v1.md).
 
   local_features_v1_read.py --gate <lf1 gate dir> --refs <small_batch_confirm_v1 gate dir> --selection selected.json [--out]
 

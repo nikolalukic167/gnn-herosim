@@ -1,5 +1,5 @@
 #!/bin/bash
-# backlog_corpus_v1 -- the cache on the synthetic-backlog corpus (docs/lineages/backlog_corpus_v1.md).
+# backlog_corpus_v1 -- the cache on the synthetic-backlog corpus (docs/lineages/archive/backlog_corpus_v1.md).
 # The load_repr_v1 cache recipe (partial_state_v4, alpha inf, rtt_drift:1 at 0.46/s on the measured
 # drain table) with the label's backlog term on the SEEDED clock, so B_p is the backlog the co-sim
 # replayed. Then the near-RTT sidecar, the candidate guard, a cell-grouped split, and the audit

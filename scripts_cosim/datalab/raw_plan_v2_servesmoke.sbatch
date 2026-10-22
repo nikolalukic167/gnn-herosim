@@ -1,5 +1,5 @@
 #!/bin/bash
-# raw_plan_v2 serving smoke + train/serve parity (docs/lineages/raw_plan_v2.md, Steps 3-4).
+# raw_plan_v2 serving smoke + train/serve parity (docs/lineages/archive/raw_plan_v2.md, Steps 3-4).
 # The four 2-epoch smoke checkpoints are served through the gate's own run_one on 9420 g0x20, with the raw-plan dump
 # instrument on. Then scripts_cosim/raw_plan_v2_parity.py checks, per arm:
 #   cache  - serving vs trainer model on cached graphs, decode + self-refine committed sets, bitwise;

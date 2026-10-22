@@ -4,7 +4,7 @@ Reads the per-rung verdict JSONs written by `analyze_route_b_fit_p1.py`
 (`simulation_data/route_b_fit_p2_r{1,2,3}_verdict.json`, produced by
 `route_b_fit_p2_eval.sh`) and prints, per rung and per arm pair, the mean of the per-seed
 median-paired differences, the exact Wilcoxon p on those medians, and the per-(seed,
-parent) win/tie/loss counts. Then applies the registered rule (docs/lineages/route_b_v1.md,
+parent) win/tie/loss counts. Then applies the registered rule (docs/lineages/archive/route_b_v1.md,
 Phase 2, 2026-09-06) to the rung-3 GNN-vs-MP-OFF contrast:
 
     D_s = median(GNN MP-ON) - median(GNN MP-OFF), 8 paired seeds, exact Wilcoxon, two-sided 0.05

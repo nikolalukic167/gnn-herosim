@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """cd_gap_v1 D0 -- offline regret of the jb2 learned arms vs the CD greedy on the 480 held-out groups.
 
-Inputs (all from datalab, see docs/lineages/cd_gap_v1.md): the engine replay of the hand rules
+Inputs (all from datalab, see docs/lineages/archive/cd_gap_v1.md): the engine replay of the hand rules
 (`joint_burst_v1_offline_rule_regret.py` output), one `eval_route_b_stage2_arm.py` report per
 checkpoint, and a dataset -> (cell, window) map built from each dataset's generation_provenance.json.
 

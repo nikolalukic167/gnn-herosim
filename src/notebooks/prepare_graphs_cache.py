@@ -310,7 +310,7 @@ def parse_args() -> Config:
         "--dag-partial-state",
         action="store_true",
         help=(
-            "route_b stage 2 (docs/lineages/route_b_v1/stage2-preregistration.md §2/§5, build item "
+            "route_b stage 2 (docs/lineages/archive/route_b_v1/stage2-preregistration.md §2/§5, build item "
             "B3): attach the DAG block to every graph — parent edges "
             "(dag_edge_index), a 4-type task one-hot (task_type_onehot4, a separate "
             "attr so the legacy 3-dim task block stays bit-identical), the capacity "
@@ -2143,7 +2143,7 @@ def _v4_load_seconds_block(
     ptype_by_pid: Mapping[int, str],
     name_by_node_id: Mapping[int, str],
 ) -> Dict[str, Any]:
-    """partial_state_v4 ingredients from the dataset's own files (docs/lineages/load_repr_v1.md).
+    """partial_state_v4 ingredients from the dataset's own files (docs/lineages/archive/load_repr_v1.md).
 
     backlog_s[(node_id, platform_id)] is the clock the co-sim replays for that replica
     (live_snapshot_seed.seeded_backlog_seconds over infrastructure.json's live_snapshot_seed);

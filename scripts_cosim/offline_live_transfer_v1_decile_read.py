@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """offline_live_transfer_v1 -- R3: is a bad seed born bad, or does it become bad?
 
-Registered in docs/lineages/offline_live_transfer_v1.md on 2026-09-15. Bars are the module
+Registered in docs/lineages/archive/offline_live_transfer_v1.md on 2026-09-15. Bars are the module
 constants below and were committed before the captures were read.
 
 R1 measured that the offline score cannot rank checkpoints. R4 measured that it CAN rank

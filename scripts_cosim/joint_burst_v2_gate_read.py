@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""joint_burst_v2 -- read the gate and fire K1-K9. docs/lineages/joint_burst_v2.md.
+"""joint_burst_v2 -- read the gate and fire K1-K9. docs/lineages/archive/joint_burst_v2.md.
 
 Reads the v2 result summaries (results/jb_v2/gate) plus reactive from the v1 screen/gate (the
 v2 gate reuses reactive on the identical cells). Builds paired per-(env,seed) tables and calls

@@ -1,5 +1,5 @@
 #!/bin/bash
-# load_repr_v1 (docs/lineages/load_repr_v1.md) -- v4load (tasks 0-3) and v4twin (tasks 4-7), seeds 1-4.
+# load_repr_v1 (docs/lineages/archive/load_repr_v1.md) -- v4load (tasks 0-3) and v4twin (tasks 4-7), seeds 1-4.
 # Mirrors cd_gap_v1's A train sbatch (resources, seed flag, checkpoint rename, sidecar checks).
 # Runs in the worktree ~/gnn-herosim-wt/load_repr; simulation_data/* and models are symlinks.
 #   sbatch --array=0-7 load_repr_v1_train.sbatch

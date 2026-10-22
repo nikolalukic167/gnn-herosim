@@ -1,5 +1,5 @@
 #!/bin/bash
-# wide_choice_s0_v1 (docs/lineages/wide_choice_s0_v1.md): wide-slate held-out groups from the
+# wide_choice_s0_v1 (docs/lineages/archive/wide_choice_s0_v1.md): wide-slate held-out groups from the
 # backlog_corpus_v1 held-out snapshot shards (cc40s9223/9224 x w0/w1, backlog rungs 0 and 3 only),
 # exhaustively swept; then CD, the 1-pass greedy and xs1load s1-4 (one-pass / self-refine / GNN-seeded
 # CD) replayed through the engine; then the W read. Sweeps are gzipped afterwards (/home budget).

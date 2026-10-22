@@ -1,5 +1,5 @@
 #!/bin/bash
-# peak_controls_v1 (docs/lineages/peak_controls_v1.md) -- xs1mpoff, the MP-OFF twin of xs1load, seeds 1-4 (tasks 0-3).
+# peak_controls_v1 (docs/lineages/archive/peak_controls_v1.md) -- xs1mpoff, the MP-OFF twin of xs1load, seeds 1-4 (tasks 0-3).
 # exchange_seconds_v1_train.sbatch verbatim but for the arm, the worktree, and the MP-OFF sidecar checks.
 # Runs in the worktree ~/gnn-herosim-wt/grounded; the backlog_corpus_v1 cache, its datasets and models are symlinks.
 #   sbatch --array=0-3 peak_controls_v1_train.sbatch

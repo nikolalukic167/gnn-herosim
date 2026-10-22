@@ -1,6 +1,6 @@
 #!/bin/bash
 # batch_window_edge_v1 -- the batch window, screened then confirmed held-out.
-# docs/lineages/batch_window_edge_v1.md. Bars: scripts_cosim/batch_window_edge_v1_read.py.
+# docs/lineages/archive/batch_window_edge_v1.md. Bars: scripts_cosim/batch_window_edge_v1_read.py.
 #
 # 6 servers / 40 clients, unsaturated_edge_v1's primary rung and its 16 study environments. The
 # lowest-seed study topology SCREENS the window (4 environments); the other three CONFIRM it

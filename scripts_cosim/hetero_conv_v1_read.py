@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hetero_conv_v1 reader (docs/lineages/hetero_conv_v1.md).
+"""hetero_conv_v1 reader (docs/lineages/archive/hetero_conv_v1.md).
 
   hetero_conv_v1_read.py --gate <het1 gate dir> --refs <small_batch_confirm_v1 gate> <local_features_v1 gate> [retry dirs]
                          --selection selected.json [--failed DIRS] [--out]

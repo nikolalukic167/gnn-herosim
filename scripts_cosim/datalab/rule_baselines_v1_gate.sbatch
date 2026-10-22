@@ -1,5 +1,5 @@
 #!/bin/bash
-# rule_baselines_v1 gate (docs/lineages/rule_baselines_v1.md): six hand rules (random, least-loaded, locality-first,
+# rule_baselines_v1 gate (docs/lineages/archive/rule_baselines_v1.md): six hand rules (random, least-loaded, locality-first,
 # Decima's tuned weighted fair, one-pass greedy, self-predict) on small_batch_confirm_v1's 19 topologies at x2/x3/x5.
 # lf1gnn / lf1mlp are read from local_features_v1's gate directory; the reader runs at the end.
 #SBATCH --job-name=rb1-gate
@@ -26,7 +26,7 @@ export HEROSIM_PY=python3 PYTHONPATH="$WT" HEROSIM_DECIMA_ALPHA=1.0
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "HEAD $(git rev-parse HEAD)  node $(hostname)  P=$P  kinds=${RB1_KINDS_RUN:-all}"
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
-cmp "$WT/docs/lineages/small_batch_confirm_v1/selected.json" "$IN/selected.json"
+cmp "$WT/docs/lineages/archive/small_batch_confirm_v1/selected.json" "$IN/selected.json"
 mkdir -p "$RB/gate"
 set +e
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py rb1 --inputs "$IN" --out "$RB/gate" --selection "$IN/selected.json" \

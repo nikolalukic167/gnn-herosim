@@ -1,5 +1,5 @@
 #!/bin/bash
-# peer_only_v1 -- training. docs/lineages/peer_only_v1.md.
+# peer_only_v1 -- training. docs/lineages/archive/peer_only_v1.md.
 #
 # Task table (the shell SPECS below is the single source of truth):
 #   Phase A   tasks  0-15   peeronly on the 516-dataset psv3 cache      (experiments/peer_only_v1_peeronly.yaml)

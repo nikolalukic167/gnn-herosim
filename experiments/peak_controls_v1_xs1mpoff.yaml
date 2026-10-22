@@ -1,7 +1,7 @@
 # peak_controls_v1 -- the MP-OFF twin of exchange_seconds_v1's xs1load: the same cache, split, labels, partial_state_v4
 # block, full-context CE and exchange-in-seconds columns, with every message-passing layer skipped
 # (GNN_DISABLE_MESSAGE_PASSING=1, backlog_corpus_v1_bc1mpoff's swap). Each (task, platform) pair is scored by the
-# encoders and the scorer MLP alone: the pointwise control for the peak-load result (docs/lineages/peak_controls_v1.md).
+# encoders and the scorer MLP alone: the pointwise control for the peak-load result (docs/lineages/archive/peak_controls_v1.md).
 trainer: gnn
 lineage: peak_controls_v1
 cache_dir: simulation_data/graphs_cache_backlog_corpus_v1_psv4_inf

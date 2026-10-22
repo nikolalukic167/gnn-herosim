@@ -2,7 +2,7 @@
 # route_b fit-ceiling Phase 1 (2026-09-06): seeds for the three arms of the 2026-09-03
 # probe, so the held-out ordering (MP-OFF < MLP+prefix < GNN) can be read as a paired
 # statistic instead of one draw. Exploration, not a registration — see the Phase 1 entry
-# in docs/lineages/route_b_v1.md.
+# in docs/lineages/archive/route_b_v1.md.
 #
 #   task  0- 6  GNN MP-ON  lr 2e-3  seeds 2-8   (seed 1 exists: route-b-fit-a1-e300-lr2e3-seed1)
 #   task  7-14  GNN MP-OFF lr 2e-3  seeds 1-8   (new arm: the probe's MP-OFF ran at 5e-4)

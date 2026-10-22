@@ -13,7 +13,7 @@ is the queue time that LATER tasks provably spent waiting behind that group's ta
 same platform: exactly the overlap `drainable_debug_pertask_read.serialization()` computes,
 restricted to predecessors from this group and successors from outside it.
 
-BAR A3 (signed in docs/lineages/drainable_objective_v1.md before this ran):
+BAR A3 (signed in docs/lineages/archive/drainable_objective_v1.md before this ran):
     Spearman(predicted, realized) >= 0.50 over >= 5,000 batches per arm.
 
 The fitted slope is reported as a calibration of lambda_p and is NOT used to choose the

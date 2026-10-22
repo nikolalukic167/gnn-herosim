@@ -4,7 +4,7 @@
 
 **Outcome.** The seed fix reached **1 of 4 trainers**. Three defect classes now — newest: `prepare_graphs_cache` seeded 42 at module import and clobbered every GNN draw's seed. `tests/test_trainer_determinism.py` covers every trainer; run it before training anything you intend to gate.
 
-**Related:** [p5b_draw_study](p5b_draw_study.md) · [gnn_draw_study_v1](gnn_draw_study_v1.md)
+**Related:** [p5b_draw_study](archive/p5b_draw_study.md) · [gnn_draw_study_v1](archive/gnn_draw_study_v1.md)
 
 > **Split note.** This node was carved out of a single 4,995-line `LINEAGES.md` on
 > 2026-08-27; the section bodies below are byte-for-byte as written. An *above* / *below*

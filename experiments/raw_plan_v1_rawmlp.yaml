@@ -1,6 +1,6 @@
 # raw_plan_v1 -- the MP-OFF twin of rawgnn: the same raw plan columns reach the scorer on each (task, platform)
 # edge, every message-passing layer is skipped, so a partner's placement is invisible unless it lands on one of the
-# task's own candidates (docs/lineages/raw_plan_v1.md).
+# task's own candidates (docs/lineages/archive/raw_plan_v1.md).
 trainer: gnn
 lineage: raw_plan_v1
 cache_dir: simulation_data/graphs_cache_backlog_corpus_v1_psv4_inf

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""peer_affinity_warm_v1 -- the W0 screen read (docs/lineages/peer_affinity_warm_v1.md).
+"""peer_affinity_warm_v1 -- the W0 screen read (docs/lineages/archive/peer_affinity_warm_v1.md).
 
 Three registered reads on the warm-snapshot cache, bars fixed 2026-09-13 before any
 dataset existed:

@@ -1,5 +1,5 @@
 # peer_only_v1 -- Phase B, peeronly on the 1,670-dataset corpus (graphs_cache_peer_only_v1_1670_psv3).
-# docs/lineages/peer_only_v1.md. Identical to the 516-dataset peeronly recipe except the cache;
+# docs/lineages/archive/peer_only_v1.md. Identical to the 516-dataset peeronly recipe except the cache;
 # the split artifact (test = the same 34 r2 datasets) is unchanged so B1 pairs like with like.
 trainer: gnn
 lineage: peer_only_v1

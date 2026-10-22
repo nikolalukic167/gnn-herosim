@@ -1,5 +1,5 @@
 #!/bin/bash
-# peer_only_v1 B7 -- the CLIENT axis. docs/lineages/peer_only_v1.md.
+# peer_only_v1 B7 -- the CLIENT axis. docs/lineages/archive/peer_only_v1.md.
 #
 # Every rung of B5 varied servers and held clients at 20. B7 holds servers at 6 and varies the
 # client count, which is the axis an edge deployment is actually described by, and the only
@@ -126,7 +126,7 @@ for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=(80); CI+=("$c"); ARMS+=("gnnres"); SEED+=("$s"); done
 done
 # bipartite_edge_v1 D1/D2/D3/D4 (2026-09-18), tasks 848-975. A DIFFERENT LINEAGE:
-# docs/lineages/bipartite_edge_v1.md. The 40-CLIENT rung, because that is where C2 measured the
+# docs/lineages/archive/bipartite_edge_v1.md. The 40-CLIENT rung, because that is where C2 measured the
 # bipartite penalty on this axis (-18.66 %, 13/16) -- NOT 80 clients, where it is absent
 # (p = 0.28) and there would be nothing to repair. The gnn, peeronly and reactive arms it is
 # compared against are already in this results directory under these cells. APPENDED: tasks
@@ -143,7 +143,7 @@ for c in 0 1 2 3; do
   for s in "${CKSEEDS[@]}"; do NC+=(80); CI+=("$c"); ARMS+=("gnnedge0"); SEED+=("$s"); done
 done
 # corpus_matched_v1 H1 (2026-09-18), tasks 1040-1167. A DIFFERENT LINEAGE:
-# docs/lineages/corpus_matched_v1.md. gnnedge0 trained on the 516-dataset corpus, at the two
+# docs/lineages/archive/corpus_matched_v1.md. gnnedge0 trained on the 516-dataset corpus, at the two
 # client rungs -- the missing cell of a 2x2 whose other three cells are already in this
 # directory (be1670_gnnedge0, 1670_mpoff, v3ext_mpoff). best_arm_v1 compared a 1,670-corpus
 # graph arm against a 516-corpus pointwise arm and had to carry the confound as a clause; this

@@ -24,6 +24,18 @@ REPO = Path(__file__).resolve().parents[1]
 
 INDEX = REPO / "LINEAGES.md"
 NODES_DIR = REPO / "docs" / "lineages"
+ARCHIVE_NODES_DIR = NODES_DIR / "archive"
+
+
+def _all_nodes() -> list[Path]:
+    """Live nodes plus nodes archived under docs/lineages/archive/ (still the record)."""
+    return sorted(NODES_DIR.glob("*.md")) + sorted(ARCHIVE_NODES_DIR.glob("*.md"))
+
+
+def _node_file(name: str) -> Path:
+    live = NODES_DIR / f"{name}.md"
+    return live if live.exists() else ARCHIVE_NODES_DIR / f"{name}.md"
+
 AGENTS_MD = REPO / "AGENTS.md"
 CLAUDE_MD = REPO / ".claude" / "CLAUDE.md"
 
@@ -160,12 +172,12 @@ def test_every_node_has_an_index_row():
     drainable_debug_v1 and drainable_serving_config_v1 had nodes and no row."""
     index_text = _read(INDEX)
     missing = [
-        n.name
-        for n in sorted(NODES_DIR.glob("*.md"))
-        if f"docs/lineages/{n.name}" not in index_text
+        n.relative_to(NODES_DIR).as_posix()
+        for n in _all_nodes()
+        if f"docs/lineages/{n.relative_to(NODES_DIR).as_posix()}" not in index_text
     ]
     assert not missing, "Lineage nodes with no row in LINEAGES.md:\n" + "\n".join(
-        f"  docs/lineages/{m}" for m in missing
+        f"  {m}" for m in missing
     )
 
 
@@ -173,7 +185,7 @@ def test_every_index_row_has_a_node():
     missing = [
         (ln, name)
         for ln, name, _s, _o in _index_rows()
-        if not (NODES_DIR / f"{name}.md").exists()
+        if not _node_file(name).exists()
     ]
     assert not missing, "Index rows pointing at a node that does not exist:\n" + "\n".join(
         f"  LINEAGES.md:{ln}  {name}" for ln, name in missing
@@ -186,7 +198,7 @@ def test_index_status_matches_node_status():
     CLAUDE.md while the index said REGISTERED."""
     drift = []
     for _ln, name, status, _o in _index_rows():
-        node = NODES_DIR / f"{name}.md"
+        node = _node_file(name)
         if not node.exists():
             continue
         declared = _node_status(node)
@@ -312,7 +324,7 @@ def _head_of(node: Path) -> str:
 
 
 @pytest.mark.parametrize(
-    "node", sorted(NODES_DIR.glob("*.md")), ids=lambda p: p.stem
+    "node", _all_nodes(), ids=lambda p: p.stem
 )
 def test_node_head_is_as_current_as_its_record(node: Path):
     """The head is the orientation read: 12% of node bytes, and the only part most

@@ -1,5 +1,5 @@
 #!/bin/bash
-# corpus_matched_v1 -- training. docs/lineages/corpus_matched_v1.md.
+# corpus_matched_v1 -- training. docs/lineages/archive/corpus_matched_v1.md.
 #
 # Task table (the shell SPECS below is the single source of truth):
 #   H1/H2  tasks 0-15   gnnedge0 on the 516-dataset corpus -- the missing cell of the 2x2

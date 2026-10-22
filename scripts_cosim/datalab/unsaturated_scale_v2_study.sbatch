@@ -1,5 +1,5 @@
 #!/bin/bash
-# unsaturated_scale_v2 -- L, the STUDY. docs/lineages/unsaturated_scale_v2.md.
+# unsaturated_scale_v2 -- L, the STUDY. docs/lineages/archive/unsaturated_scale_v2.md.
 #
 # 5 learned arms x 16 checkpoints x 16 environments, plus 3 baselines x 16 environments.
 # An ENVIRONMENT is a (topology, arrival window) pair; the 16 are the fully crossed product of

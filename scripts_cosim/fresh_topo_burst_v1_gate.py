@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """fresh_topo_burst_v1 -- local driver for the screen, the venue-parity check and the gate.
-See docs/lineages/fresh_topo_burst_v1.md.
+See docs/lineages/archive/fresh_topo_burst_v1.md.
 
 Every task runs `src/executesimulation.py` once, in its own memory-capped cgroup scope with a
 wall-clock timeout (a hung run is a FAILED task, never a skipped one), and writes a summary in
@@ -989,7 +989,7 @@ def tasks_for(phase: str, selection: Optional[dict]) -> List[Dict[str, object]]:
     if phase == "jitsmoke":
         return [task(9119, f"w0x15d{k}", "cd") for k in (1, 2, 3)]
     if phase == "capacity":
-        # capacity_sweep_v1 (docs/lineages/capacity_sweep_v1.md). C1: the new rungs, plus the x1 draws' missing
+        # capacity_sweep_v1 (docs/lineages/archive/capacity_sweep_v1.md). C1: the new rungs, plus the x1 draws' missing
         # reactive and self-predict runs; C2: every arm at x1 with keep_alive removed.
         new = [f"w0{r}d{k}" for r in CAP_RUNGS for k in JIT_DRAWS]
         x10 = [f"w0x10d{k}" for k in JIT_DRAWS]

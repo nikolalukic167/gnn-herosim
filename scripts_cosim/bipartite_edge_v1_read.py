@@ -2,7 +2,7 @@
 
 Committed BEFORE any arm is trained. Nothing in this module reads a result file; it turns
 already-collapsed per-checkpoint numbers into the verdicts signed in
-`docs/lineages/bipartite_edge_v1.md`. That separation is deliberate — a bar that lives in the
+`docs/lineages/archive/bipartite_edge_v1.md`. That separation is deliberate — a bar that lives in the
 same function as the loader gets "adjusted" while looking at data.
 
 The question: `peer_only_v1` closed with the peer-vs-bipartite contrast CONFOUNDED. `PeerConv`

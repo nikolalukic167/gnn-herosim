@@ -1,6 +1,6 @@
 #!/bin/bash
 # link_mp_v1 — train all three arm families, seeds 1-16, AT THE PINNED COMMIT.
-# Registration: docs/lineages/link_mp_v1.md.
+# Registration: docs/lineages/archive/link_mp_v1.md.
 #
 # 48 tasks = 3 families x 16 seeds:
 #   family 0  lgctrl   plain MP-ON, cache OFF                 (attribution control)

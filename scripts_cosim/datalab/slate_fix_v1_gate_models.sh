@@ -1,5 +1,5 @@
 #!/bin/bash
-# slate_fix_v1 (docs/lineages/slate_fix_v1.md): wire the checkpoints into the gate and smoke inputs. Symlinks, md5 and sidechecks only (login-node safe).
+# slate_fix_v1 (docs/lineages/archive/slate_fix_v1.md): wire the checkpoints into the gate and smoke inputs. Symlinks, md5 and sidechecks only (login-node safe).
 #   GATE_IN    the s160_gate_inputs.sbatch output's inputs/ (wf1_moderate, wf1_heavy, accel_replica_v1_split.json) for topologies 19420-19431
 #   SMOKE_IN   created here: wf1_* and the split of selfsearch_confirm_v1's inputs (topology 16490 lives there) plus the same models/
 #   NEW_MODELS the directory the training wrote slate-fix-v1-{gnn,twin}-eng-seed{1,2}.pt (+ .contract.json) to

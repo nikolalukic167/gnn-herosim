@@ -1,6 +1,6 @@
 #!/bin/bash
 # link_mp_v1 — gate all three arm families on the 20 BACKBONE cells, AT THE PINNED COMMIT.
-# Registration: docs/lineages/link_mp_v1.md.
+# Registration: docs/lineages/archive/link_mp_v1.md.
 #
 # 960 tasks = 3 families x 16 seeds x 20 cells, throttled to 60 concurrent. The cell ->
 # (workload, PARITY_EXTRA_ARGS) mapping is byte-identical to the four BACKBONE blocks of

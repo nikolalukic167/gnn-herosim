@@ -1,5 +1,5 @@
 #!/bin/bash
-# scale_sweep_v1 gate (docs/lineages/scale_sweep_v1.md): the engineered arms and the rules at x3 / x5 on the 12 development
+# scale_sweep_v1 gate (docs/lineages/archive/scale_sweep_v1.md): the engineered arms and the rules at x3 / x5 on the 12 development
 # topologies, in three conditions, each its own inputs dir $S/inputs/grounded_<rung><cond>:
 #   m2 / m4  the grounded windows re-minted with --merge-k 2 / 4 (same libraries, bases and seeds as g0-g3), so a
 #            decision batch holds ~2x / ~4x the tasks; cells take scheduler.batch_size 16 (the masked_topo maximum)

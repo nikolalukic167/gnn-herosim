@@ -1,5 +1,5 @@
 # corpus_matched_v1 -- the repaired bipartite arm on the 516-dataset corpus.
-# docs/lineages/corpus_matched_v1.md.
+# docs/lineages/archive/corpus_matched_v1.md.
 #
 # BYTE-IDENTICAL to experiments/bipartite_edge_v1_1670_gnnedge0.yaml except `cache_dir`,
 # `NEAR_RTT_SPLIT_ARTIFACT`, `lineage` and the wandb name/tags -- i.e. except the corpus. That

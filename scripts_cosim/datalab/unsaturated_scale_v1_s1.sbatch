@@ -1,5 +1,5 @@
 #!/bin/bash
-# unsaturated_scale_v1 -- S1, the BASELINE SWEEP. docs/lineages/unsaturated_scale_v1.md.
+# unsaturated_scale_v1 -- S1, the BASELINE SWEEP. docs/lineages/archive/unsaturated_scale_v1.md.
 #
 # Reactive Knative alone, on the four 80-server cells the whole R3 record runs on, across the
 # arrival ladder. Its ONLY output is one selected factor (`select_factor` in

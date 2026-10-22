@@ -1,7 +1,7 @@
 #!/bin/bash
 # route_b fit-ceiling Phase 2 (2026-09-06): LEARNING CURVE on the Arm S DAG corpus — the
 # three Phase 1 arms at three training-set sizes against ONE fixed held-out block. Registered
-# before any rung was trained: docs/lineages/route_b_v1.md, "Phase 2" entry.
+# before any rung was trained: docs/lineages/archive/route_b_v1.md, "Phase 2" entry.
 #
 #   task = 24*(rung-1) + 8*arm + (seed-1)      rung 1..3, arm 0 gnn / 1 mpoff / 2 mlp, seed 1..8
 #   rung 1: 204 train parents  (graphs_cache_route_b_fit_p2_r1)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """offline_live_transfer_v1 -- R2: is there a cheap offline statistic that DOES rank runs?
 
-Registered in docs/lineages/offline_live_transfer_v1.md on 2026-09-15. Bars are the module
+Registered in docs/lineages/archive/offline_live_transfer_v1.md on 2026-09-15. Bars are the module
 constants below and were committed before any candidate was correlated with live latency.
 
 R1 measured that the offline score the selector uses -- held-out plan regret -- carries no
