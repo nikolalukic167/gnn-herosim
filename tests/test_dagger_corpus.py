@@ -102,3 +102,46 @@ def test_view_links_old_base_dirs_and_the_new_one(tmp_path):
     assert (tmp_path / "comb" / "gnn_datasets_wf1_dagger_twin" / "ds_00000" / "placements" / "placements.jsonl").exists()
     with pytest.raises(SystemExit, match="exists"):
         D.make_view(old, tmp_path / "new", "twin", tmp_path / "comb")
+
+
+def _wl(sizes, spacing=10.0):
+    ev, pairs, t = [], [], 0.0
+    for g, n in enumerate(sizes):
+        for _ in range(n):
+            ev.append({"peer_group": g, "timestamp": t})
+        t += spacing
+    return {"events": ev, "peer_exchange": pairs}
+
+
+def _wls(topos=(16201, 16202)):
+    sizes = ([3] * 30 + [20] * 30 + [70] * 10 + [150] * 4 + [300] * 2) * 8            # 76 groups per 10 s: ~30 % under 360 s per bucket; the 300-task groups are over 256
+    return {(t, w, r): _wl(sizes) for t in topos for w in D.WINDOWS for r in D.RUNGS}
+
+
+def test_draw_plan_total_strata_and_same_ids_for_every_call():
+    wls = _wls()
+    r = D.draw_plan(wls, 400, seed=7)
+    assert r["total_drawn"] + r["shortfall"] == 400 and set(r["plan"]) == {f"{t}__{w}{x}" for t in (16201, 16202) for w in D.WINDOWS for x in D.RUNGS}
+    assert D.draw_plan(wls, 400, seed=7)["plan"] == r["plan"] and D.draw_plan(wls, 400, seed=8)["plan"] != r["plan"]
+    from scripts_cosim.uncut_arm1 import groups_of
+
+    gs = {t: (size, at) for t, size, at in groups_of(wls[(16201, "g0", "moderate")])}
+    for key, ids in r["plan"].items():
+        assert ids == sorted(set(ids)) and all(gs[i][0] <= 256 for i in ids)                  # never a group over 256 tasks
+    bucket_counts = {}
+    for c in r["census"]:
+        bucket_counts[c["bucket"]] = bucket_counts.get(c["bucket"], 0) + c["drawn"]
+    assert sum(bucket_counts.values()) == r["total_drawn"] and bucket_counts["le10"] > bucket_counts["11_50"] > bucket_counts["51_100"] > bucket_counts["101_256"]
+    early = sum(c["drawn"] for c in r["census"] if c["early"])
+    assert 0.25 < early / r["total_drawn"] < 0.35
+
+
+def test_draw_plan_reports_a_shortfall_and_does_not_top_up():
+    wls = {(16201, w, r): _wl([3] * 5 + [20] * 5) for w in D.WINDOWS for r in D.RUNGS}        # 10 groups per cell, none above 20 tasks
+    r = D.draw_plan(wls, 2000, seed=1)
+    assert r["shortfall"] > 1000 and r["total_drawn"] <= 10 * 8 and all(len(v) <= 10 for v in r["plan"].values())
+
+
+def test_largest_remainder_sums_to_total_and_breaks_ties_by_key():
+    q = D._largest_remainder(10, {"a": 1, "b": 1, "c": 1})
+    assert sum(q.values()) == 10 and q == {"a": 4, "b": 3, "c": 3}

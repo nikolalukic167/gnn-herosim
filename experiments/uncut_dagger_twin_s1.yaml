@@ -1,8 +1,8 @@
 # uncut_groups_s0_v1 DAgger round (one round, own-state training), MP-OFF twin arm, seed 1. DRAFT, NOT REGISTERED: no job may use it before the registration is merged.
 # Fine-tune from the filed twin checkpoint (fl3/md5_twin.json: uncut-comb-fl-twin-seed1-final.pt) on old + new labels, 40 epochs. Everything else is the twin's recipe
-# (experiments/uncut_comb_fl_twin.yaml at 72aa0a46): partial_state_v6, batched teacher-forced CE, MP off (GNN_DISABLE_MESSAGE_PASSING), embedding = hidden = 128, lr 0.001.
-# Open items (to rule before launch): (1) cache_dir below does not exist yet: old v6 cache + the labelled own-state captures, built by prepare_graphs_cache; (2) the new states carry
-# ILS labels (PER 50) while the old corpus carries S7's simulator relabel (NEAR_RTT_LABEL_OVERRIDE_JSON): which label wins where both exist; (3) learning rate for a fine-tune.
+# (experiments/uncut_comb_fl_twin.yaml at 72aa0a46): partial_state_v6, batched teacher-forced CE, MP off (GNN_DISABLE_MESSAGE_PASSING), embedding = hidden = 128; lr 1e-4 (amendment A1).
+# Open item: (1) cache_dir below does not exist yet: the old v6 cache plus the labelled own-state captures, built by prepare_graphs_cache over the combined view. Labels: the old states keep
+# NEAR_RTT_LABEL_OVERRIDE_JSON (S7's relabel); the new states take a NEW relabel json (amendment A1), state ids disjoint; lr 1e-4 by amendment A1.
 trainer: gnn
 lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_groups/dagger/cache_old_new/cache
@@ -37,7 +37,7 @@ args:
   epochs: 40
   patience: 40
   min-epochs: 40
-  learning-rate: 0.001
+  learning-rate: 0.0001
   embedding-dim: 128
   hidden-dim: 128
   torch-threads: 6
