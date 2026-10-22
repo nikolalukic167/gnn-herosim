@@ -301,3 +301,22 @@ def test_netns_validation_n2_and_n4():
     e = [abs(r["tcp_err"]) for r in qs]
     assert statistics.median(e) <= 0.03 and max(e) <= 0.15 and sum(x <= 0.10 for x in e) == 15   # filed result: median 2.4 %, max 13.9 %, 15 of 16 within 10 %
     assert all(r["plain_err"] < 0 for r in qs)                    # without the start-up the model is faster than the measured flows
+
+
+def test_a_flow_with_a_residue_below_the_clock_resolution_ends_instead_of_looping():
+    """Late in a run (now ~ 4781 s, clock step ~ 9e-13 s) a flow whose remaining time is below half a clock step would wake at the
+    same instant, with nothing advanced and the flow still above the 1e-9 byte threshold, and be rescheduled at that instant forever."""
+    env = simpy.Environment()
+    env.run(until=4781.135774386989)
+    fs = FairShare(env)
+    ev = fs.start([("a", 100.0)], 1000.0)
+    fs.flows[0].rem = 3e-5  # 3e-5 bytes at 100 MiB/s is 2.9e-13 s, below half the clock step; the byte threshold is 1e-6
+    fs._reschedule()  # the wake-up scheduled at start() is now stale
+    t0 = env.now
+    for _ in range(1000):
+        if ev.processed or not env._queue:
+            break
+        env.step()
+    assert ev.processed, "the flow never ended: zero-time reschedule loop"
+    assert env.now - t0 < 1e-9
+    assert fs.flows == []

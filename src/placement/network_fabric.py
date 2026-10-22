@@ -231,7 +231,10 @@ class FairShare:
         if gen != self._gen:
             return
         self._advance()
-        done = [f for f in self.flows if f.rem <= 1e-9 * max(f.nbytes, 1.0)]
+        now = self.env.now
+        # A flow whose remaining time is below the clock's resolution at `now` can never advance the clock: its wake-up lands on
+        # the same instant, `_advance` moves nothing, and the recompute would reschedule forever. It is finished.
+        done = [f for f in self.flows if f.rem <= 1e-9 * max(f.nbytes, 1.0) or now + f.rem / f.rate == now]
         for f in done:
             self.flows.remove(f)
             f.event.succeed()
