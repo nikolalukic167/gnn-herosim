@@ -1,4 +1,4 @@
-"""sparse_obs_s0_v1 stage-2 reader (warmth; written before the data lands; docs/lineages/sparse_obs_s0_v1.md, "Stage 2 design").
+"""sparse_obs_s0_v1 stage-2 reader (warmth; written before the data lands; docs/lineages/archive/sparse_obs_s0_v1.md, "Stage 2 design").
 
 Arms (g0, 12 fresh topologies 19440-19451, seed 0): A0 = cd_exactS_ib0 (stage 1, same pinned head or identity-checked), A0+ = cd_obs_a0plus (cold priced against the type the task follows),
 W1-NAIVE = cd_obs_w1_naive and W1-EC = cd_obs_w1_ec (A0+'s warm bit, degraded cold seconds). Per rung the paired % of mean latency per topology, median over the 12, exact Wilcoxon.

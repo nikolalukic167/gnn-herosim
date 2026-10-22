@@ -1,5 +1,5 @@
 #!/bin/bash
-# backlog_corpus_v1 (docs/lineages/backlog_corpus_v1.md) -- bc1load (tasks 0-3) and bc1mpoff (tasks 4-7),
+# backlog_corpus_v1 (docs/lineages/archive/backlog_corpus_v1.md) -- bc1load (tasks 0-3) and bc1mpoff (tasks 4-7),
 # seeds 1-4. load_repr_v1_train.sbatch verbatim but for the cache, split, configs and checkpoint names.
 # Runs in the worktree ~/gnn-herosim-wt/backlog_corpus; simulation_data inputs and models are symlinks.
 #   sbatch --array=0-7 backlog_corpus_v1_train.sbatch

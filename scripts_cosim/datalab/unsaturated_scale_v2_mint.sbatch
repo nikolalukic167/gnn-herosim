@@ -1,5 +1,5 @@
 #!/bin/bash
-# unsaturated_scale_v2 -- mint the study's environments. docs/lineages/unsaturated_scale_v2.md.
+# unsaturated_scale_v2 -- mint the study's environments. docs/lineages/archive/unsaturated_scale_v2.md.
 #
 # An ENVIRONMENT is a (topology, arrival window) pair. v1 had four of them -- four topologies on
 # ONE arrival window -- and that is the measured weakness: the checkpoint statistic's sd scales

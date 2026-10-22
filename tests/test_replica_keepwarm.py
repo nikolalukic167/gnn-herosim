@@ -1,4 +1,4 @@
-"""replica_guard_v1: the GNN_REPLICA_KEEPWARM serving guard (docs/lineages/replica_guard_v1.md)."""
+"""replica_guard_v1: the GNN_REPLICA_KEEPWARM serving guard (docs/lineages/archive/replica_guard_v1.md)."""
 from types import SimpleNamespace
 
 import pytest

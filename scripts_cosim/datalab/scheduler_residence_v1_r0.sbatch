@@ -1,7 +1,7 @@
 #!/bin/bash
 # scheduler_residence_v1 -- R0: split `averageWaitTime` into its parts.
 #
-# Registered in docs/lineages/scheduler_residence_v1.md. `averageWaitTime` is
+# Registered in docs/lineages/archive/scheduler_residence_v1.md. `averageWaitTime` is
 # `scheduled_time - dispatched_time` -- the WHOLE scheduler-side residence -- and
 # queue_range_v1 wrote its 6.87 s up as "batch wait". It contains head-of-line blocking
 # behind a batch the task is not part of, the collection window itself, re-queue after

@@ -3,7 +3,7 @@
 # unsaturated_edge_v1 environments (the rollout gate's study), so gnnedge0 and the rollout learned
 # arm sit in ONE paired table. Same batched learned seat gnnedge0 was gated in (masked_topo,
 # peer-group batching, uncapped alpha=inf); the burst-trained checkpoint is now served on the
-# unburst arrival structure -- a disclosed train/serve transfer. docs/lineages/rollout_imitation_v1.md.
+# unburst arrival structure -- a disclosed train/serve transfer. docs/lineages/archive/rollout_imitation_v1.md.
 #
 # 512 tasks: 2 rungs (C40 = T<256, C80) x 16 envs x 16 seed-checkpoints. Output lands in the SAME dir
 # as the rollout gate; the seed suffix (_s1.._s16) means the rollout reader (which matches only _s0)

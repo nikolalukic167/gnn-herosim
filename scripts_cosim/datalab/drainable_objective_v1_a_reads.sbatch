@@ -1,5 +1,5 @@
 #!/bin/bash
-# drainable_objective_v1 -- Phase A reads (docs/lineages/drainable_objective_v1.md).
+# drainable_objective_v1 -- Phase A reads (docs/lineages/archive/drainable_objective_v1.md).
 # No training, no simulation: three reads over artifacts drainable_debug_v1 already
 # produced. Bars are constants at the top of each read tool and were committed before
 # this job ran.

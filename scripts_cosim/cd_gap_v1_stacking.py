@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""cd_gap_v1 D2 -- in-batch platform stacking in LIVE runs (docs/lineages/cd_gap_v1.md).
+"""cd_gap_v1 D2 -- in-batch platform stacking in LIVE runs (docs/lineages/archive/cd_gap_v1.md).
 
 A peer group arrives as one burst and is decided as one batch; its members share a `scheduledTime`.
 Per batch, over pairs of members placed on the SAME node: how many share the same platform (one FIFO

@@ -1,7 +1,7 @@
 #!/bin/bash
 # reliability_matched_v1 — the registered gate.
 #
-# Registration: docs/lineages/reliability_matched_v1.md, committed BEFORE this ran.
+# Registration: docs/lineages/archive/reliability_matched_v1.md, committed BEFORE this ran.
 # Does the GNN's reliability edge survive training both model classes on the SAME corpus?
 #
 # One array task per BACKBONE block (4 blocks x 5 cells = the 20 cells score_link_mp_v1

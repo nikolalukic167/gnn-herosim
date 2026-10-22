@@ -1,5 +1,5 @@
 #!/bin/bash
-# peer_affinity_warm_v1 -- W1 training (docs/lineages/peer_affinity_warm_v1.md, Amendment 1): gnn + mpoff, T1b recipe verbatim, CPU-amd (T1b ran here at ~50 min/run).
+# peer_affinity_warm_v1 -- W1 training (docs/lineages/archive/peer_affinity_warm_v1.md, Amendment 1): gnn + mpoff, T1b recipe verbatim, CPU-amd (T1b ran here at ~50 min/run).
 # Same tasks, configs, seeds and checkpoint names as peer_affinity_v1_t1b_gnn_train.sbatch; used when the GPU
 # partitions are saturated (2026-09-10: every non-draining GPU allocated, priority 1). 16 threads per task.
 # 2 configs (gnn, mpoff at lr 2e-3) x 16 seeds = 32 tasks:

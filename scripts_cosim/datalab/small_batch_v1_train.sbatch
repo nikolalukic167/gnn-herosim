@@ -1,5 +1,5 @@
 #!/bin/bash
-# small_batch_v1 (docs/lineages/small_batch_v1.md) -- sb1load (tasks 0-3) and sb1mpoff (tasks 4-7), seeds 1-4: the xs1load /
+# small_batch_v1 (docs/lineages/archive/small_batch_v1.md) -- sb1load (tasks 0-3) and sb1mpoff (tasks 4-7), seeds 1-4: the xs1load /
 # xs1mpoff recipes on the live-sized-batch cache. exchange_seconds_v1_train.sbatch with the arm, cache, split and worktree
 # swapped; 8 BLAS threads (32 was measured about 1.5x slower on these tiny graphs).
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/small_batch_v1_train.sbatch

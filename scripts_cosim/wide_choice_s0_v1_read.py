@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""wide_choice_s0_v1 read (docs/lineages/wide_choice_s0_v1.md): W1-W3 on tier A, the same reads
+"""wide_choice_s0_v1 read (docs/lineages/archive/wide_choice_s0_v1.md): W1-W3 on tier A, the same reads
 reported on tier B, and CD regret by slate width.
 
 Usage: wide_choice_s0_v1_read.py --tier A rowsA.json manifestA.jsonl --tier B rowsB.json manifestB.jsonl --out read.json

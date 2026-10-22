@@ -1,5 +1,5 @@
 #!/bin/bash
-# bipartite_edge_v1 -- training. docs/lineages/bipartite_edge_v1.md.
+# bipartite_edge_v1 -- training. docs/lineages/archive/bipartite_edge_v1.md.
 #
 # Task table (the shell SPECS below is the single source of truth):
 #   D1/D2  tasks  0-15   gnnedge   BipartiteEdgeConv on the real 5-column edge_attr

@@ -1,5 +1,5 @@
 #!/bin/bash
-# backlog_corpus_v1 O3 (docs/lineages/backlog_corpus_v1.md; orders nothing) -- the 8 checkpoints offline on
+# backlog_corpus_v1 O3 (docs/lineages/archive/backlog_corpus_v1.md; orders nothing) -- the 8 checkpoints offline on
 # this lineage's held-out cells, as load_repr_v1_eval.sbatch (eval_route_b_stage2_arm.py, alpha key inf).
 # Tasks 0-3 bc1load seeds 1-4, 4-7 bc1mpoff seeds 1-4. Runs in the worktree ~/gnn-herosim-wt/backlog_corpus.
 #   sbatch --array=0-7 backlog_corpus_v1_eval.sbatch

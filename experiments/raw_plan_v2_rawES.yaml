@@ -1,5 +1,5 @@
 # raw_plan_v2 -- rawES: raw_plan_v1's recipe with committed-load channel on and the conv sees the physics edge_attr.
-# Best val checkpoint within 100 epochs, no early stop (docs/lineages/raw_plan_v2.md).
+# Best val checkpoint within 100 epochs, no early stop (docs/lineages/archive/raw_plan_v2.md).
 trainer: gnn
 lineage: raw_plan_v2
 cache_dir: simulation_data/graphs_cache_backlog_corpus_v1_psv4_inf

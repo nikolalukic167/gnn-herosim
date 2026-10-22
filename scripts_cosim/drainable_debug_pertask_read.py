@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """drainable_debug_v1 D2 -- read a live gate's per-task records and say where queue time came from.
 
-Registered in `docs/lineages/drainable_debug_v1.md`. Bars are the module constants below and
+Registered in `docs/lineages/archive/drainable_debug_v1.md`. Bars are the module constants below and
 were committed before any run produced a record.
 
 The question this answers. At the drainable rung both learned arms carry ~2x the platform queue

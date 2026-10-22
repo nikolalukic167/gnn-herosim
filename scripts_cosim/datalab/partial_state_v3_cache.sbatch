@@ -1,7 +1,7 @@
 #!/bin/bash
 # partial_state_v3 -- the v3 cache: the SAME 516 T1b parents, the SAME split, the SAME V = 1
 # label as graphs_cache_drainable_objective_v1_v1, built under PARTIAL_STATE_CONTRACT=
-# partial_state_v3. docs/lineages/partial_state_v3.md, bar P0.
+# partial_state_v3. docs/lineages/archive/partial_state_v3.md, bar P0.
 #
 # Recipe = drainable_objective_v1_cache.sbatch task 0 (V = 1), verbatim except the contract
 # and the cache name. The cache stores the partial-state INGREDIENTS (node_rank, caps,

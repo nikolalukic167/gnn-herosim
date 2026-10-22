@@ -1,5 +1,5 @@
 # joint_burst_v2 -- gnnedge0 trained UNCAPPED on the burst corpus that keeps the loaded states
-# (docs/lineages/joint_burst_v2.md). The joint_burst_v1 recipe with three swaps: the v2 cache and
+# (docs/lineages/archive/joint_burst_v2.md). The joint_burst_v1 recipe with three swaps: the v2 cache and
 # split, and NEAR_RTT_DAG_ALPHA_KEY=inf so the label is the unconstrained group optimum and the
 # served decoder is uncapped -- the greedy's seat. Everything else verbatim.
 trainer: gnn

@@ -197,7 +197,7 @@ def usage_ratio_feature(
 
 # --------------------------------------------------------------------------- SERVING OVERRIDES
 # These are NOT a third contract. They are serve-time overrides of the two magnitudes above,
-# default OFF, registered in docs/lineages/queue_range_v1.md and never a default.
+# default OFF, registered in docs/lineages/archive/queue_range_v1.md and never a default.
 #
 # Why they exist (measured 2026-09-15 on graphs_cache_drainable_objective_v1_v1, 516 datasets):
 # the adaptive divisor is 1.0 in EVERY training dataset, so dim7 is literally the raw queue

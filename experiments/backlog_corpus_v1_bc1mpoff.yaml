@@ -1,5 +1,5 @@
 # backlog_corpus_v1 -- load_repr_v1's v4load recipe verbatim (partial_state_v4, load columns on) on the
-# synthetic-backlog corpus and its cell-grouped split (docs/lineages/backlog_corpus_v1.md).
+# synthetic-backlog corpus and its cell-grouped split (docs/lineages/archive/backlog_corpus_v1.md).
 # This is the MP-OFF twin (jb2 mpoff's swap); the arm is backlog_corpus_v1_bc1load.yaml.
 trainer: gnn
 lineage: backlog_corpus_v1

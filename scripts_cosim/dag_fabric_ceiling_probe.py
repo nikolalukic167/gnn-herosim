@@ -28,7 +28,7 @@ Three stages, all computed from the stored arm_s sweep
                on the union of concurrent transfers; avoidance premium = best zero-wait joint
                plan vs joint optimum; core-only variant.
 
-Reading (measured 2026-09-08, written into docs/lineages/dag_fabric_contention_v1.md):
+Reading (measured 2026-09-08, written into docs/lineages/archive/dag_fabric_contention_v1.md):
 4-task, alpha=2.0 feasible set -- median ceiling `any` 0.333 (GO bar 0.25 passes) but `core`
 0.000 (37.5% of plans, 9/204 optima); synthetic at bw 100/25 MB/s the manipulation share
 passes (0.17/0.45 of children's RTT) yet the optimum carries ZERO wait in 98-100% of

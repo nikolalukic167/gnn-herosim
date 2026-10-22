@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""live_headroom_v1 reader (docs/lineages/live_headroom_v1.md).
+"""live_headroom_v1 reader (docs/lineages/archive/live_headroom_v1.md).
 
   live_headroom_read.py --diag <dir of <arm>_s<seed>_r<refine>.json> --rules <json> --cache <graph cache>
                         --root <simulation_data holding the corpus> [--out read.json]

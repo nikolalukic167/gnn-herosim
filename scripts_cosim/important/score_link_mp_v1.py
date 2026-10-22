@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score link_mp_v1 against its registration.
 
-Registration: docs/lineages/link_mp_v1.md, written BEFORE any arm was trained. As with
+Registration: docs/lineages/archive/link_mp_v1.md, written BEFORE any arm was trained. As with
 score_mp_ablation.py, the constants here ARE the registration: this script takes no tuning
 arguments and refuses to compute a verdict until the code/venue identity of every arm is
 asserted from the summary itself.

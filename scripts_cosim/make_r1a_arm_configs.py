@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the r1_attribution_v1 arm configs under experiments/: 7 learned arms x a 6-configuration grid, plus a smoke variant each.
 
-Fair-comparison budget (docs/lineages/r1_attribution_v1.md, after Errica et al.): every arm gets the same grid, the same epoch
+Fair-comparison budget (docs/lineages/archive/r1_attribution_v1.md, after Errica et al.): every arm gets the same grid, the same epoch
 cap, the same early stopping and three training seeds (run_experiment.py --seed 1 2 3). The grid is learning rate {5e-4, 1e-3, 2e-3}
 x width {64, 128} (embedding = hidden); depth is each arm's default (3 message-passing layers / 3 set blocks / 2 MLP hidden layers).
 Everything else is the so1load recipe on partial_state_v5.

@@ -1,5 +1,5 @@
 #!/bin/bash
-# partial_state_v3 -- P2: the live instrument at 6 servers. docs/lineages/partial_state_v3.md.
+# partial_state_v3 -- P2: the live instrument at 6 servers. docs/lineages/archive/partial_state_v3.md.
 #
 # Does a checkpoint trained under the size-free contract serve as well as its v2 twin where
 # the v2 twin works? Three cells this family is always gated on, 16 training seeds per arm,

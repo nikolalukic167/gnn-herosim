@@ -29,7 +29,7 @@ mkdir -p "$HEROSIM_RAW_DIR"; trap 'rm -rf "$HEROSIM_RAW_DIR"' EXIT
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "HEAD $(git rev-parse HEAD)  node $(hostname)  P=$P  kinds=$KINDS"
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
-cmp "$WT/docs/lineages/small_batch_confirm_v1/selected.json" "$IN/selected.json"
+cmp "$WT/docs/lineages/archive/small_batch_confirm_v1/selected.json" "$IN/selected.json"
 for arm in ${KINDS//,/ }; do
   for s in 1 2 3 4 5 6 7 8; do
     for ext in .pt .contract.json; do

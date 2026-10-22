@@ -54,10 +54,10 @@ So the joint problem studied so far is the easy part of the workload. On the big
 **Parents to read:**
 - [grounded_workload_v1](grounded_workload_v1.md): the cut audit and the origin caveat.
 - [decision_cost_s0_v1](decision_cost_s0_v1.md): the clock, k, w, utilisation, Amendments 2–3.
-- [big_groups_s0_v1](big_groups_s0_v1.md) and [prune_g8_s0_v1](prune_g8_s0_v1.md): the G=8 fallbacks.
+- [big_groups_s0_v1](archive/big_groups_s0_v1.md) and [prune_g8_s0_v1](archive/prune_g8_s0_v1.md): the G=8 fallbacks.
 - [ib0_confirm_v1](ib0_confirm_v1.md): the bar.
 - [warm_surge_s0_v1](warm_surge_s0_v1.md): ib0 runs away under a warm heavy surge.
-- [slate_bar_v1](slate_bar_v1.md): the slate handicap.
+- [slate_bar_v1](archive/slate_bar_v1.md): the slate handicap.
 - [slate_fix_v2](slate_fix_v2.md): after-360 s and whole-run side by side.
 - **Label search and exact search under the decision charge (2026-10-21; validity control; Record):** registered 2026-10-20 (a reviewer's point: serve the label ILS and the exact search live under the same charge). Built as `cd_ib0_ils` (ILS-live: the bar's plan, then the label engine's ILS on the bar's S, 200 plans per task x mean candidates, seed 0, charged at `w_S`) and `cd_exactS_ib0_live` (cd_exactS_ib0 as its code defines it, groups of at most G = 8, the bar's plan above); identity at `e8c14124` PASSED (bar, FL gnn, `uncut_ils.py`); w calibration, cell list and the frozen reader (`scripts_cosim/ils_live_read.py`) come before any arm cell.
 

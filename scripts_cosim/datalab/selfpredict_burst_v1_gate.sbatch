@@ -1,6 +1,6 @@
 #!/bin/bash
 # selfpredict_burst_v1 -- the LIVE GATE: the self-predict rule vs gnnedge0 in the burst seat.
-# docs/lineages/selfpredict_burst_v1.md.
+# docs/lineages/archive/selfpredict_burst_v1.md.
 #
 # joint_burst_v2's uncapped gnnedge0 beat the 1-pass greedy in its own seat (-11.9 %, 13/13) and lost
 # to the CD greedy (+12.5 %); selfpredict_bar_v1 made the self-predict rule the bar on the unburst

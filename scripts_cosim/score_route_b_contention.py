@@ -874,7 +874,7 @@ def t1_column_names(ds: Dataset, blocks: Sequence[str] = T1_REGISTERED_BLOCKS) -
 
 def t1_cols(ds: Dataset, caps: Dict[str, float], blocks: Sequence[str] = T1_REGISTERED_BLOCKS):
     """Plan-level sums of the stage-2 T1 (partial-state) per-edge features — the §9a
-    pre-probe-zero column set of docs/lineages/route_b_v1/stage2-preregistration.md. T1 ⊇ kint, plus:
+    pre-probe-zero column set of docs/lineages/archive/route_b_v1/stage2-preregistration.md. T1 ⊇ kint, plus:
     per-type quadratic co-residency Σ_t occ_{node(t)}[k]; Σ_t load/cap; over-cap task
     count; per-task min/max parent-hop sums; and the coupling-term columns
     Σ_edges hops/bottleneck, Σ_edges latency, same-node-parent count — computed from the

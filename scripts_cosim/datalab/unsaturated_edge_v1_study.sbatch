@@ -1,5 +1,5 @@
 #!/bin/bash
-# unsaturated_edge_v1 -- E, the STUDY. docs/lineages/unsaturated_edge_v1.md.
+# unsaturated_edge_v1 -- E, the STUDY. docs/lineages/archive/unsaturated_edge_v1.md.
 #
 # 16 (topology, window) environments PER CLIENT RUNG at 6 servers, the topologies chosen by M0's
 # registered rule. Reactive is not re-run -- M0's arms are the reference and the read pulls them

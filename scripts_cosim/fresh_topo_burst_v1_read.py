@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """fresh_topo_burst_v1 -- select the study topologies from the screen, then read the gate.
-See docs/lineages/fresh_topo_burst_v1.md.
+See docs/lineages/archive/fresh_topo_burst_v1.md.
 
   fresh_topo_burst_v1_read.py select --screen DIR --out selected.json
   fresh_topo_burst_v1_read.py gate   --gate DIR --selection selected.json [--out read.json]

@@ -2,7 +2,7 @@
 # objective_pivot_v1 Phase 3, Increment 1 — the registered sampling-feasibility probe.
 #
 # Reading fixed 2026-09-01 BEFORE this ran (see the Phase 3 registration in
-# docs/lineages/objective_pivot_v1.md):
+# docs/lineages/archive/objective_pivot_v1.md):
 #   GO             some T has d(T) <= 0.10 AND sd <= 0.05
 #   NO-GO          every T has d(T) > 0.25, OR sd > 0.15
 #   INDETERMINATE  anything else — returned to the user with the numbers, never

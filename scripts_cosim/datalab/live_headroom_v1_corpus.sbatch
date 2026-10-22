@@ -1,5 +1,5 @@
 #!/bin/bash
-# live_headroom_v1 -- sweep the CD-induced live snapshots (docs/lineages/live_headroom_v1.md). make_warm_corpus.py with NO synthetic
+# live_headroom_v1 -- sweep the CD-induced live snapshots (docs/lineages/archive/live_headroom_v1.md). make_warm_corpus.py with NO synthetic
 # backlog: the state is exactly what the capture saw (live standing queue), batches are whole peer groups of 2+ tasks.
 # One array task per development topology; its x20/x30/x50 x g0-g3 units in sequence; evenly spaced snapshots (no RNG).
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/live_headroom scripts_cosim/datalab/live_headroom_v1_corpus.sbatch

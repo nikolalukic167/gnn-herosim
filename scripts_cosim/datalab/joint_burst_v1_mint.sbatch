@@ -1,5 +1,5 @@
 #!/bin/bash
-# joint_burst_v1 -- mint the extended burst topology pool. docs/lineages/joint_burst_v1.md.
+# joint_burst_v1 -- mint the extended burst topology pool. docs/lineages/archive/joint_burst_v1.md.
 #
 # 16 more study candidates (9109-9124) and 24 training topologies (9201-9224), 6 servers / 40
 # clients, from the same base every 6-server cell of this programme was minted from. The burst

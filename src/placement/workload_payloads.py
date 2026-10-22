@@ -4,7 +4,7 @@ Opt-in. The legacy payload (``200 MB * 10**U(-1, 1)``, 20 MB-2 GB) stays inline 
 used only when a minter is asked for ``wf1_v1``. Units are bytes with 1 MB = 1e6 bytes, the unit the legacy
 ``X_SCALE_BYTES = 200e6`` already uses.
 
-Distribution (docs/lineages/workload_fix_v1.md, W2): log-normal with median 4 MB and sigma 1.2 in natural-log
+Distribution (docs/lineages/archive/workload_fix_v1.md, W2): log-normal with median 4 MB and sigma 1.2 in natural-log
 space, plus a heavy tier — 10 % of pairs drawn log-uniform on 50-500 MB. The tier is assumed and swept; the body
 approximates Eismann et al. (IEEE Software 2021).
 """

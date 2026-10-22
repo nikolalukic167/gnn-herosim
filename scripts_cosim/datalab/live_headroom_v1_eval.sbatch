@@ -1,6 +1,6 @@
 #!/bin/bash
 # live_headroom_v1 -- the 10-task-trained checkpoints (rawgnn, rawmlp, xs1load, xs1mpoff; 4 seeds; self-refine 0 and 3) and the CD /
-# independent-argmin rules decoded on the live-snapshot cache, then the reader (docs/lineages/live_headroom_v1.md).
+# independent-argmin rules decoded on the live-snapshot cache, then the reader (docs/lineages/archive/live_headroom_v1.md).
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/live_headroom scripts_cosim/datalab/live_headroom_v1_eval.sbatch
 #SBATCH --job-name=lh1-eval
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/lh1-eval-%j.out

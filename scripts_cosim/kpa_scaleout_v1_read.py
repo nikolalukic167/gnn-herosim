@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""kpa_scaleout_v1 read (docs/lineages/kpa_scaleout_v1.md).
+"""kpa_scaleout_v1 read (docs/lineages/archive/kpa_scaleout_v1.md).
 
 Per condition x rung, under HEROSIM_SCALEOUT=kpa: each arm's latency, queue share and exchange (median over the 19
 topologies of per-topology means), and the paired % vs CD (per topology: median over windows x seeds of the paired %;

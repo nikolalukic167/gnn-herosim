@@ -1,5 +1,5 @@
 # peer_only_v1 -- peeronly: the partial_state_v3 gnn recipe with the bipartite task<->platform
-# GIN OFF and PeerConv ON (NEAR_RTT_MP_PLATFORM_EDGES=0). docs/lineages/peer_only_v1.md.
+# GIN OFF and PeerConv ON (NEAR_RTT_MP_PLATFORM_EDGES=0). docs/lineages/archive/peer_only_v1.md.
 #
 # Everything else is partial_state_v3_gnn.yaml verbatim: the psv3 516-dataset cache, the V = 1
 # label, T1b split, lr 2e-3 (not re-tuned), CE-only teacher-forced masked_topo, 16 seeds,

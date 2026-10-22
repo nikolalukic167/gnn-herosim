@@ -1,6 +1,6 @@
 #!/bin/bash
 # link_mp_v1 — final unattended stage: verify -> extract -> score.
-# Registration: docs/lineages/link_mp_v1.md (Amendment 2 appended this stage).
+# Registration: docs/lineages/archive/link_mp_v1.md (Amendment 2 appended this stage).
 #
 # Runs at HEAD in the MAIN checkout on purpose: extraction and scoring are analysis
 # tools, and the scorer's own PIN constants (score_link_mp_v1.py) protect arm identity —

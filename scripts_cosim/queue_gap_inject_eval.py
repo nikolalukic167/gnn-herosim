@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Information-injection test, one checkpoint (docs/lineages/raw_plan_v2.md, after the queue-gap diagnostic).
+"""Information-injection test, one checkpoint (docs/lineages/archive/raw_plan_v2.md, after the queue-gap diagnostic).
 
   queue_gap_inject_eval.py --ckpt models/<name>.pt --out <json>
 

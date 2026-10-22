@@ -1,7 +1,7 @@
 #!/bin/bash
 # reliability_matched_v1 — train the 16 corpus-matched MLP arms.
 #
-# Registration: docs/lineages/reliability_matched_v1.md (committed before any gate data).
+# Registration: docs/lineages/archive/reliability_matched_v1.md (committed before any gate data).
 # Seeds 1-4 already exist from the 2026-09-03 latency pilot (job 734411) and are reused
 # byte-for-byte; this job fills in 5-16 and then asserts all sixteen are present.
 #

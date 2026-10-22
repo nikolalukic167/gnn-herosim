@@ -1,6 +1,6 @@
 #!/bin/bash
 # partial_state_v3 -- P3, the PRIMARY: does a checkpoint trained at 6 servers survive 12 /
-# 24 / 80 servers, live? docs/lineages/partial_state_v3.md.
+# 24 / 80 servers, live? docs/lineages/archive/partial_state_v3.md.
 #
 #   rung R0:  6 servers  drainable_f4000  0.460 arrivals/s   (in support, 3.55 cand/task)
 #   rung R1: 12 servers  drainable_f2000  0.921 arrivals/s   (out of support)

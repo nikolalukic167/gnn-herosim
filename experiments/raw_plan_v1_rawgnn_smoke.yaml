@@ -3,7 +3,7 @@
 # peer edges) with the engineered partial-state columns replaced by the raw plan (src/policy/gnn/plan_raw.py:
 # committed flag + committed count per platform on every bipartite edge, into message passing and the scorer, plus
 # typed same-node platform edges). The PARTIAL_STATE_* flags below only shape the unused engineered context the
-# decoder still builds; the model never reads it (docs/lineages/raw_plan_v1.md).
+# decoder still builds; the model never reads it (docs/lineages/archive/raw_plan_v1.md).
 trainer: gnn
 lineage: raw_plan_v1
 cache_dir: simulation_data/graphs_cache_backlog_corpus_v1_psv4_inf

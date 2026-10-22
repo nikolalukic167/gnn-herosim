@@ -1,5 +1,5 @@
 #!/bin/bash
-# unsaturated_scale_v2 -- M0, the SATURATION SCREEN. docs/lineages/unsaturated_scale_v2.md.
+# unsaturated_scale_v2 -- M0, the SATURATION SCREEN. docs/lineages/archive/unsaturated_scale_v2.md.
 #
 # Reactive `knative_network` alone on all 12 candidate topologies x 4 arrival windows = 48
 # candidate environments. Its only outputs are (a) which environments are readable rungs and

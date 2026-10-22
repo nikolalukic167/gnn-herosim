@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""peer_affinity_warm_v1 -- W1 live-gate read (docs/lineages/peer_affinity_warm_v1.md, W1 + Amendment 1).
+"""peer_affinity_warm_v1 -- W1 live-gate read (docs/lineages/archive/peer_affinity_warm_v1.md, W1 + Amendment 1).
 
 Inputs: `<arm>.summary.json` files written by peer_affinity_v1_stage3_live_gate.sbatch --
 the warm arms (gnn_s<N>, mpoff_s<N>) in a capped and an uncapped results dir, the landed

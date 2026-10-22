@@ -1,4 +1,4 @@
-"""kpa_scaleout_v1 (docs/lineages/kpa_scaleout_v1.md): HEROSIM_SCALEOUT=kpa vs the legacy default.
+"""kpa_scaleout_v1 (docs/lineages/archive/kpa_scaleout_v1.md): HEROSIM_SCALEOUT=kpa vs the legacy default.
 
 Pins:
 - legacy is the default; an unknown mode fails loud; the target resolves to 100 (int) under legacy and

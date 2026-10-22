@@ -1,6 +1,6 @@
 # joint_burst_v1 -- mpoff trained on the SERVED distribution: whole peer groups arriving as
 # bursts, captured from the batched rule's live runs, labelled by the sweep on the measured clock.
-# docs/lineages/joint_burst_v1.md. The recipe is bipartite_edge_v1_1670_mpoff.yaml /
+# docs/lineages/archive/joint_burst_v1.md. The recipe is bipartite_edge_v1_1670_mpoff.yaml /
 # peer_only_v1_1670_mpoff.yaml verbatim with the cache and the split artifact swapped.
 trainer: gnn
 lineage: joint_burst_v1

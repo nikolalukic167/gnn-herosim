@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""small_batch_confirm_v1 reader (docs/lineages/small_batch_confirm_v1.md).
+"""small_batch_confirm_v1 reader (docs/lineages/archive/small_batch_confirm_v1.md).
 
   small_batch_confirm_v1_read.py --gate <confirm gate dir> --selection selected.json [--out read.json]
 

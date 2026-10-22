@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""slate_fix_v1 pre-training check (docs/lineages/slate_fix_v1.md): the recached uncapped corpus is the capped accel_replica_v1 cache with
+"""slate_fix_v1 pre-training check (docs/lineages/archive/slate_fix_v1.md): the recached uncapped corpus is the capped accel_replica_v1 cache with
 only the candidate slate changed. Reads two metadata.json files and the split artifact; no graphs are loaded, so it is login-node safe.
 
   slate_fix_v1_cache_check.py --new <uncapped cache dir> --old <accel_replica_v1 cache dir> --split experiments/accel_replica_v1_split.json

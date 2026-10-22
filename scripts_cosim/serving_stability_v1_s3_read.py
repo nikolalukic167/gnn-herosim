@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """serving_stability_v1 -- S3, the live gate that closes the lineage (rule 6).
 
-Registered in docs/lineages/serving_stability_v1.md on 2026-09-15. Every bar below is a
+Registered in docs/lineages/archive/serving_stability_v1.md on 2026-09-15. Every bar below is a
 module constant and was committed before the guarded arms had finished.
 
 S1 measured that the learned arms beat reactive Knative while queues are shallow -- 3/3

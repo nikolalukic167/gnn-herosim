@@ -1,4 +1,4 @@
-"""partial_state_v3: the size-free krank block (docs/lineages/partial_state_v3.md).
+"""partial_state_v3: the size-free krank block (docs/lineages/archive/partial_state_v3.md).
 
 v3 keeps v2's columns 0-9 and the 4 linkrank columns byte-for-byte and replaces the
 24-column rank one-hot with 8 scalars (rank_frac, inv_n in the task's own type slot). The

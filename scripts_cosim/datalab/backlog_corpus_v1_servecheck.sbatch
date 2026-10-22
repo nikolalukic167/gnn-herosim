@@ -1,6 +1,6 @@
 #!/bin/bash
 # backlog_corpus_v1 P1 -- train/serve parity on this lineage's held-out cells, served with the in-flight
-# capture fix (docs/lineages/backlog_corpus_v1.md, Amendment 1). Otherwise load_repr_v1's check verbatim: the live serving
+# capture fix (docs/lineages/archive/backlog_corpus_v1.md, Amendment 1). Otherwise load_repr_v1's check verbatim: the live serving
 # path on held-out co-sim datasets must equal the cache graph field by field, including backlog_s and
 # service_s, decode the offline report's plan and reproduce its sweep row (peer_affinity_live_serve_check.py).
 # Task 0 = bc1load seed 1, task 1 = bc1mpoff seed 1. Runs after backlog_corpus_v1_eval.sbatch.

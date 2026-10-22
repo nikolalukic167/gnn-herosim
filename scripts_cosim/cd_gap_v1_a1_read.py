@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""cd_gap_v1 A1 -- does the CD imitator reproduce CD offline? (docs/lineages/cd_gap_v1.md)
+"""cd_gap_v1 A1 -- does the CD imitator reproduce CD offline? (docs/lineages/archive/cd_gap_v1.md)
 
 On the held-out (test-split) groups: each imitator seed's regret % against the true sweep (its
 eval_route_b_stage2_arm.py report) and its exact plan agreement with the CD label (any of CD's tied

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""small_batch_v1 Phase D read (docs/lineages/small_batch_v1.md): sb1load / sb1mpoff vs CD, cdextr, xs1load, xs1mpoff on
+"""small_batch_v1 Phase D read (docs/lineages/archive/small_batch_v1.md): sb1load / sb1mpoff vs CD, cdextr, xs1load, xs1mpoff on
 the 12 development topologies, grounded x2/x3/x5. Run from a worktree root on datalab; writes gates/sb1dev_read.json."""
 import json, sys, os
 sys.path.insert(0, "scripts_cosim")

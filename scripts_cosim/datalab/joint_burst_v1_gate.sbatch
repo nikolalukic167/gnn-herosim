@@ -1,5 +1,5 @@
 #!/bin/bash
-# joint_burst_v1 -- the gate under bursts on the 16 study environments. docs/lineages/joint_burst_v1.md.
+# joint_burst_v1 -- the gate under bursts on the 16 study environments. docs/lineages/archive/joint_burst_v1.md.
 #
 # Task table (816 tasks), read from simulation_data/joint_burst_v1/selected.json:
 #     0-15     random_network

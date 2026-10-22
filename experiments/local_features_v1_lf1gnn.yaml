@@ -1,5 +1,5 @@
 # local_features_v1 -- lf1gnn: raw_plan_v2 rawS (raw plan, committed-load sum, two bipartite convs) plus the static
-# per-candidate columns (plan_raw_local), on the small-batch corpus (docs/lineages/local_features_v1.md).
+# per-candidate columns (plan_raw_local), on the small-batch corpus (docs/lineages/archive/local_features_v1.md).
 trainer: gnn
 lineage: local_features_v1
 cache_dir: simulation_data/graphs_cache_small_batch_v1_psv4_inf

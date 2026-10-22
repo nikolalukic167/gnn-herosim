@@ -1,6 +1,6 @@
 #!/bin/bash
 # joint_burst_v1 -- train gnnedge0 and its MP-OFF twin on the burst corpus, 16 seeds each.
-# docs/lineages/joint_burst_v1.md. The bipartite_edge_v1 train recipe verbatim (cache, split,
+# docs/lineages/archive/joint_burst_v1.md. The bipartite_edge_v1 train recipe verbatim (cache, split,
 # checkpoint names swapped). 32 tasks; T = arm_index*16 + seed-1.
 #
 #   sbatch --array=0-31 scripts_cosim/datalab/joint_burst_v1_train.sbatch

@@ -4,7 +4,7 @@
 # the seat gnnedge0 wins in. Same 16 C40 burst envs, same batched serving (masked_topo, peer-group
 # batching) as jb2; the decision is the learned MLP over the rule's terms instead of the greedy sum
 # or the GNN. Output lands in the jb2 gate dir to pair against its existing arms.
-# docs/lineages/rollout_imitation_v1.md.
+# docs/lineages/archive/rollout_imitation_v1.md.
 #
 # 16 tasks (C40 x 16 burst envs, deterministic s0):
 #   sbatch --array=0-15 --export=ALL scripts_cosim/datalab/rollout_imitation_v1_xstudy_learnedbatch.sbatch

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """joint_burst_v2 -- the bars, signed 2026-09-20 before any v2 checkpoint exists. See
-docs/lineages/joint_burst_v2.md.
+docs/lineages/archive/joint_burst_v2.md.
 
 joint_burst_v1 closed NO-GNN-WIN: the served-distribution corpus took gnnedge0 past reactive and
 its cold twin but not past the batched greedy in its own seat (+16.8 %). Step 0 found two causes:

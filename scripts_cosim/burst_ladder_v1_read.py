@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""burst_ladder_v1 -- the live S0 read (docs/lineages/burst_ladder_v1.md).
+"""burst_ladder_v1 -- the live S0 read (docs/lineages/archive/burst_ladder_v1.md).
 
   burst_ladder_v1_read.py --dir <ladder gate dir> --ref <ref_fresh_1ae90af dir> <xs1 dir> <xs1cd dir>
                           --selection selected.json [--out read.json]

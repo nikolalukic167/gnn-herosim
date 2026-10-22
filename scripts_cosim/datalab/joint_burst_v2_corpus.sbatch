@@ -1,7 +1,7 @@
 #!/bin/bash
 # joint_burst_v2 -- the burst corpus WITHOUT the cap filter: every aligned snapshot of every
 # capture run is offered, the loaded (cap-infeasible) states are kept, and a snapshot needs only
-# 20 % of its tasks to have a choice. docs/lineages/joint_burst_v2.md.
+# 20 % of its tasks to have a choice. docs/lineages/archive/joint_burst_v2.md.
 #
 # joint_burst_v1 offered 60 snapshots per run and rejected 634 of 993 (579 for "no plan under the
 # alpha=2.0 cap" = the loaded states the served model meets and never trained on). Same captures

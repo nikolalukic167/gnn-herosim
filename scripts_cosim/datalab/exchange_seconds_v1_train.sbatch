@@ -1,5 +1,5 @@
 #!/bin/bash
-# exchange_seconds_v1 (docs/lineages/exchange_seconds_v1.md) -- xs1load, seeds 1-4 (tasks 0-3). fullctx_refine_v1_train.sbatch
+# exchange_seconds_v1 (docs/lineages/archive/exchange_seconds_v1.md) -- xs1load, seeds 1-4 (tasks 0-3). fullctx_refine_v1_train.sbatch
 # verbatim but for the arm and the exchange_seconds sidecar check.
 # Runs in the worktree ~/gnn-herosim-wt/backlog_corpus; simulation_data inputs and models are symlinks.
 #   sbatch --array=0-3 exchange_seconds_v1_train.sbatch

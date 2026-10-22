@@ -1,5 +1,5 @@
 #!/bin/bash
-# scale_160_v1 live gate, inputs (docs/lineages/scale_160_v1.md): the 12 fresh test topologies at 160 clients x 24 servers, p = 0.6,
+# scale_160_v1 live gate, inputs (docs/lineages/archive/scale_160_v1.md): the 12 fresh test topologies at 160 clients x 24 servers, p = 0.6,
 # at the moderate and heavy rungs, as WF1 (W2 payloads + W3 access classes + W4 mix/repair, 1 s window), single origin spread over the
 # 160 clients (scale_probe_remap_clients.py, disclosed), windows g0-g3. Nothing is built until the calibrated multipliers are given.
 #   M_MODERATE, M_HEAVY   final arrival-rate multipliers over the x1 window (the window timestamps are divided by them, as r1a_gate_inputs:

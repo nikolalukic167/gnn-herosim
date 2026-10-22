@@ -68,22 +68,16 @@ number.** Never a `peer_affinity` live number without its load factor, never an 
 
 ## Current research entry points
 
-Read the node before proposing work in its area. Current seat: `docs/lineages/selfsearch_confirm_v1.md`, `docs/lineages/accel_nosplit_v1.md`,
-`docs/lineages/big_groups_s0_v1.md`, `docs/lineages/cost_to_go_v1.md`, `docs/lineages/link_bound_s0_v1.md`, `docs/lineages/plan_rerank_v1.md`, `docs/lineages/throughline.md`.
+Read the node before proposing work in its area. Current seat: `docs/lineages/cost_to_go_v1.md`, `docs/lineages/plan_rerank_v1.md`, `docs/lineages/throughline.md`.
 
 | Area | Read first |
 |---|---|
-| L2D job-shop architecture, transfer, sample efficiency, rollout targets | `docs/lineages/literature_reeval_v1.md`, `docs/lineages/l2d_size_transfer_v1.md`, `docs/lineages/l2d_learning_efficiency_v1.md`, `docs/lineages/l2d_rollout_headroom_v1.md` |
-| Workflow move values, exact-search control | `docs/lineages/workflow_move_value_v1.md`, `docs/lineages/workflow_basin_v1.md`, `docs/lineages/radical_physics_v1.md`, `docs/lineages/mixed_physics_learning_v1.md`, `docs/lineages/mixed_pair_learning_v1.md` |
-| Execution order (all learners lose to the hand rule) | `docs/lineages/mixed_dispatch_v1.md`, `docs/lineages/mixed_dispatch_learning_v1.md`, `docs/lineages/mixed_dispatch_state_v1.md`, `docs/lineages/mixed_dispatch_value_v1.md` |
-| DAG reservations, online reservations | `docs/lineages/dag_reservation_learning_v1.md`, `docs/lineages/online_reservation_s0_v1.md` |
-| Complete-plan proposal search, amortised workflows | `docs/lineages/workflow_proposal_v1.md`, `docs/lineages/workflow_amortized_v1.md` |
-| DAG output memory, cache, recomputation | `docs/lineages/dag_memory_lifetime_s0_v1.md`, `docs/lineages/dag_memory_value_learning_v1.md`, `docs/lineages/dag_remat_s0_v1.md` |
-| Burst seat, peer greedy, rollout imitation | `docs/lineages/joint_burst_v2.md`, `docs/lineages/rollout_imitation_v1.md`, `docs/lineages/peer_affinity_v1.md`, `docs/lineages/peer_greedy_live_v1.md` |
-| Learned seeds and proposals for search (learned-seed win ≠ MP win) | `docs/lineages/gnn_seeded_cd_fixed_v1.md`, `docs/lineages/gnn_seeded_cd_mp_ablation_v1.md`, `docs/lineages/gnn_proposal_selector_v1.md` |
-| 32-task slates, selection, move pools | `docs/lineages/g32_sampled_slate_v1.md`, `docs/lineages/g32_exact_val_selection_v1.md`, `docs/lineages/g32_fourtype_move_s0_v1.md` |
-| Peer-transfer fabric, prefetch, core contention, valleys | `docs/lineages/g32_peer_fabric_s0_v1.md`, `docs/lineages/g32_peer_prefetch_s0_v1.md`, `docs/lineages/g32_core_prefetch_s0_v1.md`, `docs/lineages/g32_coordinated_valley_s0_v1.md` |
-| 128-operation block proposals | `docs/lineages/dag_block_proposer_128_s0_v1.md` |
+| L2D job-shop architecture, transfer, sample efficiency, rollout targets | `docs/lineages/literature_reeval_v1.md` |
+| Workflow move values, exact-search control | `docs/lineages/radical_physics_v1.md` |
+| Execution order (all learners lose to the hand rule) | `docs/lineages/mixed_dispatch_v1.md` |
+| Burst seat, peer greedy, rollout imitation | `docs/lineages/peer_affinity_v1.md` |
+
+Older entry points (closed before 2026-10-13) now live under `docs/lineages/archive/`; find them in the LINEAGES.md `## Archive` section.
 
 Pair on the environment before aggregation; training draws and repeated environments are not independent replicates.
 

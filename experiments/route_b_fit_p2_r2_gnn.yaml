@@ -1,6 +1,6 @@
 # route_b fit-ceiling Phase 2 (2026-09-06), learning-curve rung 2: GNN MP-ON. Identical
 # to Phase 1's route_b_fit_a1_e300_lr2e3.yaml except the cache/split (rung-specific; the
-# held-out block is shared by every rung) — see the Phase 2 entry in docs/lineages/route_b_v1.md.
+# held-out block is shared by every rung) — see the Phase 2 entry in docs/lineages/archive/route_b_v1.md.
 trainer: gnn
 lineage: route_b_v1
 cache_dir: simulation_data/graphs_cache_route_b_fit_p2_r2

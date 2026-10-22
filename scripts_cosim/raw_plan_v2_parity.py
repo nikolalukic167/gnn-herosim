@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""raw_plan_v2 train/serve parity (docs/lineages/raw_plan_v2.md, Step 3).
+"""raw_plan_v2 train/serve parity (docs/lineages/archive/raw_plan_v2.md, Step 3).
 
   raw_plan_v2_parity.py cache  --ckpt <pt> --config <experiments yaml> --cache <graphs_cache dir> [--n-graphs 20]
   raw_plan_v2_parity.py replay --ckpt <pt> --config <experiments yaml> --dump <dir written under GNN_PLAN_RAW_DUMP>

@@ -1,6 +1,6 @@
 #!/bin/bash
 # hetero_conv_v1 -- lf1het: lf1gnn's recipe with per-relation / per-node-type weights in the bipartite edge convs,
-# seeds 1-8 (tasks 0-7), on the small-batch cache and split (docs/lineages/hetero_conv_v1.md).
+# seeds 1-8 (tasks 0-7), on the small-batch cache and split (docs/lineages/archive/hetero_conv_v1.md).
 #   sbatch --export=ALL,WT=<worktree at the hetero commit> scripts_cosim/datalab/hetero_conv_v1_train.sbatch
 #SBATCH --job-name=het-train
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/het-train-%A_%a.out

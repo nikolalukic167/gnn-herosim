@@ -1,4 +1,4 @@
-"""Execution-time physics. See docs/lineages/hidden_exec_s0_v1.md.
+"""Execution-time physics. See docs/lineages/archive/hidden_exec_s0_v1.md.
 
 `table_v0` (default): a task runs exactly `executionTime[platform]` from the task-type table,
 bit-identical to every run before this module existed.

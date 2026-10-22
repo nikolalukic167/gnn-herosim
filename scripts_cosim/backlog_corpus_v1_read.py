@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""backlog_corpus_v1 -- the live read, L1/L2/L3 and C1 as registered (docs/lineages/backlog_corpus_v1.md,
+"""backlog_corpus_v1 -- the live read, L1/L2/L3 and C1 as registered (docs/lineages/archive/backlog_corpus_v1.md,
 Amendment 1).
 
   backlog_corpus_v1_read.py --dirs <bc1 gate> <ref_fresh_1ae90af> <load_repr_v1 fix> --selection selected.json
@@ -68,7 +68,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         res["S1_label"] = ("CLOSES-GAP" if res["S1"].get("read") and (res["S1"]["read"]["median_pct"] <= 0.0
                            or res["S1"]["read"]["p"] >= 0.05) else res["S1"].get("verdict") or "CD-FASTER")
     if any(k[2] == "fc1load_selfref" for k in s):
-        # fullctx_refine_v1 (docs/lineages/fullctx_refine_v1.md)
+        # fullctx_refine_v1 (docs/lineages/archive/fullctx_refine_v1.md)
         res["F1"] = C.contrast(s, topos, "fc1load_selfref", "cd")
         res["F2"] = C.contrast(s, topos, "fc1load_selfref", "bc1load_selfref")
         res["reported_fc1load_vs_bc1load"] = C.contrast(s, topos, "fc1load", "bc1load")
@@ -89,7 +89,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                            "TRAINING-HURTS" if v2.startswith("BC1LOAD_SELFREF-FASTER") else
                            "NOT-SEPARATED" if r2 else v2)
     if any(k[2] == "xs1load_selfref" for k in s):
-        # exchange_seconds_v1 (docs/lineages/exchange_seconds_v1.md)
+        # exchange_seconds_v1 (docs/lineages/archive/exchange_seconds_v1.md)
         res["X1"] = C.contrast(s, topos, "xs1load_selfref", "cd")
         res["X2"] = C.contrast(s, topos, "xs1load_selfref", "fc1load_selfref")
         res["reported_xs1load_vs_fc1load"] = C.contrast(s, topos, "xs1load", "fc1load")
@@ -110,7 +110,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                            "SECONDS-HURT" if v2.startswith("FC1LOAD_SELFREF-FASTER") else
                            "NOT-SEPARATED" if r2 else v2)
     if any(k[2] == "xs1load_cdapply" for k in s):
-        # seeded_cd_xs1_v1 (docs/lineages/seeded_cd_xs1_v1.md)
+        # seeded_cd_xs1_v1 (docs/lineages/archive/seeded_cd_xs1_v1.md)
         res["G1"] = C.contrast(s, topos, "xs1load_cdapply", "cd")
         res["G2"] = C.contrast(s, topos, "xs1load_cdapply", "xs1load_selfref")
         res["reported_xs1load_cdapply_vs_bc1mpoff_cdapply"] = C.contrast(s, topos, "xs1load_cdapply", "bc1mpoff_cdapply")

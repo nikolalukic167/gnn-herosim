@@ -1,5 +1,5 @@
 #!/bin/bash
-# r1_attribution_v1 live gate, learned and seeded-CD arms, per arm (docs/lineages/r1_attribution_v1.md), at the pinned worktree.
+# r1_attribution_v1 live gate, learned and seeded-CD arms, per arm (docs/lineages/archive/r1_attribution_v1.md), at the pinned worktree.
 # Submits one array over the registered 1,368-cell layout restricted to the given arms. The kind list goes through the environment
 # (sbatch --export splits a value at its commas).
 #   R1A_KINDS=ra_gnn_eng           MODELS=<dir with r1-attribution-v1-<arm>-seed<N>.pt + .contract.json> SPLIT=<r1_attribution_v1_split.json> \

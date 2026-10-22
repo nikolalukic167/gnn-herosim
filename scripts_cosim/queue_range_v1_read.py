@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """queue_range_v1 -- Q0..Q4.
 
-Registered in docs/lineages/queue_range_v1.md on 2026-09-15. Every bar below is a module
+Registered in docs/lineages/archive/queue_range_v1.md on 2026-09-15. Every bar below is a module
 constant and was committed before the arms it reads had been submitted.
 
 The claim: the learned arms lose their early advantage over reactive Knative because the

@@ -1,5 +1,5 @@
 #!/bin/bash
-# fullctx_refine_v1 (docs/lineages/fullctx_refine_v1.md) -- fc1load, seeds 1-4 (tasks 0-3).
+# fullctx_refine_v1 (docs/lineages/archive/fullctx_refine_v1.md) -- fc1load, seeds 1-4 (tasks 0-3).
 # backlog_corpus_v1_train.sbatch verbatim but for the config, checkpoint name and the full-context sidecar check.
 # Runs in the worktree ~/gnn-herosim-wt/backlog_corpus; simulation_data inputs and models are symlinks.
 #   sbatch --array=0-3 fullctx_refine_v1_train.sbatch

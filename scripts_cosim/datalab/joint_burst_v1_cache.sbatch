@@ -1,6 +1,6 @@
 #!/bin/bash
 # joint_burst_v1 -- the cache: the peer_only_v1 psv3 recipe verbatim on the burst corpus.
-# docs/lineages/joint_burst_v1.md. One task, ~30 min.
+# docs/lineages/archive/joint_burst_v1.md. One task, ~30 min.
 #
 #SBATCH --job-name=jb1-cache
 #SBATCH --output=/home/nikola.lukic/gnn-herosim/logs/jb1-cache-%j.out

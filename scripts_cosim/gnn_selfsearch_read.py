@@ -1,4 +1,4 @@
-"""gnn_selfsearch diagnostic reader (docs/lineages/accel_nosplit_v1.md). Written before the data lands.
+"""gnn_selfsearch diagnostic reader (docs/lineages/archive/accel_nosplit_v1.md). Written before the data lands.
 
 Arm ra_gnn_eng_selfsearch (seed 1) on 16301-16312, g0, both rungs. Per rung: the median over topologies of the paired % of its mean latency against
 cd (rerun at the arm's pin), ra_gnn_eng_nosplit (same job), cd_exactS and ra_gnn_eng_cdxapply (reused from other pins, descriptive), the sign count

@@ -2,7 +2,7 @@
 """joint_burst_v1 step 0 (2026-09-20) -- how far is the GREEDY from the sweep optimum, offline?
 
 The burst-trained `gnnedge0` decodes at 24.7 s regret against a 97.4 s optimal group cost on
-the val split (`docs/lineages/joint_burst_v1.md`), and live the batched greedy is 16.8 % faster
+the val split (`docs/lineages/archive/joint_burst_v1.md`), and live the batched greedy is 16.8 % faster
 in the same seat. The snapshots do not record the rule's own plan, so the greedy's OFFLINE
 regret -- the number that says whether the gap is model fit or offline/live mismatch -- was
 never measured. This script replays hand policies through the real engine on each co-sim

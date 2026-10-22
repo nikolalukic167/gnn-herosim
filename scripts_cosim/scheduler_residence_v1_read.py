@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """scheduler_residence_v1 -- R0 (the decomposition) and R1 (what separates the good cell).
 
-Registered in docs/lineages/scheduler_residence_v1.md on 2026-09-15. Every bar below is a
+Registered in docs/lineages/archive/scheduler_residence_v1.md on 2026-09-15. Every bar below is a
 module constant and was committed before the arms it reads had been submitted.
 
 `averageWaitTime` is `scheduled_time - dispatched_time` -- the WHOLE scheduler-side residence,

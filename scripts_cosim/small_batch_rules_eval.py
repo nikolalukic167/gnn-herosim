@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regret of the CD greedy's own cost model on a cache's VAL graphs (docs/lineages/small_batch_v1.md).
+"""Offline regret of the CD greedy's own cost model on a cache's VAL graphs (docs/lineages/archive/small_batch_v1.md).
 
   small_batch_rules_eval.py --cache <graph cache> --split <split json> --out <json>
 

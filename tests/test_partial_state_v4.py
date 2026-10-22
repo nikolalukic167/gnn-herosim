@@ -1,4 +1,4 @@
-"""partial_state_v4: v3 plus the CD greedy's load terms in seconds (docs/lineages/load_repr_v1.md).
+"""partial_state_v4: v3 plus the CD greedy's load terms in seconds (docs/lineages/archive/load_repr_v1.md).
 
 Columns 0-21 are v3's byte for byte; 22-24 carry log1p(backlog), log1p(service committed by
 batch-mates to the SAME replica) and log1p(their sum). $PARTIAL_STATE_LOAD_SECONDS=0 zeroes the

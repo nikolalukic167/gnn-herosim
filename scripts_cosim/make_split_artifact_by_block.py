@@ -2,7 +2,7 @@
 
 `make_split_artifact.py` draws a random parent split of one cache. A learning curve
 needs the opposite: one held-out set that every rung shares while the train set grows.
-route_b fit-ceiling Phase 2 (docs/lineages/route_b_v1.md, 2026-09-06) generates the
+route_b fit-ceiling Phase 2 (docs/lineages/archive/route_b_v1.md, 2026-09-06) generates the
 held-out block into its own dataset dir (`gnn_datasets_dag4_route_b_pilot_v1_x_holdout`,
 seeds 5001-5021) and assigns test/val by the dataset's generation seed; every other
 parent in the rung's cache is train. The artifact is validated with the same loader the

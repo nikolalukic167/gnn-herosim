@@ -1,5 +1,5 @@
 # bipartite_edge_v1 -- D2 CONTROL: the same conv, with its edge attributes ZEROED.
-# docs/lineages/bipartite_edge_v1.md.
+# docs/lineages/archive/bipartite_edge_v1.md.
 #
 # BYTE-IDENTICAL to experiments/bipartite_edge_v1_1670_gnnedge.yaml except
 # NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO and the wandb name/tags.

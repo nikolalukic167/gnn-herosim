@@ -1,4 +1,4 @@
-"""The two graph-free arms of r1_attribution_v1 (docs/lineages/r1_attribution_v1.md, "Arms").
+"""The two graph-free arms of r1_attribution_v1 (docs/lineages/archive/r1_attribution_v1.md, "Arms").
 
 * ``mlp_same``  -- the same inputs as GNN-eng, scored per (task, candidate) edge, no graph and no node encoders:
   one MLP over the flat vector ``[task features (+ type one-hot) | platform features | edge_attr | partial-state

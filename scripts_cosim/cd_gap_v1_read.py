@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""cd_gap_v1 -- readers for the live probes (docs/lineages/cd_gap_v1.md).
+"""cd_gap_v1 -- readers for the live probes (docs/lineages/archive/cd_gap_v1.md).
 
   cd_gap_v1_read.py d1 --gate <fresh gate dir> --probe <d1 dir> --selection selected.json [--out read.json]
 

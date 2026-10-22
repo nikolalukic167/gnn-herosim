@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase 3 Increment 1 — the registered sampling-feasibility probe.
 
-Registered in `docs/lineages/objective_pivot_v1.md` (Phase 3 registration, 2026-09-01)
+Registered in `docs/lineages/archive/objective_pivot_v1.md` (Phase 3 registration, 2026-09-01)
 BEFORE this script existed. It measures the two quantities that decide whether a
 policy-gradient loop is affordable at all, and nothing else:
 

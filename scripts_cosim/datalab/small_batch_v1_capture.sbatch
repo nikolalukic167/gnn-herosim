@@ -1,7 +1,7 @@
 #!/bin/bash
 # small_batch_v1 -- capture the batches the live seat actually dispatches: whole peer groups of the grounded workload
 # (library fan-out sizes, mean about 4) on the 24 TRAINING topologies, windows g0-g3 at x1. Behaviour policy as
-# joint_burst_v1_capture.sbatch (the batched rule in the decoder's seat). docs/lineages/small_batch_v1.md.
+# joint_burst_v1_capture.sbatch (the batched rule in the decoder's seat). docs/lineages/archive/small_batch_v1.md.
 #
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/small_batch_v1_capture.sbatch
 #

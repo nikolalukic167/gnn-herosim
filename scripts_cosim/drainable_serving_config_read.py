@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """drainable_serving_config_v1 read -- C1..C5 over the batching configurations.
 
-Bars are in docs/lineages/drainable_serving_config_v1.md; the constants below ARE the
+Bars are in docs/lineages/archive/drainable_serving_config_v1.md; the constants below ARE the
 bars and must not move once a number has been read. Sign convention is the live one:
 "% vs X" = 100 * (X - arm) / X, positive means the arm is faster.
 """

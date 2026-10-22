@@ -1,5 +1,5 @@
 #!/bin/bash
-# load_repr_v1 -- train/serve parity of partial_state_v4 (docs/lineages/load_repr_v1.md): the live serving
+# load_repr_v1 -- train/serve parity of partial_state_v4 (docs/lineages/archive/load_repr_v1.md): the live serving
 # path on held-out co-sim datasets must equal the cache graph field by field, including backlog_s and
 # service_s, decode the offline report's plan and reproduce its sweep row (peer_affinity_live_serve_check.py).
 # Task 0 = v4load seed 1, task 1 = v4twin seed 1. Runs after load_repr_v1_eval.sbatch.

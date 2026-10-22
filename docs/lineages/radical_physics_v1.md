@@ -7,17 +7,17 @@
 **Outcome so far.** Eight new-mechanism sandbox screens and stronger-control
 confirmation found planning headroom. The setup/locks/power follow-up is now
 integrated into real HeROsim and has completed a nine-model training/live pilot:
-[mixed_physics_learning_v1](mixed_physics_learning_v1.md) records its negative
+[mixed_physics_learning_v1](archive/mixed_physics_learning_v1.md) records its negative
 GNN result. The two original pair-selector recipes failed their 2 ms gates.
 A budget-matched follow-up narrowly qualified perfect pair selection at 5 ms,
-but the resulting nine-model [pair-selector pilot](mixed_pair_learning_v1.md)
+but the resulting nine-model [pair-selector pilot](archive/mixed_pair_learning_v1.md)
 failed: zero median GNN gain over both learned controls and the hand rule,
 with full inference slightly over 5 ms. The earlier one-shot model and this
 pair-selector recipe remain closed. The active successor, [mixed_dispatch_v1](mixed_dispatch_v1.md), changes execution
 order and passes two headroom screens, including adaptive hand controls. This
 is an ordering/search opportunity, not a learned or GNN-specific result.
 
-**Parent:** [workflow_basin_v1](workflow_basin_v1.md).
+**Parent:** [workflow_basin_v1](archive/workflow_basin_v1.md).
 **Protocol:** [registration](../../experiments/radical_physics_v1.json).
 **Artifacts:** `simulation_data/gnn_environment_search_v1/radical_physics_v1/`.
 
@@ -177,7 +177,7 @@ an `AUDIT.json` receipt. Registration files are
 The combined-physics follow-up has progressed through specialized controls,
 real-engine integration, data generation, matched training and a held-out live
 gate. Its standing result and exact stop belong to
-[mixed_physics_learning_v1](mixed_physics_learning_v1.md). Earlier sandbox-only
+[mixed_physics_learning_v1](archive/mixed_physics_learning_v1.md). Earlier sandbox-only
 statements below describe the discovery stage, not the current child status.
 
 ## 2026-09-22 — Pair-selection exploration registration
@@ -372,7 +372,7 @@ were preserved.
   candidate sweeps, live task events, screen reads, `live_READ.json` and
   `AUDIT.json`. Screen pending flags describe the pre-live snapshots only.
 
-This qualification led to [mixed_pair_learning_v1](mixed_pair_learning_v1.md),
+This qualification led to [mixed_pair_learning_v1](archive/mixed_pair_learning_v1.md),
 which owns the completed training/live answer. The qualification is not a GNN
 result and does not supersede the later negative pilot. The 10 ms result did
 not justify training this unchanged recipe.
@@ -380,7 +380,7 @@ not justify training this unchanged recipe.
 ## 2026-09-22 — Small pair-selector learning pilot registration
 
 The pilot completed. Its registration, training and final live result now live
-in [mixed_pair_learning_v1](mixed_pair_learning_v1.md).
+in [mixed_pair_learning_v1](archive/mixed_pair_learning_v1.md).
 
 ## 2026-09-22 — Ready-operation priority exploration registration
 

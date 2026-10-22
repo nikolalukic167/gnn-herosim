@@ -1,5 +1,5 @@
 # load_repr_v1 -- the disabled twin of load_repr_v1_v4load.yaml: same partial_state_v4 width, the three
-# load-seconds columns zeroed (PARTIAL_STATE_LOAD_SECONDS=0), trained separately (docs/lineages/load_repr_v1.md).
+# load-seconds columns zeroed (PARTIAL_STATE_LOAD_SECONDS=0), trained separately (docs/lineages/archive/load_repr_v1.md).
 trainer: gnn
 lineage: load_repr_v1
 cache_dir: simulation_data/graphs_cache_joint_burst_v2_psv4_inf

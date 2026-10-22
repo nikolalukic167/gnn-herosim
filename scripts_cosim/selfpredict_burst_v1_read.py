@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """selfpredict_burst_v1 -- read the live gate: the self-predict rule vs gnnedge0 in the burst seat.
-See docs/lineages/selfpredict_burst_v1.md.
+See docs/lineages/archive/selfpredict_burst_v1.md.
 
 joint_burst_v2's uncapped gnnedge0 beat the 1-pass greedy in its own (burst) seat -11.9 % (13/13)
 and lost to the CD greedy +12.5 %; selfpredict_bar_v1 then made the self-predict rule the bar on the

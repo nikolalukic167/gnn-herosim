@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score mp_ablation_v1 against its registration.
 
-Registration: docs/lineages/mp_ablation_v1.md, written 2026-08-29 BEFORE any run. As with
+Registration: docs/lineages/archive/mp_ablation_v1.md, written 2026-08-29 BEFORE any run. As with
 score_objective_pivot_phase1.py, the thresholds and statistics here ARE the registration:
 this script takes no tuning arguments, and refuses to compute a verdict until the
 venue/code identity of every MP-OFF arm is asserted.

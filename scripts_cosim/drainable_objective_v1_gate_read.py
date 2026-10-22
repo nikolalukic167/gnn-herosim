@@ -3,7 +3,7 @@
 Rule 6: a lineage ends with a live gate, never with an offline read. Phase A's reads order
 the work; this one decides it.
 
-BARS (signed in docs/lineages/drainable_objective_v1.md before any arm ran):
+BARS (signed in docs/lineages/archive/drainable_objective_v1.md before any arm ran):
 
   C0 assembly control   every learned arm's OWN counters must show the batching its name
                         claims: mean batch size >= 4 and incomplete peer-group batches

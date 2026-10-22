@@ -69,7 +69,7 @@ DIM25CR_FEATURE_DIM = 25
 # decoder's partial assignment. The bundle stays a dim22 bundle — the extra columns
 # exist only inside the sequential decode loop / training row assembly, computed by
 # THE single-source function reduced_features.partial_state_columns behind the
-# PARTIAL_STATE_CONTRACT version (see docs/lineages/route_b_v1/stage2-preregistration.md §2).
+# PARTIAL_STATE_CONTRACT version (see docs/lineages/archive/route_b_v1/stage2-preregistration.md §2).
 DIM63CRK_FEATURE_DIM = 63
 # dim47crk: the same layout under partial_state_v3 -- dim25cr (25) + the v3 block (22).
 DIM47CRK_FEATURE_DIM = 47

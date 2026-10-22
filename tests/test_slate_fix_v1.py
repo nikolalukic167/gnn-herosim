@@ -1,4 +1,4 @@
-"""slate_fix_v1: serving slate from the sidecar, sidecheck rule, cache check, configs and the gate reader (docs/lineages/slate_fix_v1.md)."""
+"""slate_fix_v1: serving slate from the sidecar, sidecheck rule, cache check, configs and the gate reader (docs/lineages/archive/slate_fix_v1.md)."""
 import importlib
 import json
 import subprocess

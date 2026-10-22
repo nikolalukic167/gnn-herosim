@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """rollout_imitation_v1 -- read the LIVE GATE and fire its signed bars. See
-docs/lineages/rollout_imitation_v1.md.
+docs/lineages/archive/rollout_imitation_v1.md.
 
 Pairs the learned arm (peer_greedy_learned_network) against each other arm PER (rung, env) over
 the 16 unsaturated_edge_v1 environments per rung, on the primary metric total_rtt (and reports

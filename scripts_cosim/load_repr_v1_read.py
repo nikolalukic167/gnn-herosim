@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""load_repr_v1 -- the live read, L1/L2/L3 as registered (docs/lineages/load_repr_v1.md).
+"""load_repr_v1 -- the live read, L1/L2/L3 as registered (docs/lineages/archive/load_repr_v1.md).
 
   load_repr_v1_read.py --gate <fresh gate dir> --probe-dir <v4 dir> --selection selected.json [--out read.json]
 

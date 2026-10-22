@@ -1,6 +1,6 @@
-# small_batch_so_v1 -- so1mpoff: small_batch_v1_sb1mpoff.yaml with the single-origin cache and split (docs/lineages/small_batch_so_v1.md).
+# small_batch_so_v1 -- so1mpoff: small_batch_v1_sb1mpoff.yaml with the single-origin cache and split (docs/lineages/archive/small_batch_so_v1.md).
 # small_batch_v1 -- xs1load's MP-OFF twin (peak_controls_v1 xs1mpoff) recipe verbatim on the live-sized-batch corpus
-# (docs/lineages/small_batch_v1.md): same synthetic backlog, labels, partial_state_v4 block and full-context CE; only the
+# (docs/lineages/archive/small_batch_v1.md): same synthetic backlog, labels, partial_state_v4 block and full-context CE; only the
 # batches differ (whole peer groups of the grounded workload, 2..~12 tasks, instead of aligned 10-task groups).
 trainer: gnn
 lineage: small_batch_so_v1

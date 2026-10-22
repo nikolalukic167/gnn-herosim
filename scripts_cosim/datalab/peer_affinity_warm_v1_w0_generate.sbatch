@@ -1,6 +1,6 @@
 #!/bin/bash
 # peer_affinity_warm_v1 -- W0 screen: brute-force-label live-audit snapshots from the gate cell
-# (docs/lineages/peer_affinity_warm_v1.md). Diagnostic only: cell_s7901 is the gate topology,
+# (docs/lineages/archive/peer_affinity_warm_v1.md). Diagnostic only: cell_s7901 is the gate topology,
 # so nothing cut from it ever enters a training corpus.
 #
 # One array task = one shard file of snapshots (made locally by split_warm_snapshots.py):

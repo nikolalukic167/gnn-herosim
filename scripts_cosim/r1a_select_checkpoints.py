@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """r1_attribution_v1: choose each arm's configuration on VALIDATION topologies only and stage its checkpoints for the gate.
 
-Registered rule (docs/lineages/r1_attribution_v1.md, "Fair-comparison budget"): every arm has the same 6-configuration grid and 3 training seeds; the
+Registered rule (docs/lineages/archive/r1_attribution_v1.md, "Fair-comparison budget"): every arm has the same 6-configuration grid and 3 training seeds; the
 configuration per arm is chosen on validation topologies only, and the best learned arm is declared from validation before any test read.
 
 For each arm this reads models/r1-attribution-v1-<arm>-g<k>-seed<s>.val.json (written by train_near_rtt.py: the validation score of the saved checkpoint,

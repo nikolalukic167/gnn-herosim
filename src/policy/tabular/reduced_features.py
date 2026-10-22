@@ -217,7 +217,7 @@ def candidate_relative_queue_columns(queue_vals) -> np.ndarray:
     return out.astype(np.float32)
 
 
-# --- dim63crk: route_b stage 2 T1 layout (docs/lineages/route_b_v1/stage2-preregistration.md §2) ---
+# --- dim63crk: route_b stage 2 T1 layout (docs/lineages/archive/route_b_v1/stage2-preregistration.md §2) ---
 #
 # dim63crk = dim25cr (25) + 38 partial-state columns computed per (task, candidate)
 # edge GIVEN the partial assignment of the shared masked decoder (§4, masked_topo):
@@ -259,7 +259,7 @@ LINKRANK_FEATURE_DIM = 4
 PARTIAL_STATE_FEATURE_DIM = (
     PARTIAL_STATE_BASE_DIM + KRANK_FEATURE_DIM + LINKRANK_FEATURE_DIM
 )
-# partial_state_v3 (2026-09-16, docs/lineages/partial_state_v3.md): the rank one-hot pinned
+# partial_state_v3 (2026-09-16, docs/lineages/archive/partial_state_v3.md): the rank one-hot pinned
 # the served representation to KRANK_WIDTH candidate-hosting nodes (cluster_scale_v1: every
 # gnn arm above 6 servers raised in krank_node_order). v3 keeps the base and linkrank
 # columns byte-for-byte and writes, in the task's OWN type slot k, two size-free scalars:
@@ -317,7 +317,7 @@ PARTIAL_STATE_CONTRACT_V2 = "partial_state_v2"
 # partial_state_v3 (2026-09-16): v2's columns 0-9 and the 4 linkrank columns unchanged, the
 # 24-column rank one-hot replaced by KRANK_V3_FEATURE_DIM size-free scalars. Width 22.
 PARTIAL_STATE_CONTRACT_V3 = "partial_state_v3"
-# partial_state_v4 (2026-09-25, docs/lineages/load_repr_v1.md): v3's 22 columns unchanged, plus
+# partial_state_v4 (2026-09-25, docs/lineages/archive/load_repr_v1.md): v3's 22 columns unchanged, plus
 # LOAD_SECONDS_DIM columns at the end carrying what the CD greedy prices and v3 cannot express:
 #   22  log1p(backlog seconds of the candidate replica at batch start)
 #   23  log1p(service seconds batch-mates already committed to the SAME replica: execution + I/O +
@@ -326,7 +326,7 @@ PARTIAL_STATE_CONTRACT_V3 = "partial_state_v3"
 # $PARTIAL_STATE_LOAD_SECONDS=0 zeroes all three (the disabled twin); recorded in the sidecar.
 PARTIAL_STATE_CONTRACT_V4 = "partial_state_v4"
 LOAD_SECONDS_DIM = 3
-# partial_state_v5 (2026-10-09, docs/lineages/r1_attribution_v1.md): v4's 25 columns, with the exchange priced in the
+# partial_state_v5 (2026-10-09, docs/lineages/archive/r1_attribution_v1.md): v4's 25 columns, with the exchange priced in the
 # direction the simulator charges it, plus the other direction. On W3 topologies (directional access links) a transfer
 # peer->candidate and candidate->peer run at different bandwidths (cellular: 4 MB/s out, 75 in). A task is charged the
 # PULL from each peer at its own input stage (Platform._peer_exchange_time: fabric.hops(peer_node, self_node)); the

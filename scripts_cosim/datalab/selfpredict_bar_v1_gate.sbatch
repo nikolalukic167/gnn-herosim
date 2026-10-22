@@ -1,5 +1,5 @@
 #!/bin/bash
-# selfpredict_bar_v1 -- the LIVE GATE that sizes the new hand-rule bar. docs/lineages/selfpredict_bar_v1.md.
+# selfpredict_bar_v1 -- the LIVE GATE that sizes the new hand-rule bar. docs/lineages/archive/selfpredict_bar_v1.md.
 #
 # lookahead_mp_v1 closed with peer_greedy_selfpredict_network beating peer_greedy_network -6.2/-8.5 %,
 # but no reactive, random or CD greedy arm was in that gate. This gate runs the self-predict rule

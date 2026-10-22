@@ -1,5 +1,5 @@
 """backlog_corpus_v1: synthetic backlog injection, the seeded label clock, and the in-flight
-capture fix (docs/lineages/backlog_corpus_v1.md).
+capture fix (docs/lineages/archive/backlog_corpus_v1.md).
 
     PIPENV_IGNORE_VIRTUALENVS=1 VIRTUAL_ENV= PYTHONPATH=. pipenv run python3 \
         -m pytest tests/test_backlog_corpus.py -q

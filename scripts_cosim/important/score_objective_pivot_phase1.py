@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score objective_pivot_v1 Phase 1 against its signed registration.
 
-Registration: docs/lineages/objective_pivot_v1/phase1-registration-draft.md, SIGNED OFF
+Registration: docs/lineages/archive/objective_pivot_v1/phase1-registration-draft.md, SIGNED OFF
 2026-08-28. Like score_gnn_draw_study.py (whose collapse rule and Fisher arithmetic this
 imports), the thresholds and statistics here ARE the registration — this script takes no
 tuning arguments, and it refuses to compute a verdict until the venue/code identity of

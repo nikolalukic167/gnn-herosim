@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""replica_guard_v1 -- read the guard gate (docs/lineages/replica_guard_v1.md).
+"""replica_guard_v1 -- read the guard gate (docs/lineages/archive/replica_guard_v1.md).
 
   replica_guard_v1_read.py --dir <guard gate dir> --selection selected.json [--out read.json]
 

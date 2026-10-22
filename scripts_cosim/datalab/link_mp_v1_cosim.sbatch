@@ -1,7 +1,7 @@
 #!/bin/bash
 # link_mp_v1 — generate the binding-backbone training corpus, AT THE PINNED COMMIT.
 #
-# Registration: docs/lineages/link_mp_v1.md. Three fabric variants (one per live-gate
+# Registration: docs/lineages/archive/link_mp_v1.md. Three fabric variants (one per live-gate
 # backbone family), 600 target datasets each = 1,800 total:
 #   grid link_mp_v1_core4_bw0p5 -> gnn_datasets_4tasks_link_mp_v1_core4_bw0p5
 #   grid link_mp_v1_core4_bw1p5 -> gnn_datasets_4tasks_link_mp_v1_core4_bw1p5

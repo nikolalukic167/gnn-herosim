@@ -1,5 +1,5 @@
 #!/bin/bash
-# peer_greedy_live_v1 -- the hand rule on the live gate. docs/lineages/peer_greedy_live_v1.md.
+# peer_greedy_live_v1 -- the hand rule on the live gate. docs/lineages/archive/peer_greedy_live_v1.md.
 #
 # The 16 (topology, window) environments PER CLIENT RUNG that unsaturated_edge_v1 selected, at
 # 6 servers; nothing retrained, no policy constant moved. Reactive / ECT / random / gnnedge0 are

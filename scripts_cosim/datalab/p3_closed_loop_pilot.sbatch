@@ -9,7 +9,7 @@
 # THE BUDGET IS NOT REGISTERED YET
 #   The Increment-1 sizing rule `n >= (2*sd*2.8/MDE)^2` returned n >= 1 on the measured
 #   sd (0.0029-0.0053), which is arithmetically correct and operationally useless. That
-#   defect is named in docs/lineages/objective_pivot_v1.md and needs a signed amendment.
+#   defect is named in docs/lineages/archive/objective_pivot_v1.md and needs a signed amendment.
 #   STEPS/EPISODES below are therefore a *shakedown* size — enough to see the loop move
 #   and to measure per-step cost — not the pilot n. Do not report a result off this
 #   script until the amendment fixes the budget.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""cd_gap_v1 B -- build the lighter-rate input set for the burst load ladder (docs/lineages/cd_gap_v1.md).
+"""cd_gap_v1 B -- build the lighter-rate input set for the burst load ladder (docs/lineages/archive/cd_gap_v1.md).
 
 Every event timestamp of each burst window workload is multiplied by --factor (groups stay dispatched
 together: members share a timestamp, and a product of equal numbers is equal). Every policy time

@@ -1,5 +1,5 @@
 #!/bin/bash
-# small_batch_v1 -- the backlog_corpus_v1 recipe on live-sized batches (docs/lineages/small_batch_v1.md).
+# small_batch_v1 -- the backlog_corpus_v1 recipe on live-sized batches (docs/lineages/archive/small_batch_v1.md).
 # Same synthetic backlog (rungs 0 3 8 20, busy 0.5, 4.5 task-s, seed 7001), same cap-free candidate draw and
 # the same filters as backlog_corpus_v1_corpus.sbatch; the ONLY change is the batch: whole peer groups of the grounded
 # workload (2..~12 tasks) instead of aligned 10-task groups (make_warm_corpus.py --variable-group-min 2).

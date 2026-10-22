@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x11_confirm_v1 -- the confirmation read of capacity_sweep_v1's x1.1 result (docs/lineages/x11_confirm_v1.md).
+"""x11_confirm_v1 -- the confirmation read of capacity_sweep_v1's x1.1 result (docs/lineages/archive/x11_confirm_v1.md).
 
   x11_confirm_v1_read.py --capacity <capacity dir> --confirm <x11confirm dir> --selection selected.json [--out read.json]
 

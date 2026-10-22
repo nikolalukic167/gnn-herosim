@@ -1,5 +1,5 @@
 #!/bin/bash
-# hidden_exec_s0_v1 -- live headroom screen. docs/lineages/hidden_exec_s0_v1.md.
+# hidden_exec_s0_v1 -- live headroom screen. docs/lineages/archive/hidden_exec_s0_v1.md.
 # 64 runs: {table, oracle} x 16 + 16 unsaturated_edge_v1 environments, all under hidden_node_v1.
 # usage: hidden_exec_s0_v1_gate.sh <config_dir> <workload_dir> <out_dir> [parallel=16]
 set -euo pipefail

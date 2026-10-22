@@ -1,5 +1,5 @@
 #!/bin/bash
-# rollout_imitation_v1 -- the LIVE GATE. docs/lineages/rollout_imitation_v1.md.
+# rollout_imitation_v1 -- the LIVE GATE. docs/lineages/archive/rollout_imitation_v1.md.
 #
 # The offline train-screen ordered this gate (CLAUDE.md rule 6). We now serve the LEARNED scorer
 # (peer_greedy_learned_network: the rule's own candidate set + score terms, but the candidate

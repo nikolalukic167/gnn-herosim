@@ -1,5 +1,5 @@
 # cd_gap_v1 A -- the jb2 gnnedge0 recipe with the TRAIN label replaced by the CD greedy's plan on each
-# snapshot (docs/lineages/cd_gap_v1.md). Everything else verbatim from joint_burst_v2_gnnedge0.yaml;
+# snapshot (docs/lineages/archive/cd_gap_v1.md). Everything else verbatim from joint_burst_v2_gnnedge0.yaml;
 # val/test regret and the checkpoint selector stay on the true sweep.
 trainer: gnn
 lineage: cd_gap_v1

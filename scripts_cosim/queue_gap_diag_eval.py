@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Queue-gap diagnostic, one checkpoint (docs/lineages/raw_plan_v2.md, diagnosis before the next build).
+"""Queue-gap diagnostic, one checkpoint (docs/lineages/archive/raw_plan_v2.md, diagnosis before the next build).
 
   queue_gap_diag_eval.py --ckpt models/<name>.pt --refine 0|3 --out <json>
 

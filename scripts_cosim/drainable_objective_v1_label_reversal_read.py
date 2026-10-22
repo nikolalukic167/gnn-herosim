@@ -7,7 +7,7 @@ live gate by -226 %. If the shaped label is the right objective, then under it t
 must flip: the plan the reactive rule makes -- the one that wins live -- should score at
 least as well as the checkpoint's.
 
-BARS (signed in docs/lineages/drainable_objective_v1.md before this ran):
+BARS (signed in docs/lineages/archive/drainable_objective_v1.md before this ran):
 
     A2      at V = 1, shortest_queue regret <= gnn regret on >= 60 % of the states that
             have real choice                     =>  LABEL-AGREES-WITH-STREAM

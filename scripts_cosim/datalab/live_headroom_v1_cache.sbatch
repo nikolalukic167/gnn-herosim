@@ -1,5 +1,5 @@
 #!/bin/bash
-# live_headroom_v1 -- the graph cache on the CD-induced live-snapshot corpus (docs/lineages/live_headroom_v1.md): backlog_corpus_v1's
+# live_headroom_v1 -- the graph cache on the CD-induced live-snapshot corpus (docs/lineages/archive/live_headroom_v1.md): backlog_corpus_v1's
 # cache recipe (partial_state_v4, alpha inf, rtt_drift:1 at 0.46/s on the measured drain table), one corpus, single-node groups
 # quarantined, and a diagnostic-only split (val = every parent but two placeholders; nothing is trained on this cache).
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/live_headroom scripts_cosim/datalab/live_headroom_v1_cache.sbatch

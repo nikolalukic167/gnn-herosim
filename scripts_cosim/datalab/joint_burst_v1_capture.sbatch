@@ -1,6 +1,6 @@
 #!/bin/bash
 # joint_burst_v1 -- capture whole-group snapshots on the TRAINING topologies under bursts.
-# docs/lineages/joint_burst_v1.md.
+# docs/lineages/archive/joint_burst_v1.md.
 #
 # Behaviour policy: the batched rule (`peer_greedy_network_batch`), i.e. the learned arms' own
 # serving stack with a rule in the decoder's seat, so every snapshot is a state the served model

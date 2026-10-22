@@ -1,6 +1,6 @@
 """partial_state_v3 -- the registered read. Every bar below is a module constant.
 
-Registered in docs/lineages/partial_state_v3.md before any cache was built. The reads are
+Registered in docs/lineages/archive/partial_state_v3.md before any cache was built. The reads are
 pure functions over small summaries so they can be tested without a cluster:
 
   P0  instrument   v3 cache == v2 cache on the untouched columns; rank recoverable

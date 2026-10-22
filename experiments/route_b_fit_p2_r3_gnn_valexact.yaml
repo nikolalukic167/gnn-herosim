@@ -2,7 +2,7 @@
 # except NEAR_RTT_VAL_EXACT_REGRET=1 -- the checkpoint-selection metric now falls back to
 # the full enumerated sweep instead of a constant per-dataset floor when a decoded combo is
 # absent from the capped near-RTT sidecar (~66% of decodes were unmapped on this corpus; see
-# docs/gates/gate-tools.md 2026-09-07 and the training-chain audit in docs/lineages/route_b_v1.md).
+# docs/gates/gate-tools.md 2026-09-07 and the training-chain audit in docs/lineages/archive/route_b_v1.md).
 # Distinct run_name so checkpoints never collide with the original route_b_fit_p2_r3_gnn.yaml
 # run's models/route-b-fit-p2-r3-gnn-seed*.pt files.
 trainer: gnn

@@ -1,7 +1,7 @@
 #!/bin/bash
 # queue_range_v1 -- the live gate. 288 arms, 3 serving arms x 2 policies x 16 seeds x 3 cells.
 #
-# Registered in docs/lineages/queue_range_v1.md. The claim: the learned arms lose their early
+# Registered in docs/lineages/archive/queue_range_v1.md. The claim: the learned arms lose their early
 # advantage over reactive Knative because the queue column they rank candidates with leaves
 # the contract it was trained under, and leaves it as the trace gets busier. On the arms' own
 # corpus the divisor is 1.0 in all 516 datasets, so dim7 IS raw queue depth, candidate p50 12

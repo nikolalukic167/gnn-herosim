@@ -1,5 +1,5 @@
 #!/bin/bash
-# peer_affinity_warm_v1 -- W1 warm-up capture (docs/lineages/peer_affinity_warm_v1.md, W1 + Amendment 1).
+# peer_affinity_warm_v1 -- W1 warm-up capture (docs/lineages/archive/peer_affinity_warm_v1.md, W1 + Amendment 1).
 # 28 cells (s9001-s9024 train, s9101-s9104 held-out) x 2 behaviour sources on the warm-up trace
 # workload-150-100-peer_p2_x200.json (301k events, peer seed 7301). Each run captures peer-group-aligned
 # LIVE_AUDIT snapshots at stride 2,000 (<= 150). The raw result (~300 MB) is summarised and deleted.

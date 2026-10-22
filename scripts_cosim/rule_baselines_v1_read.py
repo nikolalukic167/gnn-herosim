@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""rule_baselines_v1 reader (docs/lineages/rule_baselines_v1.md).
+"""rule_baselines_v1 reader (docs/lineages/archive/rule_baselines_v1.md).
 
   rule_baselines_v1_read.py --gate <rb1 gate dir> --lf1 <local_features_v1 gate dir> --selection selected.json [--out]
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # live_headroom_v1 -- capture the live states CD itself produces at the grounded x2 / x3 / x5 rungs on the 12 development
-# topologies (docs/lineages/live_headroom_v1.md). Behaviour policy: the CD greedy (peer_greedy_network_cd), so each snapshot is
+# topologies (docs/lineages/archive/live_headroom_v1.md). Behaviour policy: the CD greedy (peer_greedy_network_cd), so each snapshot is
 # a batch plus the standing queue CD left behind. One array task per topology; rungs in sequence, windows g0-g3 in parallel.
 # A unit that hangs (the starved-client spin) is killed at 20 minutes and dropped.
 #   sbatch --export=ALL,WT=/home/nikola.lukic/gnn-herosim-wt/small_batch scripts_cosim/datalab/live_headroom_v1_capture.sbatch

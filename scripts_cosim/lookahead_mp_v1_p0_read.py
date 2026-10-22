@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""lookahead_mp_v1 P0 -- read the live headroom gate. See docs/lineages/lookahead_mp_v1.md.
+"""lookahead_mp_v1 P0 -- read the live headroom gate. See docs/lineages/archive/lookahead_mp_v1.md.
 
 Pairs the arms PER (rung, env) over the 16 unsaturated_edge_v1 environments per rung, primary
 metric total_rtt; reports the RTT decomposition alongside (queue / exchange / rendezvous per task).

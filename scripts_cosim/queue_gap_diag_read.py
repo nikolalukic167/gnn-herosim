@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reader for the queue-gap diagnostic (docs/lineages/raw_plan_v2.md).
+"""Reader for the queue-gap diagnostic (docs/lineages/archive/raw_plan_v2.md).
 
   queue_gap_diag_read.py <dir of <arm>_s<seed>_r<refine>.json> [--out read.json]
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# small_batch_confirm_v1 gate (docs/lineages/small_batch_confirm_v1.md) on the 19 unseen topologies that raw_plan_v2's
+# small_batch_confirm_v1 gate (docs/lineages/archive/small_batch_confirm_v1.md) on the 19 unseen topologies that raw_plan_v2's
 # Phase C screen admitted (raw_plan_v2_mint_screen.sbatch; same admission rule). Its own inputs tree, $C/inputs:
 #   cfg from the raw_plan_v2 Phase C mint (96 cells, 19 used); the grounded g0-g3 windows linked from the development
 #   tree (sha-checked); grounded_x20/x30/x50 built with cd_gap_v1_build_b.py for the 19 cells, as peak_load_v2 did.
@@ -32,7 +32,7 @@ export HEROSIM_PY=python3 PYTHONPATH="$WT"
 python3 -c "import sys,torch;print('[INTERP]',sys.executable,torch.__version__)"
 echo "HEAD $(git rev-parse HEAD)  node $(hostname)  P=$P  BUILD=${BUILD:-0} part=${SBCONF_KINDS:-}"
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
-SEL="$WT/docs/lineages/small_batch_confirm_v1/selected.json"
+SEL="$WT/docs/lineages/archive/small_batch_confirm_v1/selected.json"
 python3 - "$SEL" "$RC/selected.json" <<'PY'
 import json, sys
 r, rc = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))

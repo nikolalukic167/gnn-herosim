@@ -1,5 +1,5 @@
 #!/bin/bash
-# unsaturated_edge_v1 -- mint the study's environments. docs/lineages/unsaturated_edge_v1.md.
+# unsaturated_edge_v1 -- mint the study's environments. docs/lineages/archive/unsaturated_edge_v1.md.
 #
 # unsaturated_scale_v2 showed that a 4-environment read on this apparatus inflates every effect
 # 4-10x, because all four environments were the same, burstiest arrival window. The standing

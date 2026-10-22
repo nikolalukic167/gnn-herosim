@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """rollout_imitation_v1 -- the forced-placement rollout label engine and Phase A (rank stability).
-See docs/lineages/rollout_imitation_v1.md.
+See docs/lineages/archive/rollout_imitation_v1.md.
 
 For one training topology (cell config) + an unburst workload, run the immediate peer_greedy rule
 once to capture each decision's candidate set, then LABEL each decision by one step of policy

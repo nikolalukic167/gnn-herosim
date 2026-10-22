@@ -1,6 +1,6 @@
 """peer_only_v1 -- the registered read. Every bar below is a module constant.
 
-Registered in docs/lineages/peer_only_v1.md before any arm was trained. Pure functions over
+Registered in docs/lineages/archive/peer_only_v1.md before any arm was trained. Pure functions over
 small summaries; the gate glue maps summary files onto them.
 
   A0  instrument   gnn/mpoff re-served reproduce partial_state_v3 P3 to 3 decimals

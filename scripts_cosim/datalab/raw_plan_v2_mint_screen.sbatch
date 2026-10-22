@@ -1,5 +1,5 @@
 #!/bin/bash
-# raw_plan_v2 Phase C (docs/lineages/raw_plan_v2.md): mint the unseen confirmation topologies LO-HI (9473-9520; Amendment
+# raw_plan_v2 Phase C (docs/lineages/archive/raw_plan_v2.md): mint the unseen confirmation topologies LO-HI (9473-9520; Amendment
 # A1 extension 9521-9568), screen them
 # under fresh_topo_burst_v1's admission rule, and select the 12 lowest admitted ids.
 # - Mint: cluster_scale_v1_cells.py, base cs6s9001.json, 40 clients, seed = id, as joint_burst_v1_mint.sbatch did.

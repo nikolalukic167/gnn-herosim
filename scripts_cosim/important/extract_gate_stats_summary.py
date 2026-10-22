@@ -46,7 +46,7 @@ ARMS += DRAW_STUDY_ARMS
 
 # gnn_draw_study_v1: 8 seeded draws of the deployed GNN config, same 30 cells.
 # objective_pivot_v1 Phase 1 extends the family to seeds 9-16 (trained at the pinned
-# commit c08aa7e; see docs/lineages/objective_pivot_v1/phase1-registration-draft.md).
+# commit c08aa7e; see docs/lineages/archive/objective_pivot_v1/phase1-registration-draft.md).
 GNN_DRAW_ARMS = [f"gnndraws{seed}" for seed in range(1, 17)]
 ARMS += GNN_DRAW_ARMS
 

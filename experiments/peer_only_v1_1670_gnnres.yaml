@@ -1,5 +1,5 @@
 # peer_only_v1 -- C4 (AMENDMENT 9): the gnn arm with RESIDUAL bipartite message passing.
-# docs/lineages/peer_only_v1.md.
+# docs/lineages/archive/peer_only_v1.md.
 #
 # BYTE-IDENTICAL to experiments/peer_only_v1_1670_gnn.yaml except for NEAR_RTT_MP_RESIDUAL
 # and the wandb name/tags. Same cache, same split artifact, same objective, same schedule,
@@ -14,7 +14,7 @@
 # recorded in the sidecar, and a mismatch at serving fails loud.
 #
 # This arm is NOT expected to win. It is the one architecture change C3 licenses, and the
-# registered expectation (docs/lineages/peer_only_v1.md, AMENDMENT 9) is UNCERTAIN offline and
+# registered expectation (docs/lineages/archive/peer_only_v1.md, AMENDMENT 9) is UNCERTAIN offline and
 # NEGATIVE live, because this lineage has watched an offline gain invert live more than once.
 trainer: gnn
 lineage: peer_only_v1

@@ -1,5 +1,5 @@
 #!/bin/bash
-# joint_burst_v1 -- the burst pool's screen. docs/lineages/joint_burst_v1.md.
+# joint_burst_v1 -- the burst pool's screen. docs/lineages/archive/joint_burst_v1.md.
 #
 # Two serving paths must finish on a study cell: reactive `knative_network` (admissibility,
 # queue share <= 0.80) and the batch path (`peer_greedy_network_batch`, the learned arms'

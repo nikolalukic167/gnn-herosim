@@ -56,7 +56,7 @@ KNOWN_DECODE_MODES = frozenset(
         # needs this one. Off by default and never used by a gate.
         "sample",
         "sampled",
-        # The §4 shared masked decoder of docs/lineages/route_b_v1/stage2-preregistration.md
+        # The §4 shared masked decoder of docs/lineages/archive/route_b_v1/stage2-preregistration.md
         # (corrected 2026-08-26): DAG topological order, capacity + reuse mask,
         # placement-id tie rule, no relax path. Needs the masked-decoder inputs
         # (dag_parents / node_caps / demands) — run_decode_with_timing fails loud
@@ -810,7 +810,7 @@ def decode_masked_topo_placement(
     queue_of: Optional[Mapping[Tuple[int, int], float]] = None,
     queue_guard_k: float = 0.0,
 ) -> Optional[PlacementCombo]:
-    """The §4 shared masked decoder (docs/lineages/route_b_v1/stage2-preregistration.md, corrected
+    """The §4 shared masked decoder (docs/lineages/archive/route_b_v1/stage2-preregistration.md, corrected
     2026-08-26) — decode mode "masked_topo".
 
     Tasks commit in DAG topological order (Kahn, lowest task_id first), so every

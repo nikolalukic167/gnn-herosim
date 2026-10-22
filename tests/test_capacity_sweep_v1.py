@@ -1,4 +1,4 @@
-"""capacity_sweep_v1 (docs/lineages/capacity_sweep_v1.md): the keep_alive flag, the drift statistic, the knee."""
+"""capacity_sweep_v1 (docs/lineages/archive/capacity_sweep_v1.md): the keep_alive flag, the drift statistic, the knee."""
 import importlib
 import os
 import sys

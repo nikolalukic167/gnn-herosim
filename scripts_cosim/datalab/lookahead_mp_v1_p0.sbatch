@@ -1,6 +1,6 @@
 #!/bin/bash
 # lookahead_mp_v1 P0 -- is there live headroom in pricing partners that have NOT arrived?
-# docs/lineages/lookahead_mp_v1.md.
+# docs/lineages/archive/lookahead_mp_v1.md.
 #
 # The physics charges each task the exchange to EVERY partner (waiting for an unarrived one,
 # then paying against where it lands); the peer-greedy rule prices unarrived partners at 0.

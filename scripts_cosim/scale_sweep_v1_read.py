@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""scale_sweep_v1 reader (docs/lineages/scale_sweep_v1.md) -- exploratory, development topologies, descriptive only.
+"""scale_sweep_v1 reader (docs/lineages/archive/scale_sweep_v1.md) -- exploratory, development topologies, descriptive only.
 
   scale_sweep_v1_read.py --gate <scale gate dir> --base <dev gate dirs: groundedladder peakctl sb1dev> --selection <dev selected.json> [--out]
 
