@@ -3,11 +3,10 @@
 
   dagger_corpus.py states --arm A --cells DIR --token T --seed S --plan PLAN.json (keys <topo>__<window><rung>, as the gate writes them) --inputs INPUTS_GROUP --allow-topos 16201 ... --out STATES.json
       One state per captured trigger of the plan, from the arm's own cells DIR/cc40s<topo>__<window><rung>__<T>_s<S>.{snapshots.jsonl,summary.json}. The first capture of a trigger is the
-      state (later same-trigger captures are sub-batches). Groups over 256 tasks are counted, not labelled. A trigger of the plan that was never captured is listed (`missing`) and fails
-      loud unless --allow-missing. Fails loud on a topology outside --allow-topos. The states carry check_arm False (the decision is re-decided under the hand arm, not the capturing arm).
+      state (later same-trigger captures are sub-batches). Groups over 256 tasks are counted, not labelled. Uncaptured triggers are counted per cell (`missing`) with no top-up; below 80 % captured the run stops (A2). Fails loud on a topology outside --allow-topos. The states carry check_arm False (the decision is re-decided under the hand arm, not the capturing arm).
       Then:  uncut_arm1.py label STATES.json --per 50 ...   ->  uncut_arm1_build.py STATES.json LABELS... --out CORPUS/dagger_<A> (its parent ids are gnn_datasets_wf1_dagger_<A>/ds_N)  ->
              uncut_label_screen.py relabel/merge on the NEW datasets only (split from `split --new-only`)  ->  `view` + `split` -> the v6 recache over the combined view.
-  dagger_corpus.py plan  --inputs INPUTS_GROUP --topos 16201 16202 16203 16204 --total 2000 --seed N --out PLAN.json     (amendment A2; run before capture, only once A2 is merged)
+  dagger_corpus.py plan  --inputs INPUTS_GROUP --topos 16201 16202 16203 16204 --out PLAN.json     (amendment A2: 1,000 ids, seed 20261022, half per load; run before capture)
       The pre-drawn R1A_SNAPSHOT_PLAN: arm-independent, Arm 1 stratification (size buckets; 30 % at t < 360 s), groups over 256 excluded; a shortfall is reported, never topped up.
   dagger_corpus.py view  --old-view VIEW --new-corpus CORPUS --arm A --out COMBINED_VIEW     symlinks: every old base dir as it is, plus gnn_datasets_wf1_dagger_<A>
   dagger_corpus.py split --old-split OLD.json --new-corpus CORPUS --arm A --out SPLIT.json [--new-only]
@@ -38,6 +37,10 @@ def bucket_of(size: int):
 
 SHARES = {"le10": 4800, "11_50": 4600, "51_100": 2000, "101_256": 600}       # Arm 1's bucket draw (12,000); the proportions, not the counts, are used
 EARLY_SHARE = 0.30
+SEED = 20261022          # amendment A2
+TOTAL = 1000             # trigger ids per arm and seed (A2); both seeds capture each, so about 2,000 states per arm
+EARLY_FLOOR = 0.25       # A2: the corpus-wide share of drawn triggers at t < 360 s; below it the draw fails loud
+MIN_CAPTURED = 0.80      # A2: an arm x seed capturing fewer of its drawn triggers stops labelling
 WINDOWS, RUNGS = ("g0", "g1", "g2", "g3"), ("moderate", "heavy")
 
 
@@ -51,7 +54,7 @@ def _largest_remainder(total: int, weights: Dict[Any, float]) -> Dict[Any, int]:
     return out
 
 
-def draw_plan(wls: Dict[Any, Dict[str, Any]], total: int, seed: int) -> Dict[str, Any]:
+def draw_plan(wls: Dict[Any, Dict[str, Any]], total: int = TOTAL, seed: int = SEED) -> Dict[str, Any]:
     """The pre-drawn trigger plan (amendment A2): `total` trigger ids per arm over the cells (topology, window, rung) in `wls` (their workloads), as an R1A_SNAPSHOT_PLAN
     {"<topo>__<window><rung>": [trigger ids]}. Arm-independent (workloads only): both arms get the same seed and ids. Quotas follow Arm 1's stratification: size buckets in the Arm 1
     proportions, 30 % of each bucket's draw at group arrival t < 360 s, groups over 256 tasks excluded up front. Every cell draws its quota of each (bucket, stratum) with
@@ -62,7 +65,12 @@ def draw_plan(wls: Dict[Any, Dict[str, Any]], total: int, seed: int) -> Dict[str
     cell_q = _largest_remainder(total, {b: SHARES[b] for b in SHARES})
     plan: Dict[str, List[int]] = {}
     census, short = [], 0
-    per_cell = {b: _largest_remainder(q, {c: 1.0 for c in cells}) for b, q in cell_q.items()}
+    rungs = sorted({c[2] for c in cells})
+    per_cell: Dict[str, Dict[Any, int]] = {}
+    for b, q in cell_q.items():                         # half per load first, then equally over that load's cells
+        per_cell[b] = {}
+        for r, qr in _largest_remainder(q, {r: 1.0 for r in rungs}).items():
+            per_cell[b].update(_largest_remainder(qr, {c: 1.0 for c in cells if c[2] == r}))
     for c in cells:
         topo, window, rung = c
         gs = [(trig, size, t) for trig, size, t in groups_of(wls[c]) if bucket_of(size) is not None]
@@ -76,7 +84,11 @@ def draw_plan(wls: Dict[Any, Dict[str, Any]], total: int, seed: int) -> Dict[str
                 short += want - len(got)
                 census.append({"cell": f"{topo}__{window}{rung}", "bucket": b, "early": early, "want": want, "pool": len(pool), "drawn": len(got)})
         plan[f"{topo}__{window}{rung}"] = sorted(ids)
-    return {"plan": plan, "census": census, "total_drawn": sum(len(v) for v in plan.values()), "shortfall": short, "quotas": cell_q, "seed": seed}
+    drawn = sum(len(v) for v in plan.values())
+    early = sum(c["drawn"] for c in census if c["early"]) / drawn if drawn else 0.0
+    per_rung = {r: sum(len(v) for k, v in plan.items() if k.endswith(r)) for r in RUNGS}
+    return {"plan": plan, "census": census, "total_drawn": drawn, "shortfall": short, "quotas": cell_q, "seed": seed, "early_share": early, "early_floor_ok": early >= EARLY_FLOOR,
+            "per_rung": per_rung}
 
 
 def base_name(arm: str) -> str:
@@ -95,7 +107,7 @@ def first_captures(snapfile: str) -> Dict[int, Dict[str, Any]]:
 
 
 def make_states(arm: str, cells: Path, token: str, seed: int, plan: Dict[str, Sequence[int]], inputs: Path, allow_topos: Sequence[int], rungs: Sequence[str] = ("moderate", "heavy"),
-                allow_missing: bool = False) -> Dict[str, Any]:
+                min_captured: float = MIN_CAPTURED) -> Dict[str, Any]:
     states: List[Dict[str, Any]] = []
     missing: List[Dict[str, Any]] = []
     over = 0
@@ -130,12 +142,15 @@ def make_states(arm: str, cells: Path, token: str, seed: int, plan: Dict[str, Se
             states.append({"key": f"dagger_{arm}:{topo}:{window}:{rung}:{int(trig)}", "set": f"dagger_{arm}", "side": arm, "topology": int(topo), "window": window, "rung": rung,
                            "trigger": int(trig), "time": cap["time"], "n_batch": cap["n_batch"], "bucket": b, "early": cap["time"] < EARLY_T, "snapfile": snapfile,
                            "cell_summary": summary, "cell_config": str(cfg), "trace": str(trace), "check_arm": False})
-    if missing and not allow_missing:
-        raise SystemExit(f"FAIL LOUD: {len(missing)} planned triggers were never captured, first {missing[:3]}")
+    drawn = sum(len(v) for v in plan.values()) if plan else 0
+    share = (drawn - len(missing)) / drawn if drawn else 0.0
+    if share < min_captured:
+        raise SystemExit(f"FAIL LOUD (A2 stop rule): arm {arm} seed {seed} captured {share:.3f} of its {drawn} drawn triggers, below {min_captured}; stop labelling and report to SCIENTIST. "
+                         f"Missing {len(missing)}, first {missing[:3]}")
     counts: Dict[str, int] = {}
     for st in states:
         counts[st["bucket"]] = counts.get(st["bucket"], 0) + 1
-    return {"arm": arm, "token": token, "seed": seed, "states": states, "counts": counts, "groups_over_256": over, "missing": missing}
+    return {"arm": arm, "token": token, "seed": seed, "states": states, "counts": counts, "groups_over_256": over, "missing": missing, "captured_share": share, "drawn": drawn}
 
 
 def new_parents(new_corpus: Path, arm: str) -> List[str]:
@@ -168,6 +183,32 @@ def write_split(payload: Dict[str, Any], out: Path) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def k1_commit_of_arm1(label_script: str, expect: str) -> str:
+    """The K1-read commit the Arm 1 labels were made under, read from the launch script that made them (`--k1-read-commit <hash>`); asserted equal to `expect` (SCIENTIST: ca47cb62)."""
+    import re
+
+    found = set(re.findall(r"--k1-read-commit\s+([0-9a-f]{7,40})", open(label_script).read()))
+    if found != {expect}:
+        raise SystemExit(f"FAIL LOUD: {label_script} names K1-read commits {sorted(found)}, expected exactly {expect}")
+    return expect
+
+
+def label_report(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """Counts of a label file: by source and bucket, the replayed-vs-served mismatches (reported, A1), and every drop with its reason. Any drop is listed; a drop that is not an
+    expected one (SPLIT / UNPLACED, which take the served plan) makes `ok` False: nothing is dropped silently."""
+    by_source: Dict[str, int] = {}
+    mismatch = {"checked": 0, "mismatched": 0}
+    drops: List[Dict[str, Any]] = []
+    for r in rows:
+        by_source[r["source"]] = by_source.get(r["source"], 0) + 1
+        if r.get("chosen_match") is not None:
+            mismatch["checked"] += 1
+            mismatch["mismatched"] += int(not r["chosen_match"])
+        if r["source"] == "dropped":
+            drops.append({"state_id": r["state_id"], "reason": r.get("reason"), "error": str(r.get("error"))[:200]})
+    return {"n": len(rows), "by_source": by_source, "served_vs_redecision": mismatch, "dropped": drops, "ok": not drops}
+
+
 def make_view(old_view: Path, new_corpus: Path, arm: str, out: Path) -> List[str]:
     if out.exists():
         raise SystemExit(f"FAIL LOUD: {out} exists")
@@ -190,10 +231,12 @@ def main(argv=None) -> int:
     s = sub.add_parser("states")
     s.add_argument("--arm", required=True); s.add_argument("--cells", required=True); s.add_argument("--token", required=True); s.add_argument("--seed", type=int, required=True)
     s.add_argument("--plan", required=True); s.add_argument("--inputs", required=True); s.add_argument("--allow-topos", type=int, nargs="+", required=True)
-    s.add_argument("--allow-missing", action="store_true"); s.add_argument("--out", required=True)
+    s.add_argument("--out", required=True)
     d = sub.add_parser("plan")
     d.add_argument("--inputs", required=True, help="inputs_group dir (wf1_<rung>/wl/grounded_<window>_n50000.json)"); d.add_argument("--topos", type=int, nargs="+", required=True)
-    d.add_argument("--total", type=int, default=2000); d.add_argument("--seed", type=int, required=True); d.add_argument("--out", required=True)
+    d.add_argument("--total", type=int, default=TOTAL); d.add_argument("--seed", type=int, default=SEED); d.add_argument("--out", required=True)
+    k = sub.add_parser("k1"); k.add_argument("--arm1-label-script", required=True); k.add_argument("--expect", required=True)
+    r_ = sub.add_parser("report"); r_.add_argument("labels", nargs="+")
     v = sub.add_parser("view")
     v.add_argument("--old-view", required=True); v.add_argument("--new-corpus", required=True); v.add_argument("--arm", required=True); v.add_argument("--out", required=True)
     p = sub.add_parser("split")
@@ -201,7 +244,7 @@ def main(argv=None) -> int:
     p.add_argument("--new-only", action="store_true")
     a = ap.parse_args(argv)
     if a.cmd == "states":
-        res = make_states(a.arm, Path(a.cells), a.token, a.seed, json.load(open(a.plan)), Path(a.inputs), a.allow_topos, allow_missing=a.allow_missing)
+        res = make_states(a.arm, Path(a.cells), a.token, a.seed, json.load(open(a.plan)), Path(a.inputs), a.allow_topos)
         Path(a.out).write_text(json.dumps(res, indent=1))
         print(json.dumps({"states": len(res["states"]), "counts": res["counts"], "groups_over_256": res["groups_over_256"], "missing": len(res["missing"])}))
         return 0
@@ -211,8 +254,20 @@ def main(argv=None) -> int:
         raw = json.dumps(res["plan"], sort_keys=True, separators=(",", ":"))
         Path(a.out).write_text(raw)
         Path(a.out + ".census.json").write_text(json.dumps({k: v for k, v in res.items() if k != "plan"}, indent=1))
-        print(json.dumps({"total_drawn": res["total_drawn"], "shortfall": res["shortfall"], "quotas": res["quotas"], "plan_sha256": hashlib.sha256(raw.encode()).hexdigest()}))
+        print(json.dumps({"total_drawn": res["total_drawn"], "shortfall": res["shortfall"], "quotas": res["quotas"], "per_rung": res["per_rung"], "early_share": round(res["early_share"], 4),
+                          "plan_sha256": hashlib.sha256(raw.encode()).hexdigest()}))
+        if not res["early_floor_ok"]:
+            print(f"FAIL LOUD: the draw has {res['early_share']:.3f} of its triggers at t < 360 s, below the {EARLY_FLOOR} floor")
+            return 3
         return 0
+    if a.cmd == "k1":
+        print(k1_commit_of_arm1(a.arm1_label_script, a.expect))
+        return 0
+    if a.cmd == "report":
+        rows = [json.loads(l) for f in a.labels for l in open(f) if l.strip()]
+        res = label_report(rows)
+        print(json.dumps(res, indent=1))
+        return 0 if res["ok"] else 4
     if a.cmd == "view":
         print(json.dumps(make_view(Path(a.old_view), Path(a.new_corpus), a.arm, Path(a.out))))
         return 0
