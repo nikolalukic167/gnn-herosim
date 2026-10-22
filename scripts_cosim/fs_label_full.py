@@ -51,7 +51,7 @@ def main():
         new = {k: v for k, v in r.items() if k not in DROP}
         if set(new) != set(old):
             raise SystemExit(f"FAIL LOUD: {g}: keys {sorted(set(new) ^ set(old))} differ from the filed entry's")
-        if new["split"] != old["split"] or new["bucket"] != old["bucket"] or new["n_tasks"] != old["n_tasks"] or new["current_plan"] != old["plans"][0]:
+        if new["split"] != old["split"] or new["bucket"] != old["bucket"] or new["n_tasks"] != old["n_tasks"] or new["current_plan"] != old["current_plan"]:
             raise SystemExit(f"FAIL LOUD: {g}: the relabelled row is not the filed state (split/bucket/n_tasks/current plan)")
         out[g] = new
         c = changed[old["bucket"]]
