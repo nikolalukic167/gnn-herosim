@@ -39,7 +39,7 @@ Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups (≤ 226 tasks in
   - Both sizes were chosen after exploratory pilots.
 - **Attribution:** the MP-off twin ties the GNN, and the same-input MLP recovers most of the gain (GNN ahead by 0.9–2.0 points on set A,
   MODEL-CLASS-DIRECTION). The margin comes from simulator-replay labels plus in-flight features. **No result in this program is a message-passing win.**
-- **Distribution (development set):** the gain is in the mean and the tail, and the task median is about 11 % higher. Per request: mean −14.8 / −8.7 %, median +9.2 / +11.8 %.
+- **Distribution:** the gain is in the mean and the tail. On sets A / B the request mean is −12.9 / −12.8 % (moderate) and −6.6 / −4.3 % (heavy), the request p99 is faster, and the task median is 6.5–9 % higher.
 - **Boundary conditions** (TCP, autoscaler target and exact search measured on the development set):
   - The gain needs large peer payloads. It is gone at ×0.1 and with Azure blob-trace sizes.
   - A per-transfer TCP charge removes 26–33 % of it.
