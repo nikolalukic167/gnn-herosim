@@ -22,6 +22,7 @@ import os
 from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
 
 from src.placement import snapshot_fidelity
+from src.placement.fairshare_aware import payload_seconds
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.scheduling_cost import network_latency_between
 
@@ -88,7 +89,7 @@ def platform_queue_drain_seconds(
 
     def _transfer(other_node_name: str, payload: float) -> float:
         if other_node_name not in per_byte:
-            per_byte[other_node_name] = float(platform._payload_transfer_time(other_node_name, 1.0))
+            per_byte[other_node_name] = float(payload_seconds(platform, other_node_name, 1.0))
         return per_byte[other_node_name] * payload
 
     for task in platform.queue.items:
