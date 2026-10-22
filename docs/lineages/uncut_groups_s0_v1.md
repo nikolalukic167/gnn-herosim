@@ -320,6 +320,21 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-22 — **Own-state round, amendment A1 (SCIENTIST, on the expert's build questions; before any collect, label or training job; S6's one-cell label-timing dry run excepted, with no label used).**
+  - **Training topologies: 16201, 16202, 16203, 16204.** These are the 4 lowest of the Arm 1 corpus, 16201–16250 minus 16226 (49 ids). None is 16226 (the `accel_replica_v1` test topology) or any other disjoint-list id. The collect script asserts this.
+  - **Label pipeline: the corpus's full two-stage rule.**
+    1. ILS at PER 50 from the re-decided hand plan.
+    2. The corpus dataset.
+    3. S7's simulator relabel, `relabel_plans.py`, at the version that built `sim_labels_arm1.json` (`5ae45a56`).
+    4. The v6 recache.
+
+    `sim_labels_arm1.json` applies to old states only. The new states get their own relabel json, filed with md5. The build asserts that old and new state ids are disjoint, so no state carries two labels.
+  - **Learned-arm captures.** `uncut_ils.py` runs with `check_arm=False` for these states only, set by a job flag whose default stays True and recorded in each label's provenance. ILS still starts from the hand plan re-decided on the state, so the label does not depend on which arm captured it. `chosen_check` mismatches are expected on every state and are reported as a count, not as a failure.
+  - **`--k1-read-commit` = `1ccb4487`**, the record commit of the K1(b) read. The job asserts that this equals the `k1_read_commit` in the headers of the existing Arm 1 labels. If they differ, it stops and reports to SCIENTIST.
+  - **Fine-tune learning rate 1e-4** for both arms and both seeds, replacing the registration's "old recipe (… lr …)". The registered from-scratch rate of 1e-3 is not a fine-tuning rate. Everything else in the recipe is unchanged and identical across arms.
+  - **w:** each arm keeps its frozen w (FL gnn on its P7 chain; twin P7b, 2.62 / 2.47), as registered.
+  - **Split:** every new dataset id goes to TRAIN. The old train, val and test assignment is unchanged. The new split file and its sha256 are filed before training, and the training sbatch asserts that sha. The final epoch is served, so val stays diagnostic.
+
 - 2026-10-22 — **Own-state round (one DAgger round), FL gnn vs its MP-OFF twin: REGISTERED before any collect, label or cell (SCIENTIST; the user approved a one-day round, via the expert). Descriptive pilot, DIRECTION-ONLY by design.**
   - **Question.** After one round of training on the states each arm visits when served, does FL gnn separate from its MP-OFF twin? The filed primary is a TIE (2026-10-20 entry).
   - **No magnitude.** No magnitude is quoted from this design: 12 topologies × 2 seeds, one round, a pilot. Any positive is a direction only. It must be confirmed on newly minted topologies with more seeds before it enters the paper or any claim. The filed rule stands: MP-ATTRIBUTED needs ≤ −2 % and Holm < .05 on all four F-twin tests. This design cannot award it.
