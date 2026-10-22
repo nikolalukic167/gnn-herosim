@@ -304,3 +304,26 @@ def test_relabel_runs_more_states_than_workers_times_the_recycle_limit_through_a
     r = subprocess.run([sys.executable, "-c", f"import uncut_label_screen as L; L.run_cli({argv!r})"], env=env, capture_output=True, text=True, timeout=240)
     assert r.returncode == 0, r.stderr[-2000:]
     assert [x["gid"] for x in _jl(tmp_path / "o.jsonl")] == ["a/ds_%03d" % i for i in range(14)]
+
+
+def test_stored_rtt_check_raises_unless_the_pair_is_recorded():
+    L.check_stored_rtt("a/ds_1", 10.0, 10.0, False)
+    with pytest.raises(SystemExit, match="FAIL LOUD: a/ds_1: the current label's replayed RTT 11.0 is not the stored 10.0"):
+        L.check_stored_rtt("a/ds_1", 11.0, 10.0, False)
+    L.check_stored_rtt("a/ds_1", 11.0, 10.0, True)          # the fair-share label test keeps both numbers
+
+
+def test_record_pair_needs_fairshare_on(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
+    monkeypatch.setattr(L, "replay_state", _fake_replay)
+    monkeypatch.delenv("HEROSIM_EXCHANGE_FAIRSHARE", raising=False)
+    a = _args(tmp_path, tmp_path / "rp.jsonl", 1)
+    a.record_pair = True
+    with pytest.raises(SystemExit, match="needs HEROSIM_EXCHANGE_FAIRSHARE=1"):
+        L.cmd_relabel(a)
+    monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
+    seen = []
+    monkeypatch.setattr(L, "replay_state", lambda corpus, st, record_pair=False: seen.append(record_pair) or {**_fake_replay(corpus, st), "stored_label_rtt": 1.0})
+    L.cmd_relabel(a)
+    assert seen and all(seen)
+    assert all("stored_label_rtt" in r for r in _jl(tmp_path / "rp.jsonl"))
