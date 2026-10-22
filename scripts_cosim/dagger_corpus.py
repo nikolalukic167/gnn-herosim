@@ -8,8 +8,9 @@
              uncut_label_screen.py relabel/merge on the NEW datasets only (split from `split --new-only`)  ->  `view` + `split` -> the v6 recache over the combined view.
   dagger_corpus.py plan  --inputs INPUTS_GROUP --topos 16201 16202 16203 16204 --out PLAN.json     (amendment A2: 1,000 ids, seed 20261022, half per load; run before capture)
       The pre-drawn R1A_SNAPSHOT_PLAN: arm-independent, Arm 1 stratification (size buckets; 30 % at t < 360 s), groups over 256 excluded; a shortfall is reported, never topped up.
-  dagger_corpus.py view  --old-view VIEW --new-corpus CORPUS --arm A --out COMBINED_VIEW     symlinks: every old base dir as it is, plus gnn_datasets_wf1_dagger_<A>
-  dagger_corpus.py split --old-split OLD.json --new-corpus CORPUS --arm A --out SPLIT.json [--new-only]
+  dagger_corpus.py view  --old-view VIEW --new-corpus CORPUS --arm A [A2 ...] --out COMBINED_VIEW     symlinks: every old base dir as it is, plus gnn_datasets_wf1_dagger_<A> per arm name
+  dagger_corpus.py merge-labels --old OLD_SIM_LABELS.json --new NEW_RELABEL.json --out MERGED.json     the one label-override json of the combined cache (ids disjoint)
+  dagger_corpus.py split --old-split OLD.json --new-corpus CORPUS --arm A [A2 ...] --out SPLIT.json [--new-only]
       The old split with every new dataset added to TRAIN (val and test unchanged), or with --new-only a split holding only the new datasets (the relabel's frame). The new ids are
       disjoint from the old ones by construction (their own base dir); fails loud otherwise."""
 from __future__ import annotations
@@ -153,16 +154,39 @@ def make_states(arm: str, cells: Path, token: str, seed: int, plan: Dict[str, Se
     return {"arm": arm, "token": token, "seed": seed, "states": states, "counts": counts, "groups_over_256": over, "missing": missing, "captured_share": share, "drawn": drawn}
 
 
-def new_parents(new_corpus: Path, arm: str) -> List[str]:
-    d = new_corpus / f"dagger_{arm}"
-    if not d.is_dir():
-        raise SystemExit(f"FAIL LOUD: {d} is not a directory (the relabel frame reads CORPUS/<base name without gnn_datasets_wf1_>/ds_*)")
-    return sorted(f"{base_name(arm)}/{p.name}" for p in d.iterdir() if p.name.startswith("ds_") and (p / "placements" / "placements.jsonl").exists())
+def new_parents(new_corpus: Path, arms: Any) -> List[str]:
+    """The new datasets of one arm name or several (e.g. twin_s1, twin_s2: one base dir per seed, since a state key does not contain the seed)."""
+    out: List[str] = []
+    for arm in ([arms] if isinstance(arms, str) else list(arms)):
+        d = new_corpus / f"dagger_{arm}"
+        if not d.is_dir():
+            raise SystemExit(f"FAIL LOUD: {d} is not a directory (the relabel frame reads CORPUS/<base name without gnn_datasets_wf1_>/ds_*)")
+        out += sorted(f"{base_name(arm)}/{p.name}" for p in d.iterdir() if p.name.startswith("ds_") and (p / "placements" / "placements.jsonl").exists())
+    return sorted(out)
 
 
-def combined_split(old: Dict[str, Any], parents: Sequence[str], new_only: bool) -> Dict[str, Any]:
+ACCEL_SPLIT = REPO / "experiments" / "accel_replica_v1_split.json"
+
+
+def accel_test_names(path: Path = ACCEL_SPLIT) -> List[str]:
+    return [str(x) for x in json.load(open(path))["test"]]
+
+
+def combined_split(old: Dict[str, Any], parents: Sequence[str], new_only: bool, accel_test: Sequence[str] = ()) -> Dict[str, Any]:
+    """`accel_test`: the 57 accel_replica_v1 test dataset names. No new dataset id may be one of them, and none of them may be in the resulting TRAIN (SCIENTIST, 2026-10-22)."""
     if not parents:
         raise SystemExit("FAIL LOUD: no new datasets")
+    hit = set(parents) & set(accel_test)
+    if hit:
+        raise SystemExit(f"FAIL LOUD: {len(hit)} new dataset ids are accel_replica_v1 test names, e.g. {sorted(hit)[:3]}")
+    out = _combined_split(old, parents, new_only)
+    leak = set(out["train"]) & set(accel_test)
+    if leak:
+        raise SystemExit(f"FAIL LOUD: {len(leak)} accel_replica_v1 test names are in the split's TRAIN, e.g. {sorted(leak)[:3]}")
+    return out
+
+
+def _combined_split(old: Dict[str, Any], parents: Sequence[str], new_only: bool) -> Dict[str, Any]:
     if new_only:
         return {"schema": "split_artifact_v1", "n_parents": len(parents), "train": sorted(parents), "val": [], "test": [], "test_placeholder": False, "dagger_new_only": True}
     seen = set(old["train"]) | set(old["val"]) | set(old["test"])
@@ -209,7 +233,63 @@ def label_report(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     return {"n": len(rows), "by_source": by_source, "served_vs_redecision": mismatch, "dropped": drops, "ok": not drops}
 
 
-def make_view(old_view: Path, new_corpus: Path, arm: str, out: Path) -> List[str]:
+def merge_labels(old: Path, new: Path, out: Path) -> Dict[str, Any]:
+    """One NEW_RTT label-override json for the combined cache: the old simulator labels (old ids only) plus the new relabel (new ids only); ids must be disjoint (A1)."""
+    o, n = json.load(open(old)), json.load(open(new))
+    om, nm = o.pop("_meta", None), n.pop("_meta", None)
+    clash = set(o) & set(n)
+    if clash:
+        raise SystemExit(f"FAIL LOUD: {len(clash)} state ids are in both label jsons, e.g. {sorted(clash)[:3]}")
+    body = {"_meta": {"merged_from": {"old": str(old), "new": str(new)}, "n_old": len(o), "n_new": len(n), "old_meta": om, "new_meta": nm}, **dict(sorted({**o, **n}.items()))}
+    raw = json.dumps(body, indent=0) + "\n"
+    out.write_text(raw)
+    return {"n_old": len(o), "n_new": len(n), "sha256": hashlib.sha256(raw.encode()).hexdigest()}
+
+
+def graphs_equal(g: Any, h: Any) -> List[str]:
+    """Attribute names on which two cached graphs differ (tensors by torch.equal with dtype and shape, anything else by ==); empty when identical."""
+    import torch
+
+    bad = []
+    keys = set(g.keys() if callable(getattr(g, "keys", None)) else g.keys) | set(h.keys() if callable(getattr(h, "keys", None)) else h.keys)
+    for k in sorted(keys):
+        a, b = getattr(g, k, None), getattr(h, k, None)
+        if isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor):
+            if a.dtype != b.dtype or a.shape != b.shape or not torch.equal(a, b):
+                bad.append(k)
+        elif isinstance(a, torch.Tensor) != isinstance(b, torch.Tensor):
+            bad.append(k)
+        else:
+            try:
+                same = bool(a == b)
+            except Exception:
+                same = repr(a) == repr(b)
+            if not same:
+                bad.append(k)
+    return bad
+
+
+def check_cache(old: Path, new: Path) -> Dict[str, Any]:
+    """Every graph of the old cache is, graph for graph, in the new cache unchanged (matched by dataset id); the new cache may hold more ids. Fails loud on any difference."""
+    import pickle
+
+    og, oi = pickle.load(open(old / "graphs.pkl", "rb")), [str(x) for x in pickle.load(open(old / "dataset_ids.pkl", "rb"))]
+    ng, ni = pickle.load(open(new / "graphs.pkl", "rb")), [str(x) for x in pickle.load(open(new / "dataset_ids.pkl", "rb"))]
+    by_new = dict(zip(ni, ng))
+    missing = [i for i in oi if i not in by_new]
+    if missing:
+        raise SystemExit(f"FAIL LOUD: {len(missing)} old ids are not in the new cache, e.g. {missing[:3]}")
+    diff = {}
+    for i, g in zip(oi, og):
+        bad = graphs_equal(g, by_new[i])
+        if bad:
+            diff[i] = bad
+    if diff:
+        raise SystemExit(f"FAIL LOUD: {len(diff)} old graphs differ in the new cache, e.g. {dict(list(diff.items())[:3])}")
+    return {"old_graphs": len(oi), "new_graphs": len(ni), "added": len(ni) - len(oi), "old_graphs_identical": True}
+
+
+def make_view(old_view: Path, new_corpus: Path, arms: Any, out: Path) -> List[str]:
     if out.exists():
         raise SystemExit(f"FAIL LOUD: {out} exists")
     out.mkdir(parents=True)
@@ -218,11 +298,13 @@ def make_view(old_view: Path, new_corpus: Path, arm: str, out: Path) -> List[str
         if b.is_dir():
             os.symlink(os.path.realpath(b), out / b.name)
             names.append(b.name)
-    nb = base_name(arm)
-    if nb in names:
-        raise SystemExit(f"FAIL LOUD: the old view already has {nb}")
-    os.symlink(os.path.realpath(new_corpus / f"dagger_{arm}"), out / nb)
-    return names + [nb]
+    for arm in ([arms] if isinstance(arms, str) else list(arms)):
+        nb = base_name(arm)
+        if nb in names:
+            raise SystemExit(f"FAIL LOUD: the old view already has {nb}")
+        os.symlink(os.path.realpath(new_corpus / f"dagger_{arm}"), out / nb)
+        names.append(nb)
+    return names
 
 
 def main(argv=None) -> int:
@@ -238,10 +320,12 @@ def main(argv=None) -> int:
     k = sub.add_parser("k1"); k.add_argument("--arm1-label-script", required=True); k.add_argument("--expect", required=True)
     r_ = sub.add_parser("report"); r_.add_argument("labels", nargs="+")
     v = sub.add_parser("view")
-    v.add_argument("--old-view", required=True); v.add_argument("--new-corpus", required=True); v.add_argument("--arm", required=True); v.add_argument("--out", required=True)
+    v.add_argument("--old-view", required=True); v.add_argument("--new-corpus", required=True); v.add_argument("--arm", nargs="+", required=True); v.add_argument("--out", required=True)
+    cc = sub.add_parser("check-cache"); cc.add_argument("--old", required=True); cc.add_argument("--new", required=True)
+    ml = sub.add_parser("merge-labels"); ml.add_argument("--old", required=True); ml.add_argument("--new", required=True); ml.add_argument("--out", required=True)
     p = sub.add_parser("split")
-    p.add_argument("--old-split", required=True); p.add_argument("--new-corpus", required=True); p.add_argument("--arm", required=True); p.add_argument("--out", required=True)
-    p.add_argument("--new-only", action="store_true")
+    p.add_argument("--old-split", required=True); p.add_argument("--new-corpus", required=True); p.add_argument("--arm", nargs="+", required=True); p.add_argument("--out", required=True)
+    p.add_argument("--new-only", action="store_true"); p.add_argument("--accel-split", default=str(ACCEL_SPLIT))
     a = ap.parse_args(argv)
     if a.cmd == "states":
         res = make_states(a.arm, Path(a.cells), a.token, a.seed, json.load(open(a.plan)), Path(a.inputs), a.allow_topos)
@@ -271,8 +355,14 @@ def main(argv=None) -> int:
     if a.cmd == "view":
         print(json.dumps(make_view(Path(a.old_view), Path(a.new_corpus), a.arm, Path(a.out))))
         return 0
+    if a.cmd == "check-cache":
+        print(json.dumps(check_cache(Path(a.old), Path(a.new))))
+        return 0
+    if a.cmd == "merge-labels":
+        print(json.dumps(merge_labels(Path(a.old), Path(a.new), Path(a.out))))
+        return 0
     parents = new_parents(Path(a.new_corpus), a.arm)
-    payload = combined_split(json.load(open(a.old_split)), parents, a.new_only)
+    payload = combined_split(json.load(open(a.old_split)), parents, a.new_only, accel_test_names(Path(a.accel_split)))
     print(json.dumps({"n_new": len(parents), "n_parents": payload["n_parents"], "sha256": write_split(payload, Path(a.out))}))
     return 0
 

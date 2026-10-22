@@ -189,3 +189,59 @@ def test_label_report_counts_mismatches_and_flags_every_drop():
     assert r["by_source"] == {"exact": 1, "hand": 1, "ils": 1, "dropped": 1} and r["served_vs_redecision"] == {"checked": 2, "mismatched": 1}
     assert r["dropped"][0]["reason"] == "OTHER" and r["ok"] is False
     assert D.label_report(rows[:3])["ok"] is True
+
+
+def test_multi_arm_view_and_split_and_merged_labels(tmp_path):
+    _corpus(tmp_path, "twin_s1", 2)
+    _corpus(tmp_path, "twin_s2", 3)
+    parents = D.new_parents(tmp_path / "new", ["twin_s1", "twin_s2"])
+    assert len(parents) == 5 and parents[0].startswith("gnn_datasets_wf1_dagger_twin_s1/") and parents[-1].startswith("gnn_datasets_wf1_dagger_twin_s2/")
+    old = tmp_path / "oldview"
+    (old / "gnn_datasets_wf1_train").mkdir(parents=True)
+    assert D.make_view(old, tmp_path / "new", ["twin_s1", "twin_s2"], tmp_path / "comb")[-2:] == ["gnn_datasets_wf1_dagger_twin_s1", "gnn_datasets_wf1_dagger_twin_s2"]
+    o, n = tmp_path / "o.json", tmp_path / "n.json"
+    o.write_text(json.dumps({"_meta": {"v": 1}, "gnn_datasets_wf1_train/ds_00000": {"plans": [[[1, 2]]], "split": "train"}}))
+    n.write_text(json.dumps({"_meta": {"v": 2}, parents[0]: {"plans": [[[3, 4]]], "split": "train"}}))
+    r = D.merge_labels(o, n, tmp_path / "m.json")
+    m = json.loads((tmp_path / "m.json").read_text())
+    assert r["n_old"] == 1 and r["n_new"] == 1 and set(m) == {"_meta", "gnn_datasets_wf1_train/ds_00000", parents[0]}
+    n.write_text(json.dumps({"gnn_datasets_wf1_train/ds_00000": {}}))
+    with pytest.raises(SystemExit, match="in both label jsons"):
+        D.merge_labels(o, n, tmp_path / "m2.json")
+
+
+def test_check_cache_passes_an_unchanged_old_graph_set_and_fails_a_changed_one(tmp_path):
+    import pickle
+
+    import torch
+    from torch_geometric.data import Data
+
+    def g(v):
+        return Data(x=torch.tensor([[v, 2.0]]), edge_index=torch.zeros((2, 0), dtype=torch.long))
+
+    for name, graphs, ids in (("old", [g(1.0), g(3.0)], ["a", "b"]), ("same", [g(3.0), g(1.0), g(5.0)], ["b", "a", "c"]), ("changed", [g(1.0), g(3.5), g(5.0)], ["a", "b", "c"])):
+        d = tmp_path / name
+        d.mkdir()
+        pickle.dump(graphs, open(d / "graphs.pkl", "wb"))
+        pickle.dump(ids, open(d / "dataset_ids.pkl", "wb"))
+    r = D.check_cache(tmp_path / "old", tmp_path / "same")
+    assert r == {"old_graphs": 2, "new_graphs": 3, "added": 1, "old_graphs_identical": True}
+    with pytest.raises(SystemExit, match="old graphs differ"):
+        D.check_cache(tmp_path / "old", tmp_path / "changed")
+
+
+def test_split_refuses_accel_test_names_as_new_ids_or_in_train():
+    old = {"schema": "split_artifact_v1", "n_parents": 3, "train": ["gnn_datasets_wf1_train/ds_00000"], "val": ["gnn_datasets_wf1_heldout/ds_00000"], "test": ["gnn_datasets_wf1_train/ds_00007"]}
+    new = ["gnn_datasets_wf1_dagger_twin_s1/ds_00000"]
+    accel = ["gnn_datasets_wf1_train/ds_40000", "gnn_datasets_wf1_train/ds_40001"]
+    assert D.combined_split(old, new, False, accel)["n_parents"] == 4 and D.combined_split(old, new, True, accel)["train"] == new
+    with pytest.raises(SystemExit, match="are accel_replica_v1 test names"):
+        D.combined_split(old, ["gnn_datasets_wf1_train/ds_40001"], False, accel)
+    with pytest.raises(SystemExit, match="in the split's TRAIN"):
+        D.combined_split({**old, "train": old["train"] + ["gnn_datasets_wf1_train/ds_40000"]}, new, False, accel)
+
+
+def test_the_real_accel_names_are_not_in_the_arm1_split_train():
+    assert len(D.accel_test_names()) == 57
+    arm1 = json.load(open(D.REPO / "experiments" / "uncut_arm1_split.json"))
+    assert not set(D.accel_test_names()) & (set(arm1["train"]) | set(arm1["val"]) | set(arm1["test"]))
