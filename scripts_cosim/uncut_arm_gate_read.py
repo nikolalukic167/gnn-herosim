@@ -699,6 +699,8 @@ def confirm_args(a):
             raise SystemExit(f"FAIL LOUD: --confirm2 --stage {a.stage} needs --desc-gate (FL gnn s1-2 and FL MLP s1-2)")
         if a.stage == "six" and not a.secondary_read:
             raise SystemExit("FAIL LOUD: --confirm2 --stage six needs --secondary-read")
+        if a.stage == "six" and a.out and os.path.exists(a.out):
+            raise SystemExit(f"FAIL LOUD: {a.out} exists; the six-seed read is written once")
         if a.stage == "primary" and a.desc_gate:
             raise SystemExit("FAIL LOUD: --desc-gate is not read before the primary md5 is filed (C3)")
     if a.stage in ("secondary", "six") and not (a.primary_read and a.record and a.repo and a.mlp):

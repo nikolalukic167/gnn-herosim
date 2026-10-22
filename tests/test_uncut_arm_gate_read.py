@@ -1308,3 +1308,47 @@ def test_confirm2_grid_counts_and_desc_gate_must_be_complete(conf2):
     sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": conf2["file"](p), "filed-ref": "HEAD", "desc-gate": str(conf2["dd"])})
     with pytest.raises(SystemExit, match="VOID: --desc-gate"):
         conf2["read"]("secondary", "s.json", **sec)
+
+
+def six_args(conf2, out="six.json", **kw):
+    kw = {"seeds": "1,2,3,4,5,6", "desc-gate": str(conf2["dd"]), "primary-read": str(conf2["tmp"] / "p.json"),
+          "secondary-read": str(conf2["tmp"] / "s.json"), "record": "HEAD", "mlp": G.CONFIRM_MLP, **kw}
+    return conf2["read"]("six", out, **{k: v for k, v in kw.items() if v is not False})
+
+
+def test_confirm2_six_refuses_seeds_3_to_6_a_missing_secondary_read_and_an_existing_out(conf2):
+    conf2["fill"]()
+    with pytest.raises(SystemExit, match="seeds"):
+        six_args(conf2, seeds="3,4,5,6")
+    with pytest.raises(SystemExit, match="seeds"):
+        six_args(conf2, seeds="1,2")
+    with pytest.raises(SystemExit, match="secondary-read"):
+        six_args(conf2, **{"secondary-read": False})
+    (conf2["tmp"] / "six.json").write_text("{}")
+    with pytest.raises(SystemExit, match="written once"):
+        six_args(conf2)
+    assert (conf2["tmp"] / "six.json").read_text() == "{}"
+    with pytest.raises(SystemExit, match="seeds 3,4,5,6"):  # the other stages still read seeds 3-6 only
+        conf2["read"]("secondary", "x.json", seeds="1,2,3,4,5,6")
+
+
+def test_confirm2_six_pools_seeds_1_to_6_after_reproducing_the_filed_reads(conf2):
+    conf2["fill"]()
+    conf2["read"]("primary", "p.json", mlp=G.CONFIRM_MLP)
+    p = str(conf2["tmp"] / "p.json")
+    sec = dict(mlp=G.CONFIRM_MLP, **{"primary-read": p, "record": conf2["file"](p), "filed-ref": "HEAD", "desc-gate": str(conf2["dd"])})
+    conf2["read"]("secondary", "s.json", **sec)
+    s = str(conf2["tmp"] / "s.json")
+    rec = commit(conf2["repo"], {"docs/lineages/uncut_groups_s0_v1.md": f"# node\n- primary `{G.md5(p)}`\n- secondary `{G.md5(s)}`\n"}, "file both")
+    res = six_args(conf2, **{"record": rec, "filed-ref": "HEAD"})
+    assert "confirmation" not in res and "F1" not in res and res["stage"] == "six" and "no Holm, no label" in res["label"]
+    for v in ("_k100", "_kr"):
+        assert sorted(res[v]["per_seed"]) == ["1", "2", "3", "4", "5", "6"]
+        assert all(e["a_seeds"] == [1, 2, 3, 4, 5, 6] and "p_holm" not in e for e in res[v]["pooled_s1_6"])
+        assert all(len(e["per_topology"]) == len(TOPOS) for e in res[v]["pooled_s1_6"])
+        # seeds 1-2 sit at 1.85 and seeds 3-6 at 1.8 against a 2.0 bar: the pool of six lies between the two pools
+        for a12, a36, a16 in zip(res[v]["pooled_s1_2"], res[v]["pooled_s3_6"], res[v]["pooled_s1_6"]):
+            assert a36["median_pct"] < a16["median_pct"] < a12["median_pct"]
+    assert (conf2["tmp"] / "six.json").exists()
+    with pytest.raises(SystemExit, match="written once"):
+        six_args(conf2, **{"record": rec, "filed-ref": "HEAD"})
