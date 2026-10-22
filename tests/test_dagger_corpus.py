@@ -228,3 +228,20 @@ def test_check_cache_passes_an_unchanged_old_graph_set_and_fails_a_changed_one(t
     assert r == {"old_graphs": 2, "new_graphs": 3, "added": 1, "old_graphs_identical": True}
     with pytest.raises(SystemExit, match="old graphs differ"):
         D.check_cache(tmp_path / "old", tmp_path / "changed")
+
+
+def test_split_refuses_accel_test_names_as_new_ids_or_in_train():
+    old = {"schema": "split_artifact_v1", "n_parents": 3, "train": ["gnn_datasets_wf1_train/ds_00000"], "val": ["gnn_datasets_wf1_heldout/ds_00000"], "test": ["gnn_datasets_wf1_train/ds_00007"]}
+    new = ["gnn_datasets_wf1_dagger_twin_s1/ds_00000"]
+    accel = ["gnn_datasets_wf1_train/ds_40000", "gnn_datasets_wf1_train/ds_40001"]
+    assert D.combined_split(old, new, False, accel)["n_parents"] == 4 and D.combined_split(old, new, True, accel)["train"] == new
+    with pytest.raises(SystemExit, match="are accel_replica_v1 test names"):
+        D.combined_split(old, ["gnn_datasets_wf1_train/ds_40001"], False, accel)
+    with pytest.raises(SystemExit, match="in the split's TRAIN"):
+        D.combined_split({**old, "train": old["train"] + ["gnn_datasets_wf1_train/ds_40000"]}, new, False, accel)
+
+
+def test_the_real_accel_names_are_not_in_the_arm1_split_train():
+    assert len(D.accel_test_names()) == 57
+    arm1 = json.load(open(D.REPO / "experiments" / "uncut_arm1_split.json"))
+    assert not set(D.accel_test_names()) & (set(arm1["train"]) | set(arm1["val"]) | set(arm1["test"]))
