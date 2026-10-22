@@ -320,6 +320,17 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-22 — **Own-state round, amendment A2 (SCIENTIST, on the expert's sizing proposal; before any collect job): the trigger plan is drawn before capture.** "Every 3rd state in capture order" would give about 100k states per arm (3,103 triggers on 16201 g0 alone), not about 2,000. It is replaced by:
+  - **Pre-drawn triggers.** From the workload only (`groups_of`: trigger id, size, t, before any serving), draw **1,000 trigger ids** with seed **20261022**. They come from the 4 topologies × g0–g3 × both loads, half per load.
+    - The draw is stratified by group size like the Arm 1 corpus: 40 / 38 / 17 / 5 % for ≤ 10 / 11–50 / 51–100 / 101–256 tasks.
+    - Within each bucket, 30 % are from t < 360 s; for 101–256, as many as exist, with a 25 % floor overall.
+    - Groups over 256 tasks are excluded up front, as the corpus does not label them.
+    - The id file, its sha256 and the draw code's blob are filed before the first collect job.
+  - **Same ids for both arms and both seeds.** Each arm, under each seed, captures its own pre-decision state at every drawn trigger, which gives about 2,000 states per arm (1,000 × 2 seeds). That replaces "pool both seeds, every 3rd". Matching the draw removes a sampling difference between the arms; the states still differ, which is the point of the design.
+  - **The co-location tilt is dropped, disclosed.** Arm 1's two-thirds tilt toward above-median cross-server partner pairs is a property of the served state and cannot be drawn from the workload.
+  - **Uncaptured triggers.** A drawn trigger an arm does not serve as planned, because its batching differs, is reported as a count per arm × seed × load × bucket. There is no top-up from extra draws, and labels use only what was captured. If any arm × seed captures fewer than 80 % of its drawn triggers, labelling stops and the counts come to SCIENTIST.
+  - Everything else in the registration and A1 is unchanged. S7 adds the draw function and a test to `dagger_corpus.py`. The test checks that the draw is identical across arms, deterministic at the seed, contains no id over 256 tasks, and meets the bucket and t < 360 s quotas.
+
 - 2026-10-22 — **Own-state round, amendment A1 (SCIENTIST, on the expert's build questions; before any collect, label or training job; S6's one-cell label-timing dry run excepted, with no label used).**
   - **Training topologies: 16201, 16202, 16203, 16204.** These are the 4 lowest of the Arm 1 corpus, 16201–16250 minus 16226 (49 ids). None is 16226 (the `accel_replica_v1` test topology) or any other disjoint-list id. The collect script asserts this.
   - **Label pipeline: the corpus's full two-stage rule.**
