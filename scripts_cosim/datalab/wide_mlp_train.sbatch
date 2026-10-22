@@ -40,7 +40,7 @@ echo "run_experiment exit $rc"
 fail=0
 [[ $rc -eq 0 ]] || { tail -15 "logs/wide-mlp-train-$RUN-seed$S.log" | cut -c1-240; fail=1; }
 for f in "$CK-final.pt" "$CK-final.contract.json" "$CK.val.json"; do [[ -f "$f" ]] || { echo "FAIL LOUD: no $f"; fail=$((fail+1)); }; done
-python3 scripts_cosim/joint_burst_v2_sidecheck.py "$CK-final.contract.json" "ra_mlp_same" "$SPLITF" inf || fail=$((fail+1))
+R1A_SLATE=declared_pruning_v1_uncapped python3 scripts_cosim/joint_burst_v2_sidecheck.py "$CK-final.contract.json" "ra_mlp_same_v6" "$SPLITF" inf || fail=$((fail+1))
 python3 - "$CK-final.pt" <<'PY'
 import sys, torch
 sd = torch.load(sys.argv[1], map_location="cpu"); sd = sd.get("model_state_dict", sd)
