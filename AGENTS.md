@@ -60,7 +60,7 @@ Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups (≤ 226 tasks in
 - On raw inputs message passing beats its twin, but CD is faster (`raw_plan_v1`).
 - Self-predict is the per-arrival bar (`selfpredict_bar_v1`).
 - The single-batch co-sim target is pointwise-separable (`program_verdict_v1`).
-- A reactive or Knative number under R1 reflects a blind queue key; see `docs/gates/gate-tools.md`, "Knative under R1".
+- A reactive or Knative number under R1 reflects a blind queue key; see `docs/gates/gate-tools.md`, 2026-10-11 "Under replica release, the Knative arm's least-connected key is blind".
 
 **Pair on the environment before you take a median; quote a DIRECTION from a small design and a MAGNITUDE only from a
 large one; a rule with the model's information is the bar, never Knative alone; name the origin model with any grounded
