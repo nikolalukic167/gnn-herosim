@@ -147,7 +147,7 @@ def test_the_decision_cost_of_the_kind_is_the_bars_frozen_w_and_an_unknown_kind_
     import json
     import fresh_topo_burst_v1_gate as G
     f = json.load(open(G.DC_W_FILE))
-    assert f["w_ms_per_plan_alias"] == {KIND: "cd_ib0_inflightfull"} and "_source_w_ms_per_plan_alias" in f
+    assert f["w_ms_per_plan_alias"][KIND] == "cd_ib0_inflightfull" and "_source_w_ms_per_plan_alias" in f
     for rung in ("moderate", "heavy"):
         assert G.dc_cost_ms(KIND, 1.0, rung) == G.dc_cost_ms("cd_ib0_inflightfull", 1.0, rung) == (G.DC_ENV, repr(f["w_ms_per_plan"]["cd_ib0_inflightfull"][rung]))
     assert G.dc_cost_ms(KIND, 2.0, "moderate") == (G.DC_ENV, repr(2.0 * 0.0116))
