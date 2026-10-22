@@ -28,7 +28,7 @@ def _cells(tmp_path, caps, rungs=("moderate", "heavy")):
 
 def test_states_take_first_capture_buckets_and_skip_over_256(tmp_path):
     cells, inputs = _cells(tmp_path, [(0, 5.0, 4), (3, 400.0, 30), (3, 400.01, 12), (9, 800.0, 300)])
-    plan = {"16201__g0": [0, 3, 9]}
+    plan = {"16201__g0moderate": [0, 3, 9], "16201__g0heavy": [0, 3, 9]}
     r = D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, plan, inputs, [16201])
     by = {s["key"]: s for s in r["states"]}
     assert len(r["states"]) == 4 and r["groups_over_256"] == 2 and not r["missing"]       # 2 rungs x (trigger 0, trigger 3); the 300-task group is counted, not labelled
@@ -40,7 +40,7 @@ def test_states_take_first_capture_buckets_and_skip_over_256(tmp_path):
 
 def test_job_of_uses_the_states_own_cell_files_and_check_arm_flag(tmp_path):
     cells, inputs = _cells(tmp_path, [(0, 5.0, 4)])
-    st = D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0": [0]}, inputs, [16201])["states"][0]
+    st = D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0moderate": [0]}, inputs, [16201])["states"][0]
     j = A.job_of(st, "/nowhere")
     assert j["cell_summary"] == st["cell_summary"] and j["cell_config"] == st["cell_config"] and j["check_arm"] is False and j["group_size"] == 4
     plain = A.job_of({k: v for k, v in st.items() if k not in ("cell_summary", "cell_config", "check_arm")}, "/root")
@@ -50,15 +50,21 @@ def test_job_of_uses_the_states_own_cell_files_and_check_arm_flag(tmp_path):
 def test_a_planned_trigger_that_was_never_captured_fails_loud_unless_allowed(tmp_path):
     cells, inputs = _cells(tmp_path, [(0, 5.0, 4)])
     with pytest.raises(SystemExit, match="never captured"):
-        D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0": [0, 6]}, inputs, [16201])
-    r = D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0": [0, 6]}, inputs, [16201], allow_missing=True)
-    assert len(r["missing"]) == 2 and len(r["states"]) == 2
+        D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0moderate": [0, 6]}, inputs, [16201])
+    r = D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0moderate": [0, 6]}, inputs, [16201], allow_missing=True)
+    assert len(r["missing"]) == 1 and len(r["states"]) == 1
+
+
+def test_a_plan_key_without_a_rung_fails_loud(tmp_path):
+    cells, inputs = _cells(tmp_path, [(0, 5.0, 4)])
+    with pytest.raises(SystemExit, match="no rung suffix"):
+        D.make_states("twin", cells, "t", 1, {"16201__g0": [0]}, inputs, [16201])
 
 
 def test_a_topology_outside_the_training_set_fails_loud(tmp_path):
     cells, inputs = _cells(tmp_path, [(0, 5.0, 4)])
     with pytest.raises(SystemExit, match="not one of the allowed"):
-        D.make_states("twin", cells, "t", 1, {"30149__g0": [0]}, inputs, [16201])
+        D.make_states("twin", cells, "t", 1, {"30149__g0moderate": [0]}, inputs, [16201])
 
 
 def _corpus(tmp_path, arm, n):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Own-state (DAgger) corpus plumbing, generic for any learned arm: captured snapshots -> state list -> (label, build, relabel: the existing Arm 1 tools) -> combined corpus view and split.
 
-  dagger_corpus.py states --arm A --cells DIR --token T --seed S --plan PLAN.json --inputs INPUTS_GROUP --allow-topos 16201 ... --out STATES.json
+  dagger_corpus.py states --arm A --cells DIR --token T --seed S --plan PLAN.json (keys <topo>__<window><rung>, as the gate writes them) --inputs INPUTS_GROUP --allow-topos 16201 ... --out STATES.json
       One state per captured trigger of the plan, from the arm's own cells DIR/cc40s<topo>__<window><rung>__<T>_s<S>.{snapshots.jsonl,summary.json}. The first capture of a trigger is the
       state (later same-trigger captures are sub-batches). Groups over 256 tasks are counted, not labelled. A trigger of the plan that was never captured is listed (`missing`) and fails
       loud unless --allow-missing. Fails loud on a topology outside --allow-topos. The states carry check_arm False (the decision is re-decided under the hand arm, not the capturing arm).
@@ -53,34 +53,37 @@ def make_states(arm: str, cells: Path, token: str, seed: int, plan: Dict[str, Se
     states: List[Dict[str, Any]] = []
     missing: List[Dict[str, Any]] = []
     over = 0
-    for key in sorted(plan):
-        topo, window = key.split("__")
+    for key in sorted(plan):                      # the gate's plan key is <topo>__<window><rung>, e.g. 16201__g0moderate
+        topo, wr = key.split("__")
+        rung = next((r for r in rungs if wr.endswith(r)), None)
+        if rung is None:
+            raise SystemExit(f"FAIL LOUD: plan key {key}: no rung suffix in {tuple(rungs)}")
+        window = wr[:-len(rung)]
         if int(topo) not in set(allow_topos):
             raise SystemExit(f"FAIL LOUD: plan key {key}: topology {topo} is not one of the allowed training topologies {sorted(allow_topos)}")
-        for rung in rungs:
-            stem = cells / f"cc40s{topo}__{window}{rung}__{token}_s{seed}"
-            snapfile, summary = str(stem) + ".snapshots.jsonl", str(stem) + ".summary.json"
-            for f in (snapfile, summary):
-                if not os.path.exists(f):
-                    raise SystemExit(f"FAIL LOUD: {f} does not exist")
-            cfg = inputs / f"wf1_{rung}" / "cfg" / f"cc40s{topo}.json"
-            trace = inputs / f"wf1_{rung}" / "wl" / f"grounded_{window}_n50000.json"
-            for f in (cfg, trace):
-                if not f.exists():
-                    raise SystemExit(f"FAIL LOUD: {f} does not exist")
-            caps = first_captures(snapfile)
-            for trig in plan[key]:
-                cap = caps.get(int(trig))
-                if cap is None:
-                    missing.append({"topology": int(topo), "window": window, "rung": rung, "trigger": int(trig)})
-                    continue
-                b = bucket_of(cap["n_batch"])
-                if b is None:
-                    over += 1
-                    continue
-                states.append({"key": f"dagger_{arm}:{topo}:{window}:{rung}:{int(trig)}", "set": f"dagger_{arm}", "side": arm, "topology": int(topo), "window": window, "rung": rung,
-                               "trigger": int(trig), "time": cap["time"], "n_batch": cap["n_batch"], "bucket": b, "early": cap["time"] < EARLY_T, "snapfile": snapfile,
-                               "cell_summary": summary, "cell_config": str(cfg), "trace": str(trace), "check_arm": False})
+        stem = cells / f"cc40s{topo}__{window}{rung}__{token}_s{seed}"
+        snapfile, summary = str(stem) + ".snapshots.jsonl", str(stem) + ".summary.json"
+        for f in (snapfile, summary):
+            if not os.path.exists(f):
+                raise SystemExit(f"FAIL LOUD: {f} does not exist")
+        cfg = inputs / f"wf1_{rung}" / "cfg" / f"cc40s{topo}.json"
+        trace = inputs / f"wf1_{rung}" / "wl" / f"grounded_{window}_n50000.json"
+        for f in (cfg, trace):
+            if not f.exists():
+                raise SystemExit(f"FAIL LOUD: {f} does not exist")
+        caps = first_captures(snapfile)
+        for trig in plan[key]:
+            cap = caps.get(int(trig))
+            if cap is None:
+                missing.append({"topology": int(topo), "window": window, "rung": rung, "trigger": int(trig)})
+                continue
+            b = bucket_of(cap["n_batch"])
+            if b is None:
+                over += 1
+                continue
+            states.append({"key": f"dagger_{arm}:{topo}:{window}:{rung}:{int(trig)}", "set": f"dagger_{arm}", "side": arm, "topology": int(topo), "window": window, "rung": rung,
+                           "trigger": int(trig), "time": cap["time"], "n_batch": cap["n_batch"], "bucket": b, "early": cap["time"] < EARLY_T, "snapfile": snapfile,
+                           "cell_summary": summary, "cell_config": str(cfg), "trace": str(trace), "check_arm": False})
     if missing and not allow_missing:
         raise SystemExit(f"FAIL LOUD: {len(missing)} planned triggers were never captured, first {missing[:3]}")
     counts: Dict[str, int] = {}
