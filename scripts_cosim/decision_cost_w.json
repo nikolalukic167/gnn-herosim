@@ -365,10 +365,10 @@
  "w_ms_per_plan_alias": {
   "cd_ib0_inflightfull_fsaware": "cd_ib0_inflightfull",
   "ra_gnn_eng_physmp_combfl_nosplit": "ra_gnn_eng_combfl_nosplit",
-  "cd_ib0_inflightfull_fsaware_nodrain": "cd_ib0_inflightfull",
-  "cd_ib0_inflightfull_fsaware_commit": "cd_ib0_inflightfull"
+  "cd_ib0_inflightfull_fsawarec": "cd_ib0_inflightfull",
+  "cd_ib0_inflightfull_fsaware2": "cd_ib0_inflightfull"
  },
  "_source_w_ms_per_plan_alias": "2026-10-22, expert ruling for option D: cd_ib0_inflightfull_fsaware (HEROSIM_PG_FAIRSHARE_AWARE=1) is charged the bar's frozen w_ms_per_plan of cd_ib0_inflightfull (moderate 0.0116, heavy 0.01098). It differs from the bar only in the exchange rate lookup, but that lookup scans every live fair-share flow per pricing call, so the alias may UNDERSTATE the rule's real per-plan cost (direction: favours the rule). Read decisionTiming of the fsaware cells next to the bar's to size it.",
  "_source_w_ms_per_plan_alias_physmp": "2026-10-22, expert ruling for the physMP quick look: ra_gnn_eng_physmp_combfl_nosplit (FL gnn trained with NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO=0, 20 epochs) is charged the FL gnn's frozen w (w_ms_per_plan_by_bucket of ra_gnn_eng_combfl_nosplit, by served batch-size bucket). The architecture differs only in the physics edge_attr reaching the bipartite conv, so its real per-plan cost is close to the FL gnn's; not separately calibrated.",
- "_source_w_ms_per_plan_alias_diag": "2026-10-22: the two diagnostic variants of the fsaware kind (_nodrain, _commit), smoke only, are charged the bar's frozen w like the fsaware kind (see _source_w_ms_per_plan_alias)."
+ "_source_w_ms_per_plan_alias_diag": "2026-10-22, expert ruling after the 127 s diagnosis: cd_ib0_inflightfull_fsaware2 (the reference contention-aware rule: the batch's own committed transfers counted, drain walk at the live rate) and cd_ib0_inflightfull_fsawarec (candidate exchange at the live rate only, drain walk solo) are charged the bar's frozen w like cd_ib0_inflightfull_fsaware (see _source_w_ms_per_plan_alias). Their real per-plan cost is higher than the bar's (the first version measured 2.8x on one cell), so the alias understates it, in the rules' favour."
 }

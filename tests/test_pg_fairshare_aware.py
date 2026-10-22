@@ -250,6 +250,27 @@ def test_the_gate_carries_the_diagnostic_variants():
     for k in G.FSAWARE_KINDS:
         assert G.RULE_POLICY[k] == "peer_greedy_network_cd" and G.check_alias(k) == "cd" and k in G.R1A_DIAG and G.split_dc(k + "_k100") == (k, 1.0)
         assert G.dc_cost_ms(k + "_k100"[:0], 1.0, "moderate") == G.dc_cost_ms("cd_ib0_inflightfull", 1.0, "moderate")
-    assert G.FSAWARE_VARIANT_ENV["cd_ib0_inflightfull_fsaware_nodrain"] == {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}
-    assert G.FSAWARE_VARIANT_ENV["cd_ib0_inflightfull_fsaware_commit"] == {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}
+    assert G.FSAWARE_VARIANT_ENV["cd_ib0_inflightfull_fsawarec"] == {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}
+    assert G.FSAWARE_VARIANT_ENV["cd_ib0_inflightfull_fsaware2"] == {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}
     assert "pgHerd" in G.W3_TELEMETRY_KEYS
+
+
+def test_variant_b_self_count_is_exactly_the_committed_batch_mates_remote_transfers(monkeypatch):
+    """_pg_fsaware_pending: one flow per remote exchange of each OTHER planned batch task (partner node -> its node); nothing for the task being priced,
+    nothing pulled from it, nothing for a co-located pair or for a task not planned yet."""
+    from types import SimpleNamespace
+    env, fabric, platform, _t = world(monkeypatch, [50 * MiB, 50 * MiB, 50 * MiB])
+    from src.policy.peer_greedy_network.scheduler import PeerGreedyNetworkBatchScheduler
+    sched = PeerGreedyNetworkBatchScheduler.__new__(PeerGreedyNetworkBatchScheduler)
+    sched.nodes = SimpleNamespace(items=[platform.node])
+    table = {10: {13: 1.0, 11: 1.0}, 11: {10: 1.0, 13: 1.0, 14: 1.0}, 12: {}, 13: {}, 14: {11: 1.0}}
+    orch = SimpleNamespace(peer_exchange=table, task_by_id={})
+    batch = [SimpleNamespace(id=i) for i in (10, 11, 12, 13, 14)]
+    planned = {10: "a", 11: "a", 12: "a", 13: "p2"}          # 14 is not planned yet; 10 is the task being priced
+    assert sched._pg_remote_edges(batch, orch, planned, skip=10) == [("p2", "a")]
+    assert sched._pg_remote_edges(batch, orch, planned) == [("p2", "a"), ("p2", "a")]      # without the skip, task 10's own exchange would count too
+    want = {k: 1 for k, _ in fabric.directed_hops("p2", "a")}
+    assert sched._pg_fsaware_pending(batch[0], batch, orch, planned) == want
+    planned[14] = "p1"                                                                        # once planned, its exchange with 11 counts (p1 -> a)
+    edges = sched._pg_remote_edges(batch, orch, {**planned, 13: "a"}, skip=10)
+    assert edges == [("p1", "a"), ("a", "p1")]                                                # 11 pulls from 14 and 14 pulls from 11
