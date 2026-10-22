@@ -53,9 +53,10 @@ ILS_PER = {"cd_ib0_ils": 200, "cd_ib0_ils_p50": 50, "cd_ib0_ils_p10": 10}
 # exact-live (SCIENTIST's ruling 2026-10-20): cd_exactS_ib0 as its code defines it (exhaustive over its own top-5 slate, plan cap 100000, expansion above
 # the cap) on batches of at most G = 8 tasks (the group cap main.tex:146 cites, decision_cost_w.json "exact_live_G"); the bar's plan above G.
 EXACT_LIVE = "cd_exactS_ib0_live"
-# fairshare_aware diagnostic variants (2026-10-22, the 127 s cell): (a) the drain walk keeps the solo price, (b) the batch's own other transfers are counted as flows
+# fairshare_aware kinds (2026-10-22): _fsaware is the first version (live rate on the candidate exchange and the drain walk; fell into a feedback loop on 30176 g0 moderate, 127.5 s vs the bar's 7.3 s);
+# _fsaware2 (reference) also counts the flows the batch's other committed tasks will create; _fsawarec prices only the candidate exchange at the live rate, the drain walk stays at the solo price
 FSAWARE_BASE = "cd_ib0_inflightfull_fsaware"
-FSAWARE_VARIANT_ENV = {"cd_ib0_inflightfull_fsaware_nodrain": {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}, "cd_ib0_inflightfull_fsaware_commit": {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}}
+FSAWARE_VARIANT_ENV = {"cd_ib0_inflightfull_fsawarec": {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}, "cd_ib0_inflightfull_fsaware2": {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}}
 FSAWARE_KINDS = (FSAWARE_BASE, *FSAWARE_VARIANT_ENV)
 RULE_POLICY = {
     "reactive": "knative_network",
@@ -79,7 +80,7 @@ RULE_POLICY = {
     **{k: "peer_greedy_network_cd" for k in (  # sparse_obs_s0_v1: cd_exactS_ib0's search on a degraded observation (src/policy/peer_greedy_network/observation.py)
         "cd_obs_queue_naive", "cd_obs_queue_ec", "cd_obs_bundle_naive", "cd_obs_bundle_ec", "cd_obs_exec", "cd_obs_partners_naive", "cd_obs_partners_ec",
         "cd_obs_a0plus", "cd_obs_w1_naive", "cd_obs_w1_ec")},
-    **{k: "peer_greedy_network_cd" for k in FSAWARE_VARIANT_ENV},  # diagnostic variants of the fsaware kind (smoke only)
+    **{k: "peer_greedy_network_cd" for k in FSAWARE_VARIANT_ENV},  # the second-version contention-aware kinds (fsaware2, fsawarec)
     "cd_ib0_inflightfull_fsaware": "peer_greedy_network_cd",  # fairshare_aware_v1: cd_ib0_inflightfull with HEROSIM_PG_FAIRSHARE_AWARE=1 (exchanges priced at the live fair-share rate; needs HEROSIM_EXCHANGE_FAIRSHARE=1)
     "cd_ib0_inflightfull": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity, complete variant: cd_ib0 with HEROSIM_PG_INFLIGHT_FULL=1 (the remaining service of every task in platform.inflight is added to the drain); descriptive
     "cd_ib0_inflight": "peer_greedy_network_cd",  # uncut_groups_s0_v1 bar sensitivity: cd_ib0 with HEROSIM_PG_INFLIGHT=1 (the service end of the task a platform is serving is added to its drain); descriptive
