@@ -288,3 +288,20 @@ def test_a_timed_out_state_ends_the_process_nonzero_within_seconds(tmp_path):
     assert r.returncode != 0
     assert _t.time() - t0 < 30
     assert "FAIL LOUD: state a/ds_001: TimeoutError" in r.stderr
+
+
+def test_relabel_runs_more_states_than_workers_times_the_recycle_limit_through_a_spawn_pool(tmp_path):
+    """The executor's max_tasks_per_child stopped a spawn pool dead after workers x limit states (4 x 8 = 32 rows per shard on the cluster). 14 states, 2 workers, limit 2: more than 2 x 2.
+    A spawned worker imports the module afresh, so the fakes are installed by a sitecustomize that every interpreter of the run executes."""
+    import subprocess
+    (tmp_path / "sitecustomize.py").write_text(
+        f"import sys\nsys.path.insert(0, {str(Path(L.__file__).parent)!r})\n"
+        "import uncut_label_screen as L\n"
+        "L.all_states = lambda split, corpus: [{'gid': 'a/ds_%03d' % i, 'split': 'train'} for i in range(14)]\n"
+        "L.replay_state = lambda corpus, st: {'wall_s': 0.0}\n"
+        "L.sidecar_entry = lambda r, split: {'split': split, 'bucket': 'b', 'n_plans_replayed': 1}\n")
+    env = {**os.environ, "LABEL_SCREEN_MP": "spawn", "PYTHONPATH": str(tmp_path) + os.pathsep + os.environ.get("PYTHONPATH", "")}
+    argv = ["relabel", "--split", "x", "--corpus", "x", "--shard", "0/1", "--out", str(tmp_path / "o.jsonl"), "--workers", "2", "--max-tasks-per-child", "2", "--state-timeout", "120"]
+    r = subprocess.run([sys.executable, "-c", f"import uncut_label_screen as L; L.run_cli({argv!r})"], env=env, capture_output=True, text=True, timeout=240)
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert [x["gid"] for x in _jl(tmp_path / "o.jsonl")] == ["a/ds_%03d" % i for i in range(14)]
