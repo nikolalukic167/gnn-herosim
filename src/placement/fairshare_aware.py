@@ -15,6 +15,7 @@ AWARE_ENV = "HEROSIM_PG_FAIRSHARE_AWARE"
 MODEL = "live_rate_v1"
 STATS: Dict[str, int] = {"priced": 0, "nonzero": 0}
 _ENABLED = None
+_CACHE: Dict[str, Any] = {"share": None, "gen": None, "active": {}}  # link -> active flows; FairShare bumps `_gen` whenever a flow starts or ends
 
 
 def forget_switch() -> None:
@@ -28,6 +29,7 @@ def reset() -> None:
     forget_switch()
     STATS["priced"] = 0
     STATS["nonzero"] = 0
+    _CACHE.update(share=None, gen=None, active={})
 
 
 def fairshare_aware_enabled() -> bool:
@@ -61,10 +63,13 @@ def payload_seconds(platform: Any, parent_node_name: str, payload_bytes: float) 
     if not hops:
         return solo
     STATS["priced"] += 1
-    active: Dict[str, int] = {}
-    for flow in share.flows:
-        for key, _bw in flow.hops:
-            active[key] = active.get(key, 0) + 1
+    if _CACHE["share"] is not share or _CACHE["gen"] != share._gen:
+        active: Dict[str, int] = {}
+        for flow in share.flows:
+            for key, _bw in flow.hops:
+                active[key] = active.get(key, 0) + 1
+        _CACHE.update(share=share, gen=share._gen, active=active)
+    active = _CACHE["active"]
     if not any(active.get(key, 0) for key, _bw in hops):
         return solo
     STATS["nonzero"] += 1

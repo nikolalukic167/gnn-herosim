@@ -154,3 +154,23 @@ def test_the_decision_cost_of_the_kind_is_the_bars_frozen_w_and_an_unknown_kind_
     assert G.dc_cost_ms(KIND, None, "moderate") is None
     with pytest.raises(SystemExit, match="no calibrated w"):
         G.dc_cost_ms("cd_ib0_inflightfull_notakind", 1.0, "moderate")
+
+
+def test_the_link_counts_follow_the_flows_when_one_starts_or_ends(monkeypatch):
+    aware(monkeypatch)
+    env, fabric, platform, _t = world(monkeypatch, [50 * MiB])
+    solo = platform._payload_transfer_time("p0", 50 * MiB)
+    assert FA.payload_seconds(platform, "p0", 50 * MiB) == solo
+    occupy(fabric, 1)
+    assert FA.payload_seconds(platform, "p0", 50 * MiB) == pytest.approx(2 * solo)
+    occupy(fabric, 1)
+    assert FA.payload_seconds(platform, "p0", 50 * MiB) == pytest.approx(3 * solo)
+    fabric.fairshare.flows.clear()
+    fabric.fairshare._reschedule()
+    assert FA.payload_seconds(platform, "p0", 50 * MiB) == solo
+
+
+def test_the_gate_names_what_is_missing_when_the_instrument_is_off():
+    src = (REPO_ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py").read_text()
+    assert 'out.get("peerExchangeFairshare") is None' in src and '"fair-share-aware instrument off: " + "; ".join(off)' in src
+    assert 'out["env"].get("HEROSIM_EXCHANGE_FAIRSHARE") != "1" or fsa' not in src
