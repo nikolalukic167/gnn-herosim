@@ -235,6 +235,7 @@ class Orchestrator:
             "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
             "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
             "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds",
+            "pg_fsaware_decisions", "pg_fsaware_decisions_nonzero",
             "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
             "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
             "pg_random_seed_batches",
@@ -479,6 +480,7 @@ class Orchestrator:
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
             **self._access_class_fields(),
+            **self._fsaware_fields(),
             **self._failure_fields(),
             "averageNetworkLatency": sum_network / n_tasks,
             "averageLinkWaitTime": sum_link_wait / n_tasks,
@@ -512,6 +514,11 @@ class Orchestrator:
         """`scaleOut` (kpa_scaleout_v1) only when HEROSIM_SCALEOUT=kpa, so legacy stats keep their keys."""
         summary = getattr(self.autoscaler, "scaleout_summary", lambda: None)()
         return {} if summary is None else {"scaleOut": summary}
+
+    def _fsaware_fields(self) -> Dict[str, Any]:
+        """`pgFairshareAware` (HEROSIM_PG_FAIRSHARE_AWARE=1): the hand rule priced exchanges at the live fair-share rate; absent otherwise."""
+        from src.placement import fairshare_aware
+        return {"pgFairshareAware": fairshare_aware.summary_block()} if fairshare_aware.fairshare_aware_enabled() else {}
 
     def _access_class_fields(self) -> Dict[str, Any]:
         """`peerExchangeByAccessClass` (workload_fix_v1 W3) only on a topology with access classes, so every other
@@ -832,6 +839,7 @@ class Orchestrator:
             "systemEvents": self.autoscaler.system_status_events,
             **self._scaleout_fields(),
             **self._access_class_fields(),
+            **self._fsaware_fields(),
             **self._failure_fields(),
             "averageNetworkLatency": average_network_latency,
             "averageLinkWaitTime": sum_link_wait / num_tasks,

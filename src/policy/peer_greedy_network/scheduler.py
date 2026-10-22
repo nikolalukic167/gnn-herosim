@@ -44,6 +44,8 @@ import os
 from timeit import default_timer
 from typing import Any, Dict, Generator, List, Optional, Sequence, Set, Tuple, TYPE_CHECKING
 
+from src.placement import fairshare_aware
+from src.placement.fairshare_aware import fairshare_aware_enabled, payload_seconds, STATS as FSAWARE_STATS
 from src.placement.live_audit import inflight_full_seconds, inflight_remaining_seconds, orchestrator_of, platform_queue_drain_seconds
 from src.placement.live_snapshot_seed import _approx_comm
 from src.placement.model import SystemState
@@ -62,6 +64,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds",
+    "pg_fsaware_decisions", "pg_fsaware_decisions_nonzero",
     "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
     "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
     "pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves", "pg_expand_tasks_moved", "pg_expand_evals",
@@ -359,6 +362,10 @@ class _PeerGreedyCore:
             raise ValueError(f"FAIL LOUD: {PG_INFLIGHT_ENV} and {PG_INFLIGHT_FULL_ENV} are both 1; the full variant includes the running task")
         self.pg_inflight_full_charged = 0
         self.pg_inflight_full_seconds = 0.0
+        fairshare_aware.forget_switch()  # the cached switch is re-read when a scheduler is built
+        self.pg_fsaware = fairshare_aware_enabled()
+        self.pg_fsaware_decisions = 0
+        self.pg_fsaware_decisions_nonzero = 0
         self.pg_inflight_charged = 0
         self.pg_inflight_seconds = 0.0
         raw_pull = os.environ.get(PG_PULL_HOLD_ENV, "0").strip() or "0"
@@ -561,7 +568,7 @@ class _PeerGreedyCore:
         for peer_node_name, payload in peer_nodes:
             if peer_node_name == node.node_name:
                 continue
-            total += platform._payload_transfer_time(peer_node_name, payload) + platform.peer_link_latency(
+            total += payload_seconds(platform, peer_node_name, payload) + platform.peer_link_latency(
                 peer_node_name, context="peer-greedy estimate")
         return total
 
@@ -1098,6 +1105,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         placements: Dict[int, Tuple[int, int]] = {}
         service_of: Dict[int, Tuple[str, float]] = {}
         self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
+        fsaware_nonzero_before = FSAWARE_STATS["nonzero"]
         if self.pg_ext_rate is not None:
             self._pg_ext_lambda = self._pg_ext_lambdas(batch_tasks, system_state)
             self.pg_ext_batches += 1
@@ -1107,6 +1115,9 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         )
         self._pg_refine(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         self.pg_batches += 1
+        if self.pg_fsaware:
+            self.pg_fsaware_decisions += 1
+            self.pg_fsaware_decisions_nonzero += int(FSAWARE_STATS["nonzero"] > fsaware_nonzero_before)
         # the batch path counts what the decoder saw; the rule keeps the same books
         table = getattr(orch, "peer_exchange", None) or {}
         ids: Set[int] = {int(t.id) for t in batch_tasks}
