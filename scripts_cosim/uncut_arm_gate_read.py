@@ -660,6 +660,7 @@ CONFIRM_WHY = ("FL confirmation: CONFIRMED (program-level, B6 lifted for FL gnn 
 # FL confirmation 2 (registered 2026-10-18, 2ea36408; SCIENTIST's C1-C4): new seeds 3-6, alpha split over the two confirmation families
 CONFIRM2_SEEDS = (3, 4, 5, 6)
 CONFIRM2_MLP_SEEDS = (1, 2)
+CONFIRM2_SIX_SEEDS = (1, 2, 3, 4, 5, 6)
 CONFIRM2_ALPHA = 0.0125
 CONFIRM2_USED_TOPOS = CONFIRM_USED_TOPOS | frozenset(range(19707, 19731)) | frozenset({19461})
 CONFIRM2_YES = "CONFIRMED (second registered confirmation; the first, 83fa5b8e, was NOT-CONFIRMED on one per-seed clause)"
@@ -675,8 +676,9 @@ def confirm_args(a):
     if a.confirm and a.confirm2:
         raise SystemExit("FAIL LOUD: --confirm and --confirm2 are two families; pass one")
     if a.confirm2:
-        if a.seeds != ",".join(map(str, CONFIRM2_SEEDS)):
-            raise SystemExit(f"FAIL LOUD: --confirm2 reads seeds {list(CONFIRM2_SEEDS)} only (--seeds 3,4,5,6), not {a.seeds!r}")
+        want_seeds = ",".join(map(str, CONFIRM2_SIX_SEEDS if a.stage == "six" else CONFIRM2_SEEDS))
+        if a.seeds != want_seeds:
+            raise SystemExit(f"FAIL LOUD: --confirm2 --stage {a.stage} reads seeds {want_seeds} only, not {a.seeds!r}")
         a.seeds = "1,2"  # the shared checks below; restored after them
     elif a.desc_gate:
         raise SystemExit("FAIL LOUD: --desc-gate belongs to --confirm2 --stage secondary")
@@ -692,13 +694,17 @@ def confirm_args(a):
         raise SystemExit(f"FAIL LOUD: --confirm{'2' if a.confirm2 else ''} topologies must be fresh; {used[:6]} are gate, TE3"
                          + (", confirmation 1 or smoke ids" if a.confirm2 else " ids"))
     if a.confirm2:
-        a.seeds = ",".join(map(str, CONFIRM2_SEEDS))
-        if a.stage == "secondary" and not a.desc_gate:
-            raise SystemExit("FAIL LOUD: --confirm2 --stage secondary needs --desc-gate (FL gnn s1-2 and FL MLP s1-2)")
+        a.seeds = ",".join(map(str, CONFIRM2_SEEDS))  # --stage six also reads --gate at seeds 3-6; seeds 1-2 come from --desc-gate
+        if a.stage in ("secondary", "six") and not a.desc_gate:
+            raise SystemExit(f"FAIL LOUD: --confirm2 --stage {a.stage} needs --desc-gate (FL gnn s1-2 and FL MLP s1-2)")
+        if a.stage == "six" and not a.secondary_read:
+            raise SystemExit("FAIL LOUD: --confirm2 --stage six needs --secondary-read")
         if a.stage == "primary" and a.desc_gate:
             raise SystemExit("FAIL LOUD: --desc-gate is not read before the primary md5 is filed (C3)")
-    if a.stage == "secondary" and not (a.primary_read and a.record and a.repo and a.mlp):
-        raise SystemExit("FAIL LOUD: --stage secondary needs --primary-read, --record, --repo and --mlp")
+    if a.stage in ("secondary", "six") and not (a.primary_read and a.record and a.repo and a.mlp):
+        raise SystemExit(f"FAIL LOUD: --stage {a.stage} needs --primary-read, --record, --repo and --mlp")
+    if a.stage != "six" and a.secondary_read:
+        raise SystemExit("FAIL LOUD: --secondary-read belongs to --confirm2 --stage six")
     if a.stage == "primary" and (a.primary_read or a.record):
         raise SystemExit("FAIL LOUD: --primary-read / --record belong to --stage secondary")
 
@@ -766,6 +772,52 @@ def desc_confirm2(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth, mlp):
                                      "tests": four(withm, a.primary, SEEDS, mlp, CONFIRM2_MLP_SEEDS, topos)}
 
 
+def six_seed_read(a, res, cells, cells_kr, topos, mlp):
+    """--confirm2 --stage six (descriptive, registered 2026-10-22, 98a81a4f): FL gnn seeds 1-6 on the confirmation-2 topologies, FL gnn vs the bar,
+    pooled (the seed-mean per cell) and per seed, under _k100 and _kr, raw p only: no Holm, no label. Asserts before any number is written: the
+    filed primary and secondary reads are filed at --record; this run's recomputed primary parts and descriptive block equal them; the seeds 3-6
+    pooled and per-seed rows recomputed over the merged cells equal the primary's; the seeds 1-2 pooled rows equal the secondary's; the grids are exact."""
+    m2 = md5(a.secondary_read)
+    if m2 not in git(a.repo, "show", f"{a.record}:docs/lineages/uncut_groups_s0_v1.md"):
+        raise SystemExit(f"FAIL LOUD: the secondary read {a.secondary_read} (md5 {m2}) is not filed in the node at {a.record}")
+    with open(a.secondary_read) as fh:
+        sec = json.load(fh)
+    with open(a.primary_read) as fh:
+        pri = json.load(fh)
+    if sec.get("confirmation", {}).get("stage") != "secondary":
+        raise SystemExit(f"FAIL LOUD: {a.secondary_read} is not a secondary-stage confirmation read")
+    same = lambda x, y: json.dumps(x, sort_keys=True, default=str) == json.dumps(y, sort_keys=True, default=str)
+    for v, sv in ((res, sec), (res["cotenancy"], sec["cotenancy"])):
+        if not same(v["descriptive"], sv["descriptive"]):
+            raise SystemExit("FAIL LOUD: the recomputed descriptive block differs from the filed secondary read")
+    dc, df = load(a.desc_gate, a.suffix)
+    d100 = {k: x for k, x in dc.items() if not k[0].endswith(KR) and k[0] == a.primary}
+    dkr = {(k[0][:-len(KR)],) + k[1:]: x for k, x in dc.items() if k[0].endswith(KR) and k[0][:-len(KR)] == a.primary}
+    out = {"stage": "six", "family": "confirmation 2 set B, six-seed descriptive read (98a81a4f)", "pin": a.pin, "bar": BAR, "topos": topos,
+           "primary": a.primary, "label": "DESCRIPTIVE, raw p only, no Holm, no label; confirmation 2's NOT-CONFIRMED (seeds 3-6) is unchanged",
+           "inputs": {"primary_read": {"md5": md5(a.primary_read)}, "secondary_read": {"md5": m2}, "record": a.record},
+           "grid_cells": {"gate": res["confirmation"]["grid_cells"], "desc_gate_gnn_k100_kr_s1_2": len(d100) + len(dkr)}, "checks": []}
+    if len(d100) != len(dkr) or len(d100) != len(CONFIRM2_MLP_SEEDS) * len(topos) * len(WINDOWS) * len(RUNGS):
+        raise SystemExit(f"FAIL LOUD: --desc-gate FL gnn s1-2 cells: {len(d100)} _k100, {len(dkr)} _kr, not the registered 192 x 2")
+    for name, base, dd, pv, sv in (("_k100", cells, d100, pri, sec), ("_kr", cells_kr, dkr, pri["cotenancy"], sec["cotenancy"])):
+        merged = {**base, **dd}
+        pooled3 = four(merged, a.primary, CONFIRM2_SEEDS, BAR, (0,), topos)
+        pooled12 = four(merged, a.primary, CONFIRM2_MLP_SEEDS, BAR, (0,), topos)
+        strip = lambda es: [{k: x for k, x in e.items() if k != "p_holm"} for e in es]
+        if not same(pooled3, strip(pv["F1"]["tests"])):
+            raise SystemExit(f"FAIL LOUD: {name}: seeds 3-6 pooled rows differ from the filed primary")
+        if not same(pooled12, sv["descriptive"]["seeds_1_2_vs_bar"]["tests"]):
+            raise SystemExit(f"FAIL LOUD: {name}: seeds 1-2 pooled rows differ from the filed secondary (a)")
+        for sd in CONFIRM2_SEEDS:
+            if not same(four(merged, a.primary, (sd,), BAR, (0,), topos), pv["F1"]["seeds_alone"][str(sd)]):
+                raise SystemExit(f"FAIL LOUD: {name}: seed {sd} rows differ from the filed primary")
+        out["checks"].append(f"{name}: seeds 3-6 pooled and per-seed rows == primary; seeds 1-2 pooled rows == secondary (a)")
+        out[name] = {"pooled_s1_6": four(merged, a.primary, CONFIRM2_SIX_SEEDS, BAR, (0,), topos),
+                     "per_seed": {str(sd): four(merged, a.primary, (sd,), BAR, (0,), topos) for sd in CONFIRM2_SIX_SEEDS},
+                     "pooled_s1_2": pooled12, "pooled_s3_6": pooled3}
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gate", required=True)
@@ -794,9 +846,10 @@ def main(argv=None):
     ap.add_argument("--confirm2", action="store_true",
                     help="FL confirmation 2 (registered 2026-10-18 at 2ea36408): FL gnn seeds 3-6 on fresh topologies, Holm < .0125, both verdicts")
     ap.add_argument("--desc-gate", default="", help="--confirm2 --stage secondary: the descriptive cells (FL gnn s1-2, FL MLP s1-2), read after the primary is filed")
-    ap.add_argument("--stage", choices=("full", "primary", "secondary"), default="full",
+    ap.add_argument("--stage", choices=("full", "primary", "secondary", "six"), default="full",
                     help="primary: F1 under both verdicts only; secondary: F2-MC and the descriptive block, only after the primary read is filed")
-    ap.add_argument("--primary-read", default="", help="--stage secondary: the primary-stage read JSON")
+    ap.add_argument("--primary-read", default="", help="--stage secondary / six: the primary-stage read JSON")
+    ap.add_argument("--secondary-read", default="", help="--stage six: the secondary-stage read JSON (descriptive (a): FL gnn seeds 1-2)")
     ap.add_argument("--record", default="", help="--stage secondary: the commit whose lineage node files the primary read's md5")
     ap.add_argument("--filed-ref", default="origin/reference-physics", help="--stage secondary: --record must be an ancestor of this ref")
     a = ap.parse_args(argv)
@@ -933,6 +986,8 @@ def main(argv=None):
             check_against_filed_primary(a, res)
             if confirm2:  # C3: --desc-gate is opened only after the primary read is shown to be filed
                 desc_confirm2(a, res, cells, cells_kr, topos, ckpt, w_pins, warmth, mlp2)
+                if a.stage == "six":
+                    res = six_seed_read(a, res, cells, cells_kr, topos, mlp2)
     txt = json.dumps(res, indent=1, default=str)
     if a.out:
         if a.confirm and os.path.exists(a.out):
@@ -940,6 +995,13 @@ def main(argv=None):
         with open(a.out + ".tmp", "w") as fh:
             fh.write(txt)
         os.replace(a.out + ".tmp", a.out)
+    if a.stage == "six":
+        for v in ("_k100", "_kr"):
+            for tag, es in (("pooled s1-6", res[v]["pooled_s1_6"]),) + tuple((f"seed {sd}", x) for sd, x in res[v]["per_seed"].items()):
+                for e in es:
+                    print(f"  {v} {tag:11s} {e['rung']:8s} {e['stat']:8s} median {e['median_pct']:.3f} faster {e['faster']}/{e['n_topologies']} p {e['p']:.3g}")
+        print("SIX-SEED READ written (descriptive; " + "; ".join(res["checks"]) + ")")
+        return res
     if a.confirm:
         print(f"CONFIRMATION {res['confirmation']['label']} (reader: {lab}; {why})" + (f"; {f2['MODEL-CLASS']}" if a.mlp else ""))
     else:
