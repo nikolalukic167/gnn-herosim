@@ -170,7 +170,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
             res.update(out)
         if set(local_of) <= {int(t.id) for t in batch_tasks} and "out" not in seen:
             seen["out"] = _search_at_decision(self, batch_tasks, system_state, res, local_of, set(fr.queued_forced), seed, max_evals, per, max_seconds,
-                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")), job.get("rank_plans"), bool(job.get("zero_move")), int(job.get("enum_cap") or 0))
+                                                int(job.get("exhaustive_cap") or 0), bool(job.get("keep_plans")), job.get("rank_plans"), bool(job.get("zero_move")), int(job.get("enum_cap") or 0), bool(job.get("sfs")))
             raise _Done(seen["out"])
         return res
 
@@ -204,7 +204,7 @@ def decision_pass(job: Dict[str, Any], arm: str, seed: int, max_evals: Optional[
     return out
 
 
-def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False, rank_plans=None, zero_move=False, enum_cap=0) -> Dict[str, Any]:
+def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued, seed, max_evals, per, max_seconds, exhaustive_cap=0, keep_plans=False, rank_plans=None, zero_move=False, enum_cap=0, sfs=False) -> Dict[str, Any]:
     """Runs inside the decision: res[i] = (node id, platform id) of batch_tasks[i] under the hand arm."""
     placements = {i: (int(res[i][0]), int(res[i][1])) for i in range(len(batch_tasks))}
     cands_o, couple, keys, plan_o, pinned = sched._pg_plan_objects(batch_tasks, system_state, placements)
@@ -217,8 +217,9 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
     start = tuple(placements[i] for i in idx)
     slate_log10 = sum(math.log10(min(sched.pg_cd_exact_top_k, len(c))) for i, c in enumerate(ckeys) if i not in pinned)   # cd_exactS's slate product
     exact_cap_hit = bool(sched.pg_cd_exact and slate_log10 > math.log10(sched.pg_cd_exact_max_plans))
-    saved = (sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha)
+    saved = (sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha, sched.pg_sfs)
     sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha = True, 1.0, 0.0     # ib0 (HEROSIM_PG_BATCH_ALPHA=0)
+    sched.pg_sfs = bool(sfs)      # S_fs for this search only (the hand plan above was decided under S)
     memo: Dict[str, float] = {}
     n_calls = [0]
 
@@ -276,7 +277,7 @@ def _search_at_decision(sched, batch_tasks, system_state, res, local_of, queued,
             for name, plan_b in rank_plans.items():
                 ranks[name] = [[ranked_keys[i].index(tuple(plan_b[k])) + 1 if tuple(plan_b[k]) in ranked_keys[i] else 0, len(ranked_keys[i])] for k, (_b, i) in enumerate(order_)]
     finally:
-        sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha = saved
+        sched.pg_alpha_on, sched.pg_drain_alpha, sched.pg_batch_alpha, sched.pg_sfs = saved
     order = sorted(((local_of[int(t.id)], i) for i, t in enumerate(batch_tasks) if int(t.id) in local_of))
     to_batch = lambda plan: [list(plan[i]) for _b, i in order]       # snapshot batch order (gid ascending)
     if exh is not None:
