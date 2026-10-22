@@ -47,12 +47,13 @@ def test_job_of_uses_the_states_own_cell_files_and_check_arm_flag(tmp_path):
     assert plain["cell_summary"] == "/root/cap/A/cc40s16201__g0moderate__cd_ib0_s0.summary.json" and "check_arm" not in plain      # Arm 1 jobs are unchanged
 
 
-def test_a_planned_trigger_that_was_never_captured_fails_loud_unless_allowed(tmp_path):
-    cells, inputs = _cells(tmp_path, [(0, 5.0, 4)])
-    with pytest.raises(SystemExit, match="never captured"):
-        D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0moderate": [0, 6]}, inputs, [16201])
-    r = D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0moderate": [0, 6]}, inputs, [16201], allow_missing=True)
-    assert len(r["missing"]) == 1 and len(r["states"]) == 1
+def test_uncaptured_triggers_are_counted_and_below_80_percent_stops(tmp_path):
+    cells, inputs = _cells(tmp_path, [(i, 5.0 + i, 4) for i in range(10)])
+    plan = {"16201__g0moderate": list(range(9)) + [99]}                                          # 9 of 10 captured: reported, not fatal, no top-up
+    r = D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, plan, inputs, [16201])
+    assert len(r["missing"]) == 1 and len(r["states"]) == 9 and r["captured_share"] == 0.9 and r["drawn"] == 10
+    with pytest.raises(SystemExit, match="stop labelling and report to SCIENTIST"):
+        D.make_states("twin", cells, "ra_twin_eng_combfl_nosplit_k100", 1, {"16201__g0moderate": list(range(7)) + [90, 91, 92]}, inputs, [16201])      # 7 of 10
 
 
 def test_a_plan_key_without_a_rung_fails_loud(tmp_path):
@@ -145,3 +146,46 @@ def test_draw_plan_reports_a_shortfall_and_does_not_top_up():
 def test_largest_remainder_sums_to_total_and_breaks_ties_by_key():
     q = D._largest_remainder(10, {"a": 1, "b": 1, "c": 1})
     assert sum(q.values()) == 10 and q == {"a": 4, "b": 3, "c": 3}
+
+
+def test_the_draw_is_identical_across_arms_and_deterministic_at_the_registered_seed():
+    wls = _wls((16201, 16202, 16203, 16204))
+    r1, r2 = D.draw_plan(wls), D.draw_plan(wls)                  # the draw has no arm argument: both arms read the same plan file
+    assert D.SEED == 20261022 and D.TOTAL == 1000 and r1["plan"] == r2["plan"] and r1["seed"] == 20261022
+    assert D.draw_plan(wls, seed=D.SEED + 1)["plan"] != r1["plan"]
+    assert abs(r1["per_rung"]["moderate"] - r1["per_rung"]["heavy"]) <= 4 and r1["total_drawn"] <= 1000          # half per load, to within the quota rounding
+
+
+def test_the_draw_meets_quotas_has_nothing_above_256_and_the_early_floor():
+    wls = _wls((16201, 16202, 16203, 16204))
+    r = D.draw_plan(wls)
+    assert r["quotas"] == {"le10": 400, "11_50": 383, "51_100": 167, "101_256": 50} or sum(r["quotas"].values()) == 1000
+    assert r["quotas"]["le10"] > r["quotas"]["11_50"] > r["quotas"]["51_100"] > r["quotas"]["101_256"] and abs(r["quotas"]["le10"] - 400) <= 1 and abs(r["quotas"]["101_256"] - 50) <= 1
+    from scripts_cosim.uncut_arm1 import groups_of
+
+    size = {t: n for t, n, _ in groups_of(_wl(([3] * 30 + [20] * 30 + [70] * 10 + [150] * 4 + [300] * 2) * 8))}
+    assert all(size[i] <= 256 for ids in r["plan"].values() for i in ids)
+    by_bucket = {}
+    for c in r["census"]:
+        by_bucket[c["bucket"]] = by_bucket.get(c["bucket"], 0) + c["drawn"]
+    assert all(by_bucket[b] <= r["quotas"][b] for b in by_bucket) and r["early_floor_ok"] and r["early_share"] >= D.EARLY_FLOOR
+
+
+def test_k1_commit_is_read_from_the_arm1_label_script_and_asserted(tmp_path):
+    f = tmp_path / "labels.sbatch"
+    f.write_text("python3 uncut_arm1.py label ids.json --shard 0/24 --k1-read-commit ca47cb62 2>&1\n")
+    assert D.k1_commit_of_arm1(str(f), "ca47cb62") == "ca47cb62"
+    with pytest.raises(SystemExit, match="expected exactly"):
+        D.k1_commit_of_arm1(str(f), "1ccb4487")
+    f.write_text("--k1-read-commit ca47cb62 ... --k1-read-commit 1ccb4487\n")
+    with pytest.raises(SystemExit, match="expected exactly"):
+        D.k1_commit_of_arm1(str(f), "ca47cb62")
+
+
+def test_label_report_counts_mismatches_and_flags_every_drop():
+    rows = [{"state_id": "a", "source": "exact"}, {"state_id": "b", "source": "hand", "chosen_match": False}, {"state_id": "c", "source": "ils", "chosen_match": True},
+            {"state_id": "d", "source": "dropped", "reason": "OTHER", "error": "FAIL LOUD x"}]
+    r = D.label_report(rows)
+    assert r["by_source"] == {"exact": 1, "hand": 1, "ils": 1, "dropped": 1} and r["served_vs_redecision"] == {"checked": 2, "mismatched": 1}
+    assert r["dropped"][0]["reason"] == "OTHER" and r["ok"] is False
+    assert D.label_report(rows[:3])["ok"] is True
