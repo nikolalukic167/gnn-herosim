@@ -387,6 +387,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
             raise SystemExit(f"FAIL LOUD: w_ms_per_plan_by_bucket[{kind!r}][{rung!r}] is null in {DC_W_FILE}")
         return DC_BUCKET_ENV, json.dumps({b: k * float(v) for b, v in byb[rung].items()}, sort_keys=True)
     w = f["w_ms_per_plan"]
+    kind = f.get("w_ms_per_plan_alias", {}).get(kind, kind)  # an aliased kind is charged the named kind's frozen w (the alias's source is in the file)
     if kind not in w or rung not in w[kind]:
         raise SystemExit(f"FAIL LOUD: no calibrated w (ms per plan) for {kind!r} at rung {rung!r} in {DC_W_FILE}")
     return DC_ENV, repr(k * float(w[kind][rung]))

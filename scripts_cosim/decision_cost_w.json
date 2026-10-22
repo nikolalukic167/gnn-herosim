@@ -361,5 +361,9 @@
  "_source_ils_w_S_frozen": [
   "cd_ib0_ils_p10",
   "cd_ib0_ils_p50"
- ]
+ ],
+ "w_ms_per_plan_alias": {
+  "cd_ib0_inflightfull_fsaware": "cd_ib0_inflightfull"
+ },
+ "_source_w_ms_per_plan_alias": "2026-10-22, expert ruling for option D: cd_ib0_inflightfull_fsaware (HEROSIM_PG_FAIRSHARE_AWARE=1) is charged the bar's frozen w_ms_per_plan of cd_ib0_inflightfull (moderate 0.0116, heavy 0.01098). It differs from the bar only in the exchange rate lookup, but that lookup scans every live fair-share flow per pricing call, so the alias may UNDERSTATE the rule's real per-plan cost (direction: favours the rule). Read decisionTiming of the fsaware cells next to the bar's to size it."
 }
