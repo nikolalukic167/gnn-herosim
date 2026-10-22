@@ -203,9 +203,12 @@ def job_of(state: Dict[str, Any], root: str) -> Dict[str, Any]:
     """The decision-pass job for a drawn state. The cell env comes from the full-length set-A summary of the same cell (opening-only cells write none: the runner's
     N_TASKS check marks them failed); the config from the set's own whole-group inputs."""
     topo, w, rung, s = state["topology"], state["window"], state["rung"], state["set"]
-    return {"state_id": state["key"], "bucket": state["bucket"], "group_size": state["n_batch"], "snapfile": state["snapfile"], "trigger_task_id": int(state["trigger"]),
-            "time": state["time"], "cell_summary": f"{root}/cap/A/cc40s{topo}__{w}{rung}__cd_ib0_s0.summary.json",
-            "cell_config": f"{root}/inputs{s}/inputs_group/wf1_{rung}/cfg/cc40s{topo}.json", "sim_input": str(U_REPO / "data" / "nofs-ids"), "role": "first"}
+    job = {"state_id": state["key"], "bucket": state["bucket"], "group_size": state["n_batch"], "snapfile": state["snapfile"], "trigger_task_id": int(state["trigger"]),
+           "time": state["time"], "cell_summary": f"{root}/cap/A/cc40s{topo}__{w}{rung}__cd_ib0_s0.summary.json",
+           "cell_config": f"{root}/inputs{s}/inputs_group/wf1_{rung}/cfg/cc40s{topo}.json", "sim_input": str(U_REPO / "data" / "nofs-ids"), "role": "first"}
+    # own-state states (dagger_corpus.py) name their own cell files and were captured under a learned arm: the decision is re-decided under cd_ib0 (check_arm False)
+    job.update({k: state[k] for k in ("cell_summary", "cell_config", "check_arm") if k in state})
+    return job
 
 
 
@@ -230,21 +233,21 @@ def lock_wait_summary(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
-def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = None) -> Dict[str, Any]:
+def label_state(job: Dict[str, Any], seed: int = 0, evals_dir: Optional[str] = None, per: int = 200) -> Dict[str, Any]:
     """The Arm 1 label of one state. <= 10 tasks: the exact S-optimum when the candidate product has <= EXACT_CAP plans. Otherwise ILS from the hand (cd_ib0) plan at the K1(b)
-    budget, one replay each of the hand and ILS plans, label = ILS iff r >= R_MIN else hand. A state whose hand plan cannot be re-decided whole (SPLIT / UNPLACED) takes the served
+    budget (`per` evaluations per task-candidate, 200 for Arm 1), one replay each of the hand and ILS plans, label = ILS iff r >= R_MIN else hand. A state whose hand plan cannot be re-decided whole (SPLIT / UNPLACED) takes the served
     plan from the capture's chosen sidecar (hand label); one with deferrals in the served plan is dropped and reported."""
     from scripts_cosim import uncut_ils as U
 
     base = {"state_id": job["state_id"], "bucket": job["bucket"], "n_batch": job["group_size"], "trigger_task_id": job["trigger_task_id"], "snapfile": job["snapfile"]}
     try:
         if job["group_size"] <= 10:
-            d = U.decision_pass(dict(job, exhaustive_cap=EXACT_CAP), "cd_ib0", seed, 5, 200, 30.0)
+            d = U.decision_pass(dict(job, exhaustive_cap=EXACT_CAP), "cd_ib0", seed, 5, per, 30.0, check_arm=job.get("check_arm", True))
             base.update(plan_space=d["plan_space"], slate_log10=d["slate_log10"], hand=d["hand"], start_S=d["start_S"])
             if d["exhaustive"]:
                 return {**base, "source": "exact", "label": d["exhaustive"]["argmin_batch"], "label_S": d["exhaustive"]["s_opt"], "exact_plans": d["exhaustive"]["plans"],
                         "hand_equals_label": d["hand"] == d["exhaustive"]["argmin_batch"]}
-        row = U.run_state(dict(job, keep_plans=evals_dir is not None), "cd_ib0", seed, None, 200, ILS_SECONDS, "final")
+        row = U.run_state(dict(job, keep_plans=evals_dir is not None), "cd_ib0", seed, None, per, ILS_SECONDS, "final")
     except RuntimeError as exc:
         from src.placement import live_audit
 
@@ -320,7 +323,7 @@ def main() -> int:
     d.add_argument("--exclude-topos", nargs="*", type=int, default=[16226], help="never drawn: 16226 is accel_replica_v1's TEST topology (S6) until the expert rules")
     lb = sub.add_parser("label")
     lb.add_argument("ids"); lb.add_argument("--root", default="/share/nikola.lukic/uncut_arm1"); lb.add_argument("--shard", default="0/1"); lb.add_argument("--out", required=True)
-    lb.add_argument("--seed", type=int, default=0); lb.add_argument("--k1-read-commit", required=True, help="the commit that records the K1(b) read (label_gate refuses without it)")
+    lb.add_argument("--seed", type=int, default=0); lb.add_argument("--per", type=int, default=200, help="ILS evaluations per task-candidate (200: Arm 1; 50: the DAgger round)"); lb.add_argument("--k1-read-commit", required=True, help="the commit that records the K1(b) read (label_gate refuses without it)")
     lb.add_argument("--sealed", default=str(U_REPO / "docs/lineages/uncut_groups_s0_v1/k1_sealed_states.json"), help="the sealed K1(b) states: never labelled")
     ck = sub.add_parser("check")
     ck.add_argument("which", choices=("convergence", "determinism", "fresh100", "lockwait")); ck.add_argument("ids"); ck.add_argument("--root", default="/share/nikola.lukic/uncut_arm1")
@@ -354,7 +357,7 @@ def main() -> int:
             for st_ in states[k::m]:
                 if st_["key"] in done:
                     continue
-                row = label_state(job_of(st_, a.root), a.seed, f"{a.root}/evals")
+                row = label_state(job_of(st_, a.root), a.seed, f"{a.root}/evals", a.per)
                 row["set"], row["topology"], row["window"], row["rung"], row["early"], row["side"] = st_["set"], st_["topology"], st_["window"], st_["rung"], st_["early"], st_["side"]
                 fh.write(json.dumps(row, separators=(",", ":")) + "\n"); fh.flush()
                 print(row["state_id"], row["source"], flush=True)

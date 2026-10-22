@@ -1,0 +1,55 @@
+# uncut_groups_s0_v1 DAgger round (one round, own-state training), MP-OFF twin arm, seed 1. DRAFT, NOT REGISTERED: no job may use it before the registration is merged.
+# Fine-tune from the filed twin checkpoint (fl3/md5_twin.json: uncut-comb-fl-twin-seed1-final.pt) on old + new labels, 40 epochs. Everything else is the twin's recipe
+# (experiments/uncut_comb_fl_twin.yaml at 72aa0a46): partial_state_v6, batched teacher-forced CE, MP off (GNN_DISABLE_MESSAGE_PASSING), embedding = hidden = 128, lr 0.001.
+# Open items (to rule before launch): (1) cache_dir below does not exist yet: old v6 cache + the labelled own-state captures, built by prepare_graphs_cache; (2) the new states carry
+# ILS labels (PER 50) while the old corpus carries S7's simulator relabel (NEAR_RTT_LABEL_OVERRIDE_JSON): which label wins where both exist; (3) learning rate for a fine-tune.
+trainer: gnn
+lineage: uncut_groups_s0_v1
+cache_dir: /share/nikola.lukic/uncut_groups/dagger/cache_old_new/cache
+unset_env:
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  TRAIN_INIT_CHECKPOINT: models/uncut-comb-fl-twin-seed1-final.pt
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_BATCHED_TF: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v6
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_arm1/label_screen/sim_labels_arm1.json
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  GNN_DISABLE_MESSAGE_PASSING: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 40
+  patience: 40
+  min-epochs: 40
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-dagger-twin-seed1
+  tags:
+  - uncut-comb
+  - comb-fl
+  - batched-tf
+  - ils-r010
+  - opening30
+  - twin-eng
+  - dagger-r1
