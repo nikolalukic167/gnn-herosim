@@ -185,7 +185,13 @@ def _dataset_dir(corpus: str, gid: str) -> str:
     return f"{corpus}/{kind.replace('gnn_datasets_wf1_', '')}/{ds}"
 
 
-def replay_state(corpus: str, s: Dict[str, Any]) -> Dict[str, Any]:
+def check_stored_rtt(gid: str, replayed: float, stored: float, record_pair: bool) -> None:
+    """The current label's replayed RTT must equal its stored RTT. `record_pair` (the fair-share label test only) keeps both numbers in the row instead of raising: under fair-share the replay is not the physics the label was stored under."""
+    if not record_pair and abs(replayed - stored) > REL_TOL * abs(stored):
+        raise SystemExit(f"FAIL LOUD: {gid}: the current label's replayed RTT {replayed!r} is not the stored {stored!r}")
+
+
+def replay_state(corpus: str, s: Dict[str, Any], record_pair: bool = False) -> Dict[str, Any]:
     import gzip
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -218,8 +224,7 @@ def replay_state(corpus: str, s: Dict[str, Any]) -> Dict[str, Any]:
         raise SystemExit(f"FAIL LOUD: {s['gid']}: enumerated {len(enum)} plans, header plan space is {head['plan_space_size']}")
     plans = plan_list(label, small, enum, ils_rows)
     rt, setup, runs = U.replay_rtts(d["spec"], d["types"], [p["plan"] for p in plans])
-    if abs(rt[0] - stored_rtt) > REL_TOL * abs(stored_rtt):
-        raise SystemExit(f"FAIL LOUD: {s['gid']}: the current label's replayed RTT {rt[0]!r} is not the stored {stored_rtt!r}")
+    check_stored_rtt(s["gid"], rt[0], stored_rtt, record_pair)
     dec = decide(rt)
     method = "exhaustive" if small else ("top8_ils" if ils_rows else "top8_enum")
     return {"gid": s["gid"], "bucket": s["bucket"], "n_tasks": n, "small": small, "label_source": head["label_source"], "n_plans": len(plans),
@@ -322,9 +327,9 @@ def read_done(path: str) -> Dict[str, Dict[str, Any]]:
 def _work(args):
     import resource
 
-    corpus, st = args
-    r = replay_state(corpus, st)
-    return {"gid": st["gid"], **sidecar_entry(r, st["split"]), "wall_s": r["wall_s"], "_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
+    corpus, st, record_pair = args
+    r = replay_state(corpus, st, True) if record_pair else replay_state(corpus, st)
+    return {"gid": st["gid"], **sidecar_entry(r, st["split"]), **({"stored_label_rtt": r["stored_label_rtt"]} if record_pair else {}), "wall_s": r["wall_s"], "_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
 
 
 def _init_worker():
@@ -339,6 +344,12 @@ def _init_worker():
 
 
 def cmd_relabel(a):
+    rp = bool(getattr(a, "record_pair", False))
+    if rp:
+        from src.placement.network_fabric import exchange_fairshare_enabled
+
+        if not exchange_fairshare_enabled():
+            raise SystemExit("FAIL LOUD: --record-pair is the fair-share label test's flag and needs HEROSIM_EXCHANGE_FAIRSHARE=1")
     states = all_states(a.split, a.corpus)
     i, n = (int(x) for x in a.shard.split("/"))
     mine = states[i::n]
@@ -350,7 +361,7 @@ def cmd_relabel(a):
     max_rss = 0.0
     with open(a.out, "a") as fh:
         if a.workers <= 1:
-            results = (_work((a.corpus, st)) for st in todo)
+            results = (_work((a.corpus, st, rp)) for st in todo)
         else:
             # concurrent.futures: a worker that dies (the kernel's OOM kill) raises BrokenProcessPool instead of leaving the ordered result queue waiting forever; every wait has a timeout.
             # Memory a replay leaves behind in its process must not add up over a shard, so a FRESH pool serves each chunk of workers x max_tasks_per_child states. The executor's own max_tasks_per_child
@@ -365,7 +376,7 @@ def cmd_relabel(a):
                 for lo in range(0, len(todo), size):
                     chunk = todo[lo:lo + size]
                     pool = cf.ProcessPoolExecutor(a.workers, mp_context=mp.get_context(method), initializer=_init_worker)
-                    fs = [pool.submit(_work, (a.corpus, st)) for st in chunk]
+                    fs = [pool.submit(_work, (a.corpus, st, rp)) for st in chunk]
                     try:
                         for st, f in zip(chunk, fs):
                             try:
@@ -436,6 +447,7 @@ def main(argv=None):
     rl.add_argument("--max-tasks-per-child", type=int, default=8)
     rl.add_argument("--state-timeout", type=float, default=3600.0)
     rl.add_argument("--limit-states", type=int, default=0)
+    rl.add_argument("--record-pair", action="store_true", help="fair-share label test only: keep the replayed and the stored RTT of the current label instead of failing on a difference")
     mg = sub.add_parser("merge")
     mg.add_argument("--split", required=True)
     mg.add_argument("--corpus", required=True)
