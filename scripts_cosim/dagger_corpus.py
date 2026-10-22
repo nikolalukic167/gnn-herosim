@@ -7,6 +7,8 @@
       loud unless --allow-missing. Fails loud on a topology outside --allow-topos. The states carry check_arm False (the decision is re-decided under the hand arm, not the capturing arm).
       Then:  uncut_arm1.py label STATES.json --per 50 ...   ->  uncut_arm1_build.py STATES.json LABELS... --out CORPUS/dagger_<A> (its parent ids are gnn_datasets_wf1_dagger_<A>/ds_N)  ->
              uncut_label_screen.py relabel/merge on the NEW datasets only (split from `split --new-only`)  ->  `view` + `split` -> the v6 recache over the combined view.
+  dagger_corpus.py plan  --inputs INPUTS_GROUP --topos 16201 16202 16203 16204 --total 2000 --seed N --out PLAN.json     (amendment A2; run before capture, only once A2 is merged)
+      The pre-drawn R1A_SNAPSHOT_PLAN: arm-independent, Arm 1 stratification (size buckets; 30 % at t < 360 s), groups over 256 excluded; a shortfall is reported, never topped up.
   dagger_corpus.py view  --old-view VIEW --new-corpus CORPUS --arm A --out COMBINED_VIEW     symlinks: every old base dir as it is, plus gnn_datasets_wf1_dagger_<A>
   dagger_corpus.py split --old-split OLD.json --new-corpus CORPUS --arm A --out SPLIT.json [--new-only]
       The old split with every new dataset added to TRAIN (val and test unchanged), or with --new-only a split holding only the new datasets (the relabel's frame). The new ids are
@@ -17,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import random
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Sequence
@@ -31,6 +34,49 @@ BUCKETS = (("le10", 1, 10), ("11_50", 11, 50), ("51_100", 51, 100), ("101_256", 
 
 def bucket_of(size: int):
     return next((n for n, lo, hi in BUCKETS if lo <= size <= hi), None)
+
+
+SHARES = {"le10": 4800, "11_50": 4600, "51_100": 2000, "101_256": 600}       # Arm 1's bucket draw (12,000); the proportions, not the counts, are used
+EARLY_SHARE = 0.30
+WINDOWS, RUNGS = ("g0", "g1", "g2", "g3"), ("moderate", "heavy")
+
+
+def _largest_remainder(total: int, weights: Dict[Any, float]) -> Dict[Any, int]:
+    """Integer quotas summing to `total`, proportional to the weights; ties go to the sorted-first key."""
+    z = float(sum(weights.values()))
+    raw = {k: total * w / z for k, w in weights.items()}
+    out = {k: int(v) for k, v in raw.items()}
+    for k in sorted(raw, key=lambda k: (-(raw[k] - out[k]), str(k)))[: total - sum(out.values())]:
+        out[k] += 1
+    return out
+
+
+def draw_plan(wls: Dict[Any, Dict[str, Any]], total: int, seed: int) -> Dict[str, Any]:
+    """The pre-drawn trigger plan (amendment A2): `total` trigger ids per arm over the cells (topology, window, rung) in `wls` (their workloads), as an R1A_SNAPSHOT_PLAN
+    {"<topo>__<window><rung>": [trigger ids]}. Arm-independent (workloads only): both arms get the same seed and ids. Quotas follow Arm 1's stratification: size buckets in the Arm 1
+    proportions, 30 % of each bucket's draw at group arrival t < 360 s, groups over 256 tasks excluded up front. Every cell draws its quota of each (bucket, stratum) with
+    random.Random on (seed, cell, bucket, stratum); a cell with fewer groups than its quota gives all it has and the shortfall is reported (no top-up)."""
+    from scripts_cosim.uncut_arm1 import groups_of
+
+    cells = sorted(wls)
+    cell_q = _largest_remainder(total, {b: SHARES[b] for b in SHARES})
+    plan: Dict[str, List[int]] = {}
+    census, short = [], 0
+    per_cell = {b: _largest_remainder(q, {c: 1.0 for c in cells}) for b, q in cell_q.items()}
+    for c in cells:
+        topo, window, rung = c
+        gs = [(trig, size, t) for trig, size, t in groups_of(wls[c]) if bucket_of(size) is not None]
+        ids: List[int] = []
+        for b in SHARES:
+            n_e = round(EARLY_SHARE * per_cell[b][c])
+            for early, want in ((True, n_e), (False, per_cell[b][c] - n_e)):
+                pool = sorted(trig for trig, size, t in gs if bucket_of(size) == b and (t < EARLY_T) == early)
+                got = random.Random(f"dagger_plan:{seed}:{topo}:{window}:{rung}:{b}:{int(early)}").sample(pool, min(want, len(pool)))
+                ids += got
+                short += want - len(got)
+                census.append({"cell": f"{topo}__{window}{rung}", "bucket": b, "early": early, "want": want, "pool": len(pool), "drawn": len(got)})
+        plan[f"{topo}__{window}{rung}"] = sorted(ids)
+    return {"plan": plan, "census": census, "total_drawn": sum(len(v) for v in plan.values()), "shortfall": short, "quotas": cell_q, "seed": seed}
 
 
 def base_name(arm: str) -> str:
@@ -145,6 +191,9 @@ def main(argv=None) -> int:
     s.add_argument("--arm", required=True); s.add_argument("--cells", required=True); s.add_argument("--token", required=True); s.add_argument("--seed", type=int, required=True)
     s.add_argument("--plan", required=True); s.add_argument("--inputs", required=True); s.add_argument("--allow-topos", type=int, nargs="+", required=True)
     s.add_argument("--allow-missing", action="store_true"); s.add_argument("--out", required=True)
+    d = sub.add_parser("plan")
+    d.add_argument("--inputs", required=True, help="inputs_group dir (wf1_<rung>/wl/grounded_<window>_n50000.json)"); d.add_argument("--topos", type=int, nargs="+", required=True)
+    d.add_argument("--total", type=int, default=2000); d.add_argument("--seed", type=int, required=True); d.add_argument("--out", required=True)
     v = sub.add_parser("view")
     v.add_argument("--old-view", required=True); v.add_argument("--new-corpus", required=True); v.add_argument("--arm", required=True); v.add_argument("--out", required=True)
     p = sub.add_parser("split")
@@ -155,6 +204,14 @@ def main(argv=None) -> int:
         res = make_states(a.arm, Path(a.cells), a.token, a.seed, json.load(open(a.plan)), Path(a.inputs), a.allow_topos, allow_missing=a.allow_missing)
         Path(a.out).write_text(json.dumps(res, indent=1))
         print(json.dumps({"states": len(res["states"]), "counts": res["counts"], "groups_over_256": res["groups_over_256"], "missing": len(res["missing"])}))
+        return 0
+    if a.cmd == "plan":
+        wls = {(t, w, r): json.load(open(f"{a.inputs}/wf1_{r}/wl/grounded_{w}_n50000.json")) for t in a.topos for w in WINDOWS for r in RUNGS}
+        res = draw_plan(wls, a.total, a.seed)
+        raw = json.dumps(res["plan"], sort_keys=True, separators=(",", ":"))
+        Path(a.out).write_text(raw)
+        Path(a.out + ".census.json").write_text(json.dumps({k: v for k, v in res.items() if k != "plan"}, indent=1))
+        print(json.dumps({"total_drawn": res["total_drawn"], "shortfall": res["shortfall"], "quotas": res["quotas"], "plan_sha256": hashlib.sha256(raw.encode()).hexdigest()}))
         return 0
     if a.cmd == "view":
         print(json.dumps(make_view(Path(a.old_view), Path(a.new_corpus), a.arm, Path(a.out))))
