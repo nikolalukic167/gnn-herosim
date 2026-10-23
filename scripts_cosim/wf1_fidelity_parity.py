@@ -49,11 +49,6 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     os.environ["GNN_BATCH_POLL_INTERVAL"] = "1e-9"
     os.environ.pop("GNN_BATCH_TIMEOUT", None)  # the cell config's scheduler block names them (the loader refuses both)
     os.environ.pop("GNN_BATCH_SIZE", None)
-    if os.environ.get("PARITY_BATCH_CAP"):
-        # the live collector serves at most MAX_BATCH_SIZE_FOR_PREFIX_GNN (16) tasks per decision; a corpus batch of the bar's 17-256 tasks is replayed whole by raising the cap in this process
-        import src.policy.gnn.scheduler as _gs
-
-        _gs.MAX_BATCH_SIZE_FOR_PREFIX_GNN = int(os.environ["PARITY_BATCH_CAP"])
     from src.policy.gnn.scheduler import _gnn_batch_range
     import peer_affinity_live_serve_check as P
     from src.executesimulation import execute_simulation, load_gnn_model, load_simulation_inputs, prepare_infrastructure_for_real_simulation
@@ -103,7 +98,13 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     infra["forced_placements"] = {}
     infra["fast_forward_warmup"] = True
     infra["fast_forward_threshold"] = 1
-    infra["scheduler"] = {"batch_size": _gnn_batch_range()[1], "batch_timeout": 4e-9}
+    # the cell's own batch rule: a gate cell declares scheduler.batch_size = "group" (src/policy/gnn/orchestrator.WHOLE_GROUP, scheduler.enable_whole_group: each peer group is one batch, no size cap), so the replay serves the
+    # dataset's whole batch like the gate does; a config without it (the old corpora) keeps the prefix decoder's own ceiling. Peer-group batching off (a sub-batch dataset) cannot serve whole groups.
+    from src.policy.gnn.orchestrator import WHOLE_GROUP
+
+    whole = (space.get("scheduler") or {}).get("batch_size") == WHOLE_GROUP and os.environ.get("GNN_BATCH_BY_PEER_GROUP") != "0"
+    out["batch_rule"] = WHOLE_GROUP if whole else "cap"
+    infra["scheduler"] = {"batch_size": WHOLE_GROUP if whole else _gnn_batch_range()[1], "batch_timeout": 4e-9}
     kw = SF.live_run_params()
 
     orig = GNNScheduler._prefix_inference
