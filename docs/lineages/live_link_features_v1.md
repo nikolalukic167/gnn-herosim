@@ -4,6 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
+- **Amendment A5 (2026-10-23; the user's decision; Record):** no init or scaling fix made (b) train robustly, so (b)'s gnn gets pre-norm residual message passing, behind a contract flag that is off by default. (b)'s twin is unchanged. A stability gate on seeds 1–3 and the fix-pin checks come before any (b) training.
 - **Variant (b) training defect and amendment A4 (2026-10-23; the user's decision; Record):** S4's 1-epoch smoke of (b) has a train CE of ~3e7 (its GPU twin ~34). (b) is fixed, not dropped: the selection waits until all three variants' 20-epoch selection cells are complete, and meanwhile no CPU-variant score is read. A per-graph loss bound is added to all arms.
 - **Pre-data amendment A3 (2026-10-23; the user's decision; Record):** seed-1 100-epoch runs of every variant start now, in parallel with the 20-epoch selection runs. They are sealed (no live cell, curves unread by the selectors) until the selection is filed. The winner's runs become A2's seed 1; the others are exploratory only.
 - **Pre-data amendment A2 (2026-10-23; the user's decision; Record):** after the seed-1 selection, the chosen variant's four arms train at 100 epochs (the cap), seeds 1–3 from scratch, for development and confirmation. The 20-epoch selection read is never pooled with them.
@@ -108,6 +109,37 @@ Conditions on the arms:
 
 ## Record
 
+- 2026-10-23 — **Pre-data amendment A5: (b)'s gnn gets pre-norm residual message passing** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any (b) selection or e100 training, as the expert reports).
+  - **Evidence: S4's robustness table** (diagnostic runs, not selection runs; they read only (b)'s own training metrics).
+    - No init or scaling fix is robust. Zero-init diverges on seed 3, rescaling on seeds 2 and 3, and both together on seed 3.
+    - All of them show a depth-compounding activation signature (activation L2 up to 1.2e6).
+    - Zero-init does use E: with E zeroed, val CE per task is +2.0 % at seed 1.
+    - **History:** the unnormalised conv was never a problem while every conv input was fixed per batch. (b) is the first conv whose inputs change within a batch, by being re-encoded per committed set.
+  - **The change.** (b)'s gnn only: h_{l+1} = h_l + Conv_l(LayerNorm_l(h_l)). Random init, with the same recipe, corpus, labels, venue (GPU) and seeds as filed.
+    - **Design facts (S4).**
+      - "Stateless" means no running statistics, not no parameters. The LayerNorm has an elementwise affine (`bip_norms.{l}.weight` / `.bias`): one LayerNorm per layer, shared over the task and platform rows.
+      - There is no linear skip: every `BipartiteEdgeConv` maps emb → emb, so the residual is the identity.
+      - There is no final norm after layer 3. So the scorer's input scale differs from the as-built gnn's, and this is disclosed with every (b) row.
+    - **The flag is weight-visible and in the contract.**
+      - The affine parameters change the state dict, so a strict load fails across a pre-norm and a plain checkpoint.
+      - The flag is also in the sidecar (`mp_conv_prenorm_residual`). The loaders and serving read it from the contract, never from a default (the `mp_residual` lesson).
+      - It fails loud combined with `mp_bipartite_hetero`, `plan_raw` or `mp_residual`.
+    - The default is off, and everything else is byte-unchanged.
+  - **The controls.**
+    - (b)'s control twin has no conv, so it is unchanged, and the (b) gnn-vs-twin contrast still isolates message passing.
+    - The as-built and static variants keep their architecture. So (b) differs from them by the re-encode **and** by this block.
+    - **Disclosed with every (b) row:** if (b) is selected, its message-passing result is attributed to "per-placement re-encode with pre-norm residual MP". Neither part alone is credited, and no cross-variant contrast attributes a difference to re-encoding.
+  - **The gate, in order, before any (b) training (selection or e100). Each result is filed:**
+    1. **Step-debug stability on seeds 1–3 to step ~300.** The pass criterion is fixed now:
+       - every seed reaches step 300 with a finite loss;
+       - the per-graph loss bound (defect ruling iii) never trips;
+       - the maximum per-layer activation L2 stays within 10× that of the as-built v7 gnn at the same seed and step.
+       Any seed failing any of these fails the gate; this goes back to the user, and is not retried with another seed.
+    2. **Equivalence:** with the flag off, the (b) gnn's forward pass and gradients are byte-identical to the current conv's on fixed batches. Every existing arm is unchanged.
+    3. **Determinism:** `tests/test_trainer_determinism.py` (CPU), plus the A1 one-repeat GPU weight-difference report for (b).
+    4. **Full suite green** at the fix pin.
+  - **Unchanged:** the selection rule and script (blob `54367447`), the A4 wait, the A3 seal, (b)'s eligibility tests and its own measured w. The w is re-measured on the pre-norm code, since the block costs time.
+
 - 2026-10-23 — **A1 selection script filed before the first selection cell: `scripts_cosim/llf_select.py`, blob `54367447467e1fb8a4d97a2f8f5bfea0d641c153` (file md5 `1bc243c9cd2c1bc5a370235ede4aefd8`)** (SCIENTIST, at the expert's request; tests `tests/test_llf_select.py`). The selection of A1/A4 runs this blob once, by SCIENTIST, after (b)'s last 20-epoch seed-1 selection cell.
   - **What it reads.** Per variant, its gnn and control twin at seed 1: as built `ra_gnn_eng_combfl_link` / `ra_twin_eng_combfl_link`; (a) `ra_gnn_eng_combfl_linkstatic` / `ra_twin_eng_combfl_linkstatic`; (b) `ra_gnn_eng_combfl_linkconv` / `ra_twin_eng_combfl_link_gpu` (the test asserts these are the gate's registered kinds). Cells `<kind>_nosplit_k100_s1` on 30176–30181, g0+g1, both rungs; the cell value is whole-run `averageElapsedTime`, the uncut reader's statistic of record.
   - **What it refuses.** It refuses to compute unless all 144 cells exist with a finite latency. It also refuses if any cell is not option D (fair share serial, TCP on, default cellular), if a gnn and its twin served different task counts, or if its `--out` exists.
@@ -127,7 +159,7 @@ Conditions on the arms:
      - The per-graph loss bound (defect ruling iii) applies, and the defect entry's byte-identity test decides whether any started arm keeps its pin.
      - A fixed (b) still faces the rule's eligibility tests (parity, collapse check, curves above the chance floor). Failing one is ordinary ineligibility, not a deadline.
   5. **If (b) proves unfixable,** the user decides then what happens, and the record names that decision and its date. The decision is made, and filed, before the selection read runs and without any CPU-variant score.
-  - **Cost.** The selection read, and with it the winner's seeds 2–3 and the confirmation, slip by (b)'s fix time plus about 6–7 h of GPU training: 20 epochs × about 19 min per epoch on an L40S is about 6.3 h. Then come (b)'s selection cells under D, whose heavy cells run about 3 h or more (the admission screen's heavy median is 11,675 s).
+  - **Cost.** The selection read, and with it the winner's seeds 2–3 and the confirmation, slip by (b)'s fix time plus about 6–7 h of GPU training: 20 epochs × about 19 min per epoch on an L40S is about 6.3 h. Then come (b)'s selection cells under D: about 1 h, somewhat slower than the other arms because of (b)'s 2.1× decision charge. *Corrected 2026-10-23: the 11,675 s heavy median first quoted here is the reactive admission screen's. The learned-arm grids under D ran 15–26 min per job (sacct: d_fsl 901504–901507, d_fsl3 901873, 901874, 901970, 901971).*
 
 - 2026-10-23 — **Variant (b) training defect, and three rulings** (the expert's rulings; filed by SCIENTIST before any selection-run data exists, as the expert reports).
   - **The defect.** S4's 1-epoch smoke of (b) on the real corpus has a train CE of about 3e7, against about 34 for its GPU v7 twin on the same corpus. Some per-graph losses are huge but finite. (b) does not train until it is fixed.
