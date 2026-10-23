@@ -17,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import uncut_charge_share as U  # noqa: E402
 
 KINDS = {"gnn": "ra_gnn_eng_combfl_link_nosplit", "twin": "ra_twin_eng_combfl_link_nosplit", "mlp": "ra_mlp_same_combfl_link_nosplit", "wide": "ra_mlp_wide_combfl_link_nosplit"}
+# the static link block (partial_state_v8): the three kinds of the 2026-10-23 variant; --kinds v8 freezes these instead (same recipe, same H3 control)
+KINDS_V8 = {"gnn": "ra_gnn_eng_combfl_linkstatic_nosplit", "twin": "ra_twin_eng_combfl_linkstatic_nosplit", "mlp": "ra_mlp_same_combfl_linkstatic_nosplit"}
 RUNGS = ("moderate", "heavy")
 LIMIT = U.DRIFT
 
@@ -52,6 +54,7 @@ def main(argv=None):
     ap.add_argument("--series", required=True)
     ap.add_argument("--filed-h3", required=True)
     ap.add_argument("--out")
+    ap.add_argument("--kinds", choices=("v7", "v8"), default="v7")
     a = ap.parse_args(argv)
     pre, end = h3(os.path.join(a.series, "H3pre_B")), h3(os.path.join(a.series, "H3end_B"))
     fpre, fend = h3(os.path.join(a.filed_h3, "H3pre_B")), h3(os.path.join(a.filed_h3, "H3end_B"))
@@ -67,7 +70,7 @@ def main(argv=None):
         if a.out:
             json.dump(out, open(a.out, "w"), indent=1)
         return 1
-    out["kinds"] = {arm: kind_row(a.series, tag, arm) for tag, arm in KINDS.items()}
+    out["kinds"] = {arm: kind_row(a.series, tag, arm) for tag, arm in (KINDS_V8 if a.kinds == "v8" else KINDS).items()}
     print(json.dumps(out, indent=1))
     if a.out:
         json.dump(out, open(a.out, "w"), indent=1)
