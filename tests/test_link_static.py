@@ -9,6 +9,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts_cosim"))
 
 from test_link_features import (  # noqa: E402
     NAMES, REPLICAS, SPECS, MIB, base_ctx_kwargs, fabric_env, node_exchange, psc_of, start_flows, stored_block, synthetic_graph, topology,
@@ -131,3 +132,91 @@ def test_a_v8_graph_without_link_tables_fails_loud(fabric_env, monkeypatch):
     g = synthetic_graph(np.zeros((len(REPLICAS), 3)), psc)
     with pytest.raises(ValueError):
         LS.link_static_attr(g)
+
+
+# ---- the full decode: live vs cache, bitwise, gnn / twin / mlp --------------------------------------------------------------------------
+def run_path8(plat, psc, arm, monkeypatch):
+    from test_link_features import PLAT_DIM_BASE, TASK_DIM
+    from src.policy.gnn.arm_models import TaskPlacementMLPSame
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+    from src.policy.gnn.partial_state_edges import candidate_edge_rows, make_partial_state_score_fn
+    from src.policy.gnn.prefix_serving import _self_refine
+    from src.policy.gnn.seq_decode import decode_masked_topo_placement
+
+    if arm == "twin":
+        monkeypatch.setenv("GNN_DISABLE_MESSAGE_PASSING", "1")
+    else:
+        monkeypatch.delenv("GNN_DISABLE_MESSAGE_PASSING", raising=False)
+    graph = synthetic_graph(plat, psc)
+    LS.attach_link_static(graph)
+    attr0 = graph.link_static_attr.clone()
+    ctx = RF.build_partial_state_context_from_graph(graph)
+    torch.manual_seed(0)
+    dims = dict(task_feature_dim=TASK_DIM, platform_feature_dim=PLAT_DIM_BASE + LF.LINK_PLATFORM_DIM, hidden_dim=16, edge_dim=5, partial_state_edge_dim=RF.partial_state_feature_dim(V8))
+    if arm == "mlp":
+        model = TaskPlacementMLPSame(**dims)
+    else:
+        model = TaskPlacementGNN(**dims, embedding_dim=8, num_layers=2, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_static_attr=(arm == "gnn"))
+    model = model.eval()
+    score = make_partial_state_score_fn(model, graph, ctx, cache_encode=False)
+    rows = candidate_edge_rows(graph)
+    trace = []
+
+    def traced(t, committed):
+        logits = score(t, committed)
+        trace.append((t, dict(committed), graph.partial_state_edge_attr[rows[t]].clone(), logits.detach().clone(), graph.link_static_attr.clone()))
+        return logits
+
+    tl = {t: [tuple(r) for r in REPLICAS] for t in range(3)}
+    with torch.no_grad():
+        task_emb, platform_emb = model._encode(graph)
+        combo = decode_masked_topo_placement([[0.0] * len(REPLICAS)] * 3, tl, 3, dag_parents={t: [] for t in range(3)}, node_caps={},
+                                             demands={t: [1.0] * len(REPLICAS) for t in range(3)}, score_fn=traced)
+        refined, _moved = _self_refine(traced, tl, combo, 2)
+    return {"combo": tuple(combo), "refined": refined, "trace": trace, "task_emb": task_emb.clone(), "platform_emb": platform_emb.clone(), "attr0": attr0}
+
+
+def test_trainer_and_live_serving_agree_bitwise_across_a_decode_for_the_three_arms(fabric_env, monkeypatch):
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", V8)
+    env, fabric = fabric_env
+    start_flows(env, fabric, SPECS, until=0.7)
+    nx = node_exchange(fabric.link_topology, NAMES)
+    node_names = [NAMES[r[0]] for r in REPLICAS]
+    live_flows = LF.flows_live(fabric.fairshare, env.now)
+    live_psc = psc_of(LF.counts_of(live_flows), LF.routes_between(fabric.link_topology, NAMES), nx)
+    stored_flows = LF.flows_stored(stored_block(fabric.fairshare, SPECS))
+    cache_psc = psc_of(LF.counts_of(stored_flows), LF.routes_between({"routes": topology()["routes"], "links": topology()["links"]}, NAMES), nx)
+    plat = np.asarray([LF.platform_columns(LF.node_raw(live_flows, n)) for n in node_names])
+    runs = {(path, arm): run_path8(plat, psc, arm, monkeypatch) for path, psc in (("live", live_psc), ("cache", cache_psc)) for arm in ("gnn", "twin", "mlp")}
+    seen = {}
+    for arm in ("gnn", "twin", "mlp"):
+        a, b = runs[("live", arm)], runs[("cache", arm)]
+        assert a["combo"] == b["combo"] and a["refined"] == b["refined"] and len(a["trace"]) == len(b["trace"]) > 3
+        assert a["attr0"].numpy().tobytes() == b["attr0"].numpy().tobytes()  # the conv's static block, live vs cache
+        assert torch.equal(a["task_emb"], b["task_emb"]) and torch.equal(a["platform_emb"], b["platform_emb"])  # the conv input, live vs cache
+        for (ta, ca, ea, la, sa), (tb, cb, eb, lb, sb) in zip(a["trace"], b["trace"]):
+            assert ta == tb and ca == cb and torch.equal(ea, eb) and torch.equal(la, lb) and ea.shape[1] == 33
+            assert torch.equal(sa, a["attr0"]) and torch.equal(sb, b["attr0"])  # constant across every decode step and refine pass: prefix-free
+        for t, committed, block, *_ in a["trace"]:
+            seen.setdefault((t, tuple(sorted(committed.items()))), {})[arm] = block
+    shared = [k for k, v in seen.items() if set(v) == {"gnn", "twin", "mlp"}]
+    assert shared
+    for k in shared:  # the three arms read byte-identical scorer rows, columns 30-32 included
+        assert seen[k]["gnn"].numpy().tobytes() == seen[k]["twin"].numpy().tobytes() == seen[k]["mlp"].numpy().tobytes()
+    # the twin and the mlp never run the conv: their encodings do not depend on the static attribute, the gnn's do
+    assert runs[("live", "gnn")]["attr0"].abs().sum() > 0
+
+
+def test_strict_loading_a_v7_checkpoint_into_a_v8_model_fails_and_the_sidecheck_wants_width_33():
+    from src.policy.gnn.gnn_model import TaskPlacementGNN
+
+    base = dict(task_feature_dim=5, platform_feature_dim=7, hidden_dim=16, edge_dim=5, embedding_dim=8, num_layers=2, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True)
+    v7 = TaskPlacementGNN(**base, partial_state_edge_dim=30)
+    v8 = TaskPlacementGNN(**base, partial_state_edge_dim=33, mp_link_static_attr=True)
+    with pytest.raises(RuntimeError):
+        v8.load_state_dict(v7.state_dict())
+    with pytest.raises(RuntimeError):
+        v7.load_state_dict(v8.state_dict())
+    import joint_burst_v2_sidecheck as SC  # scripts_cosim
+
+    assert set(SC.COMB_V8_ARMS) == {"ra_gnn_eng_v8", "ra_mlp_same_v8", "ra_twin_eng_v8"}

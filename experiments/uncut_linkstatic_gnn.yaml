@@ -1,0 +1,55 @@
+# live_link_features_v1, the static link block (user, 2026-10-23): the fair-share-label recipe of experiments/uncut_comb_fl_gnn_fslabel.yaml (from scratch, 20 epochs, lr 1e-3, seed 1) on the v8 cache (partial_state_v8 = v7 + S1-S3,
+# link_features.static_edge_columns) over the recaptured, relabelled union corpus (S6 capture, S7 labels, the label override and the split filed before launch). The gnn alone carries NEAR_RTT_MP_LINK_STATIC_ATTR: S1-S3 also enter the bipartite conv's edge attributes (link_static_attr), on top of the scorer rows.
+# Cache and label paths are the corpus builder's (cache_v8 from datalab/v7_recache.sbatch CONTRACT_SECOND=partial_state_v8; S7's label_override_union_flows.json); the launcher checks every sha256 and fails loud on a missing file.
+trainer: gnn
+lineage: uncut_groups_s0_v1
+cache_dir: /share/nikola.lukic/uncut_groups/flowcap/link_corpus/cache_v8/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_BATCHED_TF: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v8
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_groups/llf_corpus/label_override_union_flows.json
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+  NEAR_RTT_MP_LINK_STATIC_ATTR: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 20
+  patience: 20
+  min-epochs: 20
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-linkstatic-gnn-eng
+  tags:
+  - uncut-comb
+  - linkstatic
+  - partial-state-v8
+  - batched-tf
+  - ils-r010
+  - opening30
+  - gnn-eng

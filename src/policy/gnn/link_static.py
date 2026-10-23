@@ -26,7 +26,10 @@ def static_partners(ctx: Any, task_id: int):
 
 
 def link_static_attr(data: Any) -> torch.Tensor:
-    ctx = build_partial_state_context_from_graph(data)
+    return link_static_attr_from_ctx(data, build_partial_state_context_from_graph(data))
+
+
+def link_static_attr_from_ctx(data: Any, ctx: Any) -> torch.Tensor:
     if ctx.link_counts is None or ctx.link_routes is None:
         raise ValueError("FAIL LOUD: link_static_attr needs link_counts and link_routes in the graph's partial_state_ctx (a v8 cache or a live v8 batch)")
     rows = candidate_edge_rows(data)
