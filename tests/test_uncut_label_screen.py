@@ -348,3 +348,28 @@ def test_stored_flows_flag_needs_fairshare_sets_the_switch_and_marks_rows(tmp_pa
     off = _args(tmp_path, tmp_path / "off.jsonl", 1)
     L.cmd_relabel(off)
     assert "HEROSIM_REPLAY_STORED_FLOWS" not in os.environ and all("stored_flows" not in r for r in _jl(tmp_path / "off.jsonl"))
+
+
+def test_union_pools_dedups_tags_and_never_retags_the_label():
+    base = [{"plan": [[1, 1]], "tag": "label"}, {"plan": [[2, 1]], "tag": "ils_top"}, {"plan": [[3, 1]], "tag": "ils_top"}]
+    sfs = [{"plan": [[1, 1]], "tag": "label"}, {"plan": [[3, 1]], "tag": "ils_top"}, {"plan": [[4, 1]], "tag": "ils_top"}]
+    out = L.union_pools(base, sfs)
+    assert [p["plan"] for p in out] == [[[1, 1]], [[2, 1]], [[3, 1]], [[4, 1]]]
+    assert [p["tag"] for p in out] == ["label", "ils_top", "ils_top+sfs_top", "sfs_top"]
+    assert base[2]["tag"] == "ils_top"                                         # the input is not changed
+
+
+def test_winner_pool_names_the_pool_of_the_winning_plan():
+    assert L.winner_pool("label", False) == "first_pass"
+    assert L.winner_pool("ils_top", False) == "S" and L.winner_pool("enum_top", False) == "S"
+    assert L.winner_pool("sfs_top", False) == "S_fs" and L.winner_pool("ils_top+sfs_top", False) == "both"
+    assert L.winner_pool("enum", True) == "exhaustive" and L.winner_pool("label", True) == "first_pass"
+
+
+def test_union_sfs_needs_stored_flows_and_record_pair(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
+    monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
+    a = _args(tmp_path, tmp_path / "u.jsonl", 1)
+    a.union_sfs = True
+    with pytest.raises(SystemExit, match="--union-sfs needs"):
+        L.cmd_relabel(a)
