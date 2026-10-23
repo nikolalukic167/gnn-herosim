@@ -140,11 +140,11 @@ def test_capture_lists_rendezvous_ghost_with_all_partners(monkeypatch):
     fs = FairShare(env)
     placed = SimpleNamespace(id=3, platform=SimpleNamespace(node=SimpleNamespace(node_name="a")), planned_node_name=None, postponed_count=0)
     free = SimpleNamespace(id=4, platform=None, planned_node_name=None, postponed_count=0)
-    orch = SimpleNamespace(peer_exchange={8: {4: 5.0, 3: 10.0}}, task_by_id={3: placed, 4: free})
+    orch = SimpleNamespace(peer_exchange={8: {4: 5.0, 3: 10.0, 99: 1.0}}, task_by_id={3: placed, 4: free})
     node = SimpleNamespace(fabric=SimpleNamespace(fairshare=fs), node_name="b", orchestrator_ref=orch)
     plat = SimpleNamespace(node=node)
     task = SimpleNamespace(id=8, _fid={}, io_end_time=None)
     out = SF._capture_flows(SimpleNamespace(nodes=SimpleNamespace(items=[node])), [(plat, task, {"stage": "rendezvous"})], 0.0)
     F.validate(out)
     assert out["unplanned"] == [8] and out["exchanges"] == []
-    assert out["unplanned_detail"]["8"] == {"dst_node": "b", "stage": "rendezvous", "read_duration": 1.5, "partners": [[3, "a", 10.0], [4, None, 5.0]]}
+    assert out["unplanned_detail"]["8"] == {"dst_node": "b", "stage": "rendezvous", "read_duration": 1.5, "partners": [[3, "a", 10.0], [4, None, 5.0], [99, None, 1.0]]}
