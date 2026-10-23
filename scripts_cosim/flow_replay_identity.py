@@ -119,7 +119,13 @@ def _work(job: Dict[str, Any]) -> Dict[str, Any]:
         else:
             os.environ[flow_replay.ENV] = flag
         t0 = time.time()
-        rt, _setup, _runs = U.replay_rtts(spec, types, [plan])
+        try:
+            rt, _setup, _runs = U.replay_rtts(spec, types, [plan])
+        except RuntimeError as err:
+            if "has no placement time" not in str(err):
+                raise
+            out["unreplayable"] = str(err)[:200]          # a batch partner outside the snapshot that live had not placed: the replay would wait on it for ever (K1 census class)
+            return out
         out[f"rtt_{name}"] = float(rt[0])
         out[f"gap_{name}"] = (float(rt[0]) - live) / live if live else None
         out[f"gap_adj_{name}"] = (float(rt[0]) - live_adj) / live_adj if live_adj else None
@@ -204,8 +210,9 @@ def _dist(xs: List[float]) -> Dict[str, Any]:
 
 
 def cmd_read(a):
-    rows = [json.loads(l) for l in open(a.rows) if l.strip()]
-    out: Dict[str, Any] = {"n": len(rows)}
+    allrows = [json.loads(l) for l in open(a.rows) if l.strip()]
+    rows = [r for r in allrows if not r.get("unreplayable")]
+    out: Dict[str, Any] = {"n": len(rows), "unreplayable": len(allrows) - len(rows), "n_all": len(allrows)}
     for key in ("records_input_io", "records_planned", "unplanned", "rendezvous_ghosts", "active_flows", "ghosts", "n_batch"):
         v = [r[key] for r in rows]
         out[f"per_state_{key}"] = {"median": st.median(v), "p90": _q(v, 0.9), "max": max(v), "share_states_nonzero": sum(x > 0 for x in v) / len(v)}
