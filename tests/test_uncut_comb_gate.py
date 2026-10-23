@@ -98,3 +98,16 @@ def test_wide_mlp_is_a_nosplit_gate_arm_outside_the_other_kind_sets():
     assert base == "ra_mlp_wide_combfl" and G.COMB_STEMS[base] == "uncut-comb-fl-mlp-wide"
     assert k in G.R1A_ARMS and k in G.R1A_NOSPLIT and base in G.RA_KINDS and base not in G.RA_MP_OFF and base not in G.COMB_KINDS
     assert G.split_dc(f"{k}_k100") == (k, 1.0) and G.comb_contract(base) == "partial_state_v6" and G.COMB_CHECK[base] == "ra_mlp_same_v6"
+
+
+def test_wide_fslabel_mlp_is_a_nosplit_mlp_same_gate_arm_charged_the_filed_mlp_w():
+    (base,) = G.COMB_WIDEFS
+    k = base + "_nosplit"
+    assert base == "ra_mlp_wide_fslabel_combfl" and G.COMB_STEMS[base] == "uncut-comb-fl-mlp-wide-fslabel"
+    assert k in G.R1A_ARMS and k in G.R1A_NOSPLIT and base in G.RA_KINDS and base not in G.RA_MP_OFF and base not in G.COMB_KINDS + G.COMB_WIDE + G.COMB_FSLABEL
+    assert G.split_dc(f"{k}_k100") == (k, 1.0) and G.comb_contract(base) == "partial_state_v6" and G.COMB_CHECK[base] == "ra_mlp_same_v6"
+    assert json.load(open(G.DC_W_FILE))["w_ms_per_plan_alias"][k] == "ra_mlp_same_combfl_nosplit"
+    for rung in ("moderate", "heavy"):
+        assert G.dc_cost_ms(k, 1.0, rung) == G.dc_cost_ms("ra_mlp_same_combfl_nosplit", 1.0, rung)
+    src = open(G.__file__).read()
+    assert '"ra_mlp_wide_fslabel_combfl"):' in src and "base_kind in COMB_WIDE + COMB_WIDEFS" in src  # GNN_ARM_KIND is mlp_same
