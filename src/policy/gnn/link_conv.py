@@ -322,6 +322,34 @@ def _encode_copies(model: Any, data: Any, attr: Tensor, edge_budget: int) -> Tup
     return torch.cat(tes, 0), torch.cat(pes, 0)
 
 
+_E_STATS_N = [0]
+
+
+def _debug_transform_e(LS: LinkStatic, data: Any, ctx: Any, attr: Tensor) -> Tensor:
+    """Diagnostics of the E instability (env only, never set in a registered run): LINK_CONV_E_STATS=1 prints per-column statistics of the forward rows over the first 40 graphs; LINK_CONV_E_SCALE=a,b,c divides
+    the columns; LINK_CONV_E_MODE=zero zeroes E, =static replaces it with the state-independent S1-S3 block."""
+    import os
+
+    if os.environ.get("LINK_CONV_E_STATS") == "1" and _E_STATS_N[0] < 40:
+        _E_STATS_N[0] += 1
+        fwd = attr[:, LS.on(attr.device)["fwd"]].reshape(-1, LINK_EDGE_DIM)
+        q = torch.quantile(fwd[:: max(1, fwd.shape[0] // 200000)], torch.tensor([0.5, 0.99], device=fwd.device), dim=0)
+        print(f"[e-stats] graph={getattr(data, 'dataset_id', '?')} states={attr.shape[0]} mean={fwd.mean(0).tolist()} std={fwd.std(0).tolist()} p50={q[0].tolist()} p99={q[1].tolist()} max={fwd.max(0).values.tolist()}", flush=True)
+    sc = os.environ.get("LINK_CONV_E_SCALE")
+    if sc:
+        attr = attr / torch.tensor([float(v) for v in sc.split(",")], dtype=attr.dtype, device=attr.device)
+    mode = os.environ.get("LINK_CONV_E_MODE", "")
+    if mode == "zero":
+        attr = torch.zeros_like(attr)
+    elif mode == "static":
+        from src.policy.gnn.link_static import link_static_attr_from_ctx
+
+        attr = link_static_attr_from_ctx(data, ctx).to(attr.device, attr.dtype)[None].expand_as(attr).contiguous()
+    elif mode:
+        raise ValueError(f"LINK_CONV_E_MODE={mode!r}")
+    return attr
+
+
 def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int]], order: Sequence[int], full_context_weight: float, device: torch.device,
                    edge_budget: int = 300_000) -> Tensor:
     """The any-of-K teacher-forced CE of the re-encode variant: -logsumexp_k sum_t log p(plan_k[t] | prefix state), plus `full_context_weight` times the same over the full-context states.
@@ -340,7 +368,7 @@ def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int
     with torch.no_grad():
         for a in range(0, n_states, step):
             rows.append(link_rows(LS, torch.from_numpy(Cm[a:a + step]).to(device), torch.from_numpy(ND[a:a + step]).to(device)))
-        attr = rows_to_edges(LS, torch.cat(rows, 0))
+        attr = _debug_transform_e(LS, data, ctx, rows_to_edges(LS, torch.cat(rows, 0)))
     task_emb, platform_emb = _encode_copies(model, data, attr, edge_budget)
     lp = state_log_softmax_per_state(b, model, data, task_emb, platform_emb)
     loss = -torch.logsumexp(b.step_logps(lp, "prefix").sum(dim=1), dim=0)

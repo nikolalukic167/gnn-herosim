@@ -1268,6 +1268,20 @@ def train_epoch(
         if not torch.isfinite(loss):
             continue
         loss.backward()
+        if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1" and os.environ.get("NEAR_RTT_STEP_GROUPS") == "1" and (_STEP_N[0] < 40 or _STEP_N[0] % 10 == 9):
+            _groups: Dict[str, float] = {}
+            for _k, _p in model.named_parameters():
+                if _p.grad is None:
+                    continue
+                _parts = _k.split(".")
+                if _k.startswith("bip_convs.") and _k.endswith("message_mlp.0.weight"):
+                    _groups[f"{_parts[0]}.{_parts[1]}.msg0.E"] = float(_p.grad[:, -LINK_EDGE_DIM:].norm())
+                    _groups[f"{_parts[0]}.{_parts[1]}.msg0.rest"] = float(_p.grad[:, :-LINK_EDGE_DIM].norm())
+                else:
+                    _g = ".".join(_parts[:3] if _k.startswith("bip_convs.") else _parts[:2])
+                    _groups[_g] = (_groups.get(_g, 0.0) ** 2 + float(_p.grad.norm()) ** 2) ** 0.5
+            _ew = {f"L{_k.split('.')[1]}": round(float(_p.detach()[:, -LINK_EDGE_DIM:].norm()), 4) for _k, _p in model.named_parameters() if _k.startswith("bip_convs.") and _k.endswith("message_mlp.0.weight")}
+            print(f"[group-grad] step={_STEP_N[0] + 1} " + " ".join(f"{_k}={_v:.4g}" for _k, _v in sorted(_groups.items())) + f" | E_weight_norm={_ew} act_norm={getattr(model, '_dbg_act', None)}", flush=True)
         _gn = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1":
@@ -3021,6 +3035,21 @@ wandb.log_artifact(artifact)
 wandb.finish()
 
 print("=" * 80)
+if os.environ.get("NEAR_RTT_LINK_CONV_ABLATE") == "1":
+    model.eval()
+    _abl = {}
+    for _mode in ("", "zero"):
+        os.environ["LINK_CONV_E_MODE"] = _mode
+        _tot = 0.0
+        _n = 0
+        with torch.no_grad():
+            for _g in val_graphs[:: max(1, len(val_graphs) // 200)]:
+                _l, _nt = loss_tied_teacher_forced_ce(model, move_graph_to_device(_g, DEVICE), DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight)
+                _tot += float(_l) / max(1, int(_g.n_tasks))
+                _n += 1
+        _abl[_mode or "real"] = _tot / max(1, _n)
+    os.environ["LINK_CONV_E_MODE"] = ""
+    print(f"[ablate] val CE per task over {_n} val graphs: E real {_abl['real']:.5g}  E zeroed {_abl['zero']:.5g}", flush=True)
 print("TRAINING COMPLETE")
 print("=" * 80)
 print(f"Model saved to: {model_path}")
