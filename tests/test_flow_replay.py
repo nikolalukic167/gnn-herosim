@@ -242,3 +242,116 @@ def test_a_stored_rate_that_the_replayed_links_do_not_reproduce_raises(on, monke
     env, fabric, _p, _t = build(monkeypatch, False)
     with pytest.raises(RuntimeError, match="recomputed rate"):
         flow_replay.start_active(fabric.fairshare, block)
+
+
+# ---- unplanned ghosts: rendezvous and admitted with an unplaced partner ---------------------------------------------------------------------
+
+class RvOrchestrator:
+    """peer table + task table + `peer_ready_event` (the live orchestrator's): a partner not placed yet is waited for through its `scheduled` event."""
+
+    def __init__(self, env, table, tasks):
+        self.env, self.peer_exchange, self.task_by_id = env, table, tasks
+
+    def peer_ready_event(self, task_id):
+        return self.task_by_id[int(task_id)].scheduled
+
+
+def _rv_world(monkeypatch, place_at, payloads=(30 * MiB, 20 * MiB)):
+    """A ghost (live task 900) on node a whose two partners are tasks 1 and 2 on p0 and p1; task 2 is placed at `place_at` (None: already placed)."""
+    env, fabric, platform, t0 = world(monkeypatch, [1.0, 1.0])
+    ghost = type("G", (), {"id": flow_replay.ghost_key(900)})()
+    tasks = platform.node.orchestrator_ref.task_by_id
+    tasks[1].scheduled = env.event(); tasks[1].scheduled.succeed()
+    tasks[2].scheduled = env.event()
+    p1_node = tasks[2].platform
+    if place_at is None:
+        tasks[2].scheduled.succeed()
+    else:
+        tasks[2].platform = None
+
+        def place():
+            yield env.timeout(place_at)
+            tasks[2].platform = p1_node
+            tasks[2].scheduled.succeed()
+
+        env.process(place())
+    orch = RvOrchestrator(env, {ghost.id: {1: payloads[0], 2: payloads[1]}}, tasks)
+    platform.node.orchestrator_ref = orch
+    return env, fabric, platform, ghost
+
+
+@pytest.mark.parametrize("place_at", [None, 2.0])
+def test_unplanned_ghost_waits_for_its_partner_then_plans_reads_and_exchanges_serially(on, monkeypatch, place_at):
+    monkeypatch.delenv("HEROSIM_EXCHANGE_TCP", raising=False)
+    env, fabric, platform, ghost = _rv_world(monkeypatch, place_at)
+    done = {}
+
+    def run():
+        yield from flow_replay.unplanned_process(platform, ghost, {"read_duration": 1.0})
+        done["t"] = env.now
+
+    env.process(run())
+    env.run()
+    # wait until the partner is placed, the read, then 30 MiB and 20 MiB one after the other over a 10 MB/s link, each plus the 0.05 s route latency
+    assert done["t"] == pytest.approx((place_at or 0.0) + 1.0 + (3.0 + 0.05) + (2.0 + 0.05), abs=1e-9)
+
+
+def test_unplanned_ghost_exchange_shares_the_link_with_a_stored_flow(on, monkeypatch):
+    monkeypatch.delenv("HEROSIM_EXCHANGE_TCP", raising=False)
+    env, fabric, platform, ghost = _rv_world(monkeypatch, None)
+    bg = fabric.fairshare.start([("core0>a", 10.0)], 50 * MiB)           # a stored background flow on the receiving link: alone 5 s
+    done = {}
+
+    def run():
+        yield from flow_replay.unplanned_process(platform, ghost, {"read_duration": 0.0})
+        done["t"] = env.now
+
+    env.process(run())
+    env.run()
+    assert done["t"] > (3.0 + 0.05) + (2.0 + 0.05) + 1e-6
+
+
+def test_apply_orchestrator_registers_the_unplanned_ghost_table(monkeypatch):
+    from src.placement import snapshot_fidelity as SF
+
+    monkeypatch.setenv(flow_replay.ENV, "1")
+    env = simpy.Environment()
+    orch = type("O", (), {"env": env, "task_by_id": {}, "peer_exchange": {}})()
+    fid = {"queued": [], "batch": [{"gid": 5}, {"gid": 6}], "pairs": [], "peers": {},
+           "flows": {"unplanned": [900], "unplanned_detail": {"900": {"dst_node": "a", "stage": "rendezvous", "read_duration": 0.5,
+                                                                      "partners": [[5, None, 10.0], [77, "p1", 20.0], [78, None, 30.0]]}}}}
+    assert SF.apply_orchestrator(orch, fid) == 0                          # an unplaced partner outside the snapshot is not "never": the ghost just keeps waiting
+    table = orch.peer_exchange[flow_replay.ghost_key(900)]
+    assert table[0] == 10.0                                                # gid 5 is the replay's task 0 (queued first, then the batch)
+    stubs = {k: v for k, v in table.items() if k >= SF.STUB_BASE}
+    assert sorted(stubs.values()) == [20.0, 30.0]
+    assert orch.task_by_id[SF.STUB_BASE + 77].planned_node_name == "p1" and orch.task_by_id[SF.STUB_BASE + 78].planned_node_name is None
+
+
+def test_a_snapshot_with_unplanned_ghosts_and_no_detail_is_refused(monkeypatch):
+    monkeypatch.setenv(flow_replay.ENV, "1")
+    monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
+    monkeypatch.delenv(flow_replay.UNPLANNED_OLD_ENV, raising=False)
+    block = {"version": 1, "model": "processor_sharing_v1", "partners": "serial", "tcp": False, "fairshare_last": 0.0, "active": [], "exchanges": [], "unplanned": [900]}
+    with pytest.raises(RuntimeError, match="unplanned_detail"):
+        flow_replay.require({"flows": block})
+    monkeypatch.setenv(flow_replay.UNPLANNED_OLD_ENV, "1")
+    assert flow_replay.require({"flows": block}) is block
+
+
+def test_unplanned_ghost_runs_its_partners_in_live_id_order(on, monkeypatch):
+    """The replay numbers the snapshot's batch tasks before the stubs; live sorts partners by live task id. The ghost's flows follow the live order."""
+    monkeypatch.delenv("HEROSIM_EXCHANGE_TCP", raising=False)
+    env, fabric, platform, ghost = _rv_world(monkeypatch, None)
+    orch = platform.node.orchestrator_ref
+    orch.fid_live_peer = {ghost.id: {1: 50, 2: 7}}                        # replay partner 1 is live task 50, replay partner 2 is live task 7
+    seen = {}
+
+    def spy(self, task, flows):
+        seen["order"] = [f["peer_id"] for f in flows]
+        yield env.timeout(0)
+
+    monkeypatch.setattr(Platform, "_fairshare_exchange", spy)
+    env.process(flow_replay.unplanned_process(platform, ghost, {"read_duration": 0.0}))
+    env.run()
+    assert seen["order"] == [2, 1]

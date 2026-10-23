@@ -476,6 +476,7 @@ class GhostTask:
         self.held: List[Tuple[str, Any]] = []  # (link key, request) already taken at apply time
         self.net_timer: Any = None  # a net-stage ghost's propagation timeout, created at apply time in ghost order
         self.exchange: Any = None  # (fairshare, ExchangeRecord, active-flow events) when HEROSIM_REPLAY_STORED_FLOWS replays this ghost's stored exchange
+        self.unplanned: Any = None  # flows["unplanned_detail"][tid] when HEROSIM_REPLAY_STORED_FLOWS plans this ghost's exchange at its input start
         # what state_capture / scheduling_cost read off a platform's current_task
         self.cold_started = False
         self.started_time = None
@@ -565,6 +566,10 @@ def _serve(platform: Any, ghost: GhostTask) -> Generator:
 
         fairshare, ex, events = ghost.exchange
         yield from flow_replay.exchange_process(env, fairshare, ex, events)
+    elif ghost.unplanned is not None:
+        from src.placement import flow_replay
+
+        yield from flow_replay.unplanned_process(platform, ghost, ghost.unplanned)
     elif stage in ("input_io", "rendezvous") and rec.get("io_remaining", 0.0) > 0:
         yield env.timeout(rec["io_remaining"])
     compute = platform.compute_lock.request()
@@ -655,10 +660,12 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
 
     flows = flow_replay.require(fidelity)
     exchanges: Dict[int, Dict[str, Any]] = {}
+    unplanned: Dict[int, Dict[str, Any]] = {}
     events: Dict[Tuple[int, int], Any] = {}
     if flows is not None:
         fairshare = next(iter(plat_map.values()))[0].fabric.fairshare
         exchanges = {int(ex["owner_tid"]): ex for ex in flows["exchanges"]}
+        unplanned = flow_replay.unplanned_detail(flows)
         events = flow_replay.start_active(fairshare, flows)
     attached = set()
 
@@ -673,6 +680,11 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
                                    f"the ghost at {node_name}/{rec['stage']}")
             ghost.exchange = (fairshare, ex, events)
             attached.add(int(rec["tid"]))
+        if flows is not None and int(rec["tid"]) in unplanned:
+            d = unplanned[int(rec["tid"])]
+            if d["stage"] != rec["stage"] or d["dst_node"] != node_name:
+                raise RuntimeError(f"fidelity apply: task {rec['tid']}: stored unplanned detail is at {d['dst_node']}/{d['stage']}, the ghost at {node_name}/{rec['stage']}")
+            ghost.unplanned = d
         if rec["stage"] in ("ingress", "cold"):
             if plat.admitted is not None:
                 raise RuntimeError(f"fidelity apply: two admitted tasks on {rec['q']}")
@@ -783,6 +795,25 @@ def apply_orchestrator(orchestrator: Any, fidelity: Dict[str, Any]) -> int:
                     else:
                         never += 1
             orchestrator.peer_exchange.setdefault(local, {})[stub.id] = float(payload)
+    from src.placement import flow_replay
+
+    flows = fidelity.get(flow_replay.flow_snapshot.KEY)
+    if flows is not None and flow_replay.enabled():
+        for tid, d in flow_replay.unplanned_detail(flows).items():
+            table: Dict[int, float] = {}
+            for peer, node_name, payload in d["partners"]:
+                if int(peer) in ids:                       # a task of the snapshot: the replay's own task, placed by the candidate plan
+                    table[ids[int(peer)]] = float(payload)
+                    continue
+                stub = stubs.get(int(peer)) or orchestrator.task_by_id.get(STUB_BASE + int(peer))
+                if stub is None:                           # outside the snapshot: where it runs, or unplaced for ever (not counted in `never`: the ghost just keeps waiting)
+                    stub = PeerStub(env, int(peer), node_name)
+                    orchestrator.task_by_id[stub.id] = stub
+                stubs[int(peer)] = stub
+                table[stub.id] = float(payload)
+            orchestrator.peer_exchange[flow_replay.ghost_key(tid)] = table
+            live_of = {ids[int(peer)] if int(peer) in ids else STUB_BASE + int(peer): int(peer) for peer, _n, _p in d["partners"]}
+            orchestrator.__dict__.setdefault("fid_live_peer", {})[flow_replay.ghost_key(tid)] = live_of
     return never
 
 
