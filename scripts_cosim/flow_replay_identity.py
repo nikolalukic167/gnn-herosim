@@ -175,7 +175,7 @@ def cmd_run(a):
                 os._exit(2)
             fh.write(json.dumps(row) + "\n")
             fh.flush()
-            if k % 10 == 0:
+            if k % 10 == 0 and "rtt_off" in row:
                 print(f"[{k + 1}/{len(jobs)}] state {row['snapshot_id']} live {row['live_rtt']:.2f} off {row['rtt_off']:.2f} on {row['rtt_on']:.2f}", flush=True)
 
 
