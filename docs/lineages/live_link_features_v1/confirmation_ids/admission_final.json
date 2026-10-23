@@ -1,0 +1,24 @@
+{
+ "final_ids": [
+  30285,
+  30286,
+  30287,
+  30289,
+  30290,
+  30291,
+  30292,
+  30293,
+  30294,
+  30295,
+  30296,
+  30297
+ ],
+ "sha256_comma_joined": "f165536615a17be19f9bb5a01736dacb7f30255f85370d32846b3b177dbf179a",
+ "failing": [],
+ "detail": {},
+ "max_queue_share_30297": 0.00024526623115614913,
+ "max_queue_share_all": 0.002544055582057128,
+ "replaced": {
+  "30288": "g3heavy reactive killed at LIMIT 14400 and again at 28800 (unknown, not a pass); replaced by 30297 under the filed rule"
+ }
+}
