@@ -233,3 +233,24 @@ def test_the_batched_loss_entry_dispatches_to_the_link_conv_loss_and_tolerates_t
         B.batched_tf_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"), unscored_stats=stats)
     with pytest.raises(ValueError, match="move-regret"):
         B.batched_tf_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"), regret_lambda=0.1)
+
+
+def test_chunked_checkpointed_encoding_equals_the_single_call_and_its_gradients(monkeypatch):
+    rnd, ctx, g, place = TB.scenario(14, monkeypatch)
+    g, m = model_for(g)
+    plans = [[rnd.randrange(len(place[t])) for t in range(N)] for _ in range(2)]
+    order = list(range(N))
+    m.eval()  # no dropout: the chunks then differ from one call only by float rounding
+    big = 10 ** 9
+    per_copy = int(g.edge_index.size(1))
+    grads = {}
+    for tag, budget in (("whole", big), ("chunks", 3 * per_copy), ("single", 1)):
+        m.zero_grad(set_to_none=True)
+        loss = LC.link_conv_loss(m, g, ctx, plans, order, 0.5, torch.device("cpu"), edge_budget=budget)
+        loss.backward()
+        grads[tag] = (float(loss), m.bip_convs[0].message_mlp[0].weight.grad.clone(), m.platform_encoder.net[0].weight.grad.clone())
+    for tag in ("chunks", "single"):
+        assert abs(grads[tag][0] - grads["whole"][0]) <= 1e-5 * max(1.0, abs(grads["whole"][0]))
+        for k in (1, 2):
+            assert torch.allclose(grads[tag][k], grads["whole"][k], atol=1e-5, rtol=1e-4), (tag, k)
+    assert float(grads["whole"][1][:, -3:].abs().sum()) > 0.0
