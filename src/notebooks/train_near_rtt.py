@@ -1144,7 +1144,12 @@ def move_graph_to_device(data: Data, device: torch.device) -> Data:
     return data
 
 
-NEAR_RTT_LOSS_MAX = float(os.environ.get("NEAR_RTT_LOSS_MAX", "1e5"))
+NEAR_RTT_LOSS_MAX = 1e5  # fixed bound on a per-graph train CE (T up to ~230 tasks x ~ln 23 x 2 states is < 1.5e4); a trip is a crash
+if "NEAR_RTT_LOSS_MAX" in os.environ:
+    raise RuntimeError("NEAR_RTT_LOSS_MAX is a fixed constant of the code, not an environment setting")
+
+
+_LOSS_DEBUG_N = [0]
 
 
 def train_epoch(
@@ -1197,9 +1202,11 @@ def train_epoch(
                 logits = model(data)
                 loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
             if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1" and valid_ce > 0:
-                print(f"[loss-debug] epoch={epoch} graph={getattr(data, 'dataset_id', '?')} n_tasks={int(data.n_tasks)} ce={float(loss_ce.detach()):.6g}", flush=True) if float(loss_ce.detach()) > 1e3 else None
-            if valid_ce > 0 and float(loss_ce.detach()) > NEAR_RTT_LOSS_MAX and os.environ.get("NEAR_RTT_LOSS_DEBUG") != "1":
-                raise RuntimeError(f"train CE {float(loss_ce.detach()):.6g} for graph {getattr(data, 'dataset_id', '?')} (n_tasks={int(data.n_tasks)}) exceeds NEAR_RTT_LOSS_MAX={NEAR_RTT_LOSS_MAX:g}: a label on a masked or misaligned candidate")
+                _LOSS_DEBUG_N[0] += 1
+                if float(loss_ce.detach()) > 1e3 or _LOSS_DEBUG_N[0] % 200 == 0:
+                    print(f"[loss-debug] epoch={epoch} n={_LOSS_DEBUG_N[0]} graph={getattr(data, 'dataset_id', '?')} n_tasks={int(data.n_tasks)} ce={float(loss_ce.detach()):.6g}", flush=True)
+            if valid_ce > 0 and float(loss_ce.detach()) > NEAR_RTT_LOSS_MAX:
+                raise RuntimeError(f"train CE {float(loss_ce.detach()):.6g} for graph {getattr(data, 'dataset_id', '?')} (n_tasks={int(data.n_tasks)}) exceeds the fixed bound {NEAR_RTT_LOSS_MAX:g}: a label on a masked or misaligned candidate")
             if valid_ce > 0 and torch.isfinite(loss_ce):
                 loss_ce_total = loss_ce_total + loss_ce
                 n_ce += 1
