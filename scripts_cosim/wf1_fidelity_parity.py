@@ -49,6 +49,11 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     os.environ["GNN_BATCH_POLL_INTERVAL"] = "1e-9"
     os.environ.pop("GNN_BATCH_TIMEOUT", None)  # the cell config's scheduler block names them (the loader refuses both)
     os.environ.pop("GNN_BATCH_SIZE", None)
+    if os.environ.get("PARITY_BATCH_CAP"):
+        # the live collector serves at most MAX_BATCH_SIZE_FOR_PREFIX_GNN (16) tasks per decision; a corpus batch of the bar's 17-256 tasks is replayed whole by raising the cap in this process
+        import src.policy.gnn.scheduler as _gs
+
+        _gs.MAX_BATCH_SIZE_FOR_PREFIX_GNN = int(os.environ["PARITY_BATCH_CAP"])
     from src.policy.gnn.scheduler import _gnn_batch_range
     import peer_affinity_live_serve_check as P
     from src.executesimulation import execute_simulation, load_gnn_model, load_simulation_inputs, prepare_infrastructure_for_real_simulation
