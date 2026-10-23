@@ -47,6 +47,9 @@ MIB = 1024 ** 2
 Hop = Tuple[str, float]
 ActiveFlows = Tuple[Tuple[float, Tuple[Hop, ...]], ...]
 
+# wall seconds spent in the live link capture (flows_live + node_table + the per-platform lookups) and how many captures; the GNN scheduler folds the seconds of each decision's
+# capture into that decision's timed span (decision_timing), for the v7 kinds only
+CAPTURE: Dict[str, float] = {"seconds": 0.0, "calls": 0}
 NODE_KEY = "link_node"  # temporal-state key of a platform: the raw (up, down, drain seconds) triple
 
 
