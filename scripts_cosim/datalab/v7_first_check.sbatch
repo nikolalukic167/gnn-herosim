@@ -11,7 +11,7 @@
 #SBATCH --time=02:00:00
 #SBATCH --exclude=os-cpu-slurm-[21,15]
 set -euo pipefail
-PIN=${PIN:?}; CORPUS=${CORPUS:?}; ARM=${ARM:?}; DS=${DS:-ds_00000}; CKPT=${CKPT:?}
+PIN=${PIN:?}; CORPUS=${CORPUS:?}; ARM=${ARM:?}; DS=${DS:-ds_00000}; CKPT=${CKPT:?}   # DS: one dataset name or a space-separated list
 WT=$HOME/gnn-herosim-wt/v7corpus_${PIN}; cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE)'); do unset "$v"; done
 eval "$(micromamba shell hook --shell bash)"; micromamba activate gnn
@@ -19,16 +19,19 @@ export HEROSIM_PY=python3 PYTHONPATH="$WT:$WT/src/notebooks" PYTHONUNBUFFERED=1 
 [[ "$(git rev-parse HEAD)" == ${PIN}* ]] || { echo "FAIL LOUD: HEAD $(git rev-parse HEAD)"; exit 1; }
 [[ -f "$CKPT" && -f "${CKPT%.pt}.contract.json" ]] || { echo "FAIL LOUD: $CKPT or its sidecar missing"; exit 1; }
 L=/share/nikola.lukic/uncut_groups/flowcap/link_corpus; F=$L/first_check_$SLURM_JOB_ID; B=$F/gnn_datasets_wf1_$ARM
-mkdir -p "$B/$DS"
-python3 - "$CORPUS/$ARM/$DS" "$B/$DS" <<'PY'
+mkdir -p "$B"
+python3 - "$CORPUS/$ARM" "$B" $DS <<'PY'
 import os, shutil, sys
 from pathlib import Path
-src, dst = Path(sys.argv[1]), Path(sys.argv[2])
-for f in src.iterdir():
-    if f.name == "optimal_result.json":
-        shutil.copyfile(f, dst / f.name)
-    else:
-        os.symlink(f.resolve(), dst / f.name)
+src_root, dst_root = Path(sys.argv[1]), Path(sys.argv[2])
+for name in sys.argv[3:]:
+    src, dst = src_root / name, dst_root / name
+    dst.mkdir()
+    for f in src.iterdir():
+        if f.name == "optimal_result.json":
+            shutil.copyfile(f, dst / f.name)
+        else:
+            os.symlink(f.resolve(), dst / f.name)
 PY
 export HEROSIM_TRANSFER_MODEL=pipelined HEROSIM_REPLICA_RELEASE=1 HEROSIM_SCALEOUT=kpa HEROSIM_SHARED_AUTOSCALER=0 GATE_FIXED_POLICY_TIME_SCALE=1.0
 python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$B" --rewrite-ssc | tail -1
@@ -42,8 +45,9 @@ python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$B" --cache-dir "$
 python3 -c "
 import pickle,json
 g=pickle.load(open('$OUT/cache/graphs.pkl','rb'))
-print('first-dataset cache:', len(g), 'graph(s); platform width', int(g[0].platform_features.size(-1)), '; link_counts', len(g[0].partial_state_ctx['link_counts']), 'links; link_routes', len(g[0].partial_state_ctx['link_routes']), 'pairs')
-assert int(g[0].platform_features.size(-1)) == 21"
+for x in g:
+    print('cache graph:', int(x.n_tasks), 'tasks, platform width', int(x.platform_features.size(-1)), ', link columns nonzero on', int((x.platform_features[:, -3:] != 0).any(1).sum()), 'of', int(x.platform_features.size(0)), 'platforms; link_counts', len(x.partial_state_ctx['link_counts']), 'links, flow-hops', int(sum(x.partial_state_ctx['link_counts'].values())), '; link_routes', len(x.partial_state_ctx['link_routes']), 'pairs')
+    assert int(x.platform_features.size(-1)) == 21"
 python3 scripts_cosim/wf1_fidelity_parity.py --datasets "$B" --cache-dir "$OUT/cache" --checkpoint "$CKPT" --out "$OUT/parity.json"
 python3 - "$OUT/parity.json" <<'PY'
 import json, sys
