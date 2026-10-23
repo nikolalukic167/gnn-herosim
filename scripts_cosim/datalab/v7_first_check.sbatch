@@ -38,7 +38,7 @@ python3 scripts_cosim/refresh_optimal_full_stats.py --base-dir "$B" --rewrite-ss
 export HEROSIM_PEER_EXCHANGE=1 HEROSIM_SERVER_ONLY_REPLICAS=1 HEROSIM_WARMTH_PHYSICS=node_disk_v2 PYTHONHASHSEED=0 HEROSIM_SNAPSHOT_FIDELITY=1
 export HEROSIM_EXCHANGE_FAIRSHARE=1 HEROSIM_EXCHANGE_TCP=1 HEROSIM_REPLAY_STORED_FLOWS=1
 export SIM_FORCE_FULL_STATS=1 DAG_PRIMARY_ALPHA_KEY=inf PARTIAL_STATE_CONTRACT=partial_state_v7 PARTIAL_STATE_LOAD_SECONDS=1 PARTIAL_STATE_PEER_MASS=1 PARTIAL_STATE_EXCHANGE_SECONDS=1
-export NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded GNN_PREFIX_ALPHA_KEY=inf GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1_uncapped R1A_SLATE=declared_pruning_v1_uncapped PARITY_SERVE_SLATE=declared_pruning_v1_uncapped
+export NEAR_RTT_LABEL_BACKLOG_CLOCK=seeded GNN_PREFIX_ALPHA_KEY=inf GNN_SERVE_CANDIDATE_SLATE=declared_pruning_v1_uncapped R1A_SLATE=declared_pruning_v1_uncapped PARITY_SERVE_SLATE=declared_pruning_v1_uncapped GNN_SLATE_NO_SPLIT=1 PARITY_BATCH_CAP=256
 unset GNN_DISABLE_MESSAGE_PASSING || true
 OUT=$F/parity; mkdir -p "$OUT"
 python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$B" --cache-dir "$OUT/cache" --dag-partial-state --platform-feature-dim 14 > "$OUT/cache.log" 2>&1 || { tail -30 "$OUT/cache.log"; echo "FAIL LOUD: cache build failed"; exit 1; }
