@@ -117,3 +117,34 @@ def test_flow_log_is_off_by_default_and_writes_starts_when_on(monkeypatch, tmp_p
     fs.start([("x>y", 10.0)], 1024 ** 2, owner=(7, 2))
     fs._flow_log.flush()
     assert json.loads(path.read_text().splitlines()[0]) == [0, 7, 2, ["x>y"], float(1024 ** 2)]
+
+
+def test_unplanned_detail_is_validated():
+    b = copy.deepcopy(OK)
+    b["unplanned"] = [8]
+    b["unplanned_detail"] = {"8": {"dst_node": "b", "stage": "rendezvous", "read_duration": 1.5, "partners": [[3, "a", 10.0], [4, None, 5.0]]}}
+    F.validate(b)
+    for edit in (lambda d: d["8"].update(stage="compute"), lambda d: d["8"].update(partners=[[4, None, 1.0], [3, "a", 1.0]]),
+                 lambda d: d.update({"9": d["8"]})):
+        c = copy.deepcopy(b)
+        edit(c["unplanned_detail"])
+        with pytest.raises(ValueError):
+            F.validate(c)
+
+
+def test_capture_lists_rendezvous_ghost_with_all_partners(monkeypatch):
+    monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
+    monkeypatch.delenv("HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS", raising=False)
+    monkeypatch.setattr(SF, "_read_seconds", lambda plat, task: 1.5)
+    env = simpy.Environment()
+    fs = FairShare(env)
+    placed = SimpleNamespace(id=3, platform=SimpleNamespace(node=SimpleNamespace(node_name="a")), planned_node_name=None, postponed_count=0)
+    free = SimpleNamespace(id=4, platform=None, planned_node_name=None, postponed_count=0)
+    orch = SimpleNamespace(peer_exchange={8: {4: 5.0, 3: 10.0, 99: 1.0}}, task_by_id={3: placed, 4: free})
+    node = SimpleNamespace(fabric=SimpleNamespace(fairshare=fs), node_name="b", orchestrator_ref=orch)
+    plat = SimpleNamespace(node=node)
+    task = SimpleNamespace(id=8, _fid={}, io_end_time=None)
+    out = SF._capture_flows(SimpleNamespace(nodes=SimpleNamespace(items=[node])), [(plat, task, {"stage": "rendezvous"})], 0.0)
+    F.validate(out)
+    assert out["unplanned"] == [8] and out["exchanges"] == []
+    assert out["unplanned_detail"]["8"] == {"dst_node": "b", "stage": "rendezvous", "read_duration": 1.5, "partners": [[3, "a", 10.0], [4, None, 5.0], [99, None, 1.0]]}

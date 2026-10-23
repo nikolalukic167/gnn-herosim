@@ -16,7 +16,16 @@ instant (>= 0, the future), as in snapshot_fidelity; bytes are bytes; rates are 
         "exchanges": [ExchangeRecord, ...],  # one per task that has, or will run, an exchange with at least one remote partner
         "unplanned": [owner_tid, ...],       # ghosts that will exchange but whose plan could not be made at the instant (rendezvous: partner unplaced;
                                              # admitted with an unplaced partner): they have NO ExchangeRecord, a replay plans them at input start
+        "unplanned_detail": {str(owner_tid): UnplannedDetail, ...},   # v1.1 (additive, same version): one per tid in `unplanned`; validate() tolerates its absence
     }
+
+UnplannedDetail (what a replay needs to plan the exchange at input start; the snapshot holds no other partner information for these ghosts):
+    dst_node       str    the ghost's node
+    stage          str    "rendezvous" | "cold" | "ingress"
+    read_duration  float  the full pre-exchange input read (`input_duration` of `Platform._serve_task`, peer exchange excluded). The ghost's input stage has not
+                          begun (for rendezvous it begins after the wait), so this is the whole value
+    partners       [[peer_id, node_or_null, payload_bytes], ...]   `orchestrator.peer_exchange[owner_tid]`, ALL peers sorted by id; node = where the peer runs or is
+                          planned (`infrastructure.peer_is_placed`), null when it is not placed (not arrived, not planned, deferred, or in the batch being decided)
 
 ExchangeRecord (key: owner_tid = the ghost's `tid`):
     owner_tid        int    live id of the task whose input stage runs the exchange (the receiver)
@@ -88,6 +97,13 @@ class ExchangeRecord(TypedDict):
     transfers: List[Transfer]
 
 
+class UnplannedDetail(TypedDict):
+    dst_node: str
+    stage: str
+    read_duration: float
+    partners: List[Tuple[int, Optional[str], float]]
+
+
 class FlowBlock(TypedDict):
     version: int
     model: str
@@ -97,6 +113,7 @@ class FlowBlock(TypedDict):
     active: List[Tuple[int, int]]
     exchanges: List[ExchangeRecord]
     unplanned: List[int]
+    unplanned_detail: Dict[str, UnplannedDetail]
 
 
 def validate(block: Dict[str, Any]) -> None:
@@ -137,3 +154,15 @@ def validate(block: Dict[str, Any]) -> None:
     want = {(ex["owner_tid"], i) for ex in block["exchanges"] for i, t in enumerate(ex["transfers"]) if t["status"] == "active"}
     if set(listed) != want:
         raise ValueError(f"flow_snapshot: `active` {sorted(listed)} is not the set of active transfers {sorted(want)}")
+    detail = block.get("unplanned_detail")
+    if detail is not None:
+        if set(detail) != {str(t) for t in block.get("unplanned", [])}:
+            raise ValueError("flow_snapshot: `unplanned_detail` keys are not the `unplanned` tids")
+        for tid, d in detail.items():
+            if d["stage"] not in ("rendezvous", "cold", "ingress"):
+                raise ValueError(f"flow_snapshot: unplanned_detail[{tid}]: stage {d['stage']!r}")
+            if not d["read_duration"] >= 0:
+                raise ValueError(f"flow_snapshot: unplanned_detail[{tid}]: read_duration {d['read_duration']!r}")
+            ids = [p[0] for p in d["partners"]]
+            if ids != sorted(ids):
+                raise ValueError(f"flow_snapshot: unplanned_detail[{tid}]: partners not sorted by peer id")
