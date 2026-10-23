@@ -4,6 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
+- **Variant (b) training defect (2026-10-23; Record):** S4's 1-epoch smoke of (b) has a train CE of ~3e7 (its GPU twin ~34). (b) trains only after a fix. If it is not eligible when the selection read runs, it is marked 'not eligible: training defect' and the selection runs without it. A per-graph loss bound is added to all arms.
 - **Pre-data amendment A3 (2026-10-23; the user's decision; Record):** seed-1 100-epoch runs of every variant start now, in parallel with the 20-epoch selection runs. They are sealed (no live cell, curves unread by the selectors) until the selection is filed. The winner's runs become A2's seed 1; the others are exploratory only.
 - **Pre-data amendment A2 (2026-10-23; the user's decision; Record):** after the seed-1 selection, the chosen variant's four arms train at 100 epochs (the cap), seeds 1–3 from scratch, for development and confirmation. The 20-epoch selection read is never pooled with them.
 - **Pre-data amendment A1 (2026-10-23; the user's decision; Record):** as built, v7's link columns E1–E3 reach only the EdgeScorer, which the twin shares, so message passing sees only the at-capture P1–P3. Two GNN variants, (a) a static link block in the conv and (b) re-encoding per placement, run beside the as-built arms at seed 1, 20 epochs, on 30176–30181. A rule fixed now picks the one variant carried to seeds 2–3 and confirmation. This stage gives no label.
@@ -106,6 +107,19 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-23 — **Variant (b) training defect, and three rulings** (the expert's rulings; filed by SCIENTIST before any selection-run data exists, as the expert reports).
+  - **The defect.** S4's 1-epoch smoke of (b) on the real corpus has a train CE of about 3e7, against about 34 for its GPU v7 twin on the same corpus. Some per-graph losses are huge but finite. (b) does not train until it is fixed.
+  - **(i) Pin.** (b) and its GPU twin train together at a pin later than `10f3a9c4` that carries the fix merge, with the full suite green there. The twin is retrained at that pin too, so the pair keeps one pin and one venue (A1). The pin and the fix are disclosed on every (b) row.
+  - **(ii) Eligibility deadline.** The selection read runs as soon as the 20-epoch selection cells of every CPU variant (as built, (a)) are complete.
+    - It never waits for (b). No one reads any CPU variant's selection score before it runs.
+    - (b) takes part only if its 20-epoch runs passed the eligibility tests and its selection cells are complete by then. Otherwise it is marked **'not eligible: training defect'**, and the rule picks among the eligible variants.
+    - Any later (b) run is its own amendment, and is exploratory against the selected variant. It never re-opens the selection.
+  - **(iii) Per-graph loss bound (fail loud) in every arm's loss path.**
+    - The bound is a fixed constant in code, set before any selection run and recorded with the pin. It is never tuned on a selection run.
+    - A trip stops the run. It is a crash, fixed and rerun, never a skipped graph and never an excluded data point.
+    - "Changes no as-built arm" means: with and without the bound, a 1-epoch run of each arm already started (as built, (a), and the early 100-epoch runs of A3) gives byte-identical weights. Each such arm keeps its pin.
+    - An arm whose weights differ, or whose run trips the bound, is retrained at the pin with the bound, and this is disclosed.
 
 - 2026-10-23 — **Decision charge w of variant (b), the re-encode-per-placement gnn, measured on its own serving code (S4; the w-only pin is `s4/v7-w-conv` 5d662369, a child of `e668f9d3`).** A calibration, not a result.
   - **Series.** Pin `e668f9d3` (reference-physics, with the gate kinds of `s4/link-kinds`), **os-cpu-slurm-17** (a different node than the filed w's, node B = os-cpu-slurm-22, and than the v7 kinds' os-cpu-slurm-16; the expert allowed nodes 16 and 17 for the w calibrations on 2026-10-23), AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0, both rungs, k = 0, seed 1, 2 cells, option D's exchange physics. The same driver as the v7 series (`cot_link_steps.sh`): H3pre, the kind, H3end. Weights: the filed v6 FL gnn's with the new input columns zeroed, including the conv message weights of the 3 layers (`v7_untrained_arm_checkpoints.py --kinds ra_gnn_eng_combfl_linkconv`, `link_calib/in_link4`, .pt md5 `47afe62b…`), so the cell makes the filed arm's decisions while paying the re-encode.
