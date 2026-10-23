@@ -108,6 +108,15 @@ Conditions on the arms:
 
 ## Record
 
+- 2026-10-23 — **A1 selection script filed before the first selection cell: `scripts_cosim/llf_select.py`, blob `54367447467e1fb8a4d97a2f8f5bfea0d641c153` (file md5 `1bc243c9cd2c1bc5a370235ede4aefd8`)** (SCIENTIST, at the expert's request; tests `tests/test_llf_select.py`). The selection of A1/A4 runs this blob once, by SCIENTIST, after (b)'s last 20-epoch seed-1 selection cell.
+  - **What it reads.** Per variant, its gnn and control twin at seed 1: as built `ra_gnn_eng_combfl_link` / `ra_twin_eng_combfl_link`; (a) `ra_gnn_eng_combfl_linkstatic` / `ra_twin_eng_combfl_linkstatic`; (b) `ra_gnn_eng_combfl_linkconv` / `ra_twin_eng_combfl_link_gpu` (the test asserts these are the gate's registered kinds). Cells `<kind>_nosplit_k100_s1` on 30176–30181, g0+g1, both rungs; the cell value is whole-run `averageElapsedTime`, the uncut reader's statistic of record.
+  - **What it refuses.** It refuses to compute unless all 144 cells exist with a finite latency. It also refuses if any cell is not option D (fair share serial, TCP on, default cellular), if a gnn and its twin served different task counts, or if its `--out` exists.
+  - **Eligibility.** Eligibility comes from a flags file: parity, collapse and curves per variant, each literally `true`. Missing or non-boolean is not a pass.
+  - **Scoring, as A1.** The runaway rule and the pair drop as `d_read`; per topology the median over windows; the score is the median over the (topology, rung) values without runaways; lowest wins.
+  - **Ties (interpretation, filed now).** The 0.5 pp ties are measured from the best score. The all-cells stage compares only the variants tied on the primary score, with the same 0.5 pp tie, and its ties go to as built < (a) < (b).
+  - **Hold.** If no variant is eligible, or an eligible one has no score, it prints HOLD and exits 2.
+  - **Output.** It prints every variant's score, n, all-cells score, runaway count and flags, then the choice and its reason. The JSON holds the per-topology values.
+
 - 2026-10-23 — **Pre-data amendment A4: the selection waits for (b); (b) is fixed, not marked ineligible** (the user's decision, relayed by the expert, overriding ruling (ii) of the defect entry; written by SCIENTIST; filed before any selection-run score is read, as the expert reports).
   1. **The selection read runs only when all three variants' 20-epoch seed-1 selection cells are complete:** as built, (a) and (b). The rule, its eligibility tests and its script are unchanged.
   2. **The wait is not outcome-dependent.** It was decided now, when no one had read any CPU variant's selection score.
