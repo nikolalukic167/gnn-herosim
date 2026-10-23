@@ -447,6 +447,7 @@ class TaskPlacementGNN(nn.Module):
         group_anchor: Optional[bool] = None,
         mp_link_edge_conv: Optional[bool] = None,
         mp_link_static_attr: Optional[bool] = None,
+        mp_conv_prenorm_residual: Optional[bool] = None,
     ) -> None:
         super().__init__()
         # uncut_groups_s0_v1 Arm 2 (src/policy/gnn/arm2.py). B1: committed-state inputs to the node encoding,
@@ -702,6 +703,9 @@ class TaskPlacementGNN(nn.Module):
         if self.mp_link_static_attr:
             self.conv_edge_extras.append(("link_static_attr", LINK_EDGE_DIM))
         self._conv_extras_dim = sum(w for _n, w in self.conv_edge_extras)
+        # live_link_features_v1 amendment A5: each bipartite conv layer as a pre-norm residual block, h <- h + Conv(LayerNorm(h)), one stateless per-row LayerNorm per layer shared by task and platform rows. Weight-visible
+        # (bip_norms.*) and a sidecar key; off by default, so every existing arm is unchanged.
+        self.mp_conv_prenorm_residual = _env_flag("GNN_MP_CONV_PRENORM_RESIDUAL") if mp_conv_prenorm_residual is None else bool(mp_conv_prenorm_residual)
         if self.conv_edge_extras and not self.mp_bipartite_edge_conv:
             raise ValueError("FAIL LOUD: " + " and ".join(n for n, _w in self.conv_edge_extras) + " feed the bipartite edge conv; they need mp_bipartite_edge_conv=True")
         if self.conv_edge_extras and self.plan_raw:
@@ -726,6 +730,10 @@ class TaskPlacementGNN(nn.Module):
                                       aggr=self.mp_bipartite_aggr)
                     for _ in range(num_layers)
                 )
+        if self.mp_conv_prenorm_residual:
+            if not self.mp_bipartite_edge_conv or self.mp_bipartite_hetero or self.plan_raw or self.mp_residual:
+                raise ValueError("FAIL LOUD: mp_conv_prenorm_residual needs the plain bipartite edge conv (mp_bipartite_edge_conv, not hetero, not plan_raw, not mp_residual)")
+            self.bip_norms = nn.ModuleList(nn.LayerNorm(embedding_dim) for _ in range(num_layers))
         if self.mp_peer_edges:
             if self.task_type_onehot_dim <= 0:
                 raise ValueError("FAIL LOUD: mp_peer_edges=True requires task_type_onehot_dim > 0")
@@ -987,7 +995,10 @@ class TaskPlacementGNN(nn.Module):
                     if _e_layers and _li >= _e_layers:
                         ea_l = ea.clone()
                         ea_l[:, -self._conv_extras_dim:] = 0.0
-                    h = conv(h, mp_edge_index, ea_l, n_tasks) if self.mp_bipartite_hetero else conv(h, mp_edge_index, ea_l)
+                    if self.mp_conv_prenorm_residual:
+                        h = h + conv(self.bip_norms[_li](h), mp_edge_index, ea_l)
+                    else:
+                        h = conv(h, mp_edge_index, ea_l, n_tasks) if self.mp_bipartite_hetero else conv(h, mp_edge_index, ea_l)
                     if os.environ.get("GNN_DEBUG_ACT") == "1":
                         self._dbg_act.append(float(h.detach().norm(dim=-1).mean()))
                 h = self.post_gin_dropout(h)

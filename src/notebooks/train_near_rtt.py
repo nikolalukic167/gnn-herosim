@@ -189,6 +189,7 @@ class NearRttConfig:
     # live_link_features_v1: extra conv edge columns (src/placement/link_features.py; weight-visible, sidecar keys)
     mp_link_edge_conv: bool = os.environ.get("NEAR_RTT_MP_LINK_EDGE_CONV", "0") == "1"
     mp_link_static_attr: bool = os.environ.get("NEAR_RTT_MP_LINK_STATIC_ATTR", "0") == "1"
+    mp_conv_prenorm_residual: bool = os.environ.get("NEAR_RTT_MP_CONV_PRENORM_RESIDUAL", "0") == "1"
     # bipartite_aggr_v1: how the bipartite conv pools over a task's candidate platforms.
     # "mean" is what bipartite_edge_v1 shipped; "sum" is the GIN's behaviour under test.
     mp_bipartite_aggr: str = os.environ.get("NEAR_RTT_MP_BIPARTITE_AGGR", "mean")
@@ -2323,7 +2324,7 @@ if NEAR_CFG.arm_kind in GRAPH_FREE_ARMS:
             ("NEAR_RTT_MP_NETWORK_ENTITIES", NEAR_CFG.mp_network_entities), ("NEAR_RTT_MP_DAG_EDGES", NEAR_CFG.mp_dag_edges),
             ("NEAR_RTT_MP_PEER_EDGES", NEAR_CFG.mp_peer_edges), ("NEAR_RTT_MP_BIPARTITE_EDGE_CONV", NEAR_CFG.mp_bipartite_edge_conv),
             ("NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO", NEAR_CFG.mp_bipartite_edge_attr_zero),
-            ("NEAR_RTT_MP_LINK_EDGE_CONV", NEAR_CFG.mp_link_edge_conv), ("NEAR_RTT_MP_LINK_STATIC_ATTR", NEAR_CFG.mp_link_static_attr),
+            ("NEAR_RTT_MP_LINK_EDGE_CONV", NEAR_CFG.mp_link_edge_conv), ("NEAR_RTT_MP_LINK_STATIC_ATTR", NEAR_CFG.mp_link_static_attr), ("NEAR_RTT_MP_CONV_PRENORM_RESIDUAL", NEAR_CFG.mp_conv_prenorm_residual),
             ("NEAR_RTT_MP_BIPARTITE_HETERO", NEAR_CFG.mp_bipartite_hetero), ("NEAR_RTT_PLAN_RAW", NEAR_CFG.plan_raw),
             ("NEAR_RTT_PLAN_RAW_SUM", NEAR_CFG.plan_raw_sum), ("NEAR_RTT_PLAN_RAW_LOCAL", NEAR_CFG.plan_raw_local),
             ("GNN_DISABLE_MESSAGE_PASSING", os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower() in ("1", "true", "yes")),
@@ -2372,6 +2373,7 @@ else:
         mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
         mp_link_edge_conv=NEAR_CFG.mp_link_edge_conv,
         mp_link_static_attr=NEAR_CFG.mp_link_static_attr,
+        mp_conv_prenorm_residual=NEAR_CFG.mp_conv_prenorm_residual,
         mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
         mp_bipartite_hetero=NEAR_CFG.mp_bipartite_hetero,
         task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
@@ -2516,6 +2518,7 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "mp_bipartite_edge_attr_zero": NEAR_CFG.mp_bipartite_edge_attr_zero,
                 "mp_link_edge_conv": NEAR_CFG.mp_link_edge_conv,
                 "mp_link_static_attr": NEAR_CFG.mp_link_static_attr,
+                "mp_conv_prenorm_residual": NEAR_CFG.mp_conv_prenorm_residual,
                 # bipartite_aggr_v1: weight-invisible (aggr changes no parameter), so this
                 # sidecar is the ONLY record of which arm a checkpoint is.
                 "mp_bipartite_aggr": NEAR_CFG.mp_bipartite_aggr,
