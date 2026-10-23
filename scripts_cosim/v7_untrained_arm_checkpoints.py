@@ -36,7 +36,7 @@ EMB = HID = 128
 LAYERS = 3
 
 
-def build(kind: str, side: dict, template_sd: dict, mp_off: bool, seed: int):
+def build(kind: str, side: dict, template_sd: dict, mp_off: bool, seed: int, prenorm: bool = False):
     psd = partial_state_feature_dim(PARTIAL_STATE_CONTRACT_V7)
     plat = int(side["platform_feature_dim"]) + LINK_PLATFORM_DIM
     onehot = int(side["task_type_onehot_dim"])
@@ -58,7 +58,8 @@ def build(kind: str, side: dict, template_sd: dict, mp_off: bool, seed: int):
         mp_peer_edges=bool(side.get("mp_peer_edges")), mp_platform_edges=bool(side.get("mp_platform_edges", True)),
         mp_bipartite_edge_conv=bool(side.get("mp_bipartite_edge_conv")), mp_bipartite_edge_attr_zero=bool(side.get("mp_bipartite_edge_attr_zero")),
         mp_bipartite_aggr=str(side.get("mp_bipartite_aggr") or "mean"), mp_bipartite_hetero=bool(side.get("mp_bipartite_hetero")),
-        task_type_onehot_dim=onehot, partial_state_edge_dim=psd, mp_link_edge_conv=kind.endswith("linkconv"))
+        task_type_onehot_dim=onehot, partial_state_edge_dim=psd, mp_link_edge_conv=kind.endswith("linkconv"),
+        mp_conv_prenorm_residual=prenorm, mp_conv_prenorm_final_norm=prenorm)
 
 
 def zero_extend(kind: str, new_sd: dict, old_sd: dict, old_plat: int, old_ps: int, edge_dim: int) -> dict:
@@ -67,6 +68,9 @@ def zero_extend(kind: str, new_sd: dict, old_sd: dict, old_plat: int, old_ps: in
     so the added platform columns sit after the platform block and the added partial-state columns at the end."""
     out = {}
     for k, new in new_sd.items():
+        if k not in old_sd:  # --prenorm: the LayerNorm weights have no filed counterpart and keep their identity init
+            out[k] = new.clone()
+            continue
         old = old_sd[k]
         if tuple(new.shape) == tuple(old.shape):
             out[k] = old.clone()
@@ -87,6 +91,7 @@ def zero_extend(kind: str, new_sd: dict, old_sd: dict, old_plat: int, old_ps: in
 
 def check_shapes(kind: str, new_sd: dict, old_sd: dict) -> None:
     """Every tensor of the filed arm is present with its shape, except the inputs that read the new columns, each wider by exactly their columns."""
+    new_sd = {k: v for k, v in new_sd.items() if k in old_sd or not k.startswith(("bip_norms.", "bip_final_norm."))}
     if set(new_sd) != set(old_sd):
         raise SystemExit(f"FAIL LOUD: {kind}: tensor names differ from the filed arm: only new {sorted(set(new_sd) - set(old_sd))[:5]}, only old {sorted(set(old_sd) - set(new_sd))[:5]}")
     grown = {k: (tuple(old_sd[k].shape), tuple(new_sd[k].shape)) for k in new_sd if tuple(new_sd[k].shape) != tuple(old_sd[k].shape)}
@@ -106,13 +111,16 @@ def main() -> int:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--kinds", nargs="*", default=list(ARMS), help="the gate kinds to write (default: all)")
+    ap.add_argument("--prenorm", action="store_true", help="variant (b) only (A5/A5b): pre-norm residual conv blocks and the final LayerNorm; their norms keep the identity init")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
     for kind in a.kinds:
         tmpl, stem, mp_off = ARMS[kind]
         side = json.loads((a.models / f"{tmpl}-seed1-final.contract.json").read_text())
         old_sd = torch.load(a.models / f"{tmpl}-seed1-final.pt", map_location="cpu")
-        model = build(kind, side, old_sd, mp_off, a.seed)
+        if a.prenorm and not kind.endswith("linkconv"):
+            raise SystemExit(f"FAIL LOUD: --prenorm is variant (b)'s architecture, not {kind}")
+        model = build(kind, side, old_sd, mp_off, a.seed, prenorm=a.prenorm)
         check_shapes(kind, model.state_dict(), old_sd)
         sd = zero_extend(kind, model.state_dict(), old_sd, int(side["platform_feature_dim"]), int(side["partial_state_feature_dim"]), int(side["edge_dim"]))
         model.load_state_dict(sd)
@@ -121,7 +129,7 @@ def main() -> int:
             raise SystemExit(f"FAIL LOUD: {out_pt} exists; refusing to overwrite")
         side.update(partial_state_contract=PARTIAL_STATE_CONTRACT_V7, partial_state_feature_dim=partial_state_feature_dim(PARTIAL_STATE_CONTRACT_V7),
                     platform_feature_dim=int(side["platform_feature_dim"]) + LINK_PLATFORM_DIM, train_seed=a.seed, zero_extended_from_v6_for_calibration_only=True, mp_link_edge_conv=kind.endswith("linkconv"),
-                    disable_message_passing=mp_off)
+                    mp_conv_prenorm_residual=a.prenorm, mp_conv_prenorm_final_norm=a.prenorm, disable_message_passing=mp_off)
         torch.save(sd, out_pt)
         out_pt.with_suffix(".contract.json").write_text(json.dumps(side, indent=1))
         print(f"wrote {out_pt}")

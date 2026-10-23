@@ -151,3 +151,17 @@ def test_the_conv_checkpoint_grows_its_conv_message_weights_and_sets_the_flag():
         C.check_shapes("ra_gnn_eng_combfl_link", new, old)  # the plain kind must not grow the conv
     z = C.zero_extend("ra_gnn_eng_combfl_linkconv", new, old, 18, 27, 5)
     assert z["bip_convs.1.message_mlp.0.weight"][:, :13].eq(1).all() and z["bip_convs.1.message_mlp.0.weight"][:, 13:].eq(0).all()
+
+
+def test_prenorm_conv_checkpoint_keeps_the_filed_weights_and_adds_only_layernorm_identity_params():
+    import torch
+
+    import v7_untrained_arm_checkpoints as C
+
+    old = {"bip_convs.0.message_mlp.0.weight": torch.ones(4, 9), "platform_encoder.net.0.weight": torch.ones(2, 18), "edge_scorer.fc1.weight": torch.ones(2, 40)}
+    new = {"bip_convs.0.message_mlp.0.weight": torch.zeros(4, 12), "platform_encoder.net.0.weight": torch.zeros(2, 21), "edge_scorer.fc1.weight": torch.zeros(2, 43),
+           "bip_norms.0.weight": torch.ones(4), "bip_norms.0.bias": torch.zeros(4), "bip_final_norm.weight": torch.ones(4), "bip_final_norm.bias": torch.zeros(4)}
+    C.check_shapes("ra_gnn_eng_combfl_linkconv", new, old)
+    out = C.zero_extend("ra_gnn_eng_combfl_linkconv", new, old, 18, 27, 5)
+    assert torch.equal(out["bip_norms.0.weight"], torch.ones(4)) and torch.equal(out["bip_final_norm.bias"], torch.zeros(4))
+    assert torch.equal(out["bip_convs.0.message_mlp.0.weight"][:, :9], torch.ones(4, 9)) and out["bip_convs.0.message_mlp.0.weight"][:, 9:].abs().sum() == 0
