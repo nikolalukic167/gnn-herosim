@@ -74,9 +74,10 @@ def test_zero_extension_keeps_every_old_weight_and_zeroes_the_new_inputs():
     w, o = out["net.0.weight"], old["net.0.weight"]
     assert torch.equal(w[:, :27], o[:, :27]) and torch.equal(w[:, 27:30], torch.zeros(2, 3)) and torch.equal(w[:, 30:62], o[:, 27:]) and torch.equal(w[:, 62:], torch.zeros(2, 3))
     # same input, same score: a v6 row padded with any values in the new columns scores like the v6 row
-    x6 = torch.randn(4, 59)
-    x7 = torch.cat([x6[:, :27], torch.randn(4, 3), x6[:, 27:], torch.randn(4, 3)], dim=1)
-    assert torch.allclose(x6 @ o.T, x7 @ w.T)
+    gen = torch.Generator().manual_seed(0)
+    x6 = torch.randn(4, 59, generator=gen, dtype=torch.float64)
+    x7 = torch.cat([x6[:, :27], torch.randn(4, 3, generator=gen, dtype=torch.float64), x6[:, 27:], torch.randn(4, 3, generator=gen, dtype=torch.float64)], dim=1)
+    assert torch.allclose(x6 @ o.double().T, x7 @ w.double().T)
     g_old = {"platform_encoder.net.0.weight": torch.ones(2, 18), "edge_scorer.fc1.weight": torch.ones(2, 40)}
     g_new = {"platform_encoder.net.0.weight": torch.zeros(2, 21), "edge_scorer.fc1.weight": torch.zeros(2, 43)}
     g = C.zero_extend("ra_gnn_eng_combfl_link", g_new, g_old, 18, 27, 5)
