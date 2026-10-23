@@ -68,7 +68,7 @@ def start_active(fairshare: FairShare, block: Dict[str, Any]) -> ActiveEvents:
     for tid, idx in block["active"]:
         t = recs[int(tid)]["transfers"][int(idx)]
         ev = fairshare.env.event()
-        fl = _Flow([(k, bw) for k, bw in t["hops"]], t["rest"], t["scale"], ev)
+        fl = _Flow([(k, bw) for k, bw in t["hops"]], t["rest"], t["scale"], ev, (int(tid), int(idx)))
         fl.rem = float(t["rem"])
         fairshare.flows.append(fl)
         events[(int(tid), int(idx))] = ev
@@ -101,6 +101,6 @@ def exchange_process(env: Any, fairshare: FairShare, ex: Dict[str, Any], events:
             elif t["b"] > 0:
                 yield env.timeout(t["b"])
             if t["rest"] > 0:
-                yield fairshare.start([(k, bw) for k, bw in t["hops"]], t["rest"], t["scale"])
+                yield fairshare.start([(k, bw) for k, bw in t["hops"]], t["rest"], t["scale"], owner=(tid, i))
         if t["latency"] > 0:
             yield env.timeout(t["latency"])

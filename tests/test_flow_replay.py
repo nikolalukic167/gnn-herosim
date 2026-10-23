@@ -65,8 +65,8 @@ def traced(monkeypatch):
     trace = Trace()
     real = flow_replay.FairShare.start
 
-    def start(fs, hops, nbytes, scale=1.0):
-        ev = real(fs, hops, nbytes, scale)
+    def start(fs, hops, nbytes, scale=1.0, **kw):
+        ev = real(fs, hops, nbytes, scale, **kw)
         trace.start[nbytes] = fs.env.now
         ev.callbacks.append(lambda e, n=nbytes, fs=fs: trace.end.__setitem__(n, fs.env.now))
         return ev
