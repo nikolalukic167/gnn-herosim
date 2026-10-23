@@ -323,7 +323,7 @@ def test_g8b_fast_kinds_check_lambda_and_the_recomputed_table(tmp_path):
 
 def test_comb_kr_serves_fl_gnn_and_the_fl_mlp_at_the_frozen_cotenancy_k(tmp_path, monkeypatch):
     from scripts_cosim import fresh_topo_burst_v1_gate as G
-    assert G.COMB_KR_KINDS == ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit")
+    assert G.COMB_KR_KINDS == ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit", "ra_gnn_eng_combfl_dgu_nosplit")
     for k in G.COMB_KR_KINDS:
         assert G.split_dc(f"{k}_k100") == (k, 1.0)
     w = json.load(open(G.DC_W_FILE))
@@ -372,7 +372,7 @@ def test_g8c_flreg_kinds_check_lambda_the_table_and_v6_and_serve_kr(tmp_path, mo
     with pytest.raises(SystemExit, match="not a regret-lever run"):
         G.comb_trainer_check("ra_gnn_eng_combfl", str(p))
     # _kr: the two FL + lambda kinds serve at the frozen k_cotenancy; COMB_KR_KINDS (the FL confirmation's) is unchanged
-    assert G.COMB_KR_KINDS == ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit")
+    assert G.COMB_KR_KINDS == ("ra_gnn_eng_combfl_nosplit", "ra_mlp_same_combfl_nosplit", "ra_gnn_eng_combfl_dgu_nosplit")
     w = json.load(open(G.DC_W_FILE))
     f = tmp_path / "w.json"
     f.write_text(json.dumps({**w, "k_cotenancy": 1.468}))
@@ -400,7 +400,7 @@ def test_g8d_fl_twin_kind_is_mp_off_v6_lambda_free_and_serves_kr(tmp_path, monke
         p.write_text(json.dumps({**good, **bad}))
         with pytest.raises(SystemExit, match="FAIL LOUD"):
             G.comb_trainer_check(k, str(p))
-    assert G.TWIN_KR_KINDS == (f"{k}_nosplit",) and G.FLREG_KR_KINDS == ("ra_gnn_eng_flreg_nosplit", "ra_mlp_same_flreg_nosplit")
+    assert G.TWIN_KR_KINDS == (f"{k}_nosplit", "ra_twin_eng_combfl_dgu_nosplit") and G.FLREG_KR_KINDS == ("ra_gnn_eng_flreg_nosplit", "ra_mlp_same_flreg_nosplit")
     w = json.load(open(G.DC_W_FILE))
     f = tmp_path / "w.json"
     f.write_text(json.dumps({**w, "k_cotenancy": 1.468}))
