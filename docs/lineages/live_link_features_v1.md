@@ -125,9 +125,9 @@ Conditions on the arms:
   - **A2's arms per outcome** (resolving A2's "all in the same contract"):
     - **As built or (b) wins:** the gnn, its control twin, the v7 MLP and the v7 wide MLP.
     - **(a) wins:** `gnn_static`, `twin_static` and `mlp_static`, plus the v7 MLP and v7 wide MLP as pointwise references without the static block. `mlp_static` seeds 2–3 then launch with the rest.
-    - **Gap:** no parameter-matched MLP with the static block exists. Under (a), the wide-MLP contrast also changes the block, and is reported so.
-  - **Compute.** The early set is 13 training jobs on top of the 20-epoch selection runs:
-    - 9 at seed 1 (2 of them on GPU);
+    - **Gap closed (the expert, 2026-10-23, before any training):** S6 adds `wide_static`, a parameter-matched MLP with the static block. It is in the early set at seed 1 (20 and 100 epochs) and in the w series. Under (a), the wide-MLP control is `wide_static`, its seeds 2–3 launch with the rest, and the v7 wide MLP stays a reference.
+  - **Compute.** The early set is 14 training jobs on top of the 20-epoch selection runs:
+    - 9 at seed 1 (2 of them on GPU), plus `wide_static` at seed 1 (S6), so 14 in all;
     - 4 for the v7 MLP and wide MLP at seeds 2–3.
     - Each CPU job takes about 15 h (A2's rate). Count the 44-job cap before each submit.
 
