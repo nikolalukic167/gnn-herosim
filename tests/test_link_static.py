@@ -220,3 +220,17 @@ def test_strict_loading_a_v7_checkpoint_into_a_v8_model_fails_and_the_sidecheck_
     import joint_burst_v2_sidecheck as SC  # scripts_cosim
 
     assert set(SC.COMB_V8_ARMS) == {"ra_gnn_eng_v8", "ra_mlp_same_v8", "ra_twin_eng_v8"}
+
+
+def test_the_wide_static_arm_is_registered_like_the_other_three():
+    import fresh_topo_burst_v1_gate as G
+    import yaml
+
+    assert "ra_mlp_wide_combfl_linkstatic" in G.COMB_STATIC and G.COMB_STEMS["ra_mlp_wide_combfl_linkstatic"] == "uncut-linkstatic-mlp-wide"
+    assert G.comb_contract("ra_mlp_wide_combfl_linkstatic") == V8 and G.COMB_CHECK["ra_mlp_wide_combfl_linkstatic"] == "ra_mlp_same_v8"
+    assert "ra_mlp_wide_combfl_linkstatic" not in G.RA_MP_OFF
+    for suffix, epochs in (("", 20), ("_e100", 100)):
+        c = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "..", "experiments", f"uncut_linkstatic_mlp_wide{suffix}.yaml")))
+        assert c["args"]["hidden-dim"] == c["args"]["embedding-dim"] == 675 and c["args"]["epochs"] == c["args"]["min-epochs"] == c["args"]["patience"] == epochs
+        assert c["env"]["PARTIAL_STATE_CONTRACT"] == V8 and c["env"]["NEAR_RTT_ARM"] == "mlp_same" and "NEAR_RTT_MP_LINK_STATIC_ATTR" not in c["env"]
+        assert c["wandb"]["run_name"] == "uncut-linkstatic-mlp-wide" + ("-e100" if suffix else "")

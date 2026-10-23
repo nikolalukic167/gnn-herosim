@@ -14,7 +14,7 @@ set -uo pipefail
 ulimit -n 65536 2>/dev/null || true
 WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}
 CFGN=${CFGN:?FAIL LOUD: set CFGN}; S=${S:?FAIL LOUD: set S}
-case "$CFGN" in uncut_link_gnn|uncut_link_twin|uncut_link_mlp|uncut_link_mlp_wide|uncut_linkstatic_gnn|uncut_linkstatic_twin|uncut_linkstatic_mlp|uncut_linkstatic_gnn_e100|uncut_linkstatic_twin_e100|uncut_linkstatic_mlp_e100) ;; *) echo "FAIL LOUD: CFGN $CFGN"; exit 1;; esac
+case "$CFGN" in uncut_link_gnn|uncut_link_twin|uncut_link_mlp|uncut_link_mlp_wide|uncut_linkstatic_gnn|uncut_linkstatic_twin|uncut_linkstatic_mlp|uncut_linkstatic_gnn_e100|uncut_linkstatic_twin_e100|uncut_linkstatic_mlp_e100|uncut_linkstatic_mlp_wide|uncut_linkstatic_mlp_wide_e100) ;; *) echo "FAIL LOUD: CFGN $CFGN"; exit 1;; esac
 [[ "$S" =~ ^[1-3]$ ]] || { echo "FAIL LOUD: seed $S"; exit 1; }
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|R1A_|TRAIN_INIT)'); do unset "$v"; done
@@ -50,7 +50,7 @@ mkdir -p logs
 RUN=$(python3 -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['wandb']['run_name'])" "$CFG")
 case "$CFGN" in uncut_link_gnn) WANT=uncut-link-gnn-eng; ARMCHK=ra_gnn_eng_v7;; uncut_link_twin) WANT=uncut-link-twin; ARMCHK=ra_twin_eng_v7;;
   uncut_link_mlp) WANT=uncut-link-mlp-same; ARMCHK=ra_mlp_same_v7;; uncut_link_mlp_wide) WANT=uncut-link-mlp-wide; ARMCHK=ra_mlp_same_v7;;
-  uncut_linkstatic_gnn|uncut_linkstatic_gnn_e100) WANT=uncut-linkstatic-gnn-eng; ARMCHK=ra_gnn_eng_v8;; uncut_linkstatic_twin|uncut_linkstatic_twin_e100) WANT=uncut-linkstatic-twin; ARMCHK=ra_twin_eng_v8;; uncut_linkstatic_mlp|uncut_linkstatic_mlp_e100) WANT=uncut-linkstatic-mlp-same; ARMCHK=ra_mlp_same_v8;; esac
+  uncut_linkstatic_gnn|uncut_linkstatic_gnn_e100) WANT=uncut-linkstatic-gnn-eng; ARMCHK=ra_gnn_eng_v8;; uncut_linkstatic_twin|uncut_linkstatic_twin_e100) WANT=uncut-linkstatic-twin; ARMCHK=ra_twin_eng_v8;; uncut_linkstatic_mlp|uncut_linkstatic_mlp_e100) WANT=uncut-linkstatic-mlp-same; ARMCHK=ra_mlp_same_v8;; uncut_linkstatic_mlp_wide|uncut_linkstatic_mlp_wide_e100) WANT=uncut-linkstatic-mlp-wide; ARMCHK=ra_mlp_same_v8;; esac
 [[ "${RUN%-e100}" == "$WANT" ]] || { echo "FAIL LOUD: run_name $RUN is not $WANT"; exit 1; }
 NTRAIN=$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))['train']))" "$SPLITF")
 CK=models/$RUN-seed$S
