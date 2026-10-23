@@ -12,6 +12,7 @@
 - **FL + λ and twin decision-cost pins (2026-10-20; Record):** P7 `91269ec0` (FL + λ GNN and MLP w, on G8d) and P7b `f8a55ff0` (twin w, on P7) filed with the real serving check; the FL + λ cells read at the frozen P8.1 reader with `--w-pins 91269ec0`; the twin's read needs P9, which must admit the twin kind on the chain to P7b. No label changes.
 - **TCP-transfer sensitivity (2026-10-20; descriptive, no label; Record):** FL gnn stays ahead of the bar on every test, by less (moderate whole −6.75 → −4.28 %); none of rules (a)–(c) fires; prediction PARTLY FAILED (SCIENTIST); R0 passed (S5; checksums verified by SCIENTIST). Details in the Record entry.
 - **Fair-share utilisation diagnostic (2026-10-21; descriptive; Record):** a third to two-fifths of the cellular-server uplinks are offered more than they carry (ρ > 1) at 24, 64 and 128 servers; the extractor is re-run under the bar, FL gnn and FL MLP placements. The fair-share grid is HELD. Details in the Record entries.
+- **Option D direction-only reads (2026-10-23; descriptive, no label; Record):** on fair-share labels (seeds 1–3, 20 epochs, 6 topologies) the GNN ties its MP-OFF twin (+0.07 % pooled, 6/12) and is close to a parameter-matched wide MLP (−1.85 %, 7/12); its edge over the same-width MLP (−7.69 %) falls to −5.83 % (p .18) without runaways. The edge over the MLP is model class and width, not message passing. The fair-share labels priced only contention inside the batch; `live_link_features_v1` is the follow-up.
 - **ILS-live under the charge (2026-10-21; WITHDRAWN; Record):** withdrawn by the user before any live cell; A2–A4 void; no result exists.
 - **Request-level completion time at 24 servers (2026-10-22; descriptive, no label; for audit; Record):** FL gnn is ahead of the bar on the fan-out request mean by about twice its task-level gain (−14.8 % moderate, −8.7 % heavy, whole run; 12/12 topologies), the request median is slower (+9 to +13 %), the same-input MLP carries nearly all of it.
 - **Request-level completion time at 64 and 128 servers and on the 48 fresh 24-server topologies (2026-10-22; descriptive, no label; for audit; Record):** same shape as at 24 servers on every set: request mean and request p99 ahead of the bar, request p50 slower (+5 to +26 %); the one exception is 128 servers heavy whole (request mean +8.1 %, 0/12). Sets A and B are read separately.
@@ -324,6 +325,41 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-23 — **Option D direction-only reads: on fair-share labels the GNN ties its MP-OFF twin, and its edge over the MLP is model class and width, not message passing** (filed by SCIENTIST at the expert's request; descriptive, no label, no registration; every figure below was re-read or recomputed by SCIENTIST from the files named). Paths are under `/share/nikola.lukic/uncut_groups/`. Option D is TCP slow start plus fair-share exchange (serial partners), default cellular uplink (definition and sources: `live_link_features_v1.md`, Motivation).
+  - **Caveats on every row.**
+    - 20 training epochs, not the filed arms' 100.
+    - One physics state (option D at cap200 payloads).
+    - 6 topologies (30176–30181), windows g0+g1, both rungs. A "pooled n = 12" is 6 topologies × 2 rungs, so quote counts per rung. The smallest exact two-sided p at n = 6 is .03125.
+    - Heavy load is runaway-dominated: 30 of the D grid's 192 cells are > 10× their arm's median, 22 of them at heavy g0, the bar included (862 s on 30179).
+    - All 6 topologies were already read under D, so these are post-look.
+  - **Statistic.** Paired % per cell, A seed k vs B seed k (the bar s0 against every seed). Per (topology, window), the median over the seeds both arms have; per topology, the median over the 2 windows; then the median over topologies, with an exact two-sided Wilcoxon. Note: the seeds are pooled by a median here, not by the mean of Table I.
+  - **(1) Wide MLP on the original simulator labels** (S7; `anomaly/fairshare/d_cap200/wide`, jobs 901109–901111, pin `d3b3de5a`; 30176–30178, g0, s1, both rungs; no read file, so SCIENTIST computed the per-task means as column 1 − column 0 of `tasks.npy`).
+    - The FL MLP rerun alongside is byte-equal to the filed `d_cap200` cell on all 6 cells.
+    - Wide MLP vs FL MLP: faster on 5/6 cells (moderate −8.5 / −15.7 / −15.7 %, heavy +16.3 / −43.8 / −12.4 %).
+    - Wide MLP vs FL gnn: mixed, and the cells where the gnn ran away dominate (gnn 61.1 s on 30178 g0 moderate, 23.5 s on 30177 g0 heavy).
+    - 6 cells: a direction at most.
+  - **(2) Fair-share labels, seeds 1–3, plus the wide MLP on them** (S6; `anomaly/fairshare/d_fsl3/read.txt` md5 `d9733a8be15af70b1f69ab5e0b9b5f22`; 456 cells, 0 failed; new cells at pins `d3b3de5a` and `456e1dc2`). Moderate / heavy / pooled:
+
+    | contrast | moderate (n = 6) | heavy (n = 6) | pooled | pooled without runaways |
+    |---|---|---|---|---|
+    | gnn vs twin | −2.52 % (5/6) | +2.71 % (1/6) | +0.07 % (6/12, p .79) | +0.07 % (6/12) |
+    | gnn vs MLP | −6.81 % (6/6, p .031) | −13.76 % (6/6, p .031) | −7.69 % (12/12) | −5.83 % (10/12, p .18) |
+    | gnn vs wide MLP | −1.85 % (4/6) | −3.26 % (3/6) | −1.85 % (7/12, p .57) | −0.17 % (6/12) |
+    | twin vs MLP | −2.30 % (5/6) | −14.91 % (6/6, p .031) | −4.21 % (11/12) | −4.40 % (11/12) |
+    | twin vs wide MLP | −0.67 % (3/6) | −12.85 % (5/6) | −2.49 % (8/12, p .11) | −0.89 % (7/12) |
+    | wide MLP vs MLP | −4.47 % (5/6) | −2.18 % (4/6) | −2.74 % (9/12) | −4.69 % (10/12, p .052) |
+
+    - **Reading.** The MP-OFF twin is as far ahead of the same-width MLP as the gnn is. Most of the gnn's edge over the MLP is gone against the parameter-matched wide MLP. So the edge is model class and width, not message passing.
+    - **Seed 1's −12.31 % (the one-seed read, `d_fsl/read.txt` md5 `df11a847`) did not hold up.** Seeds 2 and 3 alone give −3.54 % and −8.27 % pooled.
+    - Per-seed gnn vs twin: s1 −1.17 %, s2 −2.05 %, s3 −2.21 % pooled. The heavy medians are positive for all three seeds.
+  - **(3) physMP** (S6, in `d_fsl/read.txt`, seed 1 only): no gain. physMP vs FL gnn is +7.56 % pooled (4/12, p .27): moderate +0.37 % (3/6), heavy +42.48 % (1/6).
+  - **(4) BLIND vs S_fs label search** (S7; `fs_sfs_study.py`, rows `dagger/fs_label/sfs/rows_*_of_20.jsonl`, md5 of their sorted md5 list `314060d0214bbd206628bacde671332d`; sample `sample_list.json` md5 `679ce21e`). No read file is on /share. SCIENTIST re-ran the reader's logic (scratch `sfs_read_check.py` md5 `9062fd76`).
+    - 500 states; BLIND reproduces the fair-share label test on 500/500.
+    - S_fs finds a faster label on 30.8 % of states (≥ 5 % faster on 23.8 %) and a slower one on 20.0 %. The median gain where faster is 17.2 %, the mean gain 4.0 %, and the S_fs search wall is 0.81× BLIND's.
+    - Small states (n = 70, exact reference): 1.4 % each way, mean regret 3.38 % (BLIND) vs 3.09 % (S_fs).
+    - By bucket, S_fs is faster on 3.2 % (≤ 10 tasks), 24.0 % (11–50), 43.2 % (51–100) and 52.8 % (101–256).
+    - **This study ran on the same replay that drops in-flight flows (item 5),** so both searches and the exact reference price only contention inside the batch.
+  - **(5) The audit finding.** The fair-share labels priced only contention inside the batch. The fidelity snapshot carries in-flight tasks as ghosts with a fixed exchange time (`src/placement/snapshot_fidelity.py:131`) and captures no fair-share flow state, so the label replay dropped the flows already in flight. The fix, and labels built on it, belong to `live_link_features_v1` (REGISTERED 2026-10-23).
 - 2026-10-23 — **Own-state round, full version: the reader is frozen as `--confirm-own-state` at reference-physics `456e1dc2`** (`scripts_cosim/uncut_arm_gate_read.py` blob `e7050a7a9e2121da3625101708447af8f4cc850e`, file md5 `05efa5f79106d81cb2098fa417036761`; built on `scientist/own-state-reader` `5fe1ada4`, merged by the expert; filed before any retest cell exists or is read). Every own-state read of record runs this blob.
   - **What it adds.** Additions only against `6773a344` (reader +373, 0 removed; `tests/test_own_state_read.py` +298, 34 tests). `main()` dispatches `--confirm-own-state` before any existing mode, and its eight new flags fail loud in every filed mode. It reads F2, new FL gnn (`ra_gnn_eng_combfl_dgu_nosplit`) against the new MP-OFF twin (`ra_twin_eng_combfl_dgu_nosplit`), seeds 1–6, seed-matched, Holm 4 per charge, with P9's labels and order. The ids are 20508–20531 (sha256 `d4b1fb26…`, asserted) at 24 servers, under both charges, and the combined label is the weaker. The bar and reactive cells must be at `a459dd98`. Every learned cell, new and old, must be at the w-only retest pin `211241a7`, admitted only as the chain `271b6665` (touches exactly the gate) → `0ab430d4` (exactly `tests/test_dagger_full_kinds.py`) → `211241a7` (exactly the w file; `w_frozen` with the two new kinds only). Each new kind's w, scalar and by bucket, must equal its filed arm's w at `211241a7` and at P7 / P7b, and `k_cotenancy` must equal P7b's. Each learned cell must serve k × its own w there.
   - **Cross-pin bridge.** The reader re-checks the three registered identity cells itself (fl3 `cc40s30149` g0 heavy: bar s0, old FL gnn s1, old twin s1) against `fl3/cells_{bar,learned,twin}`: the three per-task arrays byte-equal, and every summary leaf equal except provenance, wall clock and the decision-wall fields, as `ident_cells_cmp.py`. A miss stops the study.
