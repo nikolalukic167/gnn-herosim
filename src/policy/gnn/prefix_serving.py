@@ -61,6 +61,7 @@ from src.policy.tabular.reduced_features import (
     exchange_seconds_enabled,
     krank_node_order,
     LINK_CONTRACTS,
+    STATIC_LINK_CONTRACTS,
     load_seconds_enabled,
     peer_mass_enabled,
     require_matching_partial_state_contract,
@@ -683,6 +684,10 @@ def attach_live_prefix_block(
         **load_block,
         **link_block,
     }
+    if resolve_partial_state_contract() in STATIC_LINK_CONTRACTS:
+        from src.policy.gnn.link_static import attach_link_static
+
+        attach_link_static(graph)  # partial_state_v8: written once per batch from the ctx just attached (prefix-free, so the encode stays one per batch)
     return {
         "n_pairs_in_batch": len(peer_pairs) // 2,
         "peers_outside_batch": outside,
