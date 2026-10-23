@@ -475,6 +475,7 @@ class GhostTask:
         self.rec = rec
         self.held: List[Tuple[str, Any]] = []  # (link key, request) already taken at apply time
         self.net_timer: Any = None  # a net-stage ghost's propagation timeout, created at apply time in ghost order
+        self.exchange: Any = None  # (fairshare, ExchangeRecord, active-flow events) when HEROSIM_REPLAY_STORED_FLOWS replays this ghost's stored exchange
         # what state_capture / scheduling_cost read off a platform's current_task
         self.cold_started = False
         self.started_time = None
@@ -559,7 +560,12 @@ def _serve(platform: Any, ghost: GhostTask) -> Generator:
     then release."""
     env, rec = platform.env, ghost.rec
     stage = rec["stage"]
-    if stage in ("input_io", "rendezvous") and rec.get("io_remaining", 0.0) > 0:
+    if ghost.exchange is not None:
+        from src.placement import flow_replay
+
+        fairshare, ex, events = ghost.exchange
+        yield from flow_replay.exchange_process(env, fairshare, ex, events)
+    elif stage in ("input_io", "rendezvous") and rec.get("io_remaining", 0.0) > 0:
         yield env.timeout(rec["io_remaining"])
     compute = platform.compute_lock.request()
     yield compute
@@ -645,10 +651,28 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
         latency = (getattr(plat_map[(n, int(p))][0], "network_map", None) or {}).get(g["src"])
         return g.get("pop", 0.0) + (float(latency) if latency is not None else 0.0)
 
+    from src.placement import flow_replay
+
+    flows = flow_replay.require(fidelity)
+    exchanges: Dict[int, Dict[str, Any]] = {}
+    events: Dict[Tuple[int, int], Any] = {}
+    if flows is not None:
+        fairshare = next(iter(plat_map.values()))[0].fabric.fairshare
+        exchanges = {int(ex["owner_tid"]): ex for ex in flows["exchanges"]}
+        events = flow_replay.start_active(fairshare, flows)
+    attached = set()
+
     for rec in sorted(fidelity.get("ghosts") or [], key=lambda g: ghost_order_key(g, request_time(g))):
         node_name, plat_id = rec["q"].rsplit(":", 1)
         node, plat = plat_map[(node_name, int(plat_id))]
         ghost = GhostTask(rec, simulation_data.task_types[rec["fn"]])
+        ex = exchanges.get(int(rec["tid"]))
+        if ex is not None and rec["stage"] != "rendezvous":
+            if ex["stage"] != rec["stage"] or ex["dst_node"] != node_name:
+                raise RuntimeError(f"fidelity apply: task {rec['tid']}: stored exchange is at {ex['dst_node']}/{ex['stage']}, "
+                                   f"the ghost at {node_name}/{rec['stage']}")
+            ghost.exchange = (fairshare, ex, events)
+            attached.add(int(rec["tid"]))
         if rec["stage"] in ("ingress", "cold"):
             if plat.admitted is not None:
                 raise RuntimeError(f"fidelity apply: two admitted tasks on {rec['q']}")
@@ -665,6 +689,9 @@ def apply_platforms(plat_map: Dict[Tuple[str, int], Tuple[Any, Any]], simulation
         else:
             plat.inflight.append(ghost)
             env.process(_serve(plat, ghost))
+    missing = sorted({tid for tid, _i in events} - attached)
+    if missing:
+        raise RuntimeError(f"fidelity apply: stored active flows of tasks {missing} have no resumed ghost to wait on them")
 
 
 def peer_node_name(peer: Any) -> Optional[str]:
