@@ -6,7 +6,7 @@
 # with (L) the simulator labels: NEAR_RTT_LABEL_OVERRIDE_JSON = S7's relabel (90f0f343), sha256 5ae45a56003b7bfc3c9db67c78267eb16f93d94a3ae7976d76bdb541f674f6fd; train labels only.
 # FL's same-input MLP (attribution control).
 trainer: gnn
-lineage: uncut_comb
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_groups/inflight/cache_v6_a/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT

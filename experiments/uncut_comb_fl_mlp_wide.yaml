@@ -5,7 +5,7 @@
 # 500,176 trainable parameters (59-column input, 2 hidden layers; the filed FL MLP, hidden 128, has 24,833); epochs/patience/min-epochs 40 (the filed arms run 100: a short direction-only look).
 # Everything else is byte-identical to experiments/uncut_comb_fl_mlp_same.yaml (f9a41cce): same cache, labels, split, features. Seed 1 only.
 trainer: gnn
-lineage: uncut_comb
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_groups/inflight/cache_v6_a/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT
