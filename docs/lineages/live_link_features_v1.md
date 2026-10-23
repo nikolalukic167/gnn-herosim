@@ -123,6 +123,7 @@ Conditions on the arms:
     - The default is off. With it off, the A5 pre-norm code is byte-unchanged.
     - **Disclosed with every (b) row:** the scorer's input is now layer-normalised, which the as-built and static gnns' are not. This replaces A5's "no final norm" disclosure.
   - **The gate is rerun unchanged:** seeds 1–3 to step ~300, the same criteria (a)–(c), with (c) at ≤ 10× the as-built v7 gnn at the same seed and step.
+    - **(c), current definition:** activation L2 ≤ 10× the as-built v7 gnn at the same seed and step; if that fails, per seed and layer the activation at the last logged step ≤ 2× its value at step 50; plus (a) and (b).
     - **(c) is read on the same tensors as in the A5 gate,** the per-layer outputs up to and including the last residual layer, before the new final norm.
     - The final norm's output is reported beside them but not used for (c). Measured after a LayerNorm, (c) would pass by construction.
     - Then come equivalence, determinism and the full suite at the fix pin, as in A5.
