@@ -1203,7 +1203,7 @@ def train_epoch(
                 loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
             if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1" and valid_ce > 0:
                 _LOSS_DEBUG_N[0] += 1
-                if float(loss_ce.detach()) > 1e3 or _LOSS_DEBUG_N[0] % 200 == 0:
+                if float(loss_ce.detach()) > 1e3 or _LOSS_DEBUG_N[0] % 200 == 0 or _LOSS_DEBUG_N[0] <= 60:
                     print(f"[loss-debug] epoch={epoch} n={_LOSS_DEBUG_N[0]} graph={getattr(data, 'dataset_id', '?')} n_tasks={int(data.n_tasks)} ce={float(loss_ce.detach()):.6g}", flush=True)
             if valid_ce > 0 and float(loss_ce.detach()) > NEAR_RTT_LOSS_MAX:
                 raise RuntimeError(f"train CE {float(loss_ce.detach()):.6g} for graph {getattr(data, 'dataset_id', '?')} (n_tasks={int(data.n_tasks)}) exceeds the fixed bound {NEAR_RTT_LOSS_MAX:g}: a label on a masked or misaligned candidate")
