@@ -4,7 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
-- **Variant (b) training defect (2026-10-23; Record):** S4's 1-epoch smoke of (b) has a train CE of ~3e7 (its GPU twin ~34). (b) trains only after a fix. If it is not eligible when the selection read runs, it is marked 'not eligible: training defect' and the selection runs without it. A per-graph loss bound is added to all arms.
+- **Variant (b) training defect and amendment A4 (2026-10-23; the user's decision; Record):** S4's 1-epoch smoke of (b) has a train CE of ~3e7 (its GPU twin ~34). (b) is fixed, not dropped: the selection waits until all three variants' 20-epoch selection cells are complete, and meanwhile no CPU-variant score is read. A per-graph loss bound is added to all arms.
 - **Pre-data amendment A3 (2026-10-23; the user's decision; Record):** seed-1 100-epoch runs of every variant start now, in parallel with the 20-epoch selection runs. They are sealed (no live cell, curves unread by the selectors) until the selection is filed. The winner's runs become A2's seed 1; the others are exploratory only.
 - **Pre-data amendment A2 (2026-10-23; the user's decision; Record):** after the seed-1 selection, the chosen variant's four arms train at 100 epochs (the cap), seeds 1–3 from scratch, for development and confirmation. The 20-epoch selection read is never pooled with them.
 - **Pre-data amendment A1 (2026-10-23; the user's decision; Record):** as built, v7's link columns E1–E3 reach only the EdgeScorer, which the twin shares, so message passing sees only the at-capture P1–P3. Two GNN variants, (a) a static link block in the conv and (b) re-encoding per placement, run beside the as-built arms at seed 1, 20 epochs, on 30176–30181. A rule fixed now picks the one variant carried to seeds 2–3 and confirmation. This stage gives no label.
@@ -108,10 +108,22 @@ Conditions on the arms:
 
 ## Record
 
+- 2026-10-23 — **Pre-data amendment A4: the selection waits for (b); (b) is fixed, not marked ineligible** (the user's decision, relayed by the expert, overriding ruling (ii) of the defect entry; written by SCIENTIST; filed before any selection-run score is read, as the expert reports).
+  1. **The selection read runs only when all three variants' 20-epoch seed-1 selection cells are complete:** as built, (a) and (b). The rule, its eligibility tests and its script are unchanged.
+  2. **The wait is not outcome-dependent.** It was decided now, when no one had read any CPU variant's selection score.
+     - Until the selection read runs, the as-built and (a) selection cells and their 20-epoch curves stay unread. The only checks are completion and training health (crash, NaN/inf, job state), reported pass/fail with no metric value.
+     - The selection script is run once, by one person, after the last cell completes.
+  3. **The sealed 100-epoch runs of every variant (A3) continue meanwhile, sealed as filed.**
+  4. **Pin.** (b) and its GPU twin train together at the fix pin, which is later than `10f3a9c4`, carries the fix merge, and has the full suite green. Disclosed on every (b) row.
+     - The per-graph loss bound (defect ruling iii) applies, and the defect entry's byte-identity test decides whether any started arm keeps its pin.
+     - A fixed (b) still faces the rule's eligibility tests (parity, collapse check, curves above the chance floor). Failing one is ordinary ineligibility, not a deadline.
+  5. **If (b) proves unfixable,** the user decides then what happens, and the record names that decision and its date. The decision is made, and filed, before the selection read runs and without any CPU-variant score.
+  - **Cost.** The selection read, and with it the winner's seeds 2–3 and the confirmation, slip by (b)'s fix time plus about 6–7 h of GPU training: 20 epochs × about 19 min per epoch on an L40S is about 6.3 h. Then come (b)'s selection cells under D, whose heavy cells run about 3 h or more (the admission screen's heavy median is 11,675 s).
+
 - 2026-10-23 — **Variant (b) training defect, and three rulings** (the expert's rulings; filed by SCIENTIST before any selection-run data exists, as the expert reports).
   - **The defect.** S4's 1-epoch smoke of (b) on the real corpus has a train CE of about 3e7, against about 34 for its GPU v7 twin on the same corpus. Some per-graph losses are huge but finite. (b) does not train until it is fixed.
   - **(i) Pin.** (b) and its GPU twin train together at a pin later than `10f3a9c4` that carries the fix merge, with the full suite green there. The twin is retrained at that pin too, so the pair keeps one pin and one venue (A1). The pin and the fix are disclosed on every (b) row.
-  - **(ii) Eligibility deadline.** The selection read runs as soon as the 20-epoch selection cells of every CPU variant (as built, (a)) are complete.
+  - **(ii) Eligibility deadline.** *Superseded by A4 (2026-10-23, the user's decision) before any selection score was read: the selection waits for (b).* The selection read runs as soon as the 20-epoch selection cells of every CPU variant (as built, (a)) are complete.
     - It never waits for (b). No one reads any CPU variant's selection score before it runs.
     - (b) takes part only if its 20-epoch runs passed the eligibility tests and its selection cells are complete by then. Otherwise it is marked **'not eligible: training defect'**, and the rule picks among the eligible variants.
     - Any later (b) run is its own amendment, and is exploratory against the selected variant. It never re-opens the selection.
