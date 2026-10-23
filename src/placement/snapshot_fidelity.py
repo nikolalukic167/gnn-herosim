@@ -124,6 +124,18 @@ def _exchange_running(task: Any) -> bool:
     return bool(fid) and fid.get("fx") is not None and getattr(task, "io_end_time", None) is None
 
 
+def _read_seconds(platform: Any, task: Any) -> float:
+    """The pre-exchange input stage of a task that has not begun it (`Platform._serve_task`'s `input_duration`): the input read from the node's remote
+    storage at the slower of its throughput and the node link, plus the storage latency. Peer exchange not included."""
+    node = platform.node
+    storage = next((st for st in node._fid_storages if st.type.get("remote")), None)
+    if storage is None:
+        raise RuntimeError(f"fidelity capture: {node.node_name} has no remote storage to read input from")
+    state = task.type["stateSize"][task.application.type["name"]]
+    speed = min(storage.type["throughput"]["read"], node.network["bandwidth"])
+    return float(state["input"]) / (speed * 1024 * 1024) + float(storage.type["latency"]["read"])
+
+
 def _expected_input_seconds(platform: Any, task: Any) -> float:
     """The input stage a task popped but not yet started will run (`Platform._serve_task`): read the input from the
     node's remote storage, plus the peer exchange to partners already placed. The same terms, evaluated now. A
@@ -135,9 +147,7 @@ def _expected_input_seconds(platform: Any, task: Any) -> float:
     storage = next((st for st in node._fid_storages if st.type.get("remote")), None)
     if storage is None:
         raise RuntimeError(f"fidelity capture: {node.node_name} has no remote storage to read input from")
-    state = task.type["stateSize"][task.application.type["name"]]
-    speed = min(storage.type["throughput"]["read"], node.network["bandwidth"])
-    seconds = float(state["input"]) / (speed * 1024 * 1024) + float(storage.type["latency"]["read"])
+    seconds = _read_seconds(platform, task)
     try:
         seconds += float(platform._peer_exchange_time(task, record=False))  # an estimate: books nothing
     except RuntimeError:
@@ -288,6 +298,25 @@ def _transfer(fl: Dict[str, Any], status: str, **kw: Any) -> Dict[str, Any]:
     return t
 
 
+def _unplanned_detail(plat: Any, task: Any, stage: str) -> Dict[str, Any]:
+    """What a replay needs to plan the exchange of a ghost whose own plan could not be made at the instant (flow_snapshot `unplanned_detail`): its node, stage,
+    the full pre-exchange read, and ALL its peers (placed or not) with the node each runs on or is planned for (None when `peer_is_placed` is false)."""
+    from src.placement.infrastructure import peer_is_placed
+
+    orchestrator = getattr(plat.node, "orchestrator_ref", None)
+    if orchestrator is None:
+        raise RuntimeError(f"flow capture: {plat.node.node_name} has no orchestrator_ref; the peer table lives on the orchestrator")
+    table = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id) or {}
+    partners = []
+    for peer_id in sorted(table):
+        peer = orchestrator.task_by_id.get(peer_id)  # absent until the peer has arrived: an unplaced partner (node None), not an error
+        node = None
+        if peer is not None and peer_is_placed(peer):
+            node = peer.platform.node.node_name if getattr(peer, "platform", None) is not None else peer.planned_node_name
+        partners.append([int(peer_id), node, float(table[peer_id])])
+    return {"dst_node": plat.node.node_name, "stage": stage, "read_duration": float(_read_seconds(plat, task)), "partners": partners}
+
+
 def _capture_flows(scheduler: Any, owners: List[Tuple[Any, Any, Dict[str, Any]]], now: float) -> Dict[str, Any]:
     """The `flows` block (flow_snapshot): the peer-exchange transfers of every ghost, and FairShare's active flows. Reads only: FairShare is NOT advanced
     (that would split a flow's float arithmetic and move the run); `rem` is projected to the instant instead."""
@@ -302,6 +331,7 @@ def _capture_flows(scheduler: Any, owners: List[Tuple[Any, Any, Dict[str, Any]]]
     live = {f.owner: f for f in share.flows}
     exchanges: List[Dict[str, Any]] = []
     unplanned: List[int] = []
+    unplanned_detail: Dict[str, Dict[str, Any]] = {}
     used = set()
     for plat, task, rec in owners:
         tid = int(task.id)
@@ -336,6 +366,7 @@ def _capture_flows(scheduler: Any, owners: List[Tuple[Any, Any, Dict[str, Any]]]
                 plan = plat._fairshare_plan(task, record=False)
             except RuntimeError:
                 unplanned.append(tid)
+                unplanned_detail[str(tid)] = _unplanned_detail(plat, task, stage)
                 continue
             if not plan:
                 continue
@@ -344,12 +375,14 @@ def _capture_flows(scheduler: Any, owners: List[Tuple[Any, Any, Dict[str, Any]]]
                               "read_remaining": max(0.0, read), "transfers": [_transfer(fl, "pending") for fl in plan]})
         elif stage == "rendezvous":
             unplanned.append(tid)
+            unplanned_detail[str(tid)] = _unplanned_detail(plat, task, stage)
     stray = [f.owner for f in share.flows if f.owner not in used]
     if stray:
         raise RuntimeError(f"flow capture: FairShare flows {stray[:5]} belong to no captured ghost")
     active = [[int(f.owner[0]), int(f.owner[1])] for f in share.flows]
     out = {"version": flow_snapshot.VERSION, "model": FAIRSHARE_MODEL, "partners": "serial", "tcp": bool(exchange_tcp_enabled()),
-           "fairshare_last": float(share._last) - now, "active": active, "exchanges": exchanges, "unplanned": sorted(unplanned)}
+           "fairshare_last": float(share._last) - now, "active": active, "exchanges": exchanges, "unplanned": sorted(unplanned),
+           "unplanned_detail": {str(t): unplanned_detail[str(t)] for t in sorted(unplanned)}}
     flow_snapshot.validate(out)
     return out
 
