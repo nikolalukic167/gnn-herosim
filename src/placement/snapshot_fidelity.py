@@ -309,11 +309,9 @@ def _unplanned_detail(plat: Any, task: Any, stage: str) -> Dict[str, Any]:
     table = (getattr(orchestrator, "peer_exchange", None) or {}).get(task.id) or {}
     partners = []
     for peer_id in sorted(table):
-        peer = orchestrator.task_by_id.get(peer_id)
-        if peer is None:
-            raise RuntimeError(f"flow capture: task {task.id} lists peer {peer_id}, which is not a task of this workload")
+        peer = orchestrator.task_by_id.get(peer_id)  # absent until the peer has arrived: an unplaced partner (node None), not an error
         node = None
-        if peer_is_placed(peer):
+        if peer is not None and peer_is_placed(peer):
             node = peer.platform.node.node_name if getattr(peer, "platform", None) is not None else peer.planned_node_name
         partners.append([int(peer_id), node, float(table[peer_id])])
     return {"dst_node": plat.node.node_name, "stage": stage, "read_duration": float(_read_seconds(plat, task)), "partners": partners}
