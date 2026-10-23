@@ -29,6 +29,7 @@ ARMS = {
     "ra_gnn_eng_combfl_linkstatic": ("uncut-comb-fl-gnn-eng", "uncut-linkstatic-gnn-eng", False),
     "ra_twin_eng_combfl_linkstatic": ("uncut-comb-fl-twin", "uncut-linkstatic-twin", True),
     "ra_mlp_same_combfl_linkstatic": ("uncut-comb-fl-mlp-same", "uncut-linkstatic-mlp-same", False),
+    "ra_mlp_wide_combfl_linkstatic": ("uncut-comb-fl-mlp-wide", "uncut-linkstatic-mlp-wide", False),
 }
 EMB = HID = 128
 LAYERS = 3

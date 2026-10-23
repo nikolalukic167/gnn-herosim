@@ -18,7 +18,7 @@ import uncut_charge_share as U  # noqa: E402
 
 KINDS = {"gnn": "ra_gnn_eng_combfl_link_nosplit", "twin": "ra_twin_eng_combfl_link_nosplit", "mlp": "ra_mlp_same_combfl_link_nosplit", "wide": "ra_mlp_wide_combfl_link_nosplit"}
 # the static link block (partial_state_v8): the three kinds of the 2026-10-23 variant; --kinds v8 freezes these instead (same recipe, same H3 control)
-KINDS_V8 = {"gnn": "ra_gnn_eng_combfl_linkstatic_nosplit", "twin": "ra_twin_eng_combfl_linkstatic_nosplit", "mlp": "ra_mlp_same_combfl_linkstatic_nosplit"}
+KINDS_V8 = {"gnn": "ra_gnn_eng_combfl_linkstatic_nosplit", "twin": "ra_twin_eng_combfl_linkstatic_nosplit", "mlp": "ra_mlp_same_combfl_linkstatic_nosplit", "wide": "ra_mlp_wide_combfl_linkstatic_nosplit"}
 RUNGS = ("moderate", "heavy")
 LIMIT = U.DRIFT
 
