@@ -43,7 +43,7 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     ap.add_argument("--stats", required=True)
     a = ap.parse_args(argv)
-    entries, pair, flagged, pools, sfs_wall = {}, {}, set(), {}, {}
+    entries, pair, flagged, pools, sfs_wall, hand_diff = {}, {}, set(), {}, {}, {}
     for f in a.inp:
         for line in open(f):
             e = json.loads(line)
@@ -52,6 +52,7 @@ def main(argv=None):
             flagged.add(bool(e.get("stored_flows")))
             pair[e["gid"]] = e.get("stored_label_rtt")
             pools[e["gid"]] = e.get("winner_pool")
+            hand_diff[e["gid"]] = e.get("hand_replan_differs")
             sfs_wall[e["gid"]] = e.get("sfs_wall_s")
             entries[e["gid"]] = {k: v for k, v in e.items() if k not in DROP}
     expect = {s["gid"] for s in L.all_states(a.split, a.corpus)}
@@ -77,6 +78,9 @@ def main(argv=None):
         b = agg.setdefault(e["bucket"], {"n": 0, "differs_from_first_pass": 0, "served_checked": 0, "first_pass_differs_from_served": 0, "final_differs_from_served": 0})
         b["n"] += 1
         b["differs_from_first_pass"] += int(e["differs"])
+        if hand_diff[gid] is not None and e["current_label_source"] == "hand":
+            b["hand_states"] = b.get("hand_states", 0) + 1
+            b["hand_replan_differs"] = b.get("hand_replan_differs", 0) + int(hand_diff[gid])
         if pools[gid] is not None:
             b.setdefault("winner_pool", {})
             b["winner_pool"][pools[gid]] = b["winner_pool"].get(pools[gid], 0) + 1
@@ -92,7 +96,8 @@ def main(argv=None):
         for k, v in (b.get("winner_pool") or {}).items():
             pool_tot[k] = pool_tot.get(k, 0) + v
     tot = {k: sum(b[k] for b in agg.values()) for k in ("n", "differs_from_first_pass", "served_checked", "first_pass_differs_from_served", "final_differs_from_served")}
-    stats = {"n": len(entries), "sha256": hashlib.sha256(raw.encode()).hexdigest(), "md5": hashlib.md5(raw.encode()).hexdigest(), "by_bucket": agg, "total": tot,
+    hs = sum(b.get("hand_states", 0) for b in agg.values())
+    stats = {"n": len(entries), "hand_replan_differs_share": (sum(b.get("hand_replan_differs", 0) for b in agg.values()) / hs) if hs else None, "sha256": hashlib.sha256(raw.encode()).hexdigest(), "md5": hashlib.md5(raw.encode()).hexdigest(), "by_bucket": agg, "total": tot,
              "winner_pool_total": pool_tot, "sfs_wall_s_total": sum(b.get("sfs_wall_s", 0.0) for b in agg.values()), "share": {k: tot[k] / tot["served_checked"] if k.endswith("served") else tot[k] / tot["n"] for k in ("differs_from_first_pass", "first_pass_differs_from_served", "final_differs_from_served")}}
     if ratio:
         ratio.sort()
