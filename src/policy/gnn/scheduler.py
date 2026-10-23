@@ -47,6 +47,7 @@ from src.policy.tabular.feature_builder import build_pyg_inference_graph
 from src.placement.live_audit import maybe_capture_batch_live_audit_snapshot, record_chosen
 from src.placement.physics_audit import AUDIT as _AUDIT
 from src.placement.decision_timing import log_of
+from src.placement import link_features
 from src.placement.model import SystemState
 from src.placement.scheduler import Scheduler
 from src.policy.state_capture import StateCaptureHelper
@@ -1373,7 +1374,11 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if _AUDIT is not None:
             _AUDIT.i11_probe(self, system_state, batch_tasks)
         queue_snapshot = self._capture_full_queue_snapshot()
+        link_on = link_features.link_enabled()
+        link_capture_before = link_features.CAPTURE["seconds"]
         temporal_state = self._capture_temporal_state_snapshot()
+        # partial_state_v7: the link capture is cost only the v7 arms pay, so it is charged inside the decision span (decision_timing); v6 and the bar are unchanged
+        link_capture_s = link_features.CAPTURE["seconds"] - link_capture_before if link_on else None
 
         decodable: List[Task] = []
         deferred: List[Task] = []
@@ -1403,9 +1408,9 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             if keepwarm is not None:
                 placements = self._keep_replicas_warm(decodable, placements, system_state, *keepwarm)
             inference_time = default_timer() - inference_start
-            log_of(self).add(len(decodable), inference_time,
+            log_of(self).add(len(decodable), inference_time + (link_capture_s or 0.0),
                              int(getattr(self, "pg_cd_moves", 0)) + int(getattr(self, "cdr_moved", 0)) - moves_before,
-                             int(getattr(self, "sched_plan_evals", 0)) - int(evals_before))
+                             int(getattr(self, "sched_plan_evals", 0)) - int(evals_before), link_capture_s=link_capture_s)
             if _AUDIT is not None:
                 _AUDIT.decision(self.env, audit_t0, self.env.now, inference_time, len(decodable),
                                 self._live_audit_policy_name)
