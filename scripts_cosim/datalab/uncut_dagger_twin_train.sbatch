@@ -50,9 +50,9 @@ echo "run_experiment exit $rc"
 fail=0
 [[ $rc -eq 0 ]] || { tail -15 "$LOG" | cut -c1-240; fail=1; }
 tr '\r' '\n' < "$LOG" | grep -E "NEAR_RTT_LABEL_OVERRIDE_JSON\] train label replaced|Valid labels|wandb: .*(Syncing|View run)" | head -5
-tr '\r' '\n' < "$LOG" | grep -q "train label replaced on 11521 graphs" || { echo "FAIL LOUD: the override was not applied to all 11521 train graphs"; fail=$((fail+1)); }
+[[ "$(tr '\r' '\n' < "$LOG" | grep -c "train label replaced on 11521 graphs")" -ge 1 ]] || { echo "FAIL LOUD: the override was not applied to all 11521 train graphs"; fail=$((fail+1)); }
 for f in "$CK-final.pt" "$CK-final.contract.json" "$CK.val.json"; do [[ -f "$f" ]] || { echo "FAIL LOUD: no $f"; fail=$((fail+1)); }; done
-python3 scripts_cosim/joint_burst_v2_sidecheck.py "$CK-final.contract.json" "ra_twin_eng" "$SPLITF" inf || fail=$((fail+1))
+R1A_SLATE=declared_pruning_v1_uncapped python3 scripts_cosim/joint_burst_v2_sidecheck.py "$CK-final.contract.json" "ra_twin_eng_v6" "$SPLITF" inf || fail=$((fail+1))
 md5sum "$CK-final.pt" "$CK-final.contract.json" "$CK.pt" 2>/dev/null
 echo "=== $RUN seed $S: $fail failure(s)"
 exit $fail
