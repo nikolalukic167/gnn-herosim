@@ -12,8 +12,16 @@ With HEROSIM_REPLAY_STORED_FLOWS=1 (default off; unset or '0' leaves the replay 
      then the route latency), starting from each transfer's stored status.
 
 Only the physics is replayed: the fabric's booked exchange tallies (`record_exchange*`) are telemetry that nothing reads back and are not re-booked.
-Ghosts whose record is `planned` (admitted, input stage not begun) run the plan as evaluated at the snapshot instant; live makes the real plan at
-input start, so those are an approximation, not an identity. Rendezvous ghosts have no transfers and are untouched.
+Ghosts whose record is `planned` (admitted, input stage not begun) run the plan as evaluated at the snapshot instant (all their partners were placed
+then, so live's plan at input start is the same).
+
+Ghosts in the capture's `unplanned` list (rendezvous, or admitted with an unplaced partner) carry `flows["unplanned_detail"][tid]` = {dst_node, stage,
+read_duration, partners [[peer_id, node or null, payload]]}: `snapshot_fidelity.apply_orchestrator` registers the partner table as the ghost's
+`peer_exchange` row (partners in the snapshot's batch/queue map to their replay tasks, others become `PeerStub`s), and `unplanned_process` then does what
+`Platform.platform_process` does for a real task: wait for the unplaced partners (`_peer_rendezvous_events`), plan the serial exchange at that instant from where the
+partners are NOW, so the candidate plan's batch partners are priced where the candidate put them (`_fairshare_plan`), run the read, then the exchange
+(`_fairshare_exchange`). A partner that is not placed and is outside the snapshot stays unplaced for ever (the ghost never leaves its wait), as live's
+continuation is beyond the replay's horizon. Without `unplanned_detail` (a capture before schema v1.1) these ghosts keep the old path, and `require` says so.
 """
 from __future__ import annotations
 
@@ -24,6 +32,7 @@ from src.placement import flow_snapshot
 from src.placement.network_fabric import FairShare, _Flow, exchange_fairshare_enabled
 
 ENV = "HEROSIM_REPLAY_STORED_FLOWS"
+UNPLANNED_OLD_ENV = "HEROSIM_REPLAY_UNPLANNED_OLD"
 RATE_RTOL = 1e-9
 
 ActiveEvents = Dict[Tuple[int, int], Any]
@@ -51,7 +60,35 @@ def require(fidelity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         raise RuntimeError(f"{ENV}=1 but the snapshot has no fidelity['{flow_snapshot.KEY}'] block; capture it with "
                            "HEROSIM_SNAPSHOT_FIDELITY=1 and HEROSIM_EXCHANGE_FAIRSHARE=1")
     flow_snapshot.validate(block)
+    if block.get("unplanned") and "unplanned_detail" not in block and os.environ.get(UNPLANNED_OLD_ENV) != "1":
+        raise RuntimeError(f"{ENV}=1: the snapshot lists unplanned ghosts {block['unplanned'][:5]} but carries no flows['unplanned_detail'] (a capture before schema v1.1); "
+                           f"recapture it, or set {UNPLANNED_OLD_ENV}=1 to replay those ghosts the old way (no exchange)")
     return block
+
+
+def unplanned_detail(block: Dict[str, Any]) -> Dict[int, Dict[str, Any]]:
+    """`flows["unplanned_detail"]` by owner task id; {} when the capture predates it."""
+    return {int(k): v for k, v in (block.get("unplanned_detail") or {}).items()}
+
+
+def ghost_key(tid: int) -> int:
+    """The id `snapshot_fidelity.GhostTask` gives the ghost of live task `tid`: the key of its row in the orchestrator's `peer_exchange` table."""
+    return -1 - int(tid)
+
+
+def unplanned_process(platform: Any, ghost: Any, detail: Dict[str, Any]) -> Generator:
+    """The input stage of an unplanned ghost, as `Platform.platform_process` runs it for a task: rendezvous with unplaced partners, plan from their placements
+    at that instant, the read, then the serial exchange."""
+    env = platform.env
+    for ready in platform._peer_rendezvous_events(ghost):
+        yield ready
+    flows = platform._fairshare_plan(ghost, record=False)
+    live_id = (getattr(platform.node.orchestrator_ref, "fid_live_peer", None) or {}).get(ghost.id)
+    if live_id:                                    # the live plan runs the partners in LIVE task-id order; the replay's own ids (batch tasks first, stubs after) are not that order
+        flows.sort(key=lambda f: live_id[f["peer_id"]])
+    yield env.timeout(float(detail["read_duration"]))
+    if flows:
+        yield from platform._fairshare_exchange(ghost, flows)
 
 
 def _records(block: Dict[str, Any]) -> Dict[int, Dict[str, Any]]:
