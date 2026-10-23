@@ -643,6 +643,7 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             "mp_link_edge_conv",
             "mp_link_static_attr",
             "mp_conv_prenorm_residual",
+            "mp_conv_prenorm_final_norm",
             "partial_state_edge_features",
             # Weight-invisible like the two above: the GIN module is always constructed,
             # so a checkpoint whose GIN weights were never fitted (disable_message_passing
@@ -1022,6 +1023,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_link_edge_conv=bool(mp_cfg.get("mp_link_edge_conv", False)),
             mp_link_static_attr=bool(mp_cfg.get("mp_link_static_attr", False)),
             mp_conv_prenorm_residual=bool(mp_cfg.get("mp_conv_prenorm_residual", False)),
+            mp_conv_prenorm_final_norm=bool(mp_cfg.get("mp_conv_prenorm_final_norm", False)),
             mp_bipartite_aggr=str(mp_cfg.get("mp_bipartite_aggr") or "mean"),
             mp_bipartite_hetero=bool(mp_cfg.get("mp_bipartite_hetero", False)),
         )

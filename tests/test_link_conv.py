@@ -292,3 +292,30 @@ def test_prenorm_big_graph_encode_equals_per_copy_and_chunked_loss_equals_whole(
     assert float(out["whole"][1].abs().sum()) > 0.0
     for k in (1, 2):
         assert torch.allclose(out["chunks"][k], out["whole"][k], atol=1e-5, rtol=1e-4)
+
+
+def _pn_model(final_norm=False):
+    torch.manual_seed(0)
+    return TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4, partial_state_edge_dim=30,
+                            mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_edge_conv=True, mp_peer_edges=False, mp_conv_prenorm_residual=True,
+                            mp_conv_prenorm_final_norm=final_norm).eval()
+
+
+def test_final_norm_flag_off_is_the_a5_path_and_on_adds_exactly_one_layernorm(monkeypatch):
+    rnd, ctx, g, place = TB.scenario(8, monkeypatch)
+    g, _m = model_for(g)
+    off, on = _pn_model(False), _pn_model(True)
+    assert sorted(set(on.state_dict()) - set(off.state_dict())) == ["bip_final_norm.bias", "bip_final_norm.weight"]
+    assert not any("running" in k for k in on.state_dict())
+    on.load_state_dict(off.state_dict(), strict=False)
+    setattr(g, LC.ATTR, LC.link_edge_block(g, ctx, {j: tuple(place[j][0]) for j in range(0, N, 2)}))
+    with torch.no_grad():
+        t_off, p_off = off._encode(g)
+        t_on, p_on = on._encode(g)
+        assert torch.allclose(t_on, torch.nn.functional.layer_norm(t_off, (16,)), atol=1e-6) and torch.allclose(p_on, torch.nn.functional.layer_norm(p_off, (16,)), atol=1e-6)
+        again = _pn_model(False)
+        t_again, _ = again._encode(g)
+        assert torch.equal(t_again, t_off)
+    with pytest.raises(ValueError, match="FAIL LOUD"):
+        TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4, partial_state_edge_dim=30,
+                         mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_peer_edges=False, mp_conv_prenorm_final_norm=True)
