@@ -347,3 +347,41 @@ def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int
     if full_context_weight > 0.0:
         loss = loss + full_context_weight * -torch.logsumexp(b.step_logps(lp, "full").sum(dim=1), dim=0)
     return loss
+
+
+def equivalence_report(model: Any, graphs: Sequence[Any], loss_fn: Any, device: torch.device, n_graphs: int, seq_max_tasks: int, small_budget: int = 60_000) -> None:
+    """Real-data check of the re-encode loss (NEAR_RTT_LINK_CONV_EQUIV=1 in the trainer): per sampled graph (every k-th by size, plus the largest ten) the loss and its gradient with the default chunk budget against a
+    small budget, against one unchunked call where it fits, and against the sequential closure for graphs up to `seq_max_tasks`. `loss_fn(model, data, seq)` returns the scalar loss; eval mode, dropout off."""
+    import time
+
+    model.eval()
+    order = sorted(range(len(graphs)), key=lambda i: int(graphs[i].n_tasks))
+    step = max(1, len(order) // max(1, n_graphs - 10))
+    picks = order[::step] + order[-10:]
+    defaults = link_conv_loss.__defaults__
+
+    def run(data, budget, seq):
+        link_conv_loss.__defaults__ = (budget,)
+        model.zero_grad(set_to_none=True)
+        loss = loss_fn(model, data, seq)
+        loss.backward()
+        g = torch.cat([p.grad.detach().flatten() if p.grad is not None else torch.zeros(p.numel(), device=device) for p in model.parameters()])
+        return float(loss.detach()), g
+
+    try:
+        for i in picks:
+            data = graphs[i]
+            nt = int(data.n_tasks)
+            t0 = time.time()
+            ref, gref = run(data, defaults[0], False)
+            row = f"[equiv] graph={getattr(data, 'dataset_id', '?')} n_tasks={nt} ce={ref:.6g} ce_per_task={ref / max(nt, 1):.4g} gnorm={float(gref.norm()):.4g}"
+            for name, budget, seq in (("small_budget", small_budget, False), ("unchunked", 10 ** 12, False), ("sequential", defaults[0], True)):
+                if seq and nt > seq_max_tasks:
+                    continue
+                if name == "unchunked" and nt > 80:
+                    continue
+                v, g = run(data, budget, seq)
+                row += f" | {name}: dce={v - ref:+.3g} grad_rel={float((g - gref).norm() / (gref.norm() + 1e-12)):.3g}"
+            print(row + f" ({time.time() - t0:.1f}s)", flush=True)
+    finally:
+        link_conv_loss.__defaults__ = defaults

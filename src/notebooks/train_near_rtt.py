@@ -2702,6 +2702,15 @@ if phase_b_baseline is None and _resume_state is None:
     )
 
 print("=" * 80)
+if os.environ.get("NEAR_RTT_LINK_CONV_EQUIV") == "1":
+    from src.policy.gnn.link_conv import equivalence_report
+
+    def _equiv_loss(_m, _d, _seq):
+        object.__setattr__(NEAR_CFG, "batched_tf", not _seq)
+        return loss_tied_teacher_forced_ce(_m, move_graph_to_device(_d, DEVICE), DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight)[0]
+
+    equivalence_report(model, train_graphs, _equiv_loss, DEVICE, int(os.environ.get("NEAR_RTT_LINK_CONV_EQUIV_N", "150")), int(os.environ.get("NEAR_RTT_LINK_CONV_EQUIV_SEQ", "30")))
+    raise SystemExit(0)
 print(f"TRAINING ({TRAIN_OBJECTIVE})")
 print("=" * 80)
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
