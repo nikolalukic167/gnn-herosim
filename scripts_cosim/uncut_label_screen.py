@@ -244,8 +244,11 @@ def replay_state(corpus: str, s: Dict[str, Any], record_pair: bool = False, unio
     if small or not ils_rows:
         job["enum_cap"] = ENUM_CAP
     d = U.decision_pass(job, "cd_ib0", 0, 1, 1, None, check_arm=False)
-    if head["label_source"] == "hand" and plan_key(d["hand"]) != plan_key(label):
+    hand_differs = head["label_source"] == "hand" and plan_key(d["hand"]) != plan_key(label)
+    if hand_differs and not record_pair:
         raise SystemExit(f"FAIL LOUD: {s['gid']}: the engine's hand plan is not the stored (hand) label plan")
+    # under --record-pair (option D, stored flows) the in-flight ghosts carry their real remaining exchange times, so the hand rule's re-decision may differ from the first-pass
+    # hand label; the first-pass label is a candidate whatever the re-decision says, and the difference is recorded
     enum = d["enum"] or []
     if (small or not ils_rows) and not enum:
         raise SystemExit(f"FAIL LOUD: {s['gid']}: no enumeration returned for a plan space of {head['plan_space_size']}")
@@ -269,6 +272,7 @@ def replay_state(corpus: str, s: Dict[str, Any], record_pair: bool = False, unio
     return {"gid": s["gid"], "bucket": s["bucket"], "n_tasks": n, "small": small, "label_source": head["label_source"], "n_plans": len(plans),
             "method": method, "label_plan": plans[dec["best_index"]]["plan"], "current_plan": plans[0]["plan"],
             "rtt_label": rt[0], "stored_label_rtt": stored_rtt, "rtt_sim": rt[dec["best_index"]], "best_tag": plans[dec["best_index"]]["tag"], **dec,
+            **({"hand_replan_differs": bool(hand_differs)} if record_pair else {}),
             **({"winner_pool": winner_pool(plans[dec["best_index"]]["tag"], small), "sfs_wall_s": sfs_wall, "sfs_new_plans": sfs_new} if union_sfs else {}),
             "tags": [p["tag"] for p in plans], "rtts": rt, "plans": [p["plan"] for p in plans] if not small else None,
             "replay_setup_s": setup, "wall_s": time.time() - t0}
@@ -370,7 +374,7 @@ def _work(args):
     corpus, st, record_pair, *rest = args
     union = bool(rest and rest[0])
     r = (replay_state(corpus, st, True, True) if union else replay_state(corpus, st, True)) if record_pair else replay_state(corpus, st)
-    return {"gid": st["gid"], **sidecar_entry(r, st["split"]), **({"stored_label_rtt": r["stored_label_rtt"]} if record_pair else {}), **({k: r[k] for k in ("winner_pool", "sfs_wall_s", "sfs_new_plans")} if union else {}), "wall_s": r["wall_s"], "_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
+    return {"gid": st["gid"], **sidecar_entry(r, st["split"]), **({"stored_label_rtt": r["stored_label_rtt"]} if record_pair else {}), **({k: r[k] for k in ("winner_pool", "sfs_wall_s", "sfs_new_plans", "hand_replan_differs") if k in r} if (union or record_pair) else {}), "wall_s": r["wall_s"], "_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
 
 
 def _init_worker():
