@@ -55,12 +55,10 @@ def git_blob(path):
     return hashlib.sha1(b"blob %d\0" % len(b) + b).hexdigest()
 
 
-for _f, _want in FROZEN_BLOBS.items():
-    _got = git_blob(os.path.join(HERE, _f))
-    if _got != _want:
-        raise SystemExit(f"FAIL LOUD: frozen {_f} blob {_got}, want {_want}")
-import uncut_arm_gate_read as G  # noqa: E402
-from r1_attribution_v1_read import exact_wilcoxon  # noqa: E402
+# each frozen module is loaded at its blob (git object store when the working file has since changed), never the working file
+from frozen_import import load_frozen  # noqa: E402
+G = load_frozen(HERE, "uncut_arm_gate_read.py", FROZEN_BLOBS["uncut_arm_gate_read.py"])
+exact_wilcoxon = load_frozen(HERE, "r1_attribution_v1_read.py", FROZEN_BLOBS["r1_attribution_v1_read.py"]).exact_wilcoxon
 
 FILED_PIN = "7cb483c5"
 BUDGETS = ("200", "50", "10")
