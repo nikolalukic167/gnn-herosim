@@ -59,12 +59,13 @@ def exchange_tables(lt):
     return out
 
 
-def scenario(seed, monkeypatch):
+def scenario(seed, monkeypatch, n_tasks=None, density=0.4, n_flows=(0, 14)):
+    N = N_TASKS if n_tasks is None else int(n_tasks)
     rnd = random.Random(seed)
     monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
     env = simpy.Environment()
     fabric = NetworkFabric(env, topology())
-    for _ in range(rnd.randint(0, 14)):
+    for _ in range(rnd.randint(*n_flows)):
         a, b = rnd.sample(SERVERS, 2)
         fabric.fairshare.start(fabric.directed_hops(a, b), rnd.uniform(5, 80) * MIB)
     if fabric.fairshare.flows:
@@ -73,38 +74,38 @@ def scenario(seed, monkeypatch):
     counts = LF.counts_of(flows)
     routes = LF.routes_between(fabric.link_topology, NAMES)
     nx = exchange_tables(fabric.link_topology)
-    cands = {t: sorted(rnd.sample(range(len(REPLICAS)), rnd.randint(3, 6))) for t in range(N_TASKS)}
-    place = {t: [REPLICAS[p] for p in cands[t]] for t in range(N_TASKS)}
+    cands = {t: sorted(rnd.sample(range(len(REPLICAS)), rnd.randint(3, 6))) for t in range(N)}
+    place = {t: [REPLICAS[p] for p in cands[t]] for t in range(N)}
     pairs = {}
-    for i in range(N_TASKS):
-        for j in range(i + 1, N_TASKS):
-            if rnd.random() < 0.4:
+    for i in range(N):
+        for j in range(i + 1, N):
+            if rnd.random() < density:
                 b = rnd.uniform(1, 30) * MIB
                 pairs[(i, j)] = b
                 pairs[(j, i)] = b if rnd.random() < 0.8 else rnd.uniform(1, 30) * MIB
     for _ in range(3):  # one-directional pairs
-        i, j = rnd.sample(range(N_TASKS), 2)
+        i, j = rnd.sample(range(N), 2)
         pairs.pop((j, i), None)
         pairs[(i, j)] = rnd.uniform(1, 30) * MIB
     nodes = list(range(5))
     caps = {n: rnd.choice([math.inf, 3.0, 5.0]) for n in nodes}
     ctx = RF.PartialStateContext(
-        node_caps=caps, demand={(t, r): rnd.choice([1.0, 2.0]) for t in range(N_TASKS) for r in place[t]}, node_of={r: r[0] for r in REPLICAS},
-        task_type_index={t: t % 4 for t in range(N_TASKS)}, parents={t: [] for t in range(N_TASKS)},
+        node_caps=caps, demand={(t, r): rnd.choice([1.0, 2.0]) for t in range(N) for r in place[t]}, node_of={r: r[0] for r in REPLICAS},
+        task_type_index={t: t % 4 for t in range(N)}, parents={t: [] for t in range(N)},
         route_hops_bneck={(a, b): ((0.0, math.inf) if a == b else (2.0, 10.0)) for a in nodes for b in nodes}, payload_bytes=0.0, transfer_norm=0.0,
-        node_rank=RF.krank_node_order(caps, {n: float(n) for n in nodes}, contract=V7), ingress_links={(t, n): () for t in range(N_TASKS) for n in nodes},
-        core_links=frozenset(), peer_pairs=pairs, peer_norm=1.0, node_exchange=nx, cand_nodes={t: sorted({r[0] for r in place[t]}) for t in range(N_TASKS)}, contract=V7,
-        backlog_s={r: rnd.uniform(0, 3) for r in REPLICAS}, service_s={(t, r): rnd.uniform(0.5, 4) for t in range(N_TASKS) for r in place[t]},
+        node_rank=RF.krank_node_order(caps, {n: float(n) for n in nodes}, contract=V7), ingress_links={(t, n): () for t in range(N) for n in nodes},
+        core_links=frozenset(), peer_pairs=pairs, peer_norm=1.0, node_exchange=nx, cand_nodes={t: sorted({r[0] for r in place[t]}) for t in range(N)}, contract=V7,
+        backlog_s={r: rnd.uniform(0, 3) for r in REPLICAS}, service_s={(t, r): rnd.uniform(0.5, 4) for t in range(N) for r in place[t]},
         link_counts=counts, link_routes=routes)
     src, dst = [], []
-    for t in range(N_TASKS):
+    for t in range(N):
         for p in cands[t]:
             src.append(t)
-            dst.append(N_TASKS + p)
-    ei, _ea = to_undirected(torch.tensor([src, dst], dtype=torch.long), torch.zeros(len(src), 5), num_nodes=N_TASKS + len(REPLICAS))
-    g = Data(edge_index=ei, n_tasks=N_TASKS, n_platforms=len(REPLICAS))
+            dst.append(N + p)
+    ei, _ea = to_undirected(torch.tensor([src, dst], dtype=torch.long), torch.zeros(len(src), 5), num_nodes=N + len(REPLICAS))
+    g = Data(edge_index=ei, n_tasks=N, n_platforms=len(REPLICAS))
     g.task_logit_to_placement = place
-    g.task_logit_to_queue_key = {t: [f"n{r[0]}:{r[1]}" for r in place[t]] for t in range(N_TASKS)}
+    g.task_logit_to_queue_key = {t: [f"n{r[0]}:{r[1]}" for r in place[t]] for t in range(N)}
     g.queue_key_to_platform_meta = {f"n{r[0]}:{r[1]}": {"platform_pos": p} for p, r in enumerate(REPLICAS)}
     return rnd, ctx, g, place
 
