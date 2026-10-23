@@ -60,11 +60,14 @@ from src.policy.tabular.reduced_features import (
     build_partial_state_context_from_graph,
     exchange_seconds_enabled,
     krank_node_order,
+    LINK_CONTRACTS,
     load_seconds_enabled,
     peer_mass_enabled,
     require_matching_partial_state_contract,
     resolve_partial_state_contract,
 )
+
+from src.placement import link_features
 
 # The one-hot column order the cache builder and the sidecar record. Imported lazily from
 # its single home (prepare_graphs_cache pulls pandas and the whole cache toolchain in at
@@ -637,6 +640,18 @@ def attach_live_prefix_block(
                 backlog_s[placement] = float(backlog_seconds[placement])
         load_block = {"backlog_s": backlog_s, "service_s": service_s}
 
+    # partial_state_v7: the active flows per link and the directed routes between the candidate nodes (the cache builds the same two from a stored state)
+    link_block: Dict[str, Any] = {}
+    if resolve_partial_state_contract() in LINK_CONTRACTS:
+        fabric = getattr(next(iter(node_by_name.values())), "fabric", None)
+        share = getattr(fabric, "fairshare", None)
+        if share is None:
+            raise PrefixServingError(f"{resolve_partial_state_contract()} serving needs the fair-share link fabric (HEROSIM_EXCHANGE_FAIRSHARE=1)")
+        link_block = {
+            "link_counts": link_features.counts_of(link_features.flows_live(share, share.env.now)),
+            "link_routes": link_features.routes_between(fabric.link_topology, {nid: name_by_node_id[nid] for nid in cand_node_ids}),
+        }
+
     graph.peer_edge_index = peer_edge_index
     graph.peer_edge_attr = peer_edge_attr
     graph.dag_edge_index = torch.empty((2, 0), dtype=torch.long)
@@ -664,6 +679,7 @@ def attach_live_prefix_block(
         "base_load": base_load,
         "queue_depth_by_node": queue_depth_by_node,
         **load_block,
+        **link_block,
     }
     return {
         "n_pairs_in_batch": len(peer_pairs) // 2,

@@ -25,6 +25,11 @@ their node is known; the pull direction, partner node -> candidate node, is the 
     E2  log(E1 seconds / the same sum priced solo); 0 on an empty fabric (the ratio is >= 1)
     E3  log1p(largest number of active flows on any hop of any of those routes, before adding this one)
 
+The edge columns REFRESH with the committed prefix (live_link_features_v1, the `_commit` fix of the fair-share-aware rule): the flows the already-placed
+batch-mates will run (`pending_counts`) are added to the active counts before any of E1-E3 is priced, at every decode step and every refine pass, for every
+arm. P1-P3 are the at-capture state: the platform block is encoded once per batch and never re-encoded per commit (that is the Arm 2 committed-inputs
+path), so they do not move with the prefix.
+
 The cache builder and the live batch both pass `partial_state_columns` the same two tables (`link_counts`: link id -> active flows, `link_routes`:
 (node, node) -> directed hops), so one definition serves training and serving (tests/test_link_features.py).
 """
@@ -134,6 +139,32 @@ def edge_columns(
         solo += solo_s
     e2 = math.log(shared / solo) if solo > 0.0 and shared > solo else 0.0
     return math.log1p(shared), e2, math.log1p(float(busiest))
+
+
+def pending_counts(
+    routes: Mapping[Tuple[Any, Any], Sequence[Hop]],
+    peers_of: Mapping[Any, Iterable[Tuple[Any, float]]],
+    node_of_committed: Mapping[Any, Any],
+) -> Dict[str, int]:
+    """link id -> flows the already-placed batch-mates will run: for every placed task u and every placed peer v of u on another node, one flow v -> u
+    (a task's input stage pulls from each of its partners; both directions of a pair are counted, as `_pg_remote_edges` does). Peers outside the batch are
+    invisible to the context by contract and not counted. Integer counts, so the order of the walk does not matter."""
+    counts: Dict[str, int] = {}
+    for u, nu in node_of_committed.items():
+        for v, _b in peers_of.get(u, ()):
+            nv = node_of_committed.get(v)
+            if nv is None or nv == nu:
+                continue
+            for key, _bw in routes[(nv, nu)]:
+                counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def with_pending(counts: Mapping[str, int], pending: Mapping[str, int]) -> Dict[str, int]:
+    out = dict(counts)
+    for key, n in pending.items():
+        out[key] = out.get(key, 0) + n
+    return out
 
 
 def routes_between(link_topology: Mapping[str, Any], names: Mapping[Any, str]) -> Dict[Tuple[Any, Any], Tuple[Hop, ...]]:

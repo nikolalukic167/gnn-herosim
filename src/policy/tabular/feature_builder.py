@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 from src.policy.tabular.constants import FEATURE_DIM
 from src.placement.inflight_features import INFLIGHT_DIM, inflight_enabled
+from src.placement import link_features
 from src.placement.four_type_features import (
     four_type_enabled,
     platform_extra_columns,
@@ -128,6 +129,8 @@ class InferenceFeatureBundle:
     # partial_state_v6 (placement/inflight_features.py): the in-flight count and work columns appended to the platform block by
     # build_pyg_inference_graph after the four-type ones; None under every earlier contract.
     inflight_platform_extra: Optional[np.ndarray] = None
+    # partial_state_v7 (placement/link_features.py): the link-sharing columns appended after the in-flight ones; None under every earlier contract.
+    link_platform_extra: Optional[np.ndarray] = None
 
 
 _warned_layout_fallback = False
@@ -732,9 +735,21 @@ def build_inference_feature_bundle(
             rows.append(inflight_columns(rec[COUNT_KEY], rec[WORK_KEY], queue_norm))
         inflight_extra = np.asarray(rows, dtype=np.float64).reshape(len(rows), INFLIGHT_DIM)
 
+    link_extra = None
+    if link_features.link_enabled():
+        rows = []
+        for info in platforms_info:
+            rec = (temporal_state or {}).get(f"{info.node_name}:{info.platform_id}") or {}
+            if link_features.NODE_KEY not in rec:
+                raise ValueError(f"FAIL LOUD: partial_state_v7 serving needs {link_features.NODE_KEY} in the captured state of "
+                                 f"{info.node_name}:{info.platform_id}")
+            rows.append(link_features.platform_columns(rec[link_features.NODE_KEY]))
+        link_extra = np.asarray(rows, dtype=np.float64).reshape(len(rows), link_features.LINK_PLATFORM_DIM)
+
     return InferenceFeatureBundle(
         n_tasks=n_tasks,
         n_platforms=n_platforms,
+        link_platform_extra=link_extra,
         four_type_task_extra=four_task_extra,
         four_type_platform_extra=four_platform_extra,
         inflight_platform_extra=inflight_extra,
@@ -928,6 +943,9 @@ def build_pyg_inference_graph(
     if bundle.inflight_platform_extra is not None:
         data.platform_features = torch.cat(
             [data.platform_features, torch.tensor(bundle.inflight_platform_extra, dtype=torch.float32)], dim=1)
+    if bundle.link_platform_extra is not None:
+        data.platform_features = torch.cat(
+            [data.platform_features, torch.tensor(bundle.link_platform_extra, dtype=torch.float32)], dim=1)
 
     # Same-node platform<->platform edges (GIN co-location signal). Cache always
     # sets this; live must too or train/serve topology diverges.
