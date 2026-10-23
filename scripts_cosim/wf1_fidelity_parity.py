@@ -98,7 +98,13 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     infra["forced_placements"] = {}
     infra["fast_forward_warmup"] = True
     infra["fast_forward_threshold"] = 1
-    infra["scheduler"] = {"batch_size": _gnn_batch_range()[1], "batch_timeout": 4e-9}
+    # the cell's own batch rule: a gate cell declares scheduler.batch_size = "group" (src/policy/gnn/orchestrator.WHOLE_GROUP, scheduler.enable_whole_group: each peer group is one batch, no size cap), so the replay serves the
+    # dataset's whole batch like the gate does; a config without it (the old corpora) keeps the prefix decoder's own ceiling. Peer-group batching off (a sub-batch dataset) cannot serve whole groups.
+    from src.policy.gnn.orchestrator import WHOLE_GROUP
+
+    whole = (space.get("scheduler") or {}).get("batch_size") == WHOLE_GROUP and os.environ.get("GNN_BATCH_BY_PEER_GROUP") != "0"
+    out["batch_rule"] = WHOLE_GROUP if whole else "cap"
+    infra["scheduler"] = {"batch_size": WHOLE_GROUP if whole else _gnn_batch_range()[1], "batch_timeout": 4e-9}
     kw = SF.live_run_params()
 
     orig = GNNScheduler._prefix_inference

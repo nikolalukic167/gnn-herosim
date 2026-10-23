@@ -100,3 +100,10 @@ def test_the_live_vs_cache_check_compares_the_v7_context_tables():
 def test_the_fidelity_parity_loads_the_checkpoint_under_the_cells_own_config():
     src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "wf1_fidelity_parity.py")).read()
     assert 'load_gnn_model(Path(job["checkpoint"]), space_config=space)' in src and "space_config=None" not in src
+
+
+def test_the_fidelity_parity_serves_the_batch_rule_of_the_cell_not_a_hidden_cap():
+    src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "wf1_fidelity_parity.py")).read()
+    assert "PARITY_BATCH_CAP" not in src and "WHOLE_GROUP" in src and 'out["batch_rule"]' in src
+    sb = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "datalab", "v7_first_check.sbatch")).read()
+    assert "PARITY_BATCH_CAP" not in sb and "GNN_SLATE_NO_SPLIT=1" in sb
