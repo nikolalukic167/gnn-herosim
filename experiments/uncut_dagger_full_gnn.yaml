@@ -3,7 +3,7 @@
 # with (F) the in-flight queue features, PARTIAL_STATE_CONTRACT partial_state_v6 on its v6 cache (canonical digest ea967a6c...).
 # with (L) the simulator labels: NEAR_RTT_LABEL_OVERRIDE_JSON = S7's relabel (90f0f343), sha256 5ae45a56003b7bfc3c9db67c78267eb16f93d94a3ae7976d76bdb541f674f6fd; train labels only.
 trainer: gnn
-lineage: uncut_comb
+lineage: uncut_groups_s0_v1
 cache_dir: /share/nikola.lukic/uncut_groups/dagger/corpus_union/cache_v6/cache
 unset_env:
 - TRAIN_INIT_CHECKPOINT
@@ -26,7 +26,7 @@ env:
   NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
   PARTIAL_STATE_EXCHANGE_SECONDS: '1'
   NEAR_RTT_SKIP_FINAL_TEST: '1'
-  NEAR_RTT_SPLIT_ARTIFACT: /share/nikola.lukic/uncut_groups/dagger/corpus_union/split_union.json
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_dagger_full_split.json
   NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_groups/dagger/corpus_union/label_override_union.json
   NEAR_RTT_MP_PEER_EDGES: '1'
   NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
