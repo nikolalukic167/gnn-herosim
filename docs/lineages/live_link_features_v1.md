@@ -4,6 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
+- **Pre-data amendment A2 (2026-10-23; the user's decision; Record):** after the seed-1 selection, the chosen variant's four arms train at 100 epochs (the cap), seeds 1–3 from scratch, for development and confirmation. The 20-epoch selection read is never pooled with them.
 - **Pre-data amendment A1 (2026-10-23; the user's decision; Record):** as built, v7's link columns E1–E3 reach only the EdgeScorer, which the twin shares, so message passing sees only the at-capture P1–P3. Two GNN variants, (a) a static link block in the conv and (b) re-encoding per placement, run beside the as-built arms at seed 1, 20 epochs, on 30176–30181. A rule fixed now picks the one variant carried to seeds 2–3 and confirmation. This stage gives no label.
 - **Standing answer (2026-10-23):** none yet. Until the confirmation read is filed, no message-passing claim may be made from this lineage.
 
@@ -103,6 +104,23 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-23 — **Pre-data amendment A2: after selection, the chosen variant trains at 100 epochs, seeds 1–3 from scratch** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any v7 training or cell exists).
+  - **Arms.** The selected variant's gnn, its control twin (for (b), the GPU-trained twin of A1), the v7 MLP and the v7 wide MLP, all in the same contract.
+  - **Recipe.**
+    - 100 epochs: min-epochs 100, no early stop.
+    - The checkpoint is the best validation epoch within the 100, as for the filed arms.
+    - 100 is also the cap: `run_experiment.py` clamps epochs to 100.
+    - Seeds 1–3, each retrained from scratch. Seed 1 is not continued from its 20-epoch run.
+    - Corpus, labels, contract and venue as at selection.
+  - **Used for both** the registered development grid (30176–30181) and the confirmation. They replace the registration's 20-epoch development recipe.
+  - **The seed-1 20-epoch selection read stays as filed.** It is never pooled, averaged or tabulated with the 100-epoch runs, and it is quoted only as the selection read.
+  - **Disclosed.** The variant is chosen at 20 epochs and carried at 100, so the ordering at 20 epochs may not hold at 100. The 100-epoch development rows are reported for the chosen variant only, and the choice is not revisited.
+  - **Compute cost.** 4 arms × 3 seeds = 12 training jobs.
+    - CPU arms: about 9 min per epoch, so about 15 h per job and about 15 h wall with the jobs in parallel (about 180 job-hours).
+    - Variant (b): its gnn and GPU twin run at their measured GPU rate, filed with the jobs.
+    - Count the 44-job cap before submitting.
+    - The decision charge w is a serving cost, unaffected by epochs; each arm keeps its own measured w.
 
 - 2026-10-23 — **Pre-data amendment A1: two GNN variants put the link columns in the message passing, and a fixed rule picks one for confirmation** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any v7 training or cell exists).
   - **Why.** S4 confirmed that in `partial_state_v7` as built, the edge columns E1–E3 enter only the EdgeScorer, which the MP-OFF twin shares. The bipartite conv gets only the at-capture platform columns P1–P3. So the as-built gnn vs twin contrast tests message passing over P1–P3 alone: the live, prefix-refreshed link information reaches both arms equally, and through no message.
