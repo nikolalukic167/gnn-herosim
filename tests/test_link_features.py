@@ -466,3 +466,53 @@ def test_node_table_equals_the_per_node_scan_bit_for_bit():
     table = LF.node_table(flows)
     for n in names + ["absent"]:
         assert LF.node_raw((), n, table) == scan(n) == LF.node_raw(flows, n)
+
+
+def test_the_link_capture_seconds_are_booked_and_reach_the_decision_log(fabric_env, monkeypatch):
+    from types import SimpleNamespace
+
+    import src.placement.infrastructure as infra
+    from src.placement.decision_timing import DecisionLog
+    from src.policy.state_capture import StateCaptureHelper
+
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", V7)
+    monkeypatch.setattr(infra, "REPLICA_RELEASE", True)
+    env, fabric = fabric_env
+    start_flows(env, fabric, SPECS, until=0.3)
+
+    class Obj:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    def plat(pid):
+        p = Obj(env=env, id=pid, type={"shortName": "cpu"}, inflight=[], admitted=None, current_task=None, previous_task=None)
+        p.queue_length = lambda: 0
+        return p
+
+    nodes = [Obj(node_name=n, fabric=fabric) for n in SERVERS]
+    helper = StateCaptureHelper(env, SimpleNamespace(items=nodes))
+    before = LF.CAPTURE["seconds"]
+    helper.capture_temporal_state_for_replicas({(n, plat(i)) for i, n in enumerate(nodes)})
+    spent = LF.CAPTURE["seconds"] - before
+    assert spent > 0.0
+    # v6: nothing is booked
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", RF.PARTIAL_STATE_CONTRACT_V6)
+    mid = LF.CAPTURE["seconds"]
+    helper.capture_temporal_state_for_replicas({(n, plat(i)) for i, n in enumerate(nodes)})
+    assert LF.CAPTURE["seconds"] == mid
+    # the decision log: a v7 call's seconds include its capture, and the capture is its own field; a v6 call adds no field
+    log = DecisionLog()
+    log.add(4, 0.5 + 0.1, 0, 10, link_capture_s=0.1)
+    log.add(2, 0.2 + 0.3, 0, 6, link_capture_s=0.3)
+    out = log.summary()
+    assert out["total_s"] == pytest.approx(1.1) and out["link_capture_s_total"] == pytest.approx(0.4) and out["link_capture_calls"] == 2
+    assert out["link_capture_s_per_call_mean"] == pytest.approx(0.2) and out["by_bucket"]["le10"]["total_s"] == pytest.approx(1.1)
+    plain = DecisionLog()
+    plain.add(4, 0.5, 0, 10)
+    assert not [k for k in plain.summary() if k.startswith("link_capture")]
+
+
+def test_the_gnn_scheduler_meters_the_link_capture_for_v7_only():
+    src = open(os.path.join(os.path.dirname(__file__), "..", "src", "policy", "gnn", "scheduler.py")).read()
+    assert "link_capture_s = link_features.CAPTURE[\"seconds\"] - link_capture_before if link_on else None" in src
+    assert "inference_time + (link_capture_s or 0.0)" in src and "link_capture_s=link_capture_s)" in src
