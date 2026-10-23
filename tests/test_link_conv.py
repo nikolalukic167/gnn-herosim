@@ -30,11 +30,11 @@ def _env(monkeypatch):
     monkeypatch.delenv("GNN_DISABLE_MESSAGE_PASSING", raising=False)
 
 
-def model_for(g):
+def model_for(g, prenorm=False):
     g = TB._model_graph(g)
     torch.manual_seed(0)
     m = TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4,
-                         partial_state_edge_dim=30, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_edge_conv=True, mp_peer_edges=False).eval()
+                         partial_state_edge_dim=30, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_edge_conv=True, mp_peer_edges=False, mp_conv_prenorm_residual=prenorm).eval()
     return g, m
 
 
@@ -233,3 +233,89 @@ def test_the_batched_loss_entry_dispatches_to_the_link_conv_loss_and_tolerates_t
         B.batched_tf_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"), unscored_stats=stats)
     with pytest.raises(ValueError, match="move-regret"):
         B.batched_tf_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"), regret_lambda=0.1)
+
+
+def test_chunked_checkpointed_encoding_equals_the_single_call_and_its_gradients(monkeypatch):
+    rnd, ctx, g, place = TB.scenario(14, monkeypatch)
+    g, m = model_for(g)
+    plans = [[rnd.randrange(len(place[t])) for t in range(N)] for _ in range(2)]
+    order = list(range(N))
+    m.eval()  # no dropout: the chunks then differ from one call only by float rounding
+    big = 10 ** 9
+    per_copy = int(g.edge_index.size(1))
+    grads = {}
+    for tag, budget in (("whole", big), ("chunks", 3 * per_copy), ("single", 1)):
+        m.zero_grad(set_to_none=True)
+        loss = LC.link_conv_loss(m, g, ctx, plans, order, 0.5, torch.device("cpu"), edge_budget=budget)
+        loss.backward()
+        grads[tag] = (float(loss), m.bip_convs[0].message_mlp[0].weight.grad.clone(), m.platform_encoder.net[0].weight.grad.clone())
+    for tag in ("chunks", "single"):
+        assert abs(grads[tag][0] - grads["whole"][0]) <= 1e-5 * max(1.0, abs(grads["whole"][0]))
+        for k in (1, 2):
+            assert torch.allclose(grads[tag][k], grads["whole"][k], atol=1e-5, rtol=1e-4), (tag, k)
+    assert float(grads["whole"][1][:, -3:].abs().sum()) > 0.0
+
+
+def test_prenorm_residual_is_weight_visible_default_off_and_fails_loud_with_incompatible_flags():
+    base = TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4, partial_state_edge_dim=30,
+                            mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_edge_conv=True, mp_peer_edges=False)
+    assert not base.mp_conv_prenorm_residual and not any(k.startswith("bip_norms") for k in base.state_dict())
+    on = TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4, partial_state_edge_dim=30,
+                          mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_edge_conv=True, mp_peer_edges=False, mp_conv_prenorm_residual=True)
+    assert sorted(set(on.state_dict()) - set(base.state_dict())) == ["bip_norms.0.bias", "bip_norms.0.weight", "bip_norms.1.bias", "bip_norms.1.weight"]
+    assert not any("running" in k for k in on.state_dict())
+    with pytest.raises(ValueError, match="FAIL LOUD"):
+        TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4, mp_conv_prenorm_residual=True)
+
+
+def test_prenorm_big_graph_encode_equals_per_copy_and_chunked_loss_equals_whole(monkeypatch):
+    rnd, ctx, g, place = TB.scenario(8, monkeypatch)
+    g, m = model_for(g, prenorm=True)
+    plans = [[rnd.randrange(len(place[t])) for t in range(N)] for _ in range(3)]
+    blocks = [LC.link_edge_block(g, ctx, {j: tuple(place[j][plan[j]]) for j in range(0, N, 2)}) for plan in plans]
+    big = LC.replicate_graph(g, 3, torch.stack(blocks))
+    with torch.no_grad():
+        te, pe = m._encode(big)
+        for s, blk in enumerate(blocks):
+            setattr(g, LC.ATTR, blk)
+            t1, p1 = m._encode(g)
+            assert torch.allclose(te[s * N:(s + 1) * N], t1, atol=1e-6, rtol=1e-6)
+    order = list(range(N))
+    per_copy = int(g.edge_index.size(1))
+    out = {}
+    for tag, budget in (("whole", 10 ** 9), ("chunks", 3 * per_copy)):
+        m.zero_grad(set_to_none=True)
+        loss = LC.link_conv_loss(m, g, ctx, plans[:2], order, 0.5, torch.device("cpu"), edge_budget=budget)
+        loss.backward()
+        out[tag] = (float(loss), m.bip_norms[0].weight.grad.clone(), m.bip_convs[0].message_mlp[0].weight.grad.clone())
+    assert abs(out["chunks"][0] - out["whole"][0]) <= 1e-5 * max(1.0, abs(out["whole"][0]))
+    assert float(out["whole"][1].abs().sum()) > 0.0
+    for k in (1, 2):
+        assert torch.allclose(out["chunks"][k], out["whole"][k], atol=1e-5, rtol=1e-4)
+
+
+def _pn_model(final_norm=False):
+    torch.manual_seed(0)
+    return TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4, partial_state_edge_dim=30,
+                            mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_edge_conv=True, mp_peer_edges=False, mp_conv_prenorm_residual=True,
+                            mp_conv_prenorm_final_norm=final_norm).eval()
+
+
+def test_final_norm_flag_off_is_the_a5_path_and_on_adds_exactly_one_layernorm(monkeypatch):
+    rnd, ctx, g, place = TB.scenario(8, monkeypatch)
+    g, _m = model_for(g)
+    off, on = _pn_model(False), _pn_model(True)
+    assert sorted(set(on.state_dict()) - set(off.state_dict())) == ["bip_final_norm.bias", "bip_final_norm.weight"]
+    assert not any("running" in k for k in on.state_dict())
+    on.load_state_dict(off.state_dict(), strict=False)
+    setattr(g, LC.ATTR, LC.link_edge_block(g, ctx, {j: tuple(place[j][0]) for j in range(0, N, 2)}))
+    with torch.no_grad():
+        t_off, p_off = off._encode(g)
+        t_on, p_on = on._encode(g)
+        assert torch.allclose(t_on, torch.nn.functional.layer_norm(t_off, (16,)), atol=1e-6) and torch.allclose(p_on, torch.nn.functional.layer_norm(p_off, (16,)), atol=1e-6)
+        again = _pn_model(False)
+        t_again, _ = again._encode(g)
+        assert torch.equal(t_again, t_off)
+    with pytest.raises(ValueError, match="FAIL LOUD"):
+        TaskPlacementGNN(task_feature_dim=5, platform_feature_dim=7, embedding_dim=16, hidden_dim=16, num_layers=2, edge_dim=5, task_type_onehot_dim=4, partial_state_edge_dim=30,
+                         mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_peer_edges=False, mp_conv_prenorm_final_norm=True)

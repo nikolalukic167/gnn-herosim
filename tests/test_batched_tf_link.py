@@ -59,7 +59,7 @@ def exchange_tables(lt):
     return out
 
 
-def scenario(seed, monkeypatch, n_tasks=None, density=0.4, n_flows=(0, 14)):
+def scenario(seed, monkeypatch, n_tasks=None, density=0.4, n_flows=(0, 14), n_cands=(3, 6)):
     N = N_TASKS if n_tasks is None else int(n_tasks)
     rnd = random.Random(seed)
     monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
@@ -74,7 +74,7 @@ def scenario(seed, monkeypatch, n_tasks=None, density=0.4, n_flows=(0, 14)):
     counts = LF.counts_of(flows)
     routes = LF.routes_between(fabric.link_topology, NAMES)
     nx = exchange_tables(fabric.link_topology)
-    cands = {t: sorted(rnd.sample(range(len(REPLICAS)), rnd.randint(3, 6))) for t in range(N)}
+    cands = {t: sorted(rnd.sample(range(len(REPLICAS)), rnd.randint(*n_cands))) for t in range(N)}
     place = {t: [REPLICAS[p] for p in cands[t]] for t in range(N)}
     pairs = {}
     for i in range(N):

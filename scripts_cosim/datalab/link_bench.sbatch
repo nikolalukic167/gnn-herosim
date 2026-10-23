@@ -10,4 +10,4 @@ WT=${WT:?}; DEVICE=${DEVICE:?}; SIZES=${SIZES:-"12 24 60 120 240"}
 cd "$WT"; eval "$(micromamba shell hook --shell bash)"; micromamba activate gnn
 export HEROSIM_PY=python3 PYTHONPATH="$WT:$WT/src/notebooks" PYTHONUNBUFFERED=1 OMP_NUM_THREADS=${OMP_NUM_THREADS:-8}
 echo "HEAD $(git rev-parse HEAD) node $(hostname) $(lscpu | sed -n 's/^Model name: *//p' | head -1)"
-python3 scripts_cosim/bench_link_conv.py --device "$DEVICE" --sizes $SIZES
+python3 scripts_cosim/bench_link_conv.py --device "$DEVICE" --sizes $SIZES --cands ${CANDS:-3 6}
