@@ -204,6 +204,20 @@ class _Flow:
         self.owner = owner  # (task id, partner index) of the transfer, bookkeeping for the snapshot capture; nothing in the engine reads it
 
 
+FLOW_LOG_ENV = "HEROSIM_FLOW_LOG"  # default off: a path; each FairShare.start appends one JSON line [t, owner_tid, partner_index, [link ids], nbytes]
+
+
+def _open_flow_log():
+    path = os.environ.get(FLOW_LOG_ENV)
+    if not path:
+        return None
+    import atexit
+
+    fh = open(path, "w", buffering=1 << 20)
+    atexit.register(fh.close)
+    return fh
+
+
 class FairShare:
     """Processor sharing over named directional links (capacities in MB/s, 1024**2 bytes). `start` returns an event that
     succeeds when the flow's bytes have all been moved; the rates of every active flow are recomputed whenever a flow starts or
@@ -215,12 +229,18 @@ class FairShare:
         self._last = env.now
         self._gen = 0
         self.peak_flows_on_a_link = 0
+        self._flow_log = _open_flow_log()
 
     def start(self, hops: Sequence[Tuple[str, float]], nbytes: float, scale: float = 1.0, owner: Any = None) -> Any:
         if not nbytes > 0 or not hops:
             raise ValueError("FairShare.start needs bytes > 0 and a route")
         ev = self.env.event()
         self._advance()
+        if self._flow_log is not None:
+            import json
+
+            self._flow_log.write(json.dumps([self.env.now, None if owner is None else owner[0], None if owner is None else owner[1],
+                                             [k for k, _bw in hops], float(nbytes)]) + "\n")
         self.flows.append(_Flow(hops, nbytes, scale, ev, owner))
         self._reschedule()
         return ev
