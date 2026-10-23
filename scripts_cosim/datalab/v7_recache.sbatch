@@ -2,7 +2,7 @@
 # live_link_features_v1: the partial_state_v7 cache over the recaptured, relabelled union corpus (S6 capture, S7 labels), the recipe of datalab/uncut_arm1_cache_v6.sbatch with the contract changed.
 # The new datasets carry no system_state_captured_unique.json (job 899571 failed on that): as uncut_arm1_cache.sbatch does, build a PRIVATE mirror (every file a symlink, optimal_result.json a copy) and rewrite the SSC
 # files in the mirror with refresh_optimal_full_stats.py --rewrite-ssc (no simulation); the corpus is only read. Every dataset must carry fidelity.flows (a state without it is refused by the cache builder).
-#   sbatch --export=ALL,PIN=<sha8>,CORPUS=<dir holding one subdir per arm>,ARMS="a1 a2",EXPECT_N=<datasets> v7_recache.sbatch
+#   sbatch --export=ALL,PIN=<sha8>,CORPUS=<dir holding one subdir per arm>,ARMS="a1 a2",EXPECT_N=<datasets>[,CONTRACT_SECOND=partial_state_v8] v7_recache.sbatch
 #SBATCH --job-name=link-recache
 #SBATCH --output=/share/nikola.lukic/uncut_groups/flowcap/link_corpus/logs/%x-%j.out
 #SBATCH --partition=CPU-amd
@@ -59,4 +59,26 @@ print(f"cache: {len(g)} graphs, platform width 21, contract {md['partial_state_c
 PY3
 sha256sum "$OUT/cache/metadata.json"; md5sum "$OUT/cache/metadata.json"
 echo "label-override check: run uncut_relabel_cache_check.py $OUT/cache <override.json> once the override exists"
+# CONTRACT_SECOND=partial_state_v8: a second cache over the SAME view (the SSC mirror and the labelled corpus are shared) into cache_v8. The graphs differ from the v7 ones in the added
+# link_static_attr and the 33-wide partial-state contract only; one job builds both so the two corpora cannot drift apart.
+if [[ -n "${CONTRACT_SECOND:-}" ]]; then
+  [[ "$CONTRACT_SECOND" == partial_state_v8 ]] || { echo "FAIL LOUD: CONTRACT_SECOND $CONTRACT_SECOND is not partial_state_v8"; exit 1; }
+  OUT2=$L/cache_v8; [[ ! -e "$OUT2" ]] || { echo "FAIL LOUD: $OUT2 exists"; exit 1; }
+  mkdir -p "$OUT2"; export PARTIAL_STATE_CONTRACT="$CONTRACT_SECOND"; T1=$(date +%s)
+  python3 -u src/notebooks/prepare_graphs_cache.py --base-dirs "$VS"/*/ --cache-dir "$OUT2/cache" --dag-partial-state --platform-feature-dim 14 > "$OUT2/cache.log" 2>&1 || { tail -30 "$OUT2/cache.log"; echo "FAIL LOUD: second cache build failed"; exit 1; }
+  echo "second cache build wall seconds: $(( $(date +%s) - T1 ))"
+  python3 - "$OUT2/cache" "$EXPECT_N" <<'PY4'
+import json, pickle, sys
+from pathlib import Path
+c = Path(sys.argv[1]); n = int(sys.argv[2])
+ids = pickle.load(open(c / "dataset_ids.pkl", "rb")); g = pickle.load(open(c / "graphs.pkl", "rb")); md = json.load(open(c / "metadata.json"))
+assert len(ids) == len(g) == n, (len(ids), len(g), n)
+assert {int(x.platform_features.size(-1)) for x in g} == {21}, "v8 keeps the v7 platform block (width 21)"
+assert md.get("partial_state_contract") == "partial_state_v8", md.get("partial_state_contract")
+assert all(tuple(x.link_static_attr.shape) == (int(x.edge_index.size(1)), 3) for x in g), "a graph lacks link_static_attr [E, 3]"
+assert all("link_counts" in x.partial_state_ctx and "link_routes" in x.partial_state_ctx for x in g)
+print(f"cache_v8: {len(g)} graphs, contract {md['partial_state_contract']}, every graph carries link_static_attr [E, 3]")
+PY4
+  sha256sum "$OUT2/cache/metadata.json"; md5sum "$OUT2/cache/metadata.json"
+fi
 echo "=== done; cache in $OUT/cache"

@@ -107,6 +107,7 @@ from src.policy.tabular.reduced_features import (
     LOAD_SECONDS_CONTRACTS,
     krank_node_order,
     resolve_partial_state_contract,
+    STATIC_LINK_CONTRACTS,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -2170,6 +2171,10 @@ def attach_dag_partial_state_block(
         **load_block,
         **link_block,
     }
+    if resolve_partial_state_contract() in STATIC_LINK_CONTRACTS:
+        from src.policy.gnn.link_static import attach_link_static
+
+        attach_link_static(graph)  # partial_state_v8: the conv's static link block, written once from the ctx just attached
 
 
 def _v4_load_seconds_block(

@@ -42,6 +42,7 @@ import numpy as np
 
 LINK_PLATFORM_DIM = 3
 LINK_EDGE_DIM = 3
+LINK_STATIC_DIM = 3
 MIB = 1024 ** 2
 
 Hop = Tuple[str, float]
@@ -150,6 +151,54 @@ def edge_columns(
         solo += solo_s
     e2 = math.log(shared / solo) if solo > 0.0 and shared > solo else 0.0
     return math.log1p(shared), e2, math.log1p(float(busiest))
+
+
+def static_edge_columns(
+    counts: Mapping[str, int],
+    routes: Mapping[Tuple[Any, Any], Sequence[Hop]],
+    node_exchange: Mapping[Tuple[Any, Any], Tuple[float, float]],
+    partners: Iterable[Tuple[Sequence[Any], float]],
+    node: Any,
+) -> Tuple[float, float, float]:
+    """partial_state_v8 S1-S3 of one candidate `node`: the lookahead twin of E1-E3. `partners` = (candidate nodes of the in-batch peer, payload bytes) for EVERY peer
+    of the task, placed or not (prefix-free: the same for every committed set), each candidate list with duplicates kept (the weight is the candidate multiplicity, as the
+    peer-mass lookahead has it). Per peer, the price of its payload moving from each of its candidate nodes to `node` is averaged over its candidate list; a candidate on
+    `node` itself moves nothing and contributes 0 (it still counts in the mean). Only the CAPTURED active counts price the links: no pending flows. Peers with an empty
+    candidate list are skipped, sums run in the order of `partners`, and a task with no peers gives zeros.
+
+        S1  log1p(sum_j shared_j)           shared_j = mean over j's candidates of the E1 price (bytes / min over hops of MB/s*MiB/(active+1), plus the route latency;
+                                            the solo price when no hop of the route is loaded)
+        S2  log(sum_j shared_j / sum_j solo_j), 0 when the solo sum is 0 or the shared sum does not exceed it
+        S3  log1p(max_j busiest_j)          busiest_j = mean over j's candidates of the largest active count on any hop of the route
+    """
+    shared = solo = 0.0
+    busiest_max = 0.0
+    for nodes_j, b in partners:
+        k = len(nodes_j)
+        if not k:
+            continue
+        sh = so = 0.0
+        bz = 0
+        for nj in nodes_j:
+            if nj == node:
+                continue
+            pb, lat = node_exchange[(nj, node)]
+            lat = lat if pb > 0.0 else 0.0
+            solo_s = b * pb + lat
+            hops = routes[(nj, node)]
+            active = [counts.get(key, 0) for key, _bw in hops]
+            if any(active):
+                rate = min(bw * MIB / (n + 1) for (_k, bw), n in zip(hops, active))
+                sh += b / rate + lat
+                bz += max(active)
+            else:
+                sh += solo_s
+            so += solo_s
+        shared += sh / k
+        solo += so / k
+        busiest_max = max(busiest_max, bz / k)
+    s2 = math.log(shared / solo) if solo > 0.0 and shared > solo else 0.0
+    return math.log1p(shared), s2, math.log1p(busiest_max)
 
 
 def pending_counts(

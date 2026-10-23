@@ -14,7 +14,7 @@ set -uo pipefail
 ulimit -n 65536 2>/dev/null || true
 WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}
 CFGN=${CFGN:?FAIL LOUD: set CFGN}; S=${S:?FAIL LOUD: set S}
-case "$CFGN" in uncut_link_gnn|uncut_link_twin|uncut_link_mlp|uncut_link_mlp_wide) ;; *) echo "FAIL LOUD: CFGN $CFGN"; exit 1;; esac
+case "$CFGN" in uncut_link_gnn|uncut_link_twin|uncut_link_mlp|uncut_link_mlp_wide|uncut_linkstatic_gnn|uncut_linkstatic_twin|uncut_linkstatic_mlp|uncut_linkstatic_gnn_e100|uncut_linkstatic_twin_e100|uncut_linkstatic_mlp_e100) ;; *) echo "FAIL LOUD: CFGN $CFGN"; exit 1;; esac
 [[ "$S" =~ ^[1-3]$ ]] || { echo "FAIL LOUD: seed $S"; exit 1; }
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|R1A_|TRAIN_INIT)'); do unset "$v"; done
@@ -40,7 +40,7 @@ DET=$(OMP_NUM_THREADS=1 python3 -m pytest tests/test_trainer_determinism.py -q -
 echo "$DET" | grep -qE ' passed' && ! echo "$DET" | grep -qE ' (failed|error)' || { echo "FAIL LOUD: determinism test did not pass"; exit 1; }
 BADSKIP=$(echo "$DET" | grep -E '^SKIPPED' | grep -vE 'cache not present at .*/graphs_cache_route_b_smoke_s_dag|no --dag-partial-state cache at .*/graphs_cache_route_b_smoke_s_dag/graphs.pkl|ARM2_DETERMINISM_CACHE not set to a peer cache' || true)
 [[ -z "$BADSKIP" ]] || { echo "FAIL LOUD: determinism test skipped for a reason other than the absent route_b/ARM2 caches:"; echo "$BADSKIP"; exit 1; }
-read -r CACHE CONTRACT LO SPLITF INIT < <(python3 -c "import yaml,sys; c=yaml.safe_load(open(sys.argv[1])); e=c['env']; assert c['trainer']=='gnn' and c['args']['epochs']==20 and c['args']['min-epochs']==20 and c['args']['learning-rate']==0.001 and c['args']['patience']==20, 'recipe'; print(c['cache_dir'], e['PARTIAL_STATE_CONTRACT'], e['NEAR_RTT_LABEL_OVERRIDE_JSON'], e['NEAR_RTT_SPLIT_ARTIFACT'], e.get('TRAIN_INIT_CHECKPOINT','-'))" "$CFG") || { echo "FAIL LOUD: config $CFG"; exit 1; }
+read -r CACHE CONTRACT LO SPLITF INIT < <(python3 -c "import yaml,sys; c=yaml.safe_load(open(sys.argv[1])); e=c['env']; assert c['trainer']=='gnn' and c['args']['epochs'] in (20, 100) and c['args']['min-epochs']==c['args']['epochs']==c['args']['patience'] and (c['args']['epochs']==100)==c['wandb']['run_name'].endswith('-e100') and c['args']['learning-rate']==0.001, 'recipe'; print(c['cache_dir'], e['PARTIAL_STATE_CONTRACT'], e['NEAR_RTT_LABEL_OVERRIDE_JSON'], e['NEAR_RTT_SPLIT_ARTIFACT'], e.get('TRAIN_INIT_CHECKPOINT','-'))" "$CFG") || { echo "FAIL LOUD: config $CFG"; exit 1; }
 [[ "$INIT" == "-" ]] || { echo "FAIL LOUD: TRAIN_INIT_CHECKPOINT set; this is from scratch"; exit 1; }
 [[ -f "$CFG" && -L models && -f "$SPLITF" && -f "$CACHE/metadata.json" && -f "$LO" ]] || { echo "FAIL LOUD: config, models/ symlink, split ($SPLITF), cache ($CACHE) or labels ($LO) missing"; exit 1; }
 [[ "$(sha256sum "$SPLITF" | cut -d' ' -f1)" == "${SPLIT_SHA:?FAIL LOUD: set SPLIT_SHA}" ]] || { echo "FAIL LOUD: split sha256"; exit 1; }
@@ -49,8 +49,9 @@ read -r CACHE CONTRACT LO SPLITF INIT < <(python3 -c "import yaml,sys; c=yaml.sa
 mkdir -p logs
 RUN=$(python3 -c "import yaml,sys;print(yaml.safe_load(open(sys.argv[1]))['wandb']['run_name'])" "$CFG")
 case "$CFGN" in uncut_link_gnn) WANT=uncut-link-gnn-eng; ARMCHK=ra_gnn_eng_v7;; uncut_link_twin) WANT=uncut-link-twin; ARMCHK=ra_twin_eng_v7;;
-  uncut_link_mlp) WANT=uncut-link-mlp-same; ARMCHK=ra_mlp_same_v7;; uncut_link_mlp_wide) WANT=uncut-link-mlp-wide; ARMCHK=ra_mlp_same_v7;; esac
-[[ "$RUN" == "$WANT" ]] || { echo "FAIL LOUD: run_name $RUN is not $WANT"; exit 1; }
+  uncut_link_mlp) WANT=uncut-link-mlp-same; ARMCHK=ra_mlp_same_v7;; uncut_link_mlp_wide) WANT=uncut-link-mlp-wide; ARMCHK=ra_mlp_same_v7;;
+  uncut_linkstatic_gnn|uncut_linkstatic_gnn_e100) WANT=uncut-linkstatic-gnn-eng; ARMCHK=ra_gnn_eng_v8;; uncut_linkstatic_twin|uncut_linkstatic_twin_e100) WANT=uncut-linkstatic-twin; ARMCHK=ra_twin_eng_v8;; uncut_linkstatic_mlp|uncut_linkstatic_mlp_e100) WANT=uncut-linkstatic-mlp-same; ARMCHK=ra_mlp_same_v8;; esac
+[[ "${RUN%-e100}" == "$WANT" ]] || { echo "FAIL LOUD: run_name $RUN is not $WANT"; exit 1; }
 NTRAIN=$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))['train']))" "$SPLITF")
 CK=models/$RUN-seed$S
 [[ ! -e "$CK.pt" && ! -e "$CK-final.pt" ]] || { echo "FAIL LOUD: $CK exists; refusing to overwrite"; exit 1; }

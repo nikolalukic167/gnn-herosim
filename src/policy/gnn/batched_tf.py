@@ -192,6 +192,19 @@ class _Static:
         self.ctx_load_seconds = bool(ctx.load_seconds)
         self.link = _link_tables(ctx, self.nodes, nidx, self.Pm) if ctx.contract in rf.LINK_CONTRACTS else None
         self.link_base = self.load_base + rf.LOAD_SECONDS_DIM + rf.EXCHANGE_PUSH_DIM
+        if ctx.contract in rf.STATIC_LINK_CONTRACTS:
+            # partial_state_v8 S1-S3 are prefix-free: constant per row, so they live in the template, from the definition (placement/link_features.static_edge_columns)
+            from src.placement import link_features
+            from src.policy.gnn.link_static import static_partners
+
+            sb = self.link_base + rf.LINK_EDGE_DIM
+            memo: Dict[int, Any] = {}
+            for i, c in enumerate(cands):
+                t = int(self.rt[i])
+                if t not in memo:
+                    memo[t] = static_partners(ctx, t)
+                self.template[i, sb:sb + rf.LINK_STATIC_DIM] = link_features.static_edge_columns(
+                    ctx.link_counts, ctx.link_routes, ctx.node_exchange, memo[t], ctx.node_of[c])
 
 
 def _link_tables(ctx: Any, nodes: Sequence[Any], nidx: Dict[Any, int], Pm: np.ndarray) -> Dict[str, Any]:

@@ -67,7 +67,7 @@ def test_v7_is_valid_30_wide_and_in_every_family_it_extends():
     assert RF.partial_state_feature_dim(V7) == RF.partial_state_feature_dim(RF.PARTIAL_STATE_CONTRACT_V6) + 3 == 30
     for group in (RF.PEER_BLOCK_CONTRACTS, RF.LOAD_SECONDS_CONTRACTS, RF.BOTH_DIRECTION_CONTRACTS, RF.FOUR_TYPE_CONTRACTS, RF.INFLIGHT_CONTRACTS):
         assert V7 in group and RF.PARTIAL_STATE_CONTRACT_V6 in group
-    assert RF.LINK_CONTRACTS == frozenset({V7})
+    assert RF.LINK_CONTRACTS == frozenset({V7, RF.PARTIAL_STATE_CONTRACT_V8})  # v8 extends v7 (tests/test_link_static.py)
     assert RF.partial_state_feature_dim(RF.PARTIAL_STATE_CONTRACT_V6) == 27
     assert not LF.link_enabled(RF.PARTIAL_STATE_CONTRACT_V6) and LF.link_enabled(V7)
     with pytest.raises(RF.PartialStateContractMismatchError):
