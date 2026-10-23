@@ -306,6 +306,7 @@ Conditions on the arms:
   - **Curves.** Each run is read with `scripts_cosim/read_training_curves.py` against its chance floor, and the selected epoch is named. A run whose live curves do not leave the chance floor is reported as untrained.
   - **Selection rule (fixed now, before any v7 training).** Exactly one of {as built, (a), (b)} is carried to seeds 2–3 and confirmation.
     1. **Eligible:** the variant passed its parity test and the collapse check, and its gnn run is not untrained.
+       - **Collapse (the user, 2026-10-23, before any selection score):** a collapse-check fail diagnosed as an environment runaway counts as a pass, for every variant alike, and all three variants (as built, static, (b)) enter the selection. The collapse results and S6's herding/environment labels are reported beside the selection and exclude no variant.
     2. **Score:** the pooled median, over the 12 (topology, rung) values without runaways (statistic and runaway rule as `d_read`, seed 1), of the variant's gnn vs its own control twin as listed above. Lower is better.
     3. **Ties** within 0.5 pp go to the all-cells pooled median, then to the simpler variant (as built < (a) < (b)).
     4. **If no variant is eligible,** hold, and report to the user.
