@@ -61,8 +61,9 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
         "mp_residual": False, "plan_raw": raw, "plan_raw_sum": False, "plan_raw_local": False,
         "mp_bipartite_edge_conv": conv, "mp_bipartite_edge_attr_zero": conv and not phys,
         "mp_peer_edges": not graph_free, "partial_state_feature_dim": 2 if raw else 33 if arm in COMB_V8_ARMS else 30 if arm in COMB_V7_ARMS else 27,
-        "mp_link_static_attr": arm == "ra_gnn_eng_v8",
     }
+    if arm in COMB_V8_ARMS:
+        want["mp_link_static_attr"] = arm == "ra_gnn_eng_v8"  # the flag is weight-visible and sidecar-recorded; older sidecars carry no such key
     if arm in ARM2_ARMS:
         want.update(reencode_every="auto", group_anchor=True, random_prefix_k=ARM2_RANDOM_PREFIX_K.get(arm, 2), anchor_ce_weight=0.5)
     elif sc.get("group_anchor") or sc.get("reencode_every") not in (None, "inf"):
