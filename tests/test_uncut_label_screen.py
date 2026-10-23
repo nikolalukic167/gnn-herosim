@@ -373,3 +373,8 @@ def test_union_sfs_needs_stored_flows_and_record_pair(tmp_path, monkeypatch):
     a.union_sfs = True
     with pytest.raises(SystemExit, match="--union-sfs needs"):
         L.cmd_relabel(a)
+
+
+def test_hand_replan_mismatch_is_recorded_under_record_pair_and_fatal_otherwise():
+    src = open(L.__file__).read()
+    assert "hand_differs and not record_pair" in src and "hand_replan_differs" in src
