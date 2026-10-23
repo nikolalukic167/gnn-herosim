@@ -273,22 +273,24 @@ def psc_of(counts, routes, nx):
             "cand_nodes": kw["cand_nodes"], "backlog_s": kw["backlog_s"], "service_s": kw["service_s"], "link_counts": counts, "link_routes": routes}
 
 
-def run_path(plat, psc, mp_off, monkeypatch):
+def run_path(plat, psc, arm, monkeypatch):
     """One path (a platform block and a context) through a model and a full decode plus two refine passes; returns what each step saw."""
+    from src.policy.gnn.arm_models import TaskPlacementMLPSame
     from src.policy.gnn.gnn_model import TaskPlacementGNN
     from src.policy.gnn.partial_state_edges import candidate_edge_rows, make_partial_state_score_fn
     from src.policy.gnn.prefix_serving import _self_refine
     from src.policy.gnn.seq_decode import decode_masked_topo_placement
 
-    if mp_off:
+    if arm == "twin":
         monkeypatch.setenv("GNN_DISABLE_MESSAGE_PASSING", "1")
     else:
         monkeypatch.delenv("GNN_DISABLE_MESSAGE_PASSING", raising=False)
     graph = synthetic_graph(plat, psc)
     ctx = RF.build_partial_state_context_from_graph(graph)
     torch.manual_seed(0)
-    model = TaskPlacementGNN(task_feature_dim=TASK_DIM, platform_feature_dim=PLAT_DIM_BASE + LF.LINK_PLATFORM_DIM, embedding_dim=8, hidden_dim=16,
-                             num_layers=2, edge_dim=5, partial_state_edge_dim=RF.partial_state_feature_dim(V7)).eval()
+    dims = dict(task_feature_dim=TASK_DIM, platform_feature_dim=PLAT_DIM_BASE + LF.LINK_PLATFORM_DIM, hidden_dim=16, edge_dim=5,
+                partial_state_edge_dim=RF.partial_state_feature_dim(V7))
+    model = (TaskPlacementMLPSame(**dims) if arm == "mlp" else TaskPlacementGNN(**dims, embedding_dim=8, num_layers=2)).eval()
     score = make_partial_state_score_fn(model, graph, ctx, cache_encode=False)
     rows = candidate_edge_rows(graph)
     trace = []
@@ -330,15 +332,16 @@ def test_trainer_and_live_serving_give_bitwise_identical_columns_conv_inputs_and
     assert np.array_equal(live_plat, cache_plat)
     assert live_psc["link_counts"] == cache_psc["link_counts"] and live_psc["link_routes"] == cache_psc["link_routes"]
 
-    runs = {(path, arm): run_path(plat, psc, arm == "twin", monkeypatch)
-            for path, plat, psc in (("live", live_plat, live_psc), ("cache", cache_plat, cache_psc)) for arm in ("gnn", "twin")}
+    arms = ("gnn", "twin", "mlp")
+    runs = {(path, arm): run_path(plat, psc, arm, monkeypatch)
+            for path, plat, psc in (("live", live_plat, live_psc), ("cache", cache_plat, cache_psc)) for arm in arms}
     ref = runs[("cache", "gnn")]
     assert ref["n_decode"] == 3 and len(ref["trace"]) > 3  # the decode plus at least one refine pass
     for key, r in runs.items():
-        assert r["combo"] == ref["combo"] or key[1] == "twin"  # the twin is a different model, so its plan may differ; the columns may not
+        assert key[1] != "gnn" or r["combo"] == ref["combo"]  # the twin and the MLP are different models, so their plans may differ; the columns may not
         assert torch.equal(r["platform_features"], ref["platform_features"])
     # same path, two paths: live vs cache, per arm, bitwise: columns, conv inputs (the node embeddings) and logits at every step
-    for arm in ("gnn", "twin"):
+    for arm in arms:
         a, b = runs[("live", arm)], runs[("cache", arm)]
         assert a["combo"] == b["combo"] and a["refined"] == b["refined"] and len(a["trace"]) == len(b["trace"])
         assert torch.equal(a["task_emb"], b["task_emb"]) and torch.equal(a["platform_emb"], b["platform_emb"])
@@ -354,10 +357,10 @@ def test_trainer_and_live_serving_give_bitwise_identical_columns_conv_inputs_and
             want = torch.as_tensor(RF.partial_state_columns(ctx_by_path[path], t, [tuple(c) for c in REPLICAS], committed)).to(block.dtype)
             assert torch.equal(block, want)
             seen.setdefault((path, t, tuple(sorted(committed.items()))), {})[arm] = block
-    shared = [k for k, v in seen.items() if set(v) == {"gnn", "twin"}]
-    assert shared  # the first decode step is the same prefix for both
+    shared = [k for k, v in seen.items() if set(v) == set(arms)]
+    assert shared  # the first decode step is the same prefix for every arm
     for k in shared:
-        assert seen[k]["gnn"].numpy().tobytes() == seen[k]["twin"].numpy().tobytes()
+        assert seen[k]["gnn"].numpy().tobytes() == seen[k]["twin"].numpy().tobytes() == seen[k]["mlp"].numpy().tobytes()
     # the new columns are live inputs of the decode, not constants: a quiet fabric gives other edge columns for the same prefix
     quiet = psc_of({}, cache_psc["link_routes"], nx)
     ctx_q = RF.build_partial_state_context_from_graph(synthetic_graph(cache_plat * 0.0, quiet))
@@ -372,3 +375,64 @@ def test_widen_graph_appends_and_removes_the_held_columns():
     assert g.platform_features.shape == (2, 8) and not hasattr(g, "link_platform_extra")
     with pytest.raises(ValueError, match="no link columns"):
         LF.widen_graph(Data(platform_features=torch.zeros(2, 5)))
+
+
+# ---- wiring: the live capture, the live prefix block and the stored-state loader call the same functions ----------------------------------------
+
+def test_state_capture_gives_each_platform_the_raw_link_state_of_its_node(fabric_env, monkeypatch):
+    from types import SimpleNamespace
+
+    import src.placement.infrastructure as infra
+    from src.policy.state_capture import StateCaptureHelper
+
+    monkeypatch.setenv("PARTIAL_STATE_CONTRACT", V7)
+    monkeypatch.setattr(infra, "REPLICA_RELEASE", True)
+    env, fabric = fabric_env
+    start_flows(env, fabric, SPECS, until=0.7)
+
+    class Obj:
+        def __init__(self, **kw):
+            self.__dict__.update(kw)
+
+    def plat(pid):
+        p = Obj(env=env, id=pid, type={"shortName": "cpu"}, inflight=[], admitted=None, current_task=None, previous_task=None)
+        p.queue_length = lambda: 0
+        return p
+
+    nodes = [Obj(node_name=n, fabric=fabric) for n in SERVERS]
+    helper = StateCaptureHelper(env, SimpleNamespace(items=nodes))
+    state = helper.capture_temporal_state_for_replicas({(n, plat(i)) for i, n in enumerate(nodes)})
+    flows = LF.flows_live(fabric.fairshare, env.now)
+    for i, n in enumerate(SERVERS):
+        assert state[f"{n}:{i}"][LF.NODE_KEY] == LF.node_raw(flows, n)
+    nodes[0].fabric = SimpleNamespace(fairshare=None)
+    with pytest.raises(RuntimeError, match="fair-share link fabric"):
+        helper.capture_temporal_state_for_replicas({(nodes[0], plat(9))})
+
+
+def test_the_stored_loader_refuses_a_state_without_flow_records(tmp_path):
+    import json
+
+    from src.notebooks.prepare_graphs_cache import _flow_block_of_dataset
+
+    with pytest.raises(FileNotFoundError, match="warm_snapshot.json"):
+        _flow_block_of_dataset(tmp_path)
+    (tmp_path / "warm_snapshot.json").write_text(json.dumps({"snapshot": {"fidelity": {"ghosts": []}}}))
+    with pytest.raises(ValueError, match="no fidelity.flows"):
+        _flow_block_of_dataset(tmp_path)
+
+
+def test_the_stored_loader_returns_a_validated_block(fabric_env, tmp_path):
+    import json
+
+    from src.notebooks.prepare_graphs_cache import _flow_block_of_dataset
+
+    env, fabric = fabric_env
+    start_flows(env, fabric, SPECS, until=0.4)
+    block = stored_block(fabric.fairshare, SPECS)
+    (tmp_path / "warm_snapshot.json").write_text(json.dumps({"snapshot": {"fidelity": {"ghosts": [], "flows": block}}}))
+    assert LF.flows_stored(_flow_block_of_dataset(tmp_path)) == LF.flows_stored(block)
+    block["active"] = block["active"][:-1]
+    (tmp_path / "warm_snapshot.json").write_text(json.dumps({"snapshot": {"fidelity": {"ghosts": [], "flows": block}}}))
+    with pytest.raises(ValueError, match="not the set of active transfers"):
+        _flow_block_of_dataset(tmp_path)
