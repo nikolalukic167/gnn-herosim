@@ -356,6 +356,22 @@ def _lookup_path(
     )
 
 
+def directed_hops_from_topology(link_topology: Mapping[str, Any], src: str, dst: str) -> List[Tuple[str, float]]:
+    """``[(directed_link_id, bandwidth_mbps)]`` along the route src -> dst from a `link_topology` block (``links`` + ``routes``). The one definition
+    behind `NetworkFabric.directed_hops` (live) and the stored-state readers of the link columns (partial_state_v7), so the two cannot differ."""
+    links = link_topology.get("links") or {}
+    path = _lookup_path(link_topology.get("routes") or {}, src, dst)
+    out: List[Tuple[str, float]] = []
+    for a, b in zip(path, path[1:]):
+        key = link_key(a, b)
+        if key not in links:
+            raise KeyError(f"route {src!r}->{dst!r} traverses link {key!r} which has no capacity entry in link_topology.links")
+        attrs = links[key]
+        bw = directed_bandwidth(attrs, a, b) if attrs.get("access_node") is not None else float(attrs["bandwidth_mbps"])
+        out.append((f"{a}>{b}", bw))
+    return out
+
+
 class NetworkFabric:
     """Per-link pipes plus the frozen route table, shared by every Node in a run.
 
@@ -473,17 +489,7 @@ class NetworkFabric:
     def directed_hops(self, src: str, dst: str) -> List[Tuple[str, float]]:
         """``[(directed_link_id, bandwidth_mbps)]`` along the route: the id carries the direction of travel (``a>b``), so the two
         directions of a link are separate capacities. Same bandwidths and order as `hops`."""
-        links = self._link_topology.get("links") or {}
-        path = _lookup_path(self._routes, src, dst)
-        out: List[Tuple[str, float]] = []
-        for a, b in zip(path, path[1:]):
-            key = link_key(a, b)
-            if key not in self._bandwidth:
-                raise KeyError(f"route {src!r}->{dst!r} traverses link {key!r} which has no capacity entry in link_topology.links")
-            attrs = links[key]
-            bw = directed_bandwidth(attrs, a, b) if attrs.get("access_node") is not None else self._bandwidth[key]
-            out.append((f"{a}>{b}", bw))
-        return out
+        return directed_hops_from_topology(self._link_topology, src, dst)
 
     def record_exchange_fairshare(self, actual_seconds: float, solo_seconds: float) -> None:
         """Book one finished fair-share exchange: its seconds as run and what it would have taken alone on its route."""

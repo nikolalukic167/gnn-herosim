@@ -95,6 +95,7 @@ from src.placement.dag_workload import (
 )
 from src.placement.network_fabric import is_core_link, route_links, transmission_hops
 from src.placement.cache_physics import current_physics_env
+from src.placement import link_features
 from src.placement.inflight_features import inflight_enabled, state_from_ghosts, columns as inflight_columns, widen_graph as widen_inflight
 from src.placement.four_type_features import (
     four_type_enabled,
@@ -696,7 +697,24 @@ def load_extended_state_data(dataset_dir: Path) -> Dict[str, Any]:
     }
     if inflight_enabled():
         out['inflight_ghosts'] = _inflight_ghosts_of_dataset(dataset_dir, queue_snapshot)
+    if link_features.link_enabled():
+        out['flow_block'] = _flow_block_of_dataset(dataset_dir)
     return out
+
+
+def _flow_block_of_dataset(dataset_dir: Path) -> Dict[str, Any]:
+    """partial_state_v7: the stored transfers in flight (warm_snapshot.json -> snapshot.fidelity.flows, placement/flow_snapshot.py). A state captured without them (every
+    corpus before the option-B capture) cannot supply the link columns: refuse, never serve them as zeros."""
+    p = Path(dataset_dir) / "warm_snapshot.json"
+    if not p.is_file():
+        raise FileNotFoundError(f"FAIL LOUD: partial_state_v7 needs {p} (the stored flow records)")
+    fid = (json.load(open(p)).get("snapshot") or {}).get("fidelity") or {}
+    if "flows" not in fid:
+        raise ValueError(f"FAIL LOUD: {p} has no fidelity.flows; partial_state_v7 needs a state recaptured with HEROSIM_EXCHANGE_FAIRSHARE=1")
+    from src.placement import flow_snapshot
+
+    flow_snapshot.validate(fid["flows"])
+    return fid["flows"]
 
 
 def _inflight_ghosts_of_dataset(dataset_dir: Path, queue_snapshot: Mapping[str, int]) -> Dict[str, List[Dict[str, Any]]]:
@@ -914,6 +932,7 @@ def load_all_datasets(
                     'initialized_snapshot': extended_state.get('initialized_snapshot', {}),
                     'replicas': extended_state.get('replicas', {}),
                     'inflight_ghosts': extended_state.get('inflight_ghosts'),
+                    'flow_block': extended_state.get('flow_block'),
                     'sweep_opt_rtt': float(sweep_rtt),
                     # r1_attribution_v1 declared pruning: each task's own candidate set, None on every earlier corpus
                     **_declared_slate_of(dataset_dir),
@@ -1209,6 +1228,7 @@ def build_graph(
     network_graph_contract: Optional[str] = None,
     task_candidates: Optional[Sequence[Sequence[Sequence[int]]]] = None,
     inflight_ghosts: Optional[Mapping[str, Sequence[Mapping[str, Any]]]] = None,
+    flow_block: Optional[Mapping[str, Any]] = None,
 ) -> Data:
     """
     Build a bipartite graph with tasks and platforms as nodes.
@@ -1476,6 +1496,14 @@ def build_graph(
             cnt, work = state_from_ghosts(inflight_ghosts.get(key, ()), int(queue_lengths[pos]), task_priors, str(plat_type_arr[pos]))
             rows.append(inflight_columns(cnt, work, active_queue_norm))
         inflight_platform_extra = np.asarray(rows, dtype=np.float64).reshape(n_platforms, 2)
+    link_platform_extra = None
+    if link_features.link_enabled():
+        if flow_block is None:
+            raise ValueError("partial_state_v7 needs the stored flow records (flow_block) of the dataset")
+        flows = link_features.flows_stored(flow_block)
+        link_platform_extra = np.asarray(
+            [link_features.platform_columns(link_features.node_raw(flows, str(df_platforms['node_name'].to_numpy()[pos]))) for pos in range(n_platforms)],
+            dtype=np.float64).reshape(n_platforms, link_features.LINK_PLATFORM_DIM)
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
     for pos, row in enumerate(df_platforms.itertuples(index=False)):
         node_name = str(row.node_name)
@@ -1716,6 +1744,8 @@ def build_graph(
         data.four_type_platform_extra = torch.from_numpy(four_type_platform_extra).to(torch.float32)
     if inflight_platform_extra is not None:
         data.inflight_platform_extra = torch.from_numpy(inflight_platform_extra).to(torch.float32)
+    if link_platform_extra is not None:
+        data.link_platform_extra = torch.from_numpy(link_platform_extra).to(torch.float32)
     # Same-node platform<->platform edges for GIN message passing (node aggregation).
     # Lets the GNN propagate contention/co-location signal between platforms that share a
     # physical node (shared FilterStore pulls / node bandwidth) — relational structure a
@@ -2099,6 +2129,12 @@ def attach_dag_partial_state_block(
         peer_norm = 0.0
         cand_nodes = {}
 
+    link_block = {}
+    if link_features.link_enabled():
+        flows = link_features.flows_stored(_flow_block_of_dataset(ds))
+        link_block = {"link_counts": link_features.counts_of(flows),
+                      "link_routes": link_features.routes_between({"routes": routes, "links": links}, {nid: name_by_node_id[nid] for nid in cand_node_ids})}
+
     load_block = {}
     if resolve_partial_state_contract() in LOAD_SECONDS_CONTRACTS:
         load_block = _v4_load_seconds_block(ds, graph, dag["task_type_names"], sim_inputs,
@@ -2132,6 +2168,7 @@ def attach_dag_partial_state_block(
         "peer_norm": float(peer_norm),
         "cand_nodes": cand_nodes,
         **load_block,
+        **link_block,
     }
 
 
@@ -2290,6 +2327,7 @@ def main():
                         link_topology=dataset_dict.get('link_topology'),
                         task_candidates=dataset_dict.get('task_candidates'),
                         inflight_ghosts=dataset_dict.get('inflight_ghosts'),
+                        flow_block=dataset_dict.get('flow_block'),
                     )
                     if config.platform_feature_dim != 16:
                         graph.platform_features = graph.platform_features[
@@ -2299,6 +2337,8 @@ def main():
                         widen_graph(graph)
                     if inflight_enabled():
                         widen_inflight(graph)
+                    if link_features.link_enabled():
+                        link_features.widen_graph(graph)
                     if config.dag_partial_state:
                         attach_dag_partial_state_block(
                             graph,
