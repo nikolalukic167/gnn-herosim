@@ -29,6 +29,8 @@ ARMS = {
     "ra_twin_eng_combfl_link": ("uncut-comb-fl-twin", "uncut-link-twin", True),
     "ra_mlp_same_combfl_link": ("uncut-comb-fl-mlp-same", "uncut-link-mlp-same", False),
     "ra_mlp_wide_combfl_link": ("uncut-comb-fl-mlp-wide", "uncut-link-mlp-wide", False),
+    # variant (b): the gnn whose conv also reads E1-E3 (mp_link_edge_conv); each bipartite conv layer's first message weight gains LINK_EDGE_DIM input columns
+    "ra_gnn_eng_combfl_linkconv": ("uncut-comb-fl-gnn-eng", "uncut-linkconv-gnn-eng", False),
 }
 EMB = HID = 128
 LAYERS = 3
@@ -56,7 +58,7 @@ def build(kind: str, side: dict, template_sd: dict, mp_off: bool, seed: int):
         mp_peer_edges=bool(side.get("mp_peer_edges")), mp_platform_edges=bool(side.get("mp_platform_edges", True)),
         mp_bipartite_edge_conv=bool(side.get("mp_bipartite_edge_conv")), mp_bipartite_edge_attr_zero=bool(side.get("mp_bipartite_edge_attr_zero")),
         mp_bipartite_aggr=str(side.get("mp_bipartite_aggr") or "mean"), mp_bipartite_hetero=bool(side.get("mp_bipartite_hetero")),
-        task_type_onehot_dim=onehot, partial_state_edge_dim=psd)
+        task_type_onehot_dim=onehot, partial_state_edge_dim=psd, mp_link_edge_conv=kind.endswith("linkconv"))
 
 
 def zero_extend(kind: str, new_sd: dict, old_sd: dict, old_plat: int, old_ps: int, edge_dim: int) -> dict:
@@ -90,6 +92,8 @@ def check_shapes(kind: str, new_sd: dict, old_sd: dict) -> None:
     grown = {k: (tuple(old_sd[k].shape), tuple(new_sd[k].shape)) for k in new_sd if tuple(new_sd[k].shape) != tuple(old_sd[k].shape)}
     want = ({"net.0.weight": LINK_PLATFORM_DIM + LINK_EDGE_DIM} if "mlp" in kind
             else {"platform_encoder.net.0.weight": LINK_PLATFORM_DIM, "edge_scorer.fc1.weight": LINK_EDGE_DIM})
+    if kind.endswith("linkconv"):
+        want.update({k: LINK_EDGE_DIM for k in new_sd if k.startswith("bip_convs.") and k.endswith("message_mlp.0.weight")})
     got = {k: (n[-1] - o[-1]) for k, (o, n) in grown.items() if o[:-1] == n[:-1]}
     if set(grown) != set(want) or got != want:
         raise SystemExit(f"FAIL LOUD: {kind}: grown tensors {grown}, expected {want}")
@@ -101,9 +105,11 @@ def main() -> int:
     ap.add_argument("--models", type=Path, required=True, help="directory of the filed v6 checkpoints (-seed1-final.pt + .contract.json)")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--kinds", nargs="*", default=list(ARMS), help="the gate kinds to write (default: all)")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
-    for kind, (tmpl, stem, mp_off) in ARMS.items():
+    for kind in a.kinds:
+        tmpl, stem, mp_off = ARMS[kind]
         side = json.loads((a.models / f"{tmpl}-seed1-final.contract.json").read_text())
         old_sd = torch.load(a.models / f"{tmpl}-seed1-final.pt", map_location="cpu")
         model = build(kind, side, old_sd, mp_off, a.seed)
@@ -114,7 +120,7 @@ def main() -> int:
         if out_pt.exists():
             raise SystemExit(f"FAIL LOUD: {out_pt} exists; refusing to overwrite")
         side.update(partial_state_contract=PARTIAL_STATE_CONTRACT_V7, partial_state_feature_dim=partial_state_feature_dim(PARTIAL_STATE_CONTRACT_V7),
-                    platform_feature_dim=int(side["platform_feature_dim"]) + LINK_PLATFORM_DIM, train_seed=a.seed, zero_extended_from_v6_for_calibration_only=True,
+                    platform_feature_dim=int(side["platform_feature_dim"]) + LINK_PLATFORM_DIM, train_seed=a.seed, zero_extended_from_v6_for_calibration_only=True, mp_link_edge_conv=kind.endswith("linkconv"),
                     disable_message_passing=mp_off)
         torch.save(sd, out_pt)
         out_pt.with_suffix(".contract.json").write_text(json.dumps(side, indent=1))

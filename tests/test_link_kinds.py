@@ -27,7 +27,7 @@ def test_kinds_stems_contract_and_mp_off():
 
 def test_the_graph_free_link_kinds_serve_as_mlp_same():
     src = open(REPO_ROOT / "scripts_cosim" / "fresh_topo_burst_v1_gate.py").read()
-    assert 'if base_kind in ("ra_mlp_same_combfl_link", "ra_mlp_wide_combfl_link", "ra_mlp_same_combfl_linkstatic", "ra_mlp_wide_combfl_linkstatic"):\n                env["GNN_ARM_KIND"] = "mlp_same"' in src
+    assert 'if base_kind in ("ra_mlp_same_combfl_link", "ra_mlp_wide_combfl_link", "ra_mlp_same_combfl_linkstatic", "ra_mlp_wide_combfl_linkstatic", "ra_mlp_same_combfl_link_e100", "ra_mlp_wide_combfl_link_e100"):\n                env["GNN_ARM_KIND"] = "mlp_same"' in src
 
 
 def test_every_link_kind_has_no_w_alias_to_a_v6_key():
@@ -114,3 +114,39 @@ def test_the_conv_variant_has_its_own_sidecheck_arm_and_the_flags_are_checked(mo
     assert S.check_ra({**good, "mp_link_edge_conv": True}, "ra_gnn_eng_v7conv", str(split), "inf") == 0
     assert S.check_ra(dict(good), "ra_gnn_eng_v7conv", str(split), "inf") == 1  # nor the reverse
     assert S.check_ra({**good, "mp_link_edge_conv": True, "mp_link_static_attr": True}, "ra_gnn_eng_v7conv", str(split), "inf") == 1
+
+
+LINKX = ("ra_gnn_eng_combfl_linkconv", "ra_twin_eng_combfl_link_gpu", "ra_gnn_eng_combfl_link_e100", "ra_twin_eng_combfl_link_e100", "ra_mlp_same_combfl_link_e100",
+         "ra_mlp_wide_combfl_link_e100", "ra_gnn_eng_combfl_linkconv_e100", "ra_twin_eng_combfl_link_gpu_e100")
+
+
+def test_the_second_wave_kinds_stems_checks_and_mp_off():
+    import fresh_topo_burst_v1_gate as G
+
+    assert G.COMB_LINKX == LINKX
+    assert G.COMB_STEMS["ra_gnn_eng_combfl_linkconv"] == "uncut-linkconv-gnn-eng" and G.COMB_STEMS["ra_twin_eng_combfl_link_gpu"] == "uncut-link-twin-gpu"
+    for k in LINKX:
+        assert k in G.RA_KINDS and k + "_nosplit" in G.R1A_ARMS and G.comb_contract(k) == "partial_state_v7" and G.COMB_CHECK[k]
+        assert (k in G.RA_MP_OFF) == ("twin" in k)
+        if k.endswith("_e100"):
+            assert G.COMB_STEMS[k].endswith("-e100")
+    assert G.COMB_CHECK["ra_gnn_eng_combfl_linkconv"] == G.COMB_CHECK["ra_gnn_eng_combfl_linkconv_e100"] == "ra_gnn_eng_v7conv"
+    src = open(REPO_ROOT / "scripts_cosim" / "fresh_topo_burst_v1_gate.py").read()
+    assert '"ra_mlp_same_combfl_link_e100", "ra_mlp_wide_combfl_link_e100"):' in src  # GNN_ARM_KIND is mlp_same for the 100-epoch MLPs
+
+
+def test_the_conv_checkpoint_grows_its_conv_message_weights_and_sets_the_flag():
+    import torch
+
+    import v7_untrained_arm_checkpoints as C
+
+    assert C.ARMS["ra_gnn_eng_combfl_linkconv"][1] == "uncut-linkconv-gnn-eng"
+    old = {"platform_encoder.net.0.weight": torch.ones(2, 18), "edge_scorer.fc1.weight": torch.ones(2, 40),
+           **{f"bip_convs.{i}.message_mlp.0.weight": torch.ones(2, 13) for i in range(3)}}
+    new = {"platform_encoder.net.0.weight": torch.zeros(2, 21), "edge_scorer.fc1.weight": torch.zeros(2, 43),
+           **{f"bip_convs.{i}.message_mlp.0.weight": torch.zeros(2, 16) for i in range(3)}}
+    C.check_shapes("ra_gnn_eng_combfl_linkconv", new, old)
+    with pytest.raises(SystemExit, match="grown tensors"):
+        C.check_shapes("ra_gnn_eng_combfl_link", new, old)  # the plain kind must not grow the conv
+    z = C.zero_extend("ra_gnn_eng_combfl_linkconv", new, old, 18, 27, 5)
+    assert z["bip_convs.1.message_mlp.0.weight"][:, :13].eq(1).all() and z["bip_convs.1.message_mlp.0.weight"][:, 13:].eq(0).all()
