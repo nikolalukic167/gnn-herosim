@@ -24,6 +24,9 @@ from types import SimpleNamespace
 
 from typing import Any, Dict, Generator, List, Optional, Set, Tuple
 
+from src.placement import flow_snapshot
+from src.placement.network_fabric import exchange_fairshare_enabled
+
 ENV = "HEROSIM_SNAPSHOT_FIDELITY"
 VERSION = 1
 
@@ -105,13 +108,20 @@ def _ghost_record(platform: Any, task: Any, stage_of_pool: str, now: float, fn: 
         rec.update(stage="rendezvous", io_remaining=0.0)
     elif fid.get("compute_end") is not None:
         rec.update(stage="compute", compute_remaining=max(0.0, fid["compute_end"] - now))
-    elif fid.get("io_end") is not None and now >= fid["io_end"]:
+    elif fid.get("io_end") is not None and now >= fid["io_end"] and not _exchange_running(task):
         rec.update(stage="lock_wait", order=fid["io_end"] - now)
     elif fid.get("io_end") is not None:
-        rec.update(stage="input_io", io_remaining=fid["io_end"] - now, order=fid["io_end"] - now)
+        # under fair share the exchange can outlast its solo estimate `io_end`: the task is still in its input stage (flow_snapshot)
+        rec.update(stage="input_io", io_remaining=max(0.0, fid["io_end"] - now), order=max(0.0, fid["io_end"] - now))
     else:
         rec.update(stage="input_io", io_remaining=0.0, order=0.0)
     return rec
+
+
+def _exchange_running(task: Any) -> bool:
+    """A fair-share exchange (flow_snapshot) that has not finished: the task's `fx` marker is set and `io_end_time` is not."""
+    fid = getattr(task, "_fid", None)
+    return bool(fid) and fid.get("fx") is not None and getattr(task, "io_end_time", None) is None
 
 
 def _expected_input_seconds(platform: Any, task: Any) -> float:
@@ -157,6 +167,7 @@ def capture(scheduler: Any, system_state: Any, batch_tasks: List[Any]) -> Dict[s
 
     platforms: Dict[str, Any] = {}
     ghosts: List[Dict[str, Any]] = []
+    owners: List[Tuple[Any, Any, Dict[str, Any]]] = []
     for node in scheduler.nodes.items:
         for p in node.platforms.items:
             key = f"{node.node_name}:{p.id}"
@@ -169,8 +180,10 @@ def capture(scheduler: Any, system_state: Any, batch_tasks: List[Any]) -> Dict[s
             rv = getattr(p, "rendezvous_procs", None) or {}
             if p.admitted is not None:
                 ghosts.append(_ghost_record(p, p.admitted, "admitted", now, replica_fn.get(p), False))
+                owners.append((p, p.admitted, ghosts[-1]))
             for t in list(p.inflight):
                 ghosts.append(_ghost_record(p, t, "inflight", now, replica_fn.get(p), t in rv))
+                owners.append((p, t, ghosts[-1]))
 
     pulls = _capture_pulls(scheduler, platforms, now)
     for p, fn in replica_fn.items():
@@ -258,8 +271,87 @@ def capture(scheduler: Any, system_state: Any, batch_tasks: List[Any]) -> Dict[s
         if entries:
             disk[node.node_name] = entries
 
-    return {"version": VERSION, "platforms": platforms, "ghosts": ghosts, "kpa": kpa_block, "disk": disk, "pulls": pulls,
-            "batch": batch, "queued": queued, "pairs": pairs, "peers": peers}
+    block = {"version": VERSION, "platforms": platforms, "ghosts": ghosts, "kpa": kpa_block, "disk": disk, "pulls": pulls,
+             "batch": batch, "queued": queued, "pairs": pairs, "peers": peers}
+    if exchange_fairshare_enabled():
+        block[flow_snapshot.KEY] = _capture_flows(scheduler, owners, now)
+    return block
+
+
+def _transfer(fl: Dict[str, Any], status: str, **kw: Any) -> Dict[str, Any]:
+    t = {"partner_id": int(fl["peer_id"]), "src_node": fl["peer_node"], "payload": float(fl["payload"]), "latency": float(fl["latency"]),
+         "hops": [[k, float(bw)] for k, bw in fl["hops"]], "b": float(fl["b"]), "rest": float(fl["rest"]), "scale": float(fl["scale"]),
+         "status": status, "startup_remaining": float(fl["b"]) if status == "pending" else 0.0,
+         "rem": float(fl["rest"]) if status in ("pending", "startup") else 0.0, "rate": 0.0,
+         "latency_remaining": 0.0 if status == "done" else float(fl["latency"])}
+    t.update(kw)
+    return t
+
+
+def _capture_flows(scheduler: Any, owners: List[Tuple[Any, Any, Dict[str, Any]]], now: float) -> Dict[str, Any]:
+    """The `flows` block (flow_snapshot): the peer-exchange transfers of every ghost, and FairShare's active flows. Reads only: FairShare is NOT advanced
+    (that would split a flow's float arithmetic and move the run); `rem` is projected to the instant instead."""
+    from src.placement.network_fabric import FAIRSHARE_MODEL, exchange_fairshare_partners, exchange_tcp_enabled
+
+    if exchange_fairshare_partners() != "serial":
+        raise RuntimeError("flow capture is defined for HEROSIM_EXCHANGE_FAIRSHARE_PARTNERS=serial only")
+    fabric = next((n.fabric for n in scheduler.nodes.items if getattr(n, "fabric", None) is not None), None)
+    share = getattr(fabric, "fairshare", None)
+    if share is None:
+        raise RuntimeError("flow capture needs the link fabric of the run built with HEROSIM_EXCHANGE_FAIRSHARE=1")
+    live = {f.owner: f for f in share.flows}
+    exchanges: List[Dict[str, Any]] = []
+    unplanned: List[int] = []
+    used = set()
+    for plat, task, rec in owners:
+        tid = int(task.id)
+        fid = getattr(task, "_fid", None) or {}
+        fx = fid.get("fx")
+        stage = rec["stage"]
+        if stage in ("compute", "lock_wait"):
+            continue
+        if fx is not None and stage == "input_io":
+            plan, ex_read = fx["plan"], max(0.0, float(fid["read_end"]) - now)
+            transfers: List[Dict[str, Any]] = []
+            started = ex_read == 0.0 and fx["phase"] is not None
+            for j, fl in enumerate(plan):
+                if not started or j > fx["i"]:
+                    transfers.append(_transfer(fl, "pending"))
+                elif j < fx["i"] or fx["phase"] == "done":
+                    transfers.append(_transfer(fl, "done"))
+                elif fx["phase"] == "startup":
+                    transfers.append(_transfer(fl, "startup", startup_remaining=max(0.0, fx["phase_end"] - now)))
+                elif fx["phase"] == "latency":
+                    transfers.append(_transfer(fl, "latency_tail", latency_remaining=max(0.0, fx["phase_end"] - now)))
+                else:
+                    f = live.get((tid, j))
+                    if f is None:
+                        raise RuntimeError(f"flow capture: task {tid} partner {fl['peer_id']} is in its bytes phase but has no FairShare flow")
+                    used.add((tid, j))
+                    transfers.append(_transfer(fl, "active", rem=max(0.0, f.rem - f.rate * (now - share._last)), rate=float(f.rate)))
+            exchanges.append({"owner_tid": tid, "dst_node": plat.node.node_name, "stage": "input_io", "planned": False,
+                              "read_remaining": ex_read, "transfers": transfers})
+        elif stage in ("cold", "ingress"):
+            try:
+                plan = plat._fairshare_plan(task, record=False)
+            except RuntimeError:
+                unplanned.append(tid)
+                continue
+            if not plan:
+                continue
+            read = float(rec["io_remaining"]) - float(plat._peer_exchange_time(task, record=False))
+            exchanges.append({"owner_tid": tid, "dst_node": plat.node.node_name, "stage": stage, "planned": True,
+                              "read_remaining": max(0.0, read), "transfers": [_transfer(fl, "pending") for fl in plan]})
+        elif stage == "rendezvous":
+            unplanned.append(tid)
+    stray = [f.owner for f in share.flows if f.owner not in used]
+    if stray:
+        raise RuntimeError(f"flow capture: FairShare flows {stray[:5]} belong to no captured ghost")
+    active = [[int(f.owner[0]), int(f.owner[1])] for f in share.flows]
+    out = {"version": flow_snapshot.VERSION, "model": FAIRSHARE_MODEL, "partners": "serial", "tcp": bool(exchange_tcp_enabled()),
+           "fairshare_last": float(share._last) - now, "active": active, "exchanges": exchanges, "unplanned": sorted(unplanned)}
+    flow_snapshot.validate(out)
+    return out
 
 
 def _autoscaler_wake(env: Any, autoscaler: Any, now: float) -> Tuple[Optional[float], str]:

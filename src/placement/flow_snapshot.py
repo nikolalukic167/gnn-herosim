@@ -10,21 +10,25 @@ instant (>= 0, the future), as in snapshot_fidelity; bytes are bytes; rates are 
         "model": "processor_sharing_v1",     # network_fabric.FAIRSHARE_MODEL
         "partners": "serial",                # network_fabric.exchange_fairshare_partners(); only serial is defined
         "tcp": bool,                         # HEROSIM_EXCHANGE_TCP was on
-        "fairshare_last": 0.0,               # FairShare._last relative to the instant, after `_advance()` to now (so 0.0); stored so a replay can assert it
+        "fairshare_last": float,             # FairShare._last relative to the instant (<= 0). The capture does NOT advance FairShare (that would split a
+                                             # flow's float arithmetic and move the run); `rem` below is projected: flow.rem - flow.rate * (now - _last)
         "active": [[owner_tid, partner_index], ...],   # FairShare.flows in list (start) order: owner task and index into that owner's `transfers`
         "exchanges": [ExchangeRecord, ...],  # one per task that has, or will run, an exchange with at least one remote partner
+        "unplanned": [owner_tid, ...],       # ghosts that will exchange but whose plan could not be made at the instant (rendezvous: partner unplaced;
+                                             # admitted with an unplaced partner): they have NO ExchangeRecord, a replay plans them at input start
     }
 
 ExchangeRecord (key: owner_tid = the ghost's `tid`):
     owner_tid        int    live id of the task whose input stage runs the exchange (the receiver)
     dst_node         str    its node
-    stage            str    the ghost's own stage: "input_io" (read running or exchange running), "rendezvous" (unchanged: waits on a partner, no transfers yet),
-                            "cold" / "ingress" (admitted, input stage not begun)
+    stage            str    the ghost's own stage: "input_io" (read running or exchange running) or "cold" / "ingress" (admitted, input stage not begun).
+                            Rendezvous ghosts and ghosts past the exchange (lock_wait, compute) have no record
     planned          bool   False when `transfers` is live's `_fairshare_plan` of this task as the input stage built it (stage input_io);
                             True when the task has not begun its input stage and `transfers` is the plan evaluated at the snapshot instant (the real plan is
                             made at input start from the partners' placements then)
     read_remaining   float  seconds of the pre-exchange `env.timeout(input_duration)` still to run (live yields it BEFORE the serial exchange); 0.0 once over.
-                            While > 0 no transfer of this task is started: every status is "pending"
+                            While > 0 no transfer of this task is started: every status is "pending". For planned=True it is the full read duration,
+                            which only starts when the input stage begins (after the task's ingress and cold start)
     transfers        [Transfer, ...]   the remote partners in the order `_fairshare_plan` runs them (sorted peer id; co-located partners absent)
     `io_remaining` of the ghost is left as it is (io_end - now, io_end = start + SOLO estimate); under fair share it is wrong, so a replay treats
     `read_remaining` + `transfers` as authoritative for any ghost that has an ExchangeRecord.
@@ -40,7 +44,7 @@ Transfer (a `_fairshare_plan` entry + its progress; `one(fl)` in `Platform._fair
     scale            float  FairShare rate scale (1.0)
     status           str    "done" | "latency_tail" | "active" | "startup" | "pending"
     startup_remaining float seconds of b still to run (status startup; b when pending; else 0.0)
-    rem              float  bytes still to move: FairShare flow.rem after `_advance` (status active); rest when startup/pending; 0.0 when latency_tail/done
+    rem              float  bytes still to move at the instant: flow.rem projected as above (status active); rest when startup/pending; 0.0 when latency_tail/done
     rate             float  bytes/s the flow has at the instant (status active), else 0.0
     latency_remaining float seconds of the post-bytes latency timeout still to run (status latency_tail; latency when active/startup/pending; 0.0 done)
 
@@ -92,6 +96,7 @@ class FlowBlock(TypedDict):
     fairshare_last: float
     active: List[Tuple[int, int]]
     exchanges: List[ExchangeRecord]
+    unplanned: List[int]
 
 
 def validate(block: Dict[str, Any]) -> None:
@@ -100,8 +105,8 @@ def validate(block: Dict[str, Any]) -> None:
         raise ValueError(f"flow_snapshot: version {block.get('version')!r}, expected {VERSION}")
     if block.get("partners") != "serial":
         raise ValueError(f"flow_snapshot: partners {block.get('partners')!r}; only serial is defined")
-    if block.get("fairshare_last") != 0.0:
-        raise ValueError(f"flow_snapshot: fairshare_last {block.get('fairshare_last')!r}; the capture advances FairShare to the instant first")
+    if not block.get("fairshare_last", 1.0) <= 0.0:
+        raise ValueError(f"flow_snapshot: fairshare_last {block.get('fairshare_last')!r} is after the snapshot instant")
     by_owner: Dict[int, ExchangeRecord] = {}
     for ex in block["exchanges"]:
         tid = ex["owner_tid"]

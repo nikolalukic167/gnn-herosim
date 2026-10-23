@@ -197,10 +197,11 @@ def exchange_fairshare_partners() -> str:
 
 
 class _Flow:
-    __slots__ = ("hops", "nbytes", "rem", "scale", "rate", "event")
+    __slots__ = ("hops", "nbytes", "rem", "scale", "rate", "event", "owner")
 
-    def __init__(self, hops: Sequence[Tuple[str, float]], nbytes: float, scale: float, event: Any) -> None:
+    def __init__(self, hops: Sequence[Tuple[str, float]], nbytes: float, scale: float, event: Any, owner: Any = None) -> None:
         self.hops, self.nbytes, self.rem, self.scale, self.rate, self.event = list(hops), float(nbytes), float(nbytes), float(scale), 0.0, event
+        self.owner = owner  # (task id, partner index) of the transfer, bookkeeping for the snapshot capture; nothing in the engine reads it
 
 
 class FairShare:
@@ -215,12 +216,12 @@ class FairShare:
         self._gen = 0
         self.peak_flows_on_a_link = 0
 
-    def start(self, hops: Sequence[Tuple[str, float]], nbytes: float, scale: float = 1.0) -> Any:
+    def start(self, hops: Sequence[Tuple[str, float]], nbytes: float, scale: float = 1.0, owner: Any = None) -> Any:
         if not nbytes > 0 or not hops:
             raise ValueError("FairShare.start needs bytes > 0 and a route")
         ev = self.env.event()
         self._advance()
-        self.flows.append(_Flow(hops, nbytes, scale, ev))
+        self.flows.append(_Flow(hops, nbytes, scale, ev, owner))
         self._reschedule()
         return ev
 
