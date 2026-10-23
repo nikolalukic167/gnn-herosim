@@ -87,6 +87,23 @@ node has a row, head freshness, the AGENTS.md stamp, and that cited scripts stil
 It runs in about two seconds. **The routing rule was written in four places and violated in
 all four; this test is the thing that actually holds it.**
 
+## The archive: `docs/lineages/archive/`
+
+Closed nodes are moved out of the hot path later, in a batch, not at close time. The first
+batch (`1738e9a8`, 2026-10-22) moved 142 `CLOSED`/`SUPERSEDED`/`FALSIFIED`/`FAILED` nodes whose
+newest dated entry predates 2026-10-13.
+
+- **Archived nodes are still the record.** `test_record_hygiene.py` reads
+  `docs/lineages/archive/` as nodes. Before writing that a lineage has no node, look there.
+  This is not the retired-code `archive/`, which AGENTS.md says to ignore.
+- **Their rows stay in `LINEAGES.md`,** under `## Archive — closed before <date>`, linking to
+  `docs/lineages/archive/<name>.md`.
+- **To archive one:** `git mv` the node and its attachment directory (so `git log --follow`
+  works), move its row into the Archive section, update every link and path that names it,
+  then run step 6. Leave any file whose content is hash-pinned elsewhere unmodified.
+- **Never archive a node at the moment you close it.** The node a session just closed is the
+  one the next session will read.
+
 ## What "closed" does not mean
 
 A lineage closes on a **live gate**, never on an offline read (AGENTS.md rule 6). An
