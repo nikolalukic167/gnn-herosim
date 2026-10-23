@@ -344,6 +344,14 @@ def _init_worker():
 
 
 def cmd_relabel(a):
+    sf = bool(getattr(a, "stored_flows", False))
+    if sf:
+        from src.placement import flow_replay
+        from src.placement.network_fabric import exchange_fairshare_enabled
+
+        if not exchange_fairshare_enabled():
+            raise SystemExit("FAIL LOUD: --stored-flows replays the snapshot's stored peer-exchange flows and needs HEROSIM_EXCHANGE_FAIRSHARE=1")
+        os.environ[flow_replay.ENV] = "1"      # before any pool starts: spawned workers inherit it; a state without a flows block fails loud in flow_replay.require
     rp = bool(getattr(a, "record_pair", False))
     if rp:
         from src.placement.network_fabric import exchange_fairshare_enabled
@@ -394,6 +402,8 @@ def cmd_relabel(a):
         for k, e in enumerate(results):
             rss = float(e.pop("_rss_mb", 0.0))
             max_rss = max(max_rss, rss)
+            if sf:
+                e["stored_flows"] = True
             fh.write(json.dumps(e) + "\n")
             fh.flush()
             if k % 25 == 0:
@@ -412,7 +422,10 @@ def cmd_merge(a):
     expect = {s["gid"] for s in all_states(a.split, a.corpus)}
     if set(entries) != expect:
         raise SystemExit(f"FAIL LOUD: sidecar covers {len(entries)} of {len(expect)} states; missing {sorted(expect - set(entries))[:5]}, extra {sorted(set(entries) - expect)[:5]}")
-    body = {"_meta": {"version": RELABEL_VERSION, "method": "exhaustive replay for plan spaces <= 600; else the 8 lowest-S plans plus the current label, replayed; the fastest replayed plan is the label; "
+    flagged = {bool(e.get("stored_flows")) for e in entries.values()}
+    if len(flagged) > 1:
+        raise SystemExit("FAIL LOUD: shards mix states relabelled with and without --stored-flows")
+    body = {"_meta": {"version": RELABEL_VERSION, **({"stored_flows": True} if flagged == {True} else {}), "method": "exhaustive replay for plan spaces <= 600; else the 8 lowest-S plans plus the current label, replayed; the fastest replayed plan is the label; "
                       "the current label's replayed RTT must equal its stored RTT (relative 1e-9)", "n": len(entries)}, **dict(sorted(entries.items()))}
     raw = json.dumps(body, indent=0, sort_keys=False) + "\n"
     Path(a.out).write_text(raw)
@@ -447,6 +460,7 @@ def main(argv=None):
     rl.add_argument("--max-tasks-per-child", type=int, default=8)
     rl.add_argument("--state-timeout", type=float, default=3600.0)
     rl.add_argument("--limit-states", type=int, default=0)
+    rl.add_argument("--stored-flows", action="store_true", help="replay each state's stored peer-exchange flows (HEROSIM_REPLAY_STORED_FLOWS=1): the candidate plans are priced against the background traffic the snapshot carried; needs a corpus captured with the flows block and HEROSIM_EXCHANGE_FAIRSHARE=1")
     rl.add_argument("--record-pair", action="store_true", help="fair-share label test only: keep the replayed and the stored RTT of the current label instead of failing on a difference")
     mg = sub.add_parser("merge")
     mg.add_argument("--split", required=True)

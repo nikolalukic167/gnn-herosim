@@ -327,3 +327,24 @@ def test_record_pair_needs_fairshare_on(tmp_path, monkeypatch):
     L.cmd_relabel(a)
     assert seen and all(seen)
     assert all("stored_label_rtt" in r for r in _jl(tmp_path / "rp.jsonl"))
+
+
+def test_stored_flows_flag_needs_fairshare_sets_the_switch_and_marks_rows(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "all_states", lambda split, corpus: _fake_states())
+    monkeypatch.setattr(L, "replay_state", _fake_replay)
+    monkeypatch.delenv("HEROSIM_EXCHANGE_FAIRSHARE", raising=False)
+    monkeypatch.delenv("HEROSIM_REPLAY_STORED_FLOWS", raising=False)
+    a = _args(tmp_path, tmp_path / "sf.jsonl", 1)
+    a.stored_flows = True
+    with pytest.raises(SystemExit, match="needs HEROSIM_EXCHANGE_FAIRSHARE=1"):
+        L.cmd_relabel(a)
+    assert os.environ.get("HEROSIM_REPLAY_STORED_FLOWS") is None
+    monkeypatch.setenv("HEROSIM_EXCHANGE_FAIRSHARE", "1")
+    L.cmd_relabel(a)
+    assert os.environ["HEROSIM_REPLAY_STORED_FLOWS"] == "1"
+    monkeypatch.delenv("HEROSIM_REPLAY_STORED_FLOWS")
+    rows = _jl(tmp_path / "sf.jsonl")
+    assert rows and all(r["stored_flows"] is True for r in rows)
+    off = _args(tmp_path, tmp_path / "off.jsonl", 1)
+    L.cmd_relabel(off)
+    assert "HEROSIM_REPLAY_STORED_FLOWS" not in os.environ and all("stored_flows" not in r for r in _jl(tmp_path / "off.jsonl"))
