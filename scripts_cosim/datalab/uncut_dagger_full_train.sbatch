@@ -35,9 +35,11 @@ CPU=$(lscpu | sed -n "s/^Model name: *//p" | head -1); echo "cpu model: $CPU"
 [[ -z "$(git status --porcelain -- src scripts_cosim experiments run_experiment.py)" ]] || { echo "FAIL LOUD: worktree dirty"; exit 1; }
 CFG=experiments/$CFGN.yaml
 grep -q TBD "$CFG" && { echo "FAIL LOUD: $CFG still has a TBD"; exit 1; }
-# determinism test first (12 s, no GPU); a skipped test is not a pass
-DET=$(OMP_NUM_THREADS=1 python3 -m pytest tests/test_trainer_determinism.py -q -rs 2>&1 | tail -15); echo "$DET" | tail -3
-echo "$DET" | grep -qE ' passed' && ! echo "$DET" | grep -qE ' (failed|error|skipped)' || { echo "FAIL LOUD: determinism test did not pass cleanly"; exit 1; }
+# determinism test first (no GPU). A failure or error is fatal. The only skips allowed are the route_b smoke caches that are absent on the cluster and the ARM2 peer cache that is not set (the 900763 reasons: 16 passed, 6 skipped); any other skip reason is fatal. The skip lines go to the log.
+DET=$(OMP_NUM_THREADS=1 python3 -m pytest tests/test_trainer_determinism.py -q -rs 2>&1 | tail -30); echo "$DET" | grep -E "SKIPPED|passed|failed|error" | cut -c1-260
+echo "$DET" | grep -qE ' passed' && ! echo "$DET" | grep -qE ' (failed|error)' || { echo "FAIL LOUD: determinism test did not pass"; exit 1; }
+BADSKIP=$(echo "$DET" | grep -E '^SKIPPED' | grep -vE 'cache not present at .*/graphs_cache_route_b_smoke_s_dag|no --dag-partial-state cache at .*/graphs_cache_route_b_smoke_s_dag/graphs.pkl|ARM2_DETERMINISM_CACHE not set to a peer cache' || true)
+[[ -z "$BADSKIP" ]] || { echo "FAIL LOUD: determinism test skipped for a reason other than the absent route_b/ARM2 caches:"; echo "$BADSKIP"; exit 1; }
 read -r CACHE CONTRACT LO SPLITF INIT < <(python3 -c "import yaml,sys; c=yaml.safe_load(open(sys.argv[1])); e=c['env']; assert c['trainer']=='gnn' and c['args']['epochs']==100 and c['args']['min-epochs']==100 and c['args']['learning-rate']==0.001 and c['args']['patience']==60, 'recipe'; print(c['cache_dir'], e['PARTIAL_STATE_CONTRACT'], e['NEAR_RTT_LABEL_OVERRIDE_JSON'], e['NEAR_RTT_SPLIT_ARTIFACT'], e.get('TRAIN_INIT_CHECKPOINT','-'))" "$CFG") || { echo "FAIL LOUD: config $CFG"; exit 1; }
 [[ "$INIT" == "-" ]] || { echo "FAIL LOUD: TRAIN_INIT_CHECKPOINT set; this is from scratch"; exit 1; }
 [[ -f "$CFG" && -L models && -f "$SPLITF" && -f "$CACHE/metadata.json" && -f "$LO" ]] || { echo "FAIL LOUD: config, models/ symlink, split ($SPLITF), cache ($CACHE) or labels ($LO) missing"; exit 1; }
@@ -56,7 +58,7 @@ fail=0
 [[ $rc -eq 0 ]] || { tail -15 "logs/dagger-full-$RUN-seed$S.log" | cut -c1-240; fail=1; }
 for f in "$CK-final.pt" "$CK-final.contract.json" "$CK.val.json"; do [[ -f "$f" ]] || { echo "FAIL LOUD: no $f"; fail=$((fail+1)); }; done
 echo "label override $LO sha256 $LABEL_SHA; split $SPLITF sha256 $SPLIT_SHA; cache $CACHE metadata sha256 $CACHE_SHA"
-tr '\r' '\n' < "logs/dagger-full-$RUN-seed$S.log" | grep -q "train label replaced on 13311 graphs" || { echo "FAIL LOUD: the label override was not applied to all 13311 train graphs"; fail=$((fail+1)); }
+[[ "$(tr '\r' '\n' < "logs/dagger-full-$RUN-seed$S.log" | grep -c "train label replaced on 13311 graphs")" -ge 1 ]] || { echo "FAIL LOUD: the label override was not applied to all 13311 train graphs"; fail=$((fail+1)); }
 grep -qiE "TRAIN_INIT_CHECKPOINT|loaded (init|checkpoint)|warm.?start" "logs/dagger-full-$RUN-seed$S.log" && { echo "FAIL LOUD: log mentions an init checkpoint"; fail=$((fail+1)); }
 python3 - "$CK-final.contract.json" "$CONTRACT" "${CFGN##*_}" <<'PY' || fail=$((fail+1))
 import json, sys
