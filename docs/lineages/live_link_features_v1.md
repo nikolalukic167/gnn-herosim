@@ -84,6 +84,7 @@ Conditions on the arms:
     2. Reactive admission as the xs rule, on the cells' own inputs: `reactive` s0, 4 windows × 2 rungs = 96 cells, run under option D (TCP and fair-share on, the D pin) so that the load it measures is the load the cells carry. A topology is admitted only if all 8 of its reactive cells have `queue_share` ≤ 0.80; unknown (missing, failed, no field) is not a pass. Only `queue_share` is read.
     3. Nothing else gates admission. In particular the bar's per-task mean is **not** read before the screen: on 30176–30181 it ran away under D in 5 of 6 topologies at heavy g0, so a bar-runaway exclusion would remove most of the development set and would be a rule chosen after seeing outcomes. Runaways are handled by the registered all-cells and without-runaways readings (> 10× the arm's rung median).
     4. A topology that fails is not replaced by hand: S5 mints the next free id by the same rule and reports the replacement before any cell; the id list and its sha256 are re-filed. Count of failures reported either way, even if 0.
+    5. **Kills (2026-10-23 ruling, Record):** a cell killed by the per-cell LIMIT or the job wall is rerun once with a longer wall only; if it fails twice, its topology is replaced as in 4.
     5. Sealed: inputs md5s and the id-list sha256 filed in the mint line; nobody reads outcomes before the reader is frozen.
 - **Cells.** Option D, g0+g1, both rungs, the development recipe as frozen, seeds 1–3, all arms.
 - **Statistic (as `d_read`).**
@@ -105,6 +106,17 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-23 — **D admission screen: a cell killed by a wall limit is an infrastructure failure, rerun with a longer wall** (the expert's ruling; filed by SCIENTIST after the coordinator read `queue_share` on the 68 completed cells (0 fails) at 15:18 and passed the count to S5; no killed cell's output and no other field was read. The ruling is not conditioned on that count: every killed cell is rerun whatever it produced). The screen is reactive s0, 96 cells on 30285–30296, pin `a9733951`. Some cells near the 14,400 s per-cell LIMIT: heavy cells take a median of 11,675 s under D.
+  - **The ruling.**
+    - A cell killed by the per-cell LIMIT or the job wall is an infrastructure failure. It is rerun alone at the same pin, inputs and D flags, with LIMIT 28,800 s and a job wall of at least 9 h.
+    - The rerun counts only if it completes. Unknown is not a pass.
+    - A cell that fails twice sends its topology to the next free id, by the filed rule (admission item 4). The topology is counted as an admission failure ("did not complete"), not dropped silently.
+    - The rerun changes only the wall limit, never the physics, pin or inputs, and it is not conditioned on any outcome.
+  - **Clarifications (SCIENTIST).**
+    - Every killed cell is rerun, whatever it had produced. No partial output of a killed cell is read: no `queue_share` from a partial summary, and no log line.
+    - Wall time is not an admission criterion. A rerun that completes is read by the admission rule like any other cell, on `queue_share` only.
+    - **The admission report lists:** every kill (cell, which limit, elapsed s, job id), every rerun (job id, elapsed s, completed or not), and each replaced topology with its replacement id.
 
 - 2026-10-23 — **Pre-data amendment A3: the 100-epoch seed-1 runs of every variant start early, sealed until the selection is filed** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any v7 training or cell exists). Amends A2's "seed 1 retrained from scratch after selection".
   - **What starts early** (each fresh from scratch, never continued from a 20-epoch run). These run in parallel with A1's 20-epoch selection runs, on the A2 recipe: 100 epochs, min-epochs 100, no early stop, best validation checkpoint within 100. Each starts as soon as its code and the corpus exist.
