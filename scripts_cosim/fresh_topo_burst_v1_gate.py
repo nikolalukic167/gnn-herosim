@@ -213,10 +213,14 @@ COMB_STEMS.update({"ra_gnn_eng_fslabel_combfl": "uncut-comb-fl-gnn-fslabel", "ra
 # Parameter-matched MLP quick look (reviewer point): FL's same-input MLP at hidden 675 (500,176 parameters), seed 1, 40 epochs; partial_state_v6, batched, served nosplit like FL. Kept out of every other kind set.
 COMB_WIDE = ("ra_mlp_wide_combfl",)
 COMB_STEMS.update({"ra_mlp_wide_combfl": "uncut-comb-fl-mlp-wide"})
+# DAgger own-state twin (S7, one-round pilot 2026-10-22): the filed FL twin fine-tuned 40 epochs, seeds 1-2, on the merged own-state override; partial_state_v6, MP off, sidecheck ra_twin_eng_v6,
+# served nosplit; the decision-time w is the filed FL twin's by alias (decision_cost_w.json).
+COMB_DAGGER = ("ra_twin_eng_dagger_combfl",)
+COMB_STEMS.update({"ra_twin_eng_dagger_combfl": "uncut-dagger-twin"})
 COMB_V6 = ("ra_gnn_eng_combf", "ra_gnn_eng_combfl", "ra_mlp_same_combfl")  # partial_state_v6; combl keeps partial_state_v5
-COMB_CHECK = {"ra_mlp_wide_combfl": "ra_mlp_same_v6", "ra_gnn_eng_fslabel_combfl": "ra_gnn_eng_v6", "ra_twin_eng_fslabel_combfl": "ra_twin_eng_v6", "ra_mlp_same_fslabel_combfl": "ra_mlp_same_v6", "ra_gnn_eng_physmp_combfl": "ra_gnn_eng_physmp_v6", "ra_twin_eng_combfl": "ra_twin_eng_v6", "ra_gnn_eng_flreg": "ra_gnn_eng_v6", "ra_mlp_same_flreg": "ra_mlp_same_v6", "ra_gnn_eng_a3l": "ra_gnn_eng", "ra_gnn_eng_a3lft": "ra_gnn_eng", "ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
-RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE
-RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1", "ra_twin_eng_combfl", "ra_twin_eng_fslabel_combfl")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
+COMB_CHECK = {"ra_twin_eng_dagger_combfl": "ra_twin_eng_v6", "ra_mlp_wide_combfl": "ra_mlp_same_v6", "ra_gnn_eng_fslabel_combfl": "ra_gnn_eng_v6", "ra_twin_eng_fslabel_combfl": "ra_twin_eng_v6", "ra_mlp_same_fslabel_combfl": "ra_mlp_same_v6", "ra_gnn_eng_physmp_combfl": "ra_gnn_eng_physmp_v6", "ra_twin_eng_combfl": "ra_twin_eng_v6", "ra_gnn_eng_flreg": "ra_gnn_eng_v6", "ra_mlp_same_flreg": "ra_mlp_same_v6", "ra_gnn_eng_a3l": "ra_gnn_eng", "ra_gnn_eng_a3lft": "ra_gnn_eng", "ra_gnn_eng_combf": "ra_gnn_eng_v6", "ra_gnn_eng_combl": "ra_gnn_eng", "ra_gnn_eng_combfl": "ra_gnn_eng_v6", "ra_mlp_same_combfl": "ra_mlp_same_v6"}
+RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE + COMB_DAGGER
+RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1", "ra_twin_eng_combfl", "ra_twin_eng_fslabel_combfl", "ra_twin_eng_dagger_combfl")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
@@ -325,13 +329,13 @@ def sealed_triggers(topo: int, window: str) -> Optional[List[int]]:
 
 def comb_contract(base_kind: str) -> str:
     """The partial-state contract a learned RA cell serves: partial_state_v6 for the combined lever's in-flight kinds, partial_state_v5 otherwise."""
-    return "partial_state_v6" if base_kind in COMB_V6 + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE else "partial_state_v5"
+    return "partial_state_v6" if base_kind in COMB_V6 + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE + COMB_DAGGER else "partial_state_v5"
 
 
 def comb_trainer_check(base_kind: str, side: str) -> None:
     """A combined-lever sidecar records the batched loss, its own contract (v6 for F, FL and the MLP; v5 for L) and no regret lever. Other kinds are
     not checked."""
-    if base_kind not in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE:
+    if base_kind not in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE + COMB_DAGGER:
         return
     sc = json.load(open(side))
     if sc.get("batched_teacher_forced") is not True:
@@ -413,7 +417,7 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
 R1A_DIAG = (*OBS_ARMS, *ILS_PER, EXACT_LIVE, "heft", "cd_ib0_inflight", "cd_ib0_inflightfull", *FSAWARE_KINDS, "cd_ib0", "cd_exactS_ib0_prune", "cd_pull", "cd_ledger", "cd_expand", "cd_exactS", "cd_oracle", "cd_exactS_a0", "cd_exactS_ib0", "cd_exactS_a05", "cd_exactS_a025", "cd_exactS_ib0_d05", "cdx_ib0", "cd_oracle_ib0")  # diagnostic classical arms, seed 0, never in the default grid (name them in R1A_ARMS)
 R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_nosplit",
                *ARM1_KINDS, *(f"{k}_nosplit" for k in ARM1_KINDS),
-               *COMB_KINDS, *COMB_FAST, *COMB_FLREG, *COMB_TWIN, *COMB_PHYSMP, *COMB_FSLABEL, *COMB_WIDE, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS; bare COMB_FLREG / COMB_TWIN here keep them out of the unset default grid
+               *COMB_KINDS, *COMB_FAST, *COMB_FLREG, *COMB_TWIN, *COMB_PHYSMP, *COMB_FSLABEL, *COMB_WIDE, *COMB_DAGGER, *(f"{k}_nosplit" for k in COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE + COMB_DAGGER))  # accel_nosplit_v1 primary arms (+ slate_fix_v1's twin), checkpoint seeds; name them in R1A_ARMS; bare COMB_FLREG / COMB_TWIN here keep them out of the unset default grid
 # (the bare uncut and combined-lever kinds sit here or in R1A_CDX only so the unset default stays r1_attribution_v1's registered grid)
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",

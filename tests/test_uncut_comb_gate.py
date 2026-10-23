@@ -98,3 +98,14 @@ def test_wide_mlp_is_a_nosplit_gate_arm_outside_the_other_kind_sets():
     assert base == "ra_mlp_wide_combfl" and G.COMB_STEMS[base] == "uncut-comb-fl-mlp-wide"
     assert k in G.R1A_ARMS and k in G.R1A_NOSPLIT and base in G.RA_KINDS and base not in G.RA_MP_OFF and base not in G.COMB_KINDS
     assert G.split_dc(f"{k}_k100") == (k, 1.0) and G.comb_contract(base) == "partial_state_v6" and G.COMB_CHECK[base] == "ra_mlp_same_v6"
+
+
+def test_dagger_twin_is_a_nosplit_mp_off_gate_arm_charged_the_filed_twin_w():
+    (base,) = G.COMB_DAGGER
+    k = base + "_nosplit"
+    assert base == "ra_twin_eng_dagger_combfl" and G.COMB_STEMS[base] == "uncut-dagger-twin"
+    assert k in G.R1A_ARMS and k in G.R1A_NOSPLIT and base in G.RA_KINDS and base in G.RA_MP_OFF and base not in G.COMB_KINDS + G.COMB_TWIN
+    assert G.split_dc(f"{k}_k100") == (k, 1.0) and G.comb_contract(base) == "partial_state_v6" and G.COMB_CHECK[base] == "ra_twin_eng_v6"
+    assert json.load(open(G.DC_W_FILE))["w_ms_per_plan_alias"][k] == "ra_twin_eng_combfl_nosplit"
+    for rung in ("moderate", "heavy"):
+        assert G.dc_cost_ms(k, 1.0, rung) == G.dc_cost_ms("ra_twin_eng_combfl_nosplit", 1.0, rung)
