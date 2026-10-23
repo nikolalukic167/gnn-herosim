@@ -15,7 +15,7 @@ ulimit -n 65536 2>/dev/null || true
 WT=${WT:?FAIL LOUD: set WT}; EXPECT_HEAD=${EXPECT_HEAD:?FAIL LOUD: set EXPECT_HEAD}
 CFGN=${CFGN:?FAIL LOUD: set CFGN}; S=${S:?FAIL LOUD: set S}
 # CFGN -> the run name, the gate sidecheck arm, the venue and the epochs; _e100 is the A2/A3 100-epoch twin of the 20-epoch config (run name suffix -e100)
-BASE=${CFGN%_e100}; EP=20; [[ "$CFGN" == *_e100 ]] && EP=100
+BASE=${CFGN%_e100}; BASE=${BASE%_e40}; EP=20; [[ "$CFGN" == *_e100 ]] && EP=100; [[ "$CFGN" == *_e40 ]] && EP=40  # _e40: the A6 40-epoch runs of the selected variant (run name suffix -e40)
 case "$BASE" in
   uncut_link_gnn) WANT=uncut-link-gnn-eng; ARMCHK=ra_gnn_eng_v7; VENUE=cpu;;
   uncut_link_twin) WANT=uncut-link-twin; ARMCHK=ra_twin_eng_v7; VENUE=cpu;;
@@ -30,7 +30,7 @@ case "$BASE" in
   uncut_linkconv_twin) WANT=uncut-link-twin-gpu; ARMCHK=ra_twin_eng_v7; VENUE=gpu;;
   *) echo "FAIL LOUD: CFGN $CFGN"; exit 1;;
 esac
-[[ $EP == 100 ]] && WANT=$WANT-e100
+[[ $EP != 20 ]] && WANT=$WANT-e$EP
 [[ "$S" =~ ^[1-3]$ ]] || { echo "FAIL LOUD: seed $S"; exit 1; }
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|R1A_|TRAIN_INIT)'); do unset "$v"; done
@@ -62,7 +62,7 @@ DET=$(CUDA_VISIBLE_DEVICES= OMP_NUM_THREADS=1 python3 -m pytest tests/test_train
 echo "$DET" | grep -qE ' passed' && ! echo "$DET" | grep -qE ' (failed|error)' || { echo "FAIL LOUD: determinism test did not pass"; exit 1; }
 BADSKIP=$(echo "$DET" | grep -E '^SKIPPED' | grep -vE 'cache not present at .*/graphs_cache_route_b_smoke_s_dag|no --dag-partial-state cache at .*/graphs_cache_route_b_smoke_s_dag/graphs.pkl|ARM2_DETERMINISM_CACHE not set to a peer cache' || true)
 [[ -z "$BADSKIP" ]] || { echo "FAIL LOUD: determinism test skipped for a reason other than the absent route_b/ARM2 caches:"; echo "$BADSKIP"; exit 1; }
-read -r CACHE CONTRACT LO SPLITF INIT < <(python3 -c "import yaml,sys; c=yaml.safe_load(open(sys.argv[1])); e=c['env']; assert c['trainer']=='gnn' and c['args']['epochs'] in (20, 100) and c['args']['min-epochs']==c['args']['epochs']==c['args']['patience'] and (c['args']['epochs']==100)==c['wandb']['run_name'].endswith('-e100') and c['args']['learning-rate']==0.001, 'recipe'; print(c['cache_dir'], e['PARTIAL_STATE_CONTRACT'], e['NEAR_RTT_LABEL_OVERRIDE_JSON'], e['NEAR_RTT_SPLIT_ARTIFACT'], e.get('TRAIN_INIT_CHECKPOINT','-'))" "$CFG") || { echo "FAIL LOUD: config $CFG"; exit 1; }
+read -r CACHE CONTRACT LO SPLITF INIT < <(python3 -c "import yaml,sys; c=yaml.safe_load(open(sys.argv[1])); e=c['env']; assert c['trainer']=='gnn' and c['args']['epochs'] in (20, 40, 100) and c['args']['min-epochs']==c['args']['epochs']==c['args']['patience'] and (c['args']['epochs']==20)==(not c['wandb']['run_name'].endswith('-e%d' % c['args']['epochs'])) and c['args']['learning-rate']==0.001, 'recipe'; print(c['cache_dir'], e['PARTIAL_STATE_CONTRACT'], e['NEAR_RTT_LABEL_OVERRIDE_JSON'], e['NEAR_RTT_SPLIT_ARTIFACT'], e.get('TRAIN_INIT_CHECKPOINT','-'))" "$CFG") || { echo "FAIL LOUD: config $CFG"; exit 1; }
 [[ "$INIT" == "-" ]] || { echo "FAIL LOUD: TRAIN_INIT_CHECKPOINT set; this is from scratch"; exit 1; }
 [[ -f "$CFG" && -L models && -f "$SPLITF" && -f "$CACHE/metadata.json" && -f "$LO" ]] || { echo "FAIL LOUD: config, models/ symlink, split ($SPLITF), cache ($CACHE) or labels ($LO) missing"; exit 1; }
 [[ "$(sha256sum "$SPLITF" | cut -d' ' -f1)" == "${SPLIT_SHA:?FAIL LOUD: set SPLIT_SHA}" ]] || { echo "FAIL LOUD: split sha256"; exit 1; }
