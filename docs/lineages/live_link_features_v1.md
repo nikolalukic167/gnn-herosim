@@ -4,6 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
+- **Pre-data amendment A3 (2026-10-23; the user's decision; Record):** seed-1 100-epoch runs of every variant start now, in parallel with the 20-epoch selection runs. They are sealed (no live cell, curves unread by the selectors) until the selection is filed. The winner's runs become A2's seed 1; the others are exploratory only.
 - **Pre-data amendment A2 (2026-10-23; the user's decision; Record):** after the seed-1 selection, the chosen variant's four arms train at 100 epochs (the cap), seeds 1–3 from scratch, for development and confirmation. The 20-epoch selection read is never pooled with them.
 - **Pre-data amendment A1 (2026-10-23; the user's decision; Record):** as built, v7's link columns E1–E3 reach only the EdgeScorer, which the twin shares, so message passing sees only the at-capture P1–P3. Two GNN variants, (a) a static link block in the conv and (b) re-encoding per placement, run beside the as-built arms at seed 1, 20 epochs, on 30176–30181. A rule fixed now picks the one variant carried to seeds 2–3 and confirmation. This stage gives no label.
 - **Standing answer (2026-10-23):** none yet. Until the confirmation read is filed, no message-passing claim may be made from this lineage.
@@ -104,6 +105,31 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-23 — **Pre-data amendment A3: the 100-epoch seed-1 runs of every variant start early, sealed until the selection is filed** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any v7 training or cell exists). Amends A2's "seed 1 retrained from scratch after selection".
+  - **What starts early** (each fresh from scratch, never continued from a 20-epoch run). These run in parallel with A1's 20-epoch selection runs, on the A2 recipe: 100 epochs, min-epochs 100, no early stop, best validation checkpoint within 100. Each starts as soon as its code and the corpus exist.
+    - **Seed 1, every variant:**
+      - as built: v7 gnn, v7 twin, v7 MLP, v7 wide MLP;
+      - (a) static (the `v8` contract): `gnn_static`, `twin_static`, `mlp_static`;
+      - (b) re-encode: its gnn and its GPU-trained v7 twin, both on GPU, with the A1 nondeterminism disclosure.
+    - **Seeds 2–3 of the v7 MLP and v7 wide MLP.** They are A2 arms under every outcome (below).
+  - **The seal (until the selection read of A1 is filed, from the 20-epoch live cells, with the rule unchanged):**
+    - no 100-epoch checkpoint is served in any live cell;
+    - no one who runs or applies the selection rule reads their W&B curves, validation metrics or selected epoch;
+    - the only checks allowed are training health: crash, NaN or inf loss, and job state. They are reported as pass or fail, with no metric value.
+    - The selection rule's eligibility test ("its gnn run is not untrained") reads the 20-epoch runs only.
+  - **After the selection is filed.**
+    - The winner's 100-epoch seed-1 runs become A2's seed 1, and are not retrained. Its seeds 2–3 launch immediately.
+    - The seed-1 runs stand only if they were trained on the same code pin, config, corpus and venue that seeds 2–3 then use. If any of these changes after a seed-1 launch, that arm's seed 1 is retrained with seeds 2–3.
+    - The other variants' 100-epoch runs are reported as **exploratory**, labelled so in every row. They are never pooled with A2's runs, never used for the selection or a label, and never served in a confirmation cell.
+  - **A2's arms per outcome** (resolving A2's "all in the same contract"):
+    - **As built or (b) wins:** the gnn, its control twin, the v7 MLP and the v7 wide MLP.
+    - **(a) wins:** `gnn_static`, `twin_static` and `mlp_static`, plus the v7 MLP and v7 wide MLP as pointwise references without the static block. `mlp_static` seeds 2–3 then launch with the rest.
+    - **Gap:** no parameter-matched MLP with the static block exists. Under (a), the wide-MLP contrast also changes the block, and is reported so.
+  - **Compute.** The early set is 13 training jobs on top of the 20-epoch selection runs:
+    - 9 at seed 1 (2 of them on GPU);
+    - 4 for the v7 MLP and wide MLP at seeds 2–3.
+    - Each CPU job takes about 15 h (A2's rate). Count the 44-job cap before each submit.
 
 - 2026-10-23 — **Pre-data amendment A2: after selection, the chosen variant trains at 100 epochs, seeds 1–3 from scratch** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any v7 training or cell exists).
   - **Arms.** The selected variant's gnn, its control twin (for (b), the GPU-trained twin of A1), the v7 MLP and the v7 wide MLP, all in the same contract.
