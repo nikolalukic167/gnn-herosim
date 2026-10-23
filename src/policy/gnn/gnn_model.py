@@ -445,6 +445,8 @@ class TaskPlacementGNN(nn.Module):
         plan_raw_local: Optional[bool] = None,
         reencode_every: Optional[str] = None,
         group_anchor: Optional[bool] = None,
+        mp_link_edge_conv: Optional[bool] = None,
+        mp_link_static_attr: Optional[bool] = None,
     ) -> None:
         super().__init__()
         # uncut_groups_s0_v1 Arm 2 (src/policy/gnn/arm2.py). B1: committed-state inputs to the node encoding,
@@ -687,6 +689,23 @@ class TaskPlacementGNN(nn.Module):
                 nn.Linear(embedding_dim + edge_dim, hidden_dim), nn.ReLU(), nn.Dropout(p=dropout),
                 nn.Linear(hidden_dim, embedding_dim),
             )
+        # live_link_features_v1: extra conv edge columns beyond the 5-column edge_attr, as an ordered list of (graph attribute, width). Each is weight-VISIBLE (the conv's
+        # message MLP widens) and a sidecar key. `mp_link_edge_conv` (S4): E1-E3 of the committed prefix on every bipartite row, forward and reverse, recomputed per committed
+        # set, so the encode is per prefix (src/policy/gnn/link_conv.py). `mp_link_static_attr` (S6): the prefix-free S1-S3 lookahead block, written once per graph.
+        from src.placement.link_features import LINK_EDGE_DIM
+
+        self.mp_link_edge_conv = _env_flag("GNN_MP_LINK_EDGE_CONV") if mp_link_edge_conv is None else bool(mp_link_edge_conv)
+        self.mp_link_static_attr = _env_flag("GNN_MP_LINK_STATIC_ATTR") if mp_link_static_attr is None else bool(mp_link_static_attr)
+        self.conv_edge_extras: List[Tuple[str, int]] = []
+        if self.mp_link_edge_conv:
+            self.conv_edge_extras.append(("link_edge_conv_attr", LINK_EDGE_DIM))
+        if self.mp_link_static_attr:
+            self.conv_edge_extras.append(("link_static_attr", LINK_EDGE_DIM))
+        self._conv_extras_dim = sum(w for _n, w in self.conv_edge_extras)
+        if self.conv_edge_extras and not self.mp_bipartite_edge_conv:
+            raise ValueError("FAIL LOUD: " + " and ".join(n for n, _w in self.conv_edge_extras) + " feed the bipartite edge conv; they need mp_bipartite_edge_conv=True")
+        if self.conv_edge_extras and self.plan_raw:
+            raise ValueError("FAIL LOUD: the link conv columns do not combine with plan_raw (it appends its own columns to the conv edge_attr)")
         if self.mp_bipartite_edge_conv:
             if not self.mp_platform_edges:
                 raise ValueError(
@@ -697,12 +716,12 @@ class TaskPlacementGNN(nn.Module):
             if self.mp_bipartite_hetero:
                 self.bip_convs = nn.ModuleList(
                     HeteroBipartiteEdgeConv(embedding_dim, hidden_dim,
-                                            edge_dim=edge_dim + self._plan_raw_conv_extra, dropout_p=dropout)
+                                            edge_dim=edge_dim + self._plan_raw_conv_extra + self._conv_extras_dim, dropout_p=dropout)
                     for _ in range(num_layers)
                 )
             else:
                 self.bip_convs = nn.ModuleList(
-                    BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim + self._plan_raw_conv_extra,
+                    BipartiteEdgeConv(embedding_dim, hidden_dim, edge_dim=edge_dim + self._plan_raw_conv_extra + self._conv_extras_dim,
                                       dropout_p=dropout,
                                       aggr=self.mp_bipartite_aggr)
                     for _ in range(num_layers)
@@ -925,6 +944,12 @@ class TaskPlacementGNN(nn.Module):
                 ea = ea.to(x0.device, dtype=x0.dtype)
                 if self.mp_bipartite_edge_attr_zero:
                     ea = torch.zeros_like(ea)
+                for extra_name, extra_w in self.conv_edge_extras:
+                    extra = getattr(data, extra_name, None)
+                    if extra is None or tuple(extra.shape) != (int(ea.size(0)), extra_w):
+                        got = "absent" if extra is None else tuple(extra.shape)
+                        raise ValueError(f"FAIL LOUD: the conv takes {extra_name} [{int(ea.size(0))}, {extra_w}] row-aligned with edge_index (forward and reverse rows), the graph has {got}")
+                    ea = torch.cat([ea, extra.to(ea.device, dtype=ea.dtype)], dim=-1)
                 if self.plan_raw:
                     ps = getattr(data, "partial_state_edge_attr", None)
                     if ps is None or tuple(ps.shape) != (int(ea.size(0)), self.partial_state_edge_dim):
