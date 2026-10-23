@@ -1,11 +1,10 @@
-# uncut_groups_s0_v1 DAgger round (one round, own-state training), MP-OFF twin arm, seed 1. DRAFT, NOT REGISTERED: no job may use it before the registration is merged.
+# uncut_groups_s0_v1 DAgger round (one round, own-state training), MP-OFF twin arm, seed 1 (registered; amendments A1/A2).
 # Fine-tune from the filed twin checkpoint (fl3/md5_twin.json: uncut-comb-fl-twin-seed1-final.pt) on old + new labels, 40 epochs. Everything else is the twin's recipe
 # (experiments/uncut_comb_fl_twin.yaml at 72aa0a46): partial_state_v6, batched teacher-forced CE, MP off (GNN_DISABLE_MESSAGE_PASSING), embedding = hidden = 128; lr 1e-4 (amendment A1).
-# Open item: (1) cache_dir below does not exist yet: the old v6 cache plus the labelled own-state captures, built by prepare_graphs_cache over the combined view. Labels: the old states keep
-# NEAR_RTT_LABEL_OVERRIDE_JSON (S7's relabel); the new states take a NEW relabel json (amendment A1), state ids disjoint; lr 1e-4 by amendment A1.
+# Cache = the v6 cache over the combined view (corpus_twin/cache_v6); labels = ONE merged override (old sim labels + the twin relabel, label_override_merged.json); split = old split + the new ids in TRAIN.
 trainer: gnn
 lineage: uncut_groups_s0_v1
-cache_dir: /share/nikola.lukic/uncut_groups/dagger/cache_old_new/cache
+cache_dir: /share/nikola.lukic/uncut_groups/dagger/corpus_twin/cache_v6/cache
 unset_env:
 - NEAR_RTT_LABEL_OVERRIDE_JSON
 env:
@@ -27,8 +26,8 @@ env:
   NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
   PARTIAL_STATE_EXCHANGE_SECONDS: '1'
   NEAR_RTT_SKIP_FINAL_TEST: '1'
-  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
-  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_arm1/label_screen/sim_labels_arm1.json
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_dagger_twin_split.json
+  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_groups/dagger/corpus_twin/label_override_merged.json
   NEAR_RTT_MP_PEER_EDGES: '1'
   GNN_DISABLE_MESSAGE_PASSING: '1'
 args:
@@ -44,7 +43,7 @@ args:
   num-dataloader-workers: 0
 wandb:
   project: gnn-uncut-arm1
-  run_name: uncut-dagger-twin-seed1
+  run_name: uncut-dagger-twin
   tags:
   - uncut-comb
   - comb-fl
