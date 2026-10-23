@@ -103,3 +103,17 @@ def test_capture_flows_projects_rem_without_touching_fairshare(monkeypatch):
     assert [x["status"] for x in t] == ["active", "pending"]
     assert t[0]["rem"] == pytest.approx(40 * 1024 ** 2 - 5 * 1024 ** 2 * 1.0)
     assert out["fairshare_last"] == -1.0 and out["unplanned"] == []
+
+
+def test_flow_log_is_off_by_default_and_writes_starts_when_on(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.delenv("HEROSIM_FLOW_LOG", raising=False)
+    assert FairShare(simpy.Environment())._flow_log is None
+    path = tmp_path / "flows.jsonl"
+    monkeypatch.setenv("HEROSIM_FLOW_LOG", str(path))
+    env = simpy.Environment()
+    fs = FairShare(env)
+    fs.start([("x>y", 10.0)], 1024 ** 2, owner=(7, 2))
+    fs._flow_log.flush()
+    assert json.loads(path.read_text().splitlines()[0]) == [0, 7, 2, ["x>y"], float(1024 ** 2)]

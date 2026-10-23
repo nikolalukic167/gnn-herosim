@@ -1167,6 +1167,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             json.dump(sealed, fh)
         env.update(LIVE_AUDIT_SNAPSHOT_PATH=os.path.join(out_dir, name + ".snapshots.jsonl"), LIVE_AUDIT_TRIGGER_IDS=trig,
                    LIVE_AUDIT_MAX_SNAPSHOTS=str(len(sealed)), HEROSIM_SNAPSHOT_FIDELITY="1")
+    flow_dir = os.environ.get("R1A_FLOW_LOG")  # a directory: one flow-start log per cell process (network_fabric HEROSIM_FLOW_LOG); default off
+    if flow_dir:
+        env["HEROSIM_FLOW_LOG"] = os.path.join(flow_dir, name + ".flows.jsonl")
     if window in KA_WINDOWS:
         env["HEROSIM_KEEP_ALIVE"] = CAP_KEEP_ALIVE
     # cd_gap_v1 B': a rate-stretched cell scales keep_alive and the reconcile interval by its own factor
