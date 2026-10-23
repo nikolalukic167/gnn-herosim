@@ -296,10 +296,36 @@ def state_log_softmax_per_state(b: BatchedTeacherForced, model: Any, data: Any, 
     return F.log_softmax(pad, dim=-1)
 
 
+def _encode_copies(model: Any, data: Any, attr: Tensor, edge_budget: int) -> Tuple[Tensor, Tensor]:
+    """The task and platform embeddings of every copy, [S * n_tasks, d] and [S * n_platforms, d] in copy order. Copies are encoded in chunks of at most `edge_budget` edges (the copies are disjoint, so a chunk
+    encodes exactly what the whole would), and under autograd each chunk runs inside torch.utils.checkpoint: only the chunk's inputs and outputs are kept, its activations are recomputed in the backward pass
+    (the RNG state is restored, so a dropout mask is the one the forward drew). That bounds the memory by one chunk instead of all 2T states of the largest group."""
+    from torch.utils.checkpoint import checkpoint
+
+    S = int(attr.shape[0])
+    per_copy = int(data.edge_index.size(1)) + int(getattr(data, "peer_edge_index", torch.empty(2, 0)).size(1)) + int(getattr(data, "node_edge_index", torch.empty(2, 0)).size(1))
+    step = max(1, min(S, int(edge_budget // max(per_copy, 1))))
+    tes: List[Tensor] = []
+    pes: List[Tensor] = []
+    for a in range(0, S, step):
+        chunk = attr[a:a + step]
+
+        def run(chunk=chunk):
+            return model._encode(replicate_graph(data, int(chunk.shape[0]), chunk))
+
+        if torch.is_grad_enabled():
+            te, pe = checkpoint(run, use_reentrant=False)
+        else:
+            te, pe = run()
+        tes.append(te)
+        pes.append(pe)
+    return torch.cat(tes, 0), torch.cat(pes, 0)
+
+
 def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int]], order: Sequence[int], full_context_weight: float, device: torch.device,
-                   max_elems: int = 3_000_000_000) -> Tensor:
+                   edge_budget: int = 300_000) -> Tensor:
     """The any-of-K teacher-forced CE of the re-encode variant: -logsumexp_k sum_t log p(plan_k[t] | prefix state), plus `full_context_weight` times the same over the full-context states.
-    Each distinct state is encoded under ITS committed set's conv block, all in one big graph."""
+    Each distinct state is encoded under ITS committed set's conv block, as a disjoint copy of the graph, in chunks of `edge_budget` edges with checkpointing (`_encode_copies`)."""
     from src.policy.gnn.batched_tf import _unsupported
 
     _unsupported(model, ctx)
@@ -309,18 +335,13 @@ def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int
     LS = static_of(data, ctx)
     Cm, ND = state_arrays(b)
     n_states = Cm.shape[0]
-    cost = n_states * (int(data.edge_index.size(1)) + int(getattr(data, "peer_edge_index", torch.empty(2, 0)).size(1))) * int(model.bip_convs[0].message_mlp[0].out_features)
-    if cost > max_elems:
-        raise RuntimeError(f"FAIL LOUD: link_conv_loss would hold {cost:.3g} edge-feature elements for {n_states} states of one graph (budget {max_elems:.3g}); "
-                           "a chunked two-pass backward is not implemented")
     rows = []
     step = max(1, int(_CHUNK_ELEMS // max(LS.R * LS.D * LS.H, 1)))
     with torch.no_grad():
         for a in range(0, n_states, step):
             rows.append(link_rows(LS, torch.from_numpy(Cm[a:a + step]).to(device), torch.from_numpy(ND[a:a + step]).to(device)))
         attr = rows_to_edges(LS, torch.cat(rows, 0))
-    big = replicate_graph(data, n_states, attr)
-    task_emb, platform_emb = model._encode(big)
+    task_emb, platform_emb = _encode_copies(model, data, attr, edge_budget)
     lp = state_log_softmax_per_state(b, model, data, task_emb, platform_emb)
     loss = -torch.logsumexp(b.step_logps(lp, "prefix").sum(dim=1), dim=0)
     if full_context_weight > 0.0:

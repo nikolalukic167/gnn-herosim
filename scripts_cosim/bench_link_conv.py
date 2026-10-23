@@ -25,10 +25,12 @@ class _Env:
         os.environ[k] = v
 
 
-def graph_on(device, n, seed):
+def graph_on(device, n, seed, cands):
     import test_batched_tf_link as TB
 
-    rnd, ctx, g, place = TB.scenario(seed, _Env(), n_tasks=n, density=min(0.4, 4.0 / n), n_flows=(8, 40))
+    # 6 replicas per server (30 platforms) so that candidate sets of the corpus's size (mean ~12, max 23 under the uncapped slate) exist
+    TB.REPLICAS[:] = [(node, 10 * node + k) for node in range(5) for k in range(6)]
+    rnd, ctx, g, place = TB.scenario(seed, _Env(), n_tasks=n, density=min(0.4, 4.0 / n), n_flows=(8, 40), n_cands=cands)
     gen = torch.Generator().manual_seed(seed)
     n_p = len(TB.REPLICAS)
     g.task_features = torch.rand(n, 5, generator=gen)
@@ -72,6 +74,7 @@ def main():
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--sizes", type=int, nargs="+", default=[12, 24, 60, 120, 240])
     ap.add_argument("--reps", type=int, default=3)
+    ap.add_argument("--cands", type=int, nargs=2, default=[3, 6], help="min max candidates per task (the corpus: mean 12, max 23)")
     a = ap.parse_args()
     device = torch.device(a.device)
     if device.type == "cuda":
@@ -82,7 +85,7 @@ def main():
     from src.policy.gnn.link_conv import link_conv_loss
 
     for n in a.sizes:
-        ctx, g, plans, pairs = graph_on(device, n, 3)
+        ctx, g, plans, pairs = graph_on(device, n, 3, tuple(a.cands))
         order = list(range(n))
         base, conv = model_on(device, False), model_on(device, True)
 
