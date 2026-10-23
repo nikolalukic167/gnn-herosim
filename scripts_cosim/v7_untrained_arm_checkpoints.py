@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""UNTRAINED partial_state_v7 checkpoints of the four live_link_features_v1 arms, with real sidecars, for the decision-cost w calibration cells only (not evidence).
+"""ZERO-EXTENDED partial_state_v7 checkpoints of the four live_link_features_v1 arms, with real sidecars, for the decision-cost w calibration cells only (not evidence).
 
-A decision-time w is seconds of scoring per plan evaluation: it depends on the architecture, the feature widths and the code path, not on fitted weights. So each arm is built from its
-filed v6 counterpart: the same architecture, platform width + LINK_PLATFORM_DIM, partial-state width + LINK_EDGE_DIM, random weights, the template's sidecar with the contract and widths
-changed. The shapes are asserted against the template (every tensor equal except the three columns that grew). Output names are the gate's: <stem>-seed1.pt and .contract.json.
+A decision-time w is seconds of scoring per plan evaluation: it depends on the architecture, the feature widths and the code path, not on fitted weights. But a cell needs sane dynamics
+to run in a calibration's time: a randomly initialised scorer spreads tasks badly and the cell runs 5x+ longer than the filed arm's (measured, job 901738/901772). So each arm is its filed v6
+counterpart's weights with the new input columns' weights set to ZERO: the same architecture at the v7 widths (platform + LINK_PLATFORM_DIM, partial-state + LINK_EDGE_DIM), the same decisions
+as the v6 arm until trained, the template's sidecar with the contract and widths changed. The shapes are asserted against the template (every tensor equal except the three columns that grew). Output names are the gate's: <stem>-seed1.pt and .contract.json.
 
   python3 scripts_cosim/v7_untrained_arm_checkpoints.py --models ~/gnn-herosim/models --out /share/.../in_link/models
 """
@@ -58,6 +59,30 @@ def build(kind: str, side: dict, template_sd: dict, mp_off: bool, seed: int):
         task_type_onehot_dim=onehot, partial_state_edge_dim=psd)
 
 
+def zero_extend(kind: str, new_sd: dict, old_sd: dict, old_plat: int, old_ps: int, edge_dim: int) -> dict:
+    """The filed arm's weights in the v7 shapes: every old input keeps its weight and the added inputs get 0.0, so v7 and v6 score identically until trained.
+    GNN: platform_encoder's and the edge scorer's last columns are the added ones. Same-input MLP: the first layer reads [task + one-hot | platform | edge | partial-state],
+    so the added platform columns sit after the platform block and the added partial-state columns at the end."""
+    out = {}
+    for k, new in new_sd.items():
+        old = old_sd[k]
+        if tuple(new.shape) == tuple(old.shape):
+            out[k] = old.clone()
+            continue
+        w = torch.zeros_like(new)
+        if "mlp" in kind:
+            n_task = int(old.shape[1]) - old_plat - edge_dim - old_ps
+            if n_task <= 0:
+                raise SystemExit(f"FAIL LOUD: {kind}: first layer takes {old.shape[1]} columns, not task + platform {old_plat} + edge {edge_dim} + partial {old_ps}")
+            head = n_task + old_plat
+            w[:, :head] = old[:, :head]
+            w[:, head + LINK_PLATFORM_DIM:head + LINK_PLATFORM_DIM + edge_dim + old_ps] = old[:, head:]
+        else:
+            w[:, :old.shape[1]] = old
+        out[k] = w
+    return out
+
+
 def check_shapes(kind: str, new_sd: dict, old_sd: dict) -> None:
     """Every tensor of the filed arm is present with its shape, except the inputs that read the new columns, each wider by exactly their columns."""
     if set(new_sd) != set(old_sd):
@@ -82,13 +107,14 @@ def main() -> int:
         side = json.loads((a.models / f"{tmpl}-seed1-final.contract.json").read_text())
         old_sd = torch.load(a.models / f"{tmpl}-seed1-final.pt", map_location="cpu")
         model = build(kind, side, old_sd, mp_off, a.seed)
-        sd = model.state_dict()
-        check_shapes(kind, sd, old_sd)
+        check_shapes(kind, model.state_dict(), old_sd)
+        sd = zero_extend(kind, model.state_dict(), old_sd, int(side["platform_feature_dim"]), int(side["partial_state_feature_dim"]), int(side["edge_dim"]))
+        model.load_state_dict(sd)
         out_pt = a.out / f"{stem}-seed{a.seed}.pt"
         if out_pt.exists():
             raise SystemExit(f"FAIL LOUD: {out_pt} exists; refusing to overwrite")
         side.update(partial_state_contract=PARTIAL_STATE_CONTRACT_V7, partial_state_feature_dim=partial_state_feature_dim(PARTIAL_STATE_CONTRACT_V7),
-                    platform_feature_dim=int(side["platform_feature_dim"]) + LINK_PLATFORM_DIM, train_seed=a.seed, untrained_for_calibration_only=True,
+                    platform_feature_dim=int(side["platform_feature_dim"]) + LINK_PLATFORM_DIM, train_seed=a.seed, zero_extended_from_v6_for_calibration_only=True,
                     disable_message_passing=mp_off)
         torch.save(sd, out_pt)
         out_pt.with_suffix(".contract.json").write_text(json.dumps(side, indent=1))

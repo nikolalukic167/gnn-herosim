@@ -63,6 +63,26 @@ def test_sidecheck_wants_a_v7_30_wide_sidecar(arm, kind, mp_off, conv, monkeypat
         assert S.check_ra({**good, **bad}, arm, str(split), "inf") == 1
 
 
+def test_zero_extension_keeps_every_old_weight_and_zeroes_the_new_inputs():
+    import torch
+
+    import v7_untrained_arm_checkpoints as C
+
+    old = {"net.0.weight": torch.arange(2 * (9 + 18 + 5 + 27), dtype=torch.float32).reshape(2, 59), "net.1.bias": torch.ones(2)}
+    new = {"net.0.weight": torch.zeros(2, 65), "net.1.bias": torch.zeros(2)}
+    out = C.zero_extend("ra_mlp_wide_combfl_link", new, old, 18, 27, 5)
+    w, o = out["net.0.weight"], old["net.0.weight"]
+    assert torch.equal(w[:, :27], o[:, :27]) and torch.equal(w[:, 27:30], torch.zeros(2, 3)) and torch.equal(w[:, 30:62], o[:, 27:]) and torch.equal(w[:, 62:], torch.zeros(2, 3))
+    # same input, same score: a v6 row padded with any values in the new columns scores like the v6 row
+    x6 = torch.randn(4, 59)
+    x7 = torch.cat([x6[:, :27], torch.randn(4, 3), x6[:, 27:], torch.randn(4, 3)], dim=1)
+    assert torch.allclose(x6 @ o.T, x7 @ w.T)
+    g_old = {"platform_encoder.net.0.weight": torch.ones(2, 18), "edge_scorer.fc1.weight": torch.ones(2, 40)}
+    g_new = {"platform_encoder.net.0.weight": torch.zeros(2, 21), "edge_scorer.fc1.weight": torch.zeros(2, 43)}
+    g = C.zero_extend("ra_gnn_eng_combfl_link", g_new, g_old, 18, 27, 5)
+    assert g["platform_encoder.net.0.weight"].tolist() == [[1.0] * 18 + [0.0] * 3] * 2 and g["edge_scorer.fc1.weight"][:, 40:].abs().sum() == 0
+
+
 def test_untrained_checkpoint_shape_rule_names_the_grown_inputs():
     import torch
 
