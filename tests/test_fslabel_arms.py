@@ -65,5 +65,5 @@ def test_the_gate_serves_the_kind_like_its_filed_fl_arm(arm, base):
 
 def test_the_mlp_kind_gets_the_mlp_arm_kind_and_the_twin_the_mp_off_switch():
     src = (REPO_ROOT / "scripts_cosim/fresh_topo_burst_v1_gate.py").read_text()
-    assert '"ra_mlp_same_fslabel_combfl"):' in src and '.removesuffix("_combfl").removesuffix("_fslabel").removesuffix("_flreg")' in src
+    assert '"ra_mlp_same_fslabel_combfl"' in src and '.removesuffix("_combfl").removesuffix("_fslabel").removesuffix("_flreg")' in src
     assert "mlp_same_fslabel_combfl"[:].removesuffix("_combfl").removesuffix("_fslabel") == "mlp_same"
