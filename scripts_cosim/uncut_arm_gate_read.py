@@ -62,8 +62,8 @@ seed-matched: TWIN-FASTER / MP-ATTRIBUTED / MP-DIRECTION / TIE, the weaker of th
 --confirm-own-state (own-state round, full version, registered 6d6e1e54, A1 c810a270): F2 = the new FL gnn (ra_gnn_eng_combfl_dgu_nosplit) vs the new
 MP-OFF twin (ra_twin_eng_combfl_dgu_nosplit), seeds 1-6, seed-matched, Holm 4 per charge, P9's labels, on 20508-20531 at 24 servers; the bar and reactive
 cells at a459dd98, every learned cell (new and old) at the w-only retest pin 211241a7 (on 271b6665 -> 0ab430d4, each touching exactly its file; the w
-link adds only the two copied kinds), bridged by the three identity cells this mode re-checks against fl3; --checkpoint-md5 must equal the training
-logs' md5s; no physics switch outside the recipe (env keys, summary blocks, minted inputs); collapse read against the bar (no cd cells, A1); exactly
+link adds only the two copied kinds) and served at its descendant 05f52abb (same w), bridged by the three identity cells this mode re-checks against
+fl3; --checkpoint-md5 must equal S5's checkpoint snapshot (the served best-val .pt files); no physics switch outside the recipe (env keys, summary blocks, minted inputs); collapse read against the bar (no cd cells, A1); exactly
 A1's 5,760 cells; --stage secondary adds the descriptive rows (gnn vs bar, new vs old gnn and twin, old gnn vs old twin);
 every learned cell's checkpoint (env.GNN_MODEL_PATH) has the md5 the training log gives in --checkpoint-md5 ({"<arm>|s<seed>": md5};
 the key is the gate arm, else the training log's name, ra_gnn_eng_arm1_nosplit -> gnn_eng; several files are merged and must agree);
@@ -1996,6 +1996,8 @@ OS_BASE = "a459dd986e7abde358c15d9c45d5f464b96e0d2d"
 OS_G1 = "271b6665e2d6ccc7676d3bc8805f0f96cbd97d8b"
 OS_G2 = "0ab430d4687aafd850737d2e4bf14fb0f37a0c76"
 OS_R = "211241a759484e6707abbe36ceef0d5e88bac0ad"
+# the serving pin of the retest cells (learned and identity): a descendant of OS_R whose w for the new and old kinds and k_cotenancy equal OS_R's
+OS_SERVE = "05f52abb5d9e17980f6eed5cb303d543359a4e0c"
 OS_G1_FILES, OS_G2_FILES = ("scripts_cosim/fresh_topo_burst_v1_gate.py",), ("tests/test_dagger_full_kinds.py",)
 OS_TOPOS = tuple(range(20508, 20532))
 OS_TOPOS_SHA256 = "d4b1fb268c14af65a7c201ef27a97fbfb3a3033a964218cfbf443f060032ac37"
@@ -2005,13 +2007,15 @@ OS_REACT = "reactive"
 OS_CELLS = {"new": 4608, "old": 768, "bar": 192, "react": 192}  # A1: 5,760 in all
 OS_INPUTS_MD5SUMS = "72a7db697771082a14916ad82e540507"  # gate_inputs_own24/inputs_group/MD5SUMS, the mint line
 OS_STEMS = {"uncut-dagger-full-gnn": OS_GNN, "uncut-dagger-full-twin": OS_TWIN}  # fresh_topo_burst_v1_gate COMB_STEMS at 271b6665
-OS_TRAIN_MD5 = re.compile(r"^([0-9a-f]{32})\s+\S*?(uncut-dagger-full-(?:gnn|twin))-seed(\d+)-final\.pt\s*$")
+# the served checkpoints: the best-val .pt of each training, snapshot by S5 (own24/ckpt_snapshot/md5_dgu.json)
+OS_CKPT_SNAPSHOT_MD5 = "80e3b6b45f9f28a5fdcd65865fcd94a3"
 # the identity bridge: fl3 cc40s30149 g0 heavy, one cell per kind, rerun at the retest pin against its filed fl3 cell
 BAR_INFLIGHT = "cd_ib0_inflightfull"
 OS_IDENT = ((BAR_INFLIGHT, 0), (CONFIRM_PRIMARY, 1), (TWIN, 1))
 OS_IDENT_CELL = (30149, "g0", "heavy")
-OS_IDENT_ALLOW = ("/run_provenance", "/code", "/host", "/python_env", "/wallclock_s", "/decisionTiming", "/total_rtt_plus_inference", "/_path")
-OS_IDENT_ZERO_OK = ("pg_ils_", "pg_exact_g_skipped", "sched_plan_evals_s")
+OS_IDENT_ALLOW = ("/run_provenance", "/code", "/host", "/python_env", "/wallclock_s", "/decisionTiming", "/total_rtt_plus_inference", "/_path",
+                  "/peerExchangeByAccessClass", "/peerExchangeOverlap", "/env/GNN_MODEL_PATH")
+OS_IDENT_ZERO_OK = ("pg_ils_", "pg_exact_g_skipped", "sched_plan_evals_s", "pg_fsaware_decisions")
 OS_IDENT_FELT = "sched_felt_task_seconds"
 # physics switches outside the registered recipe (Option D runs on the same cluster): any env key naming one, or any summary block they write
 OS_ENV_FORBID = re.compile(r"FAIRSHARE|EXCHANGE_TCP|ACCESS_CELLULAR|PAYLOAD|PG_HERD")
@@ -2039,8 +2043,8 @@ def os_args(a):
                          "and --stage primary or secondary")
     if a.pin != OS_BASE[:len(a.pin)] or len(a.pin) < 8:
         raise SystemExit(f"FAIL LOUD: --confirm-own-state --pin is the bar's pin {OS_BASE[:8]}")
-    if not (a.repo and a.old_gate and a.bar_gate and a.react_gate and a.ident_gate and a.ident_ref and a.training_logs and a.inputs_group and a.cell_inputs):
-        raise SystemExit("FAIL LOUD: --confirm-own-state needs --repo, --old-gate, --bar-gate, --react-gate, --ident-gate, --ident-ref, --training-logs, "
+    if not (a.repo and a.old_gate and a.bar_gate and a.react_gate and a.ident_gate and a.ident_ref and a.ckpt_snapshot and a.inputs_group and a.cell_inputs):
+        raise SystemExit("FAIL LOUD: --confirm-own-state needs --repo, --old-gate, --bar-gate, --react-gate, --ident-gate, --ident-ref, --ckpt-snapshot, "
                          "--inputs-group and --cell-inputs")
     if a.topos_sha256 != OS_TOPOS_SHA256 or a.topos != ",".join(map(str, OS_TOPOS)):
         raise SystemExit("FAIL LOUD: --confirm-own-state reads 20508-20531 (sha256 d4b1fb26...) only")
@@ -2081,37 +2085,40 @@ def os_chain(repo):
                 raise SystemExit(f"FAIL LOUD: {OS_R[:8]} {top}[{new!r}] is not a copy of {old}'s frozen w (at {OS_R[:8]} and {frozen_at[:8]})")
     if wr.get("k_cotenancy") != wj(TW_P7B).get("k_cotenancy"):
         raise SystemExit(f"FAIL LOUD: {OS_R[:8]} k_cotenancy differs from P7b's")
+    if rev(OS_SERVE) != OS_SERVE or subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor", OS_R, OS_SERVE]).returncode:
+        raise SystemExit(f"FAIL LOUD: the serving pin {OS_SERVE[:8]} is not in {repo} or does not descend from the retest pin {OS_R[:8]}")
+    wsv = wj(OS_SERVE)
+    for top in ("w_ms_per_plan", "w_ms_per_plan_by_bucket"):
+        for k in OS_NEW + OS_OLD:
+            if wsv.get(top, {}).get(k) != wr.get(top, {}).get(k):
+                raise SystemExit(f"FAIL LOUD: the serving pin {OS_SERVE[:8]} {top}[{k!r}] differs from the retest pin {OS_R[:8]}'s")
+    if wsv.get("k_cotenancy") != wr.get("k_cotenancy"):
+        raise SystemExit(f"FAIL LOUD: the serving pin {OS_SERVE[:8]} k_cotenancy differs from the retest pin {OS_R[:8]}'s")
     return {OS_BASE: wj(OS_BASE), OS_R: wr}
 
 
-def os_training_md5(paths):
-    """{"<kind>|s<seed>": md5} from the training logs' `md5sum <stem>-seed<s>-final.pt` lines; each of the 12 exactly once (repeats must agree)."""
-    out = {}
-    for p in [x for x in paths.split(",") if x]:
-        with open(p, errors="replace") as fh:
-            for line in fh:
-                m = OS_TRAIN_MD5.match(line.strip())
-                if not m:
-                    continue
-                k = f"{OS_STEMS[m.group(2)]}|s{int(m.group(3))}"
-                if k in out and out[k] != m.group(1):
-                    raise SystemExit(f"FAIL LOUD: training logs disagree on {k}")
-                out[k] = m.group(1)
+def os_snapshot_md5(path):
+    """{"<kind>|s<seed>": md5} from S5's checkpoint snapshot (the served best-val .pt files); the file is the filed one and lists exactly the 12."""
+    if md5(path) != OS_CKPT_SNAPSHOT_MD5:
+        raise SystemExit(f"FAIL LOUD: --ckpt-snapshot {path} md5 {md5(path)} is not the filed {OS_CKPT_SNAPSHOT_MD5}")
+    with open(path) as fh:
+        d = json.load(fh)
+    out = {k: v for k, v in d.items() if not k.startswith("_")}
     want = {f"{k}|s{sd}" for k in OS_NEW for sd in OS_SEEDS}
-    if set(out) != want:
-        raise SystemExit(f"FAIL LOUD: the training logs give md5s for {sorted(out)}, not exactly the 12 new checkpoints; missing {sorted(want - set(out))[:3]}")
+    if set(out) != want or not all(isinstance(v, str) and re.fullmatch(r"[0-9a-f]{32}", v) for v in out.values()):
+        raise SystemExit(f"FAIL LOUD: the checkpoint snapshot lists {sorted(out)[:3]}..., not exactly the 12 new checkpoints with an md5 each")
     return out
 
 
 def os_ckpt(a):
-    """--checkpoint-md5 (S4's file for the 12 new checkpoints, plus the filed md5 file of the old arms), with every new key equal to the training logs'."""
+    """--checkpoint-md5 (S4's file for the 12 new checkpoints, plus the filed md5 file of the old arms), with every new key equal to the snapshot's."""
     ckpt = ckpt_md5s(a.checkpoint_md5)
-    logs = os_training_md5(a.training_logs)
+    logs = os_snapshot_md5(a.ckpt_snapshot)
     for k, v in logs.items():
         alt = f"{ckpt_arm(k.split('|')[0])}|{k.split('|')[1]}"
         got = ckpt.get(k, ckpt.get(alt))
         if got != v:
-            raise SystemExit(f"FAIL LOUD: the checkpoint md5 file gives {k} = {got}, the training log {v}")
+            raise SystemExit(f"FAIL LOUD: the checkpoint md5 file gives {k} = {got}, the checkpoint snapshot {v}")
     for k in OS_OLD:
         for sd in OS_OLD_SEEDS:
             if f"{k}|s{sd}" not in ckpt and f"{ckpt_arm(k)}|s{sd}" not in ckpt:
@@ -2195,8 +2202,8 @@ def os_identity(ident_gate, ident_ref):
     out = {}
     for key in sorted(want):
         x, y = fc[key], rc[key]
-        if pin_match((y.get("code") or {}).get("commit"), [OS_R]) is None or (y.get("code") or {}).get("dirty") is not False:
-            raise SystemExit(f"FAIL LOUD: identity cell {key} ran at {(y.get('code') or {}).get('commit')}, not the retest pin {OS_R[:8]} clean")
+        if pin_match((y.get("code") or {}).get("commit"), [OS_SERVE]) is None or (y.get("code") or {}).get("dirty") is not False:
+            raise SystemExit(f"FAIL LOUD: identity cell {key} ran at {(y.get('code') or {}).get('commit')}, not the serving pin {OS_SERVE[:8]} clean")
         bad = os_ident_leaves(x, y)
         arrays = {sfx: md5(x["_path"].replace(".summary.json", f".{sfx}.npy")) == md5(y["_path"].replace(".summary.json", f".{sfx}.npy"))
                   for sfx in ("tasks", "tasks_bsz", "tasks_lock")}
@@ -2213,8 +2220,8 @@ def os_learned_cells(cells, ws, kr):
     for key, s in cells.items():
         if key[0] not in OS_NEW + OS_OLD:
             continue
-        if pin_match((s.get("code") or {}).get("commit"), [OS_R]) is None:
-            raise SystemExit(f"FAIL LOUD: learned cell {key} ran at {(s.get('code') or {}).get('commit')}, not the retest pin {OS_R[:8]}")
+        if pin_match((s.get("code") or {}).get("commit"), [OS_SERVE]) is None:
+            raise SystemExit(f"FAIL LOUD: learned cell {key} ran at {(s.get('code') or {}).get('commit')}, not the serving pin {OS_SERVE[:8]}")
         charge_check(key, s, ws[OS_R], k)
 
 
@@ -2254,7 +2261,7 @@ def read_own_state(a):
 
 
 def _read_own_state(a):
-    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; bar pin {OS_BASE[:8]}; retest pin {OS_R[:8]}")
+    print(f"filed gate text {FILED['gate_text']}; addenda {', '.join(FILED['addenda'])}; bar pin {OS_BASE[:8]}; retest pin {OS_R[:8]}; serving pin {OS_SERVE[:8]}")
     if hashlib.sha256(a.topos.encode()).hexdigest() != a.topos_sha256:
         raise SystemExit("FAIL LOUD: the topology list hash differs from the filed one")
     topos = list(OS_TOPOS)
@@ -2291,9 +2298,9 @@ def _read_own_state(a):
         admission[str(t)] = {"moderate_queue_shares": q, "admitted": all(x is not None and x <= 0.80 for x in q), "unknown": any(x is None for x in q)}
     cells = {**new100, **bc}
     cells_kr = {**newkr, **bc}
-    res = {"filed": FILED, "family": "own-state round, full version", "bar_pin": OS_BASE, "retest_pin": OS_R, "gate_links": [OS_G1, OS_G2], "topos": topos,
+    res = {"filed": FILED, "family": "own-state round, full version", "bar_pin": OS_BASE, "retest_pin": OS_R, "serving_pin": OS_SERVE, "gate_links": [OS_G1, OS_G2], "topos": topos,
            "warmth_physics": warmth, "primary": OS_GNN, "twin": OS_TWIN, "seeds": list(OS_SEEDS), "bar": BAR, "servers": OS_SERVERS, "corpus": OS_CORPUS,
-           "training_md5": train_md5, "inputs_checked": n_inputs, "identity": "PASS (3 cells, fl3 cc40s30149 g0 heavy)",
+           "checkpoint_snapshot_md5": train_md5, "inputs_checked": n_inputs, "identity": "PASS (3 cells, fl3 cc40s30149 g0 heavy)",
            "admission": {"note": "reported only (A1); nothing dropped, no label depends on it", "admitted": sum(v["admitted"] for v in admission.values()),
                          "unknown": sum(v["unknown"] for v in admission.values()), "per_topology": admission},
            "hosts": hosts({**new100, **{(k[0] + KR,) + k[1:]: v for k, v in newkr.items()}, **oc})}
@@ -2398,14 +2405,14 @@ def main(argv=None):
     ap.add_argument("--react-gate", default="", help="--confirm-own-state: the reactive admission cells (s0), reported only")
     ap.add_argument("--ident-gate", default="", help="--confirm-own-state: the three identity cells at the retest pin (fl3 cc40s30149 g0 heavy)")
     ap.add_argument("--ident-ref", default="", help="--confirm-own-state: the filed fl3 cell directories (cells_bar,cells_learned,cells_twin)")
-    ap.add_argument("--training-logs", default="", help="--confirm-own-state: the 12 training logs (comma-separated) whose md5sum lines --checkpoint-md5 must equal")
+    ap.add_argument("--ckpt-snapshot", default="", help="--confirm-own-state: S5's checkpoint snapshot md5_dgu.json (the served best-val .pt files) that --checkpoint-md5 must equal")
     ap.add_argument("--inputs-group", default="", help="--confirm-own-state: the minted gate_inputs_own24/inputs_group (its MD5SUMS md5 is filed)")
     ap.add_argument("--cell-inputs", default="", help="--confirm-own-state: the cells' staged input dirs (comma-separated); each wf1_<rung> must resolve to --inputs-group")
     a = ap.parse_args(argv)
     if a.confirm_own_state:
         return read_own_state(a)
-    if a.old_gate or a.bar_gate or a.react_gate or a.ident_gate or a.ident_ref or a.training_logs or a.inputs_group or a.cell_inputs:
-        raise SystemExit("FAIL LOUD: --old-gate / --bar-gate / --react-gate / --ident-gate / --ident-ref / --training-logs / --inputs-group / --cell-inputs "
+    if a.old_gate or a.bar_gate or a.react_gate or a.ident_gate or a.ident_ref or a.ckpt_snapshot or a.inputs_group or a.cell_inputs:
+        raise SystemExit("FAIL LOUD: --old-gate / --bar-gate / --react-gate / --ident-gate / --ident-ref / --ckpt-snapshot / --inputs-group / --cell-inputs "
                          "belong to --confirm-own-state")
     if a.confirm_mp_twin:
         return read_mp_twin(a)
