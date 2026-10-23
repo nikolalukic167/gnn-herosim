@@ -639,6 +639,9 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             # the treatment and the two arms would be indistinguishable at inference.
             "mp_bipartite_edge_conv",
             "mp_bipartite_edge_attr_zero",
+            # live_link_features_v1: the extra conv edge columns (weight-visible; on the whitelist so a serving default can never mask them)
+            "mp_link_edge_conv",
+            "mp_link_static_attr",
             "partial_state_edge_features",
             # Weight-invisible like the two above: the GIN module is always constructed,
             # so a checkpoint whose GIN weights were never fitted (disable_message_passing
@@ -1015,6 +1018,8 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_platform_edges=bool(mp_cfg.get("mp_platform_edges", True)),
             mp_bipartite_edge_conv=bool(mp_cfg.get("mp_bipartite_edge_conv", False)),
             mp_bipartite_edge_attr_zero=bool(mp_cfg.get("mp_bipartite_edge_attr_zero", False)),
+            mp_link_edge_conv=bool(mp_cfg.get("mp_link_edge_conv", False)),
+            mp_link_static_attr=bool(mp_cfg.get("mp_link_static_attr", False)),
             mp_bipartite_aggr=str(mp_cfg.get("mp_bipartite_aggr") or "mean"),
             mp_bipartite_hetero=bool(mp_cfg.get("mp_bipartite_hetero", False)),
         )
