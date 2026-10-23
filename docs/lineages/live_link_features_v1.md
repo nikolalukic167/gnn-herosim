@@ -4,6 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
+- **Amendment A6 (2026-10-23; the user's decision; Record):** for the Monday time budget, the selected variant's arms train 40 epochs (seeds 1–3, fresh), not 100. The A3 100-epoch runs become a disclosed sensitivity, never pooled. Filed before the selection read.
 - **Amendment A5 (2026-10-23; the user's decision; Record):** no init or scaling fix made (b) train robustly, so (b)'s gnn gets pre-norm residual message passing, behind a contract flag that is off by default. (b)'s twin is unchanged. A stability gate on seeds 1–3 and the fix-pin checks come before any (b) training.
 - **Variant (b) training defect and amendment A4 (2026-10-23; the user's decision; Record):** S4's 1-epoch smoke of (b) has a train CE of ~3e7 (its GPU twin ~34). (b) is fixed, not dropped: the selection waits until all three variants' 20-epoch selection cells are complete, and meanwhile no CPU-variant score is read. A per-graph loss bound is added to all arms.
 - **Pre-data amendment A3 (2026-10-23; the user's decision; Record):** seed-1 100-epoch runs of every variant start now, in parallel with the 20-epoch selection runs. They are sealed (no live cell, curves unread by the selectors) until the selection is filed. The winner's runs become A2's seed 1; the others are exploratory only.
@@ -108,6 +109,26 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-23 — **Pre-data amendment A6: after the selection, the winner trains 40 epochs, not 100; the 100-epoch runs become a disclosed sensitivity** (the user's decision, relayed by the expert; written by SCIENTIST; filed before the selection read). Amends A2 and A3.
+  - **Recipe (replaces A2's 100 epochs).** The winner's arms, as listed per outcome in A3 (gnn, control twin, MLP, wide MLP), train at seeds 1–3:
+    - 40 epochs, min-epochs 40, no early stop;
+    - the checkpoint is the best validation epoch within the 40;
+    - everything else as A2: corpus, labels, contract, venue, its own measured w.
+    - Seed 1 is retrained from scratch at 40 epochs. No 20- or 100-epoch run is continued or reused.
+  - **These runs serve** the registered development grid (30176–30181) and the confirmation.
+  - **Why: the time budget.** At about 23:00 the user asked for "proper results and a full paper by end of Monday". A (b) win trained at 100 epochs on GPU (about 19 min per epoch, so about 32 h per run) could not reach confirmation by Monday, so the expert proposed the cap. The cap is filed before the selection read, with no live cell, no e100 curve and no static or (b) metric seen by the person who proposed it.
+  - **A separate fact, disclosed:** before this amendment was drafted, SCIENTIST, who wrote it and runs the selection, had seen S7's as-built 20-epoch validation metrics (seal disclosure, 20:12Z). The expert, who proposed the cap, had not seen them.
+  - **The 100-epoch runs (A3) become a sensitivity.** They cover every variant at seed 1, plus the v7 MLP and wide MLP at seeds 2–3.
+    - They stay sealed until the selection is filed. After that they are read as a disclosed **100-epoch sensitivity**, labelled so in every row.
+    - They are never pooled with the 40-epoch runs, and never used for the selection, a label or a confirmation cell.
+    - The winner's 100-epoch seeds 2–3 are not launched, unless the user asks.
+    - A3's "the winner's 100-epoch seed-1 runs become A2's seed 1" no longer applies.
+  - **Disclosed:** the selection was made at 20 epochs and the winner is carried at 40, so the ordering at 20 may not hold at 40. The choice is not revisited.
+  - **Compute.** 4 arms × 3 seeds = 12 jobs.
+    - CPU: 40 × about 9 min, so about 6 h per job, and about 6 h wall in parallel.
+    - If (b) wins: its gnn and GPU twin at the measured GPU rate on the pre-norm code (19 min per epoch was the pre-A5 rate, so about 12.7 h at 40 epochs).
+    - Count the 44-job cap before each submit.
 
 - 2026-10-23 — **Seal disclosure: the selection runner saw as-built 20-epoch validation metrics** (SCIENTIST; agreed with the expert).
   - **What happened.** At 20:12Z SCIENTIST, who runs `llf_select.py`, received S7's as-built CURVES flag (TRUE) with metric values attached, not TRUE/FALSE alone. The values were the gnn's and twin's 20-epoch seed-1 val/ce, task_acc_choice and plan_exact (gnn job 902811, run `m0dh6bkt`; twin job 902812, run `kety0rcz`).
