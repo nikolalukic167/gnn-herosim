@@ -127,6 +127,38 @@
   "ra_mlp_wide_combfl_link_nosplit": {
    "heavy": 4.836545,
    "moderate": 4.132539
+  },
+  "ra_gnn_eng_combfl_linkconv_nosplit": {
+   "heavy": 8.26126,
+   "moderate": 7.451649
+  },
+  "ra_gnn_eng_combfl_linkconv_e100_nosplit": {
+   "heavy": 8.26126,
+   "moderate": 7.451649
+  },
+  "ra_gnn_eng_combfl_link_e100_nosplit": {
+   "heavy": 3.852913,
+   "moderate": 3.531737
+  },
+  "ra_twin_eng_combfl_link_e100_nosplit": {
+   "heavy": 3.15003,
+   "moderate": 2.917815
+  },
+  "ra_twin_eng_combfl_link_gpu_nosplit": {
+   "heavy": 3.15003,
+   "moderate": 2.917815
+  },
+  "ra_twin_eng_combfl_link_gpu_e100_nosplit": {
+   "heavy": 3.15003,
+   "moderate": 2.917815
+  },
+  "ra_mlp_same_combfl_link_e100_nosplit": {
+   "heavy": 3.175471,
+   "moderate": 2.816154
+  },
+  "ra_mlp_wide_combfl_link_e100_nosplit": {
+   "heavy": 4.836545,
+   "moderate": 4.132539
   }
  },
  "_source": "wall decision seconds / sched_plan_evals, k=0 cells: id/new (cd, cd_exactS, cd_exactS_ib0), id/new2 (nosplit), calib (cd_ib0, cd_exactS_ib0_prune, selfsearch, cdxapply); topologies 19405/19411 g0",
@@ -395,6 +427,102 @@
     "11_50": 3.041978,
     "gt50": 7.037646
    }
+  },
+  "ra_gnn_eng_combfl_linkconv_nosplit": {
+   "heavy": {
+    "le10": 8.130441,
+    "11_50": 7.018332,
+    "gt50": 11.947933
+   },
+   "moderate": {
+    "le10": 7.678385,
+    "11_50": 6.167674,
+    "gt50": 9.244725
+   }
+  },
+  "ra_gnn_eng_combfl_linkconv_e100_nosplit": {
+   "heavy": {
+    "le10": 8.130441,
+    "11_50": 7.018332,
+    "gt50": 11.947933
+   },
+   "moderate": {
+    "le10": 7.678385,
+    "11_50": 6.167674,
+    "gt50": 9.244725
+   }
+  },
+  "ra_gnn_eng_combfl_link_e100_nosplit": {
+   "heavy": {
+    "le10": 5.01809,
+    "11_50": 1.709525,
+    "gt50": 2.130677
+   },
+   "moderate": {
+    "le10": 4.672154,
+    "11_50": 1.49305,
+    "gt50": 1.696766
+   }
+  },
+  "ra_twin_eng_combfl_link_e100_nosplit": {
+   "heavy": {
+    "le10": 4.016395,
+    "11_50": 1.541996,
+    "gt50": 1.926776
+   },
+   "moderate": {
+    "le10": 3.821656,
+    "11_50": 1.297617,
+    "gt50": 1.460637
+   }
+  },
+  "ra_twin_eng_combfl_link_gpu_nosplit": {
+   "heavy": {
+    "le10": 4.016395,
+    "11_50": 1.541996,
+    "gt50": 1.926776
+   },
+   "moderate": {
+    "le10": 3.821656,
+    "11_50": 1.297617,
+    "gt50": 1.460637
+   }
+  },
+  "ra_twin_eng_combfl_link_gpu_e100_nosplit": {
+   "heavy": {
+    "le10": 4.016395,
+    "11_50": 1.541996,
+    "gt50": 1.926776
+   },
+   "moderate": {
+    "le10": 3.821656,
+    "11_50": 1.297617,
+    "gt50": 1.460637
+   }
+  },
+  "ra_mlp_same_combfl_link_e100_nosplit": {
+   "heavy": {
+    "le10": 4.015119,
+    "11_50": 1.558982,
+    "gt50": 2.110181
+   },
+   "moderate": {
+    "le10": 3.699799,
+    "11_50": 1.200692,
+    "gt50": 1.450547
+   }
+  },
+  "ra_mlp_wide_combfl_link_e100_nosplit": {
+   "heavy": {
+    "le10": 4.374624,
+    "11_50": 3.918634,
+    "gt50": 9.681471
+   },
+   "moderate": {
+    "le10": 4.080974,
+    "11_50": 3.041978,
+    "gt50": 7.037646
+   }
   }
  },
  "_source_by_bucket": "uncut_groups_s0_v1 w(n) freeze, 2026-10-13. Buckets are served batch size (decisionTiming.by_bucket: le10, 11_50, gt50) at pin c671281c, whole-group smoke, one cell per arm x rung; table /share/nikola.lukic/uncut_groups/wn_smoke.json sha256 6b2c22d4..., script scripts_cosim/uncut_groups_wn_table.py (rp/uncut-hand 92dc22d3). Value = calibrated scalar w x measured ms/plan ratio to the le10 bucket, so le10 equals the scalar. Frozen only for arms with a bucket above 1.5x; cd and cd_ib0 keep the scalar (<=1.17x). IMPUTED: cd_exactS heavy and cd_expand heavy (their heavy smoke cells were watchdog-killed, WALL-INFEASIBLE) = the arm's heavy scalar w x its own moderate ratio to le10 (expert ruling 2026-10-13). Scalar w stands for cd and cd_ib0. The gate charges k x these by served batch-size bucket (HEROSIM_DECISION_COST_MS_BY_BUCKET); arms without an entry keep HEROSIM_DECISION_COST_MS. cd_exactS_ib0_prune: S6's prune smoke, job 864605 at c671281c (19461 g0, k = 0, both rungs finished: 4,551 s heavy, 3,900 s moderate wall), /share/nikola.lukic/uncut_groups/wnprune_c671281c, same rule (calibrated scalar x ratio to le10). LEARNED one-pass arms (narrow reopening, 2026-10-13): ra_gnn_eng_nosplit and ra_twin_eng_nosplit, pin 1929fd3c, k = 0, 19461 g0 both rungs, one cell per arm x rung, slate-fix-v1 seed 1; table /share/nikola.lukic/uncut_groups/wn_learned.json sha256 22494440c6197a70f8ddcd8983caba70b885558c4f94f5d9cfde2559a6ad0c86. Same rule (calibrated scalar x ratio to le10; ratios 0.29-0.50: per-plan cost FALLS with batch size, so every large bucket is outside the 1.5x line in the cheaper direction). nosplit uses its calibrated scalar; the twin has no calibration, so its scalar is this smoke's own measured le10 ms per plan (moderate 2.9736, heavy 3.48608; single cell).",
@@ -480,5 +608,13 @@
  "_source_ra_gnn_eng_combfl_link_nosplit": "v7 gnn: Frozen w for the live_link_features_v1 v7 kind, measured on os-cpu-slurm-16 (a DIFFERENT node than the filed w's, which were frozen on os-cpu-slurm-22 / B; expert ruling 2026-10-23, node 22 was held by another user's job): job 902034 at 23d5c99b (reference-physics merge of s4/v7-arms), AMD EPYC 9335 32-Core Processor, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind, the exchange physics of option D (R1A_EXCHANGE_TCP=1, R1A_EXCHANGE_FAIRSHARE=1) because the v7 columns read the live flows. Through cot_link_smt.sbatch / cot_link_steps.sh (cotenancy/), the recipe of series 884584. Steps: H3pre (cd_ib0 at 114cc0e7), the four kinds, H3end. Weights: the filed v6 FL weights of the same architecture with the new input columns zeroed (scripts_cosim/v7_untrained_arm_checkpoints.py; a decision-time w is seconds of scoring per plan, not a function of fitted weights; random weights made the cell run 5x slower); inputs link_calib/in_link2. The decision seconds INCLUDE the live link capture (flows_live + node_table), metered into the decision span for the v7 kinds only (decisionTiming.link_capture_s_*). H3 control on this node: drift start to end 0.23 % moderate / 0.69 % heavy (stop at 2 %, not fired); against the filed node-B H3 1.11 % moderate / 0.78 % heavy at most (void at 2 %, not void). Table link_calib/freeze_w_link_16.json md5 7e27788375913b0a536ba6fdbfcba383. Link capture share of the decision seconds: moderate 3.81 %, heavy 3.78 %.",
  "_source_ra_twin_eng_combfl_link_nosplit": "v7 MP-OFF twin: Frozen w for the live_link_features_v1 v7 kind, measured on os-cpu-slurm-16 (a DIFFERENT node than the filed w's, which were frozen on os-cpu-slurm-22 / B; expert ruling 2026-10-23, node 22 was held by another user's job): job 902034 at 23d5c99b (reference-physics merge of s4/v7-arms), AMD EPYC 9335 32-Core Processor, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind, the exchange physics of option D (R1A_EXCHANGE_TCP=1, R1A_EXCHANGE_FAIRSHARE=1) because the v7 columns read the live flows. Through cot_link_smt.sbatch / cot_link_steps.sh (cotenancy/), the recipe of series 884584. Steps: H3pre (cd_ib0 at 114cc0e7), the four kinds, H3end. Weights: the filed v6 FL weights of the same architecture with the new input columns zeroed (scripts_cosim/v7_untrained_arm_checkpoints.py; a decision-time w is seconds of scoring per plan, not a function of fitted weights; random weights made the cell run 5x slower); inputs link_calib/in_link2. The decision seconds INCLUDE the live link capture (flows_live + node_table), metered into the decision span for the v7 kinds only (decisionTiming.link_capture_s_*). H3 control on this node: drift start to end 0.23 % moderate / 0.69 % heavy (stop at 2 %, not fired); against the filed node-B H3 1.11 % moderate / 0.78 % heavy at most (void at 2 %, not void). Table link_calib/freeze_w_link_16.json md5 7e27788375913b0a536ba6fdbfcba383. Link capture share of the decision seconds: moderate 4.19 %, heavy 3.53 %.",
  "_source_ra_mlp_same_combfl_link_nosplit": "v7 same-input MLP: Frozen w for the live_link_features_v1 v7 kind, measured on os-cpu-slurm-16 (a DIFFERENT node than the filed w's, which were frozen on os-cpu-slurm-22 / B; expert ruling 2026-10-23, node 22 was held by another user's job): job 902034 at 23d5c99b (reference-physics merge of s4/v7-arms), AMD EPYC 9335 32-Core Processor, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind, the exchange physics of option D (R1A_EXCHANGE_TCP=1, R1A_EXCHANGE_FAIRSHARE=1) because the v7 columns read the live flows. Through cot_link_smt.sbatch / cot_link_steps.sh (cotenancy/), the recipe of series 884584. Steps: H3pre (cd_ib0 at 114cc0e7), the four kinds, H3end. Weights: the filed v6 FL weights of the same architecture with the new input columns zeroed (scripts_cosim/v7_untrained_arm_checkpoints.py; a decision-time w is seconds of scoring per plan, not a function of fitted weights; random weights made the cell run 5x slower); inputs link_calib/in_link2. The decision seconds INCLUDE the live link capture (flows_live + node_table), metered into the decision span for the v7 kinds only (decisionTiming.link_capture_s_*). H3 control on this node: drift start to end 0.23 % moderate / 0.69 % heavy (stop at 2 %, not fired); against the filed node-B H3 1.11 % moderate / 0.78 % heavy at most (void at 2 %, not void). Table link_calib/freeze_w_link_16.json md5 7e27788375913b0a536ba6fdbfcba383. Link capture share of the decision seconds: moderate 3.55 %, heavy 4.70 %.",
- "_source_ra_mlp_wide_combfl_link_nosplit": "v7 wide MLP (hidden 675): Frozen w for the live_link_features_v1 v7 kind, measured on os-cpu-slurm-16 (a DIFFERENT node than the filed w's, which were frozen on os-cpu-slurm-22 / B; expert ruling 2026-10-23, node 22 was held by another user's job): job 902034 at 23d5c99b (reference-physics merge of s4/v7-arms), AMD EPYC 9335 32-Core Processor, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind, the exchange physics of option D (R1A_EXCHANGE_TCP=1, R1A_EXCHANGE_FAIRSHARE=1) because the v7 columns read the live flows. Through cot_link_smt.sbatch / cot_link_steps.sh (cotenancy/), the recipe of series 884584. Steps: H3pre (cd_ib0 at 114cc0e7), the four kinds, H3end. Weights: the filed v6 FL weights of the same architecture with the new input columns zeroed (scripts_cosim/v7_untrained_arm_checkpoints.py; a decision-time w is seconds of scoring per plan, not a function of fitted weights; random weights made the cell run 5x slower); inputs link_calib/in_link2. The decision seconds INCLUDE the live link capture (flows_live + node_table), metered into the decision span for the v7 kinds only (decisionTiming.link_capture_s_*). H3 control on this node: drift start to end 0.23 % moderate / 0.69 % heavy (stop at 2 %, not fired); against the filed node-B H3 1.11 % moderate / 0.78 % heavy at most (void at 2 %, not void). Table link_calib/freeze_w_link_16.json md5 7e27788375913b0a536ba6fdbfcba383. Link capture share of the decision seconds: moderate 3.03 %, heavy 1.87 %."
+ "_source_ra_mlp_wide_combfl_link_nosplit": "v7 wide MLP (hidden 675): Frozen w for the live_link_features_v1 v7 kind, measured on os-cpu-slurm-16 (a DIFFERENT node than the filed w's, which were frozen on os-cpu-slurm-22 / B; expert ruling 2026-10-23, node 22 was held by another user's job): job 902034 at 23d5c99b (reference-physics merge of s4/v7-arms), AMD EPYC 9335 32-Core Processor, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind, the exchange physics of option D (R1A_EXCHANGE_TCP=1, R1A_EXCHANGE_FAIRSHARE=1) because the v7 columns read the live flows. Through cot_link_smt.sbatch / cot_link_steps.sh (cotenancy/), the recipe of series 884584. Steps: H3pre (cd_ib0 at 114cc0e7), the four kinds, H3end. Weights: the filed v6 FL weights of the same architecture with the new input columns zeroed (scripts_cosim/v7_untrained_arm_checkpoints.py; a decision-time w is seconds of scoring per plan, not a function of fitted weights; random weights made the cell run 5x slower); inputs link_calib/in_link2. The decision seconds INCLUDE the live link capture (flows_live + node_table), metered into the decision span for the v7 kinds only (decisionTiming.link_capture_s_*). H3 control on this node: drift start to end 0.23 % moderate / 0.69 % heavy (stop at 2 %, not fired); against the filed node-B H3 1.11 % moderate / 0.78 % heavy at most (void at 2 %, not void). Table link_calib/freeze_w_link_16.json md5 7e27788375913b0a536ba6fdbfcba383. Link capture share of the decision seconds: moderate 3.03 %, heavy 1.87 %.",
+ "_source_ra_gnn_eng_combfl_linkconv_nosplit": "Frozen w for variant (b), the re-encode-per-placement gnn (mp_link_edge_conv: E1-E3 of the committed prefix in the conv, the graph re-encoded for every committed set), measured on os-cpu-slurm-17 (a DIFFERENT node than the filed w's, node B = os-cpu-slurm-22; and than the v7 kinds' os-cpu-slurm-16; expert ruling 2026-10-23: nodes 16/17 are allowed for the w calibrations), AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0 both rungs, k = 0, seed 1, 2 cells per kind, option D's exchange physics (R1A_EXCHANGE_TCP=1, R1A_EXCHANGE_FAIRSHARE=1), the recipe of series 884584 through cot_link_smt.sbatch / cot_link_steps.sh. Steps H3pre (cd_ib0 at 114cc0e7), the kind, H3end. Pin e668f9d3 (reference-physics, which holds the gate kinds of s4/link-kinds and the merged re-encode code). Weights: the filed v6 FL gnn's with the new input columns zeroed (the conv message weights of the 3 layers, the platform encoder and the scorer; scripts_cosim/v7_untrained_arm_checkpoints.py --kinds ra_gnn_eng_combfl_linkconv; link_calib/in_link4, pt md5 47afe62b1fac9b97f6242bbf56a2ace7), so the cell runs the filed arm's decisions while paying the re-encode. The decision seconds INCLUDE the live link capture, as for the other v7 kinds. H3 control on this node, run 2: drift start to end 1.54 % moderate / 0.04 % heavy (stop at 2 %, not fired); against the filed node-B H3 at most 0.88 % / 0.13 % (void at 2 %, not void). DISCLOSURE: run 1 of this series (job 902235, same node, same pin) drifted 2.99 % moderate and was void by the stop; it is not used. Run 2 is job 902243. Table link_calib/freeze_w_link_conv_17_r2.json md5 bb7e685e265cc85c82dd5f182bef314a. Link capture share of the decision seconds: moderate 1.43 %, heavy 1.75 %.",
+ "_source_ra_gnn_eng_combfl_linkconv_e100_nosplit": "2026-10-23, expert ruling (the decision charge is a serving cost, unaffected by epochs or by the venue a checkpoint was trained on): ra_gnn_eng_combfl_linkconv_e100_nosplit is the same architecture and serving code as ra_gnn_eng_combfl_linkconv_nosplit, trained longer (100 epochs, suffix -e100) and/or on the GPU, so it is charged ra_gnn_eng_combfl_linkconv_nosplit's measured w, copied values (w_ms_per_plan and w_ms_per_plan_by_bucket); see _source_ra_gnn_eng_combfl_linkconv_nosplit. Not an alias of a v6 key.",
+ "_source_ra_gnn_eng_combfl_link_e100_nosplit": "2026-10-23, expert ruling (the decision charge is a serving cost, unaffected by epochs or by the venue a checkpoint was trained on): ra_gnn_eng_combfl_link_e100_nosplit is the same architecture and serving code as ra_gnn_eng_combfl_link_nosplit, trained longer (100 epochs, suffix -e100) and/or on the GPU, so it is charged ra_gnn_eng_combfl_link_nosplit's measured w, copied values (w_ms_per_plan and w_ms_per_plan_by_bucket); see _source_ra_gnn_eng_combfl_link_nosplit. Not an alias of a v6 key.",
+ "_source_ra_twin_eng_combfl_link_e100_nosplit": "2026-10-23, expert ruling (the decision charge is a serving cost, unaffected by epochs or by the venue a checkpoint was trained on): ra_twin_eng_combfl_link_e100_nosplit is the same architecture and serving code as ra_twin_eng_combfl_link_nosplit, trained longer (100 epochs, suffix -e100) and/or on the GPU, so it is charged ra_twin_eng_combfl_link_nosplit's measured w, copied values (w_ms_per_plan and w_ms_per_plan_by_bucket); see _source_ra_twin_eng_combfl_link_nosplit. Not an alias of a v6 key.",
+ "_source_ra_twin_eng_combfl_link_gpu_nosplit": "2026-10-23, expert ruling (the decision charge is a serving cost, unaffected by epochs or by the venue a checkpoint was trained on): ra_twin_eng_combfl_link_gpu_nosplit is the same architecture and serving code as ra_twin_eng_combfl_link_nosplit, trained longer (100 epochs, suffix -e100) and/or on the GPU, so it is charged ra_twin_eng_combfl_link_nosplit's measured w, copied values (w_ms_per_plan and w_ms_per_plan_by_bucket); see _source_ra_twin_eng_combfl_link_nosplit. Not an alias of a v6 key.",
+ "_source_ra_twin_eng_combfl_link_gpu_e100_nosplit": "2026-10-23, expert ruling (the decision charge is a serving cost, unaffected by epochs or by the venue a checkpoint was trained on): ra_twin_eng_combfl_link_gpu_e100_nosplit is the same architecture and serving code as ra_twin_eng_combfl_link_nosplit, trained longer (100 epochs, suffix -e100) and/or on the GPU, so it is charged ra_twin_eng_combfl_link_nosplit's measured w, copied values (w_ms_per_plan and w_ms_per_plan_by_bucket); see _source_ra_twin_eng_combfl_link_nosplit. Not an alias of a v6 key.",
+ "_source_ra_mlp_same_combfl_link_e100_nosplit": "2026-10-23, expert ruling (the decision charge is a serving cost, unaffected by epochs or by the venue a checkpoint was trained on): ra_mlp_same_combfl_link_e100_nosplit is the same architecture and serving code as ra_mlp_same_combfl_link_nosplit, trained longer (100 epochs, suffix -e100) and/or on the GPU, so it is charged ra_mlp_same_combfl_link_nosplit's measured w, copied values (w_ms_per_plan and w_ms_per_plan_by_bucket); see _source_ra_mlp_same_combfl_link_nosplit. Not an alias of a v6 key.",
+ "_source_ra_mlp_wide_combfl_link_e100_nosplit": "2026-10-23, expert ruling (the decision charge is a serving cost, unaffected by epochs or by the venue a checkpoint was trained on): ra_mlp_wide_combfl_link_e100_nosplit is the same architecture and serving code as ra_mlp_wide_combfl_link_nosplit, trained longer (100 epochs, suffix -e100) and/or on the GPU, so it is charged ra_mlp_wide_combfl_link_nosplit's measured w, copied values (w_ms_per_plan and w_ms_per_plan_by_bucket); see _source_ra_mlp_wide_combfl_link_nosplit. Not an alias of a v6 key."
 }
