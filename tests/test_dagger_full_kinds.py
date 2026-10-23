@@ -30,3 +30,19 @@ def test_both_serve_k100_and_kr_like_the_fl_kinds():
     for k in (GNN, TWIN):
         assert G.split_dc(k + "_nosplit_k100") == (k + "_nosplit", 1.0)
         assert G.split_dc(k + "_nosplit_kr")[0] == k + "_nosplit"
+
+
+OLD = {GNN: "ra_gnn_eng_combfl_nosplit", TWIN: "ra_twin_eng_combfl_nosplit"}
+
+
+def test_w_entries_are_the_copied_values_of_the_old_arms():
+    import fresh_topo_burst_v1_gate as G
+    f = json.load(open(G.DC_W_FILE))
+    for k, old in OLD.items():
+        for top in ("w_ms_per_plan", "w_ms_per_plan_by_bucket"):
+            assert f[top][k + "_nosplit"] == f[top][old], top
+        assert f["_source_" + k + "_nosplit"]
+        for rung in ("moderate", "heavy"):
+            assert G.dc_cost_ms(k + "_nosplit", 1.0, rung) == G.dc_cost_ms(old, 1.0, rung)
+    with pytest.raises(SystemExit, match="no calibrated w"):
+        G.dc_cost_ms(GNN + "_nosplit_x", 1.0, "moderate")
