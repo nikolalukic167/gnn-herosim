@@ -1150,6 +1150,7 @@ if "NEAR_RTT_LOSS_MAX" in os.environ:
 
 
 _LOSS_DEBUG_N = [0]
+_STEP_N = [0]
 
 
 def train_epoch(
@@ -1266,8 +1267,12 @@ def train_epoch(
         if not torch.isfinite(loss):
             continue
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        _gn = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
+        if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1":
+            _STEP_N[0] += 1
+            if _STEP_N[0] <= 40 or _STEP_N[0] % 10 == 0:
+                print(f"[step-debug] step={_STEP_N[0]} graphs={_LOSS_DEBUG_N[0]} ce_avg={float(ce_avg.detach()):.5g} grad_norm_preclip={float(_gn):.5g} max_abs_param={max(float(p.detach().abs().max()) for p in model.parameters()):.5g}", flush=True)
 
         running_ce += float(ce_avg.item())
         running_rank += float(rank_avg.item())
