@@ -516,3 +516,22 @@ def test_the_gnn_scheduler_meters_the_link_capture_for_v7_only():
     src = open(os.path.join(os.path.dirname(__file__), "..", "src", "policy", "gnn", "scheduler.py")).read()
     assert "link_capture_s = link_features.CAPTURE[\"seconds\"] - link_capture_before if link_on else None" in src
     assert "inference_time + (link_capture_s or 0.0)" in src and "link_capture_s=link_capture_s)" in src
+
+
+def test_batched_tf_refuses_the_link_contract_rather_than_zero_the_link_columns():
+    from src.policy.gnn import batched_tf as B
+
+    class Sc:
+        fc1 = fc2 = dropout = object()
+
+    class M:
+        partial_state_edge_dim = 30
+        arm_kind = None
+        edge_scorer = Sc()
+
+    class Ctx:
+        contract = V7
+        parents = {}
+
+    with pytest.raises(ValueError, match="no builder for the partial_state_v7 link columns"):
+        B._unsupported(M(), Ctx())

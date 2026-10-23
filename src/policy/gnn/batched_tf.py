@@ -62,6 +62,9 @@ def _unsupported(model: Any, ctx: Any) -> None:
         raise ValueError("NEAR_RTT_BATCHED_TF is defined for the prefix-conditioned scorer (partial_state_edge_dim > 0)")
     if ctx.contract not in rf.BOTH_DIRECTION_CONTRACTS or ctx.contract not in rf.PEER_BLOCK_CONTRACTS:
         raise ValueError(f"NEAR_RTT_BATCHED_TF is built for partial_state_v5, not {ctx.contract!r}")
+    if ctx.contract in rf.LINK_CONTRACTS:
+        raise ValueError(f"NEAR_RTT_BATCHED_TF has no builder for the {ctx.contract} link columns (E1-E3, partial-state columns 27-29): it would leave them at 0 while the sequential "
+                         "loss and the live decode compute them. Train with NEAR_RTT_BATCHED_TF=0, or add the vectorised link block to _blocks with a test against partial_state_columns.")
     if ctx.contract in rf.KRANK_ONEHOT_CONTRACTS:
         raise ValueError("NEAR_RTT_BATCHED_TF: one-hot krank contracts are not supported")
     if any(ctx.parents.get(t) for t in ctx.parents):
