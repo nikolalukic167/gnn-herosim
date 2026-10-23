@@ -980,8 +980,16 @@ class TaskPlacementGNN(nn.Module):
                     mp_edge_index = mp_edge_index[:, keep]
                     ea = ea[keep.to(ea.device)]
                 h = x0
-                for conv in self.bip_convs:
-                    h = conv(h, mp_edge_index, ea, n_tasks) if self.mp_bipartite_hetero else conv(h, mp_edge_index, ea)
+                _e_layers = int(os.environ.get("GNN_LINK_CONV_E_LAYERS", "0")) if self.mp_link_edge_conv else 0
+                self._dbg_act = []
+                for _li, conv in enumerate(self.bip_convs):
+                    ea_l = ea
+                    if _e_layers and _li >= _e_layers:
+                        ea_l = ea.clone()
+                        ea_l[:, -self._conv_extras_dim:] = 0.0
+                    h = conv(h, mp_edge_index, ea_l, n_tasks) if self.mp_bipartite_hetero else conv(h, mp_edge_index, ea_l)
+                    if os.environ.get("GNN_DEBUG_ACT") == "1":
+                        self._dbg_act.append(float(h.detach().norm(dim=-1).mean()))
                 h = self.post_gin_dropout(h)
             else:
                 if edge_keep is not None:
