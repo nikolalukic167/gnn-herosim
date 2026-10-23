@@ -217,3 +217,19 @@ def test_a_context_rebuilt_from_json_style_tables_gives_bitwise_identical_conv_b
         a = LC.link_rows(live, torch.from_numpy(cm)[None], torch.from_numpy(nd)[None])
         b = LC.link_rows(cache, torch.from_numpy(cm)[None], torch.from_numpy(nd)[None])
         assert torch.equal(a, b)
+
+
+def test_the_batched_loss_entry_dispatches_to_the_link_conv_loss_and_tolerates_the_trainers_stats_dict(monkeypatch):
+    rnd, ctx, g, place = TB.scenario(13, monkeypatch)
+    g, m = model_for(g)
+    plans = [[rnd.randrange(len(place[t])) for t in range(N)]]
+    stats = {"mass": 0.0, "steps": 0}
+    with torch.no_grad():
+        via_entry = B.batched_tf_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"), unscored_stats=stats)
+        direct = LC.link_conv_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"))
+    assert torch.equal(via_entry, direct) and stats == {"mass": 0.0, "steps": 0}
+    g.unscored_ok = True
+    with pytest.raises(ValueError, match="unscored-mass"):
+        B.batched_tf_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"), unscored_stats=stats)
+    with pytest.raises(ValueError, match="move-regret"):
+        B.batched_tf_loss(m, g, ctx, plans, list(range(N)), 0.5, torch.device("cpu"), regret_lambda=0.1)

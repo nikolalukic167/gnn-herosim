@@ -484,7 +484,7 @@ def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[in
     _unsupported(model, ctx)
     if getattr(model, "mp_link_edge_conv", False):
         # the conv block depends on the committed set, so the encode is per state (src/policy/gnn/link_conv.py); the add-ons of this loss are not defined there
-        if regret_lambda > 0.0 or unscored_stats is not None:
+        if regret_lambda > 0.0 or (unscored_stats is not None and bool(getattr(data, "unscored_ok", False))):
             raise ValueError("NEAR_RTT_BATCHED_TF: mp_link_edge_conv supports neither the move-regret term nor the unscored-mass statistic")
         from src.policy.gnn.link_conv import link_conv_loss
 
