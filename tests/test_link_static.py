@@ -152,8 +152,9 @@ def run_path8(plat, psc, arm, monkeypatch):
     attr0 = graph.link_static_attr.clone()
     ctx = RF.build_partial_state_context_from_graph(graph)
     torch.manual_seed(0)
-    dims = dict(task_feature_dim=TASK_DIM, platform_feature_dim=PLAT_DIM_BASE + LF.LINK_PLATFORM_DIM, hidden_dim=16, edge_dim=5, partial_state_edge_dim=RF.partial_state_feature_dim(V8))
-    if arm == "mlp":
+    dims = dict(task_feature_dim=TASK_DIM, platform_feature_dim=PLAT_DIM_BASE + LF.LINK_PLATFORM_DIM, hidden_dim=40 if arm == "wide" else 16, edge_dim=5,
+                partial_state_edge_dim=RF.partial_state_feature_dim(V8))
+    if arm in ("mlp", "wide"):  # the wide arm is the same-input MLP at a larger hidden width (hidden 675 in the experiment)
         model = TaskPlacementMLPSame(**dims)
     else:
         model = TaskPlacementGNN(**dims, embedding_dim=8, num_layers=2, mp_bipartite_edge_conv=True, mp_bipartite_edge_attr_zero=True, mp_link_static_attr=(arm == "gnn"))
@@ -187,9 +188,9 @@ def test_trainer_and_live_serving_agree_bitwise_across_a_decode_for_the_three_ar
     stored_flows = LF.flows_stored(stored_block(fabric.fairshare, SPECS))
     cache_psc = psc_of(LF.counts_of(stored_flows), LF.routes_between({"routes": topology()["routes"], "links": topology()["links"]}, NAMES), nx)
     plat = np.asarray([LF.platform_columns(LF.node_raw(live_flows, n)) for n in node_names])
-    runs = {(path, arm): run_path8(plat, psc, arm, monkeypatch) for path, psc in (("live", live_psc), ("cache", cache_psc)) for arm in ("gnn", "twin", "mlp")}
+    runs = {(path, arm): run_path8(plat, psc, arm, monkeypatch) for path, psc in (("live", live_psc), ("cache", cache_psc)) for arm in ("gnn", "twin", "mlp", "wide")}
     seen = {}
-    for arm in ("gnn", "twin", "mlp"):
+    for arm in ("gnn", "twin", "mlp", "wide"):
         a, b = runs[("live", arm)], runs[("cache", arm)]
         assert a["combo"] == b["combo"] and a["refined"] == b["refined"] and len(a["trace"]) == len(b["trace"]) > 3
         assert a["attr0"].numpy().tobytes() == b["attr0"].numpy().tobytes()  # the conv's static block, live vs cache
@@ -199,10 +200,11 @@ def test_trainer_and_live_serving_agree_bitwise_across_a_decode_for_the_three_ar
             assert torch.equal(sa, a["attr0"]) and torch.equal(sb, b["attr0"])  # constant across every decode step and refine pass: prefix-free
         for t, committed, block, *_ in a["trace"]:
             seen.setdefault((t, tuple(sorted(committed.items()))), {})[arm] = block
-    shared = [k for k, v in seen.items() if set(v) == {"gnn", "twin", "mlp"}]
+    shared = [k for k, v in seen.items() if set(v) == {"gnn", "twin", "mlp", "wide"}]
     assert shared
     for k in shared:  # the three arms read byte-identical scorer rows, columns 30-32 included
-        assert seen[k]["gnn"].numpy().tobytes() == seen[k]["twin"].numpy().tobytes() == seen[k]["mlp"].numpy().tobytes()
+        assert (seen[k]["gnn"].numpy().tobytes() == seen[k]["twin"].numpy().tobytes() == seen[k]["mlp"].numpy().tobytes()
+                == seen[k]["wide"].numpy().tobytes())  # all four arms read byte-identical scorer rows, the static block (columns 30-32) included
     # the twin and the mlp never run the conv: their encodings do not depend on the static attribute, the gnn's do
     assert runs[("live", "gnn")]["attr0"].abs().sum() > 0
 
@@ -220,3 +222,17 @@ def test_strict_loading_a_v7_checkpoint_into_a_v8_model_fails_and_the_sidecheck_
     import joint_burst_v2_sidecheck as SC  # scripts_cosim
 
     assert set(SC.COMB_V8_ARMS) == {"ra_gnn_eng_v8", "ra_mlp_same_v8", "ra_twin_eng_v8"}
+
+
+def test_the_wide_static_arm_is_registered_like_the_other_three():
+    import fresh_topo_burst_v1_gate as G
+    import yaml
+
+    assert "ra_mlp_wide_combfl_linkstatic" in G.COMB_STATIC and G.COMB_STEMS["ra_mlp_wide_combfl_linkstatic"] == "uncut-linkstatic-mlp-wide"
+    assert G.comb_contract("ra_mlp_wide_combfl_linkstatic") == V8 and G.COMB_CHECK["ra_mlp_wide_combfl_linkstatic"] == "ra_mlp_same_v8"
+    assert "ra_mlp_wide_combfl_linkstatic" not in G.RA_MP_OFF
+    for suffix, epochs in (("", 20), ("_e100", 100)):
+        c = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "..", "experiments", f"uncut_linkstatic_mlp_wide{suffix}.yaml")))
+        assert c["args"]["hidden-dim"] == c["args"]["embedding-dim"] == 675 and c["args"]["epochs"] == c["args"]["min-epochs"] == c["args"]["patience"] == epochs
+        assert c["env"]["PARTIAL_STATE_CONTRACT"] == V8 and c["env"]["NEAR_RTT_ARM"] == "mlp_same" and "NEAR_RTT_MP_LINK_STATIC_ATTR" not in c["env"]
+        assert c["wandb"]["run_name"] == "uncut-linkstatic-mlp-wide" + ("-e100" if suffix else "")

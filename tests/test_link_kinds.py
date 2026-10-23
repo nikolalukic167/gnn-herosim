@@ -27,7 +27,7 @@ def test_kinds_stems_contract_and_mp_off():
 
 def test_the_graph_free_link_kinds_serve_as_mlp_same():
     src = open(REPO_ROOT / "scripts_cosim" / "fresh_topo_burst_v1_gate.py").read()
-    assert 'if base_kind in ("ra_mlp_same_combfl_link", "ra_mlp_wide_combfl_link", "ra_mlp_same_combfl_linkstatic"):\n                env["GNN_ARM_KIND"] = "mlp_same"' in src
+    assert 'if base_kind in ("ra_mlp_same_combfl_link", "ra_mlp_wide_combfl_link", "ra_mlp_same_combfl_linkstatic", "ra_mlp_wide_combfl_linkstatic"):\n                env["GNN_ARM_KIND"] = "mlp_same"' in src
 
 
 def test_every_link_kind_has_no_w_alias_to_a_v6_key():
