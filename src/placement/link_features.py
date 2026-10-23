@@ -90,20 +90,28 @@ def counts_of(flows: ActiveFlows) -> Dict[str, int]:
     return counts
 
 
-def node_raw(flows: ActiveFlows, node_name: str) -> Tuple[int, int, float]:
-    """(flows leaving the node, flows entering it, seconds to drain the busier access link) at the instant."""
-    up_pre, down_suf = f"{node_name}>", f">{node_name}"
-    n_up = n_down = 0
-    s_up = s_down = 0.0
+def node_table(flows: ActiveFlows) -> Dict[str, Tuple[int, int, float]]:
+    """node name -> (flows leaving it, flows entering it, seconds to drain its busier access link), for every name a hop id starts or ends with, in one pass over the
+    flows. The per-node sums add in flow order and hop order, as `node_raw` always did, so the floats are the same."""
+    n_up: Dict[str, int] = {}
+    n_down: Dict[str, int] = {}
+    s_up: Dict[str, float] = {}
+    s_down: Dict[str, float] = {}
     for rem, hops in flows:
         for key, bw in hops:
-            if key.startswith(up_pre):
-                n_up += 1
-                s_up += rem / (bw * MIB)
-            elif key.endswith(down_suf):
-                n_down += 1
-                s_down += rem / (bw * MIB)
-    return n_up, n_down, max(s_up, s_down)
+            tail, _, _ = key.partition(">")
+            head = key.rpartition(">")[2]
+            secs = rem / (bw * MIB)
+            n_up[tail] = n_up.get(tail, 0) + 1
+            s_up[tail] = s_up.get(tail, 0.0) + secs
+            n_down[head] = n_down.get(head, 0) + 1
+            s_down[head] = s_down.get(head, 0.0) + secs
+    return {n: (n_up.get(n, 0), n_down.get(n, 0), max(s_up.get(n, 0.0), s_down.get(n, 0.0))) for n in set(n_up) | set(n_down)}
+
+
+def node_raw(flows: ActiveFlows, node_name: str, table: Optional[Mapping[str, Tuple[int, int, float]]] = None) -> Tuple[int, int, float]:
+    """(flows leaving the node, flows entering it, seconds to drain the busier access link) at the instant; pass `table` (`node_table(flows)`) to avoid a pass per node."""
+    return (table if table is not None else node_table(flows)).get(node_name, (0, 0, 0.0))
 
 
 def platform_columns(raw: Tuple[int, int, float]) -> np.ndarray:

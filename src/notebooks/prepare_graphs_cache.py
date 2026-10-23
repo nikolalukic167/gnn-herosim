@@ -1500,9 +1500,9 @@ def build_graph(
     if link_features.link_enabled():
         if flow_block is None:
             raise ValueError("partial_state_v7 needs the stored flow records (flow_block) of the dataset")
-        flows = link_features.flows_stored(flow_block)
+        link_table = link_features.node_table(link_features.flows_stored(flow_block))
         link_platform_extra = np.asarray(
-            [link_features.platform_columns(link_features.node_raw(flows, str(df_platforms['node_name'].to_numpy()[pos]))) for pos in range(n_platforms)],
+            [link_features.platform_columns(link_features.node_raw((), str(df_platforms['node_name'].to_numpy()[pos]), link_table)) for pos in range(n_platforms)],
             dtype=np.float64).reshape(n_platforms, link_features.LINK_PLATFORM_DIM)
     queue_key_to_platform_meta: Dict[str, Dict[str, Any]] = {}
     for pos, row in enumerate(df_platforms.itertuples(index=False)):

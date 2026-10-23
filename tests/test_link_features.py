@@ -436,3 +436,33 @@ def test_the_stored_loader_returns_a_validated_block(fabric_env, tmp_path):
     (tmp_path / "warm_snapshot.json").write_text(json.dumps({"snapshot": {"fidelity": {"ghosts": [], "flows": block}}}))
     with pytest.raises(ValueError, match="not the set of active transfers"):
         _flow_block_of_dataset(tmp_path)
+
+
+def test_node_table_equals_the_per_node_scan_bit_for_bit():
+    import random
+
+    rnd = random.Random(7)
+    names = [f"n{i}" for i in range(6)] + ["core_0", "core_1"]
+    flows = []
+    for _ in range(60):
+        a, b = rnd.sample(names[:6], 2)
+        hops = ((f"{a}>core_0", rnd.choice([4.0, 10.0, 75.0])), ("core_0>core_1", 100.0), (f"core_1>{b}", rnd.choice([4.0, 10.0, 75.0])))
+        flows.append((rnd.random() * 5e7, hops))
+    flows = tuple(flows)
+
+    def scan(node):  # the earlier definition: one pass per node
+        up, down, s_up, s_down = f"{node}>", f">{node}", 0.0, 0.0
+        n_up = n_down = 0
+        for rem, hops in flows:
+            for key, bw in hops:
+                if key.startswith(up):
+                    n_up += 1
+                    s_up += rem / (bw * MIB)
+                elif key.endswith(down):
+                    n_down += 1
+                    s_down += rem / (bw * MIB)
+        return n_up, n_down, max(s_up, s_down)
+
+    table = LF.node_table(flows)
+    for n in names + ["absent"]:
+        assert LF.node_raw((), n, table) == scan(n) == LF.node_raw(flows, n)
