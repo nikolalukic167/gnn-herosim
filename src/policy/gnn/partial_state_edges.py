@@ -159,6 +159,10 @@ def make_partial_state_score_fn(
     a node feature, which is asserted here — if a future change routes prefix state into
     ``platform_features``, this stops silently being correct and starts failing loudly.
     """
+    if getattr(model, "mp_link_edge_conv", False):
+        # live_link_features_v1 (b): the conv sees the link columns of the committed prefix, so the graph is re-encoded per committed set (src/policy/gnn/link_conv.py)
+        from src.policy.gnn.link_conv import make_link_conv_score_fn
+        return make_link_conv_score_fn(model, data, ctx, task_rows_only=task_rows_only)
     if getattr(model, "plan_raw", False):
         # peak_controls_v1: the raw plan replaces the engineered columns; same call sites.
         from src.policy.gnn.plan_raw import make_plan_raw_score_fn

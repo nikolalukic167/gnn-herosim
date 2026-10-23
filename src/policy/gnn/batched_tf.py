@@ -482,6 +482,13 @@ def batched_tf_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[in
     """-log sum_k prod_t p(plan_k[t] | strict prefix) + w * (-log sum_k prod_t p(plan_k[t] | all others)), batched.
     With ``regret_lambda`` > 0 (the expected move-regret lever, uncut_groups_s0_v1) it adds lambda * ``regret_term``; at 0 none of its operations run."""
     _unsupported(model, ctx)
+    if getattr(model, "mp_link_edge_conv", False):
+        # the conv block depends on the committed set, so the encode is per state (src/policy/gnn/link_conv.py); the add-ons of this loss are not defined there
+        if regret_lambda > 0.0 or unscored_stats is not None:
+            raise ValueError("NEAR_RTT_BATCHED_TF: mp_link_edge_conv supports neither the move-regret term nor the unscored-mass statistic")
+        from src.policy.gnn.link_conv import link_conv_loss
+
+        return link_conv_loss(model, data, ctx, plans, order, full_context_weight, device)
     b = BatchedTeacherForced(data, ctx, plans, order, with_full=full_context_weight > 0.0)
     task_emb, platform_emb = model._encode(data)  # prefix-free: the partial-state block never enters the encode
     lp = b.state_log_softmax(model, data, task_emb, platform_emb)
