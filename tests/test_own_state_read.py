@@ -57,7 +57,7 @@ def os_(tmp_path, monkeypatch):
                 wr_body[top][new] = json.loads(json.dumps(wr_body[top][old]))
         wr_body[f"_source_{new}"] = f"copy of {old}"
     r = commit(repo, {G.W_FILE: wr_body}, "R w-only")
-    for k, v in (("OS_BASE", base), ("OS_G1", g1), ("OS_G2", g2), ("OS_R", r), ("TW_P7", w7), ("TW_P7B", w7b),
+    for k, v in (("OS_BASE", base), ("OS_G1", g1), ("OS_G2", g2), ("OS_R", r), ("OS_SERVE", r), ("TW_P7", w7), ("TW_P7B", w7b),
                  ("OS_TOPOS", tuple(TOPOS)), ("OS_TOPOS_SHA256", hashlib.sha256(TOPS.encode()).hexdigest()),
                  ("OS_CELLS", {"new": 24 * 80, "old": 4 * 80, "bar": 80, "react": 80})):
         monkeypatch.setattr(G, k, v)
@@ -66,9 +66,9 @@ def os_(tmp_path, monkeypatch):
     h = hashlib.md5(b"weights").hexdigest()
     cm = tmp_path / "ck.json"
     cm.write_text(json.dumps({**{f"{k}|s{s}": h for k in (GNN, TWN) for s in range(1, 7)}, **{f"{k}|s{s}": h for k in (OGNN, OTWN) for s in (1, 2)}}))
-    logs = tmp_path / "train.log"
-    logs.write_text("".join(f"{h}  models/{stem}-seed{s}-final.pt\n{h[::-1]}  models/{stem}-seed{s}-final.contract.json\n"
-                            for stem in G.OS_STEMS for s in range(1, 7)))
+    logs = tmp_path / "md5_dgu.json"
+    logs.write_text(json.dumps({"_snapshot_time": "t", "_provenance": {}, **{f"{k}|s{s}": h for k in (GNN, TWN) for s in range(1, 7)}}, indent=1))
+    monkeypatch.setattr(G, "OS_CKPT_SNAPSHOT_MD5", G.md5(str(logs)))
     ig = tmp_path / "inputs_group"
     for rr in G.RUNGS:
         (ig / f"wf1_{rr}" / "wl").mkdir(parents=True)
@@ -120,7 +120,7 @@ def os_(tmp_path, monkeypatch):
                 "--repo", str(repo), "--primary", GNN, "--twin", TWN, "--checkpoint-md5", str(cm), "--bar", BAR, "--seeds", "1,2,3,4,5,6",
                 "--confirm-own-state", "--old-gate", str(dirs["old"]), "--bar-gate", str(dirs["bar"]), "--react-gate", str(dirs["react"]),
                 "--ident-gate", str(dirs["ident"]), "--ident-ref", ",".join(str(dirs[x]) for x in ("fl3_bar", "fl3_learned", "fl3_twin")),
-                "--training-logs", str(logs), "--inputs-group", str(ig), "--cell-inputs", str(ci), "--filed-ref", "HEAD", "--stage", stage,
+                "--ckpt-snapshot", str(logs), "--inputs-group", str(ig), "--cell-inputs", str(ci), "--filed-ref", "HEAD", "--stage", stage,
                 "--out", str(tmp_path / out)]
         for k, v in kw.items():
             args += [f"--{k}"] + ([] if v is None else [v])
@@ -144,7 +144,7 @@ def test_own_state_labels_six_seeds_both_charges(os_, gnn, twn, seed6, label):
     assert sorted(res["F2"]["seeds_alone"]) == [1, 2, 3, 4, 5, 6] and res["F2"]["collapse_reference"] == BAR
     assert res["confirmation"]["grid_cells"] == G.OS_CELLS and "descriptive" not in res
     assert res["admission"]["admitted"] == len(TOPOS) and res["admission"]["unknown"] == 0
-    assert set(res["training_md5"]) == {f"{k}|s{s}" for k in (GNN, TWN) for s in range(1, 7)} and res["identity"].startswith("PASS")
+    assert set(res["checkpoint_snapshot_md5"]) == {f"{k}|s{s}" for k in (GNN, TWN) for s in range(1, 7)} and res["identity"].startswith("PASS")
 
 
 def test_own_state_anchor_and_seed6_clause(os_):
@@ -165,8 +165,8 @@ def test_own_state_collapse_against_the_bar(os_):
 
 @pytest.mark.parametrize("case, match", [
     ("missing", "VOID: --gate"), ("old_missing", "VOID: --old-gate"), ("react_missing", "VOID: --react-gate"),
-    ("new_at_base", "not the retest pin"), ("charge", "served decision cost"), ("cellular", "outside the registered recipe"),
-    ("tcp_block", "outside the registered recipe"), ("mp_on_twin", "env differs"), ("log_md5", "training log"),
+    ("new_at_base", "not the serving pin"), ("charge", "served decision cost"), ("cellular", "outside the registered recipe"),
+    ("tcp_block", "outside the registered recipe"), ("mp_on_twin", "env differs"), ("log_md5", "is not the filed"),
     ("inputs", "does not match MD5SUMS"), ("cell_inputs", "is not the minted"), ("ident", "misses its filed fl3 cell"), ("servers", "servers = 24")])
 def test_own_state_fails_loud(os_, case, match):
     d = os_["dirs"]
@@ -202,7 +202,7 @@ def test_own_state_fails_loud(os_, case, match):
             x["servers"] = 64
         name.write_text(json.dumps(x))
     elif case == "log_md5":
-        os_["logs"].write_text(os_["logs"].read_text().replace("uncut-dagger-full-twin-seed6-final.pt", "uncut-dagger-full-twin-seed7-final.pt"))
+        os_["logs"].write_text(os_["logs"].read_text().replace(f"{TWN}|s6", f"{TWN}|s7"))
     elif case == "inputs":
         (os_["ig"] / "wf1_heavy" / "wl" / "grounded_g0_n50000.json").write_text("capped payloads\n")
     elif case == "cell_inputs":
@@ -213,12 +213,12 @@ def test_own_state_fails_loud(os_, case, match):
         os_["read"]()
 
 
-def test_own_state_md5_file_must_equal_the_training_logs(os_):
+def test_own_state_md5_file_must_equal_the_checkpoint_snapshot(os_):
     os_["fill"]()
     cm = json.loads(os_["cm"].read_text())
     cm[f"{GNN}|s3"] = "0" * 32
     os_["cm"].write_text(json.dumps(cm))
-    with pytest.raises(SystemExit, match="the training log"):
+    with pytest.raises(SystemExit, match="the checkpoint snapshot"):
         os_["read"]()
 
 
@@ -285,7 +285,7 @@ def test_own_state_written_once(os_):
 
 
 def test_own_state_flags_are_refused_by_the_filed_modes():
-    for flag in ("--old-gate", "--bar-gate", "--react-gate", "--ident-gate", "--ident-ref", "--training-logs", "--inputs-group", "--cell-inputs"):
+    for flag in ("--old-gate", "--bar-gate", "--react-gate", "--ident-gate", "--ident-ref", "--ckpt-snapshot", "--inputs-group", "--cell-inputs"):
         with pytest.raises(SystemExit, match="belong to --confirm-own-state"):
             G.main(["--gate", "x", "--topos", "1", "--topos-sha256", "y", "--pin", "x", "--primary", "p", "--checkpoint-md5", "c", flag, "m"])
 
@@ -294,5 +294,37 @@ def test_own_state_constants_are_the_registered_ones():
     assert hashlib.sha256(",".join(map(str, range(20508, 20532))).encode()).hexdigest() == G.OS_TOPOS_SHA256 == \
         "d4b1fb268c14af65a7c201ef27a97fbfb3a3033a964218cfbf443f060032ac37"
     assert sum(G.OS_CELLS.values()) == 5760 and G.OS_CELLS == {"new": 4608, "old": 768, "bar": 192, "react": 192}
-    assert (G.OS_BASE[:8], G.OS_G1[:8], G.OS_G2[:8], G.OS_R[:8]) == ("a459dd98", "271b6665", "0ab430d4", "211241a7")
+    assert (G.OS_BASE[:8], G.OS_G1[:8], G.OS_G2[:8], G.OS_R[:8], G.OS_SERVE[:8]) == ("a459dd98", "271b6665", "0ab430d4", "211241a7", "05f52abb")
+    assert G.OS_CKPT_SNAPSHOT_MD5 == "80e3b6b45f9f28a5fdcd65865fcd94a3"
     assert G.OS_INPUTS_MD5SUMS == "72a7db697771082a14916ad82e540507" and G.OS_SEEDS == (1, 2, 3, 4, 5, 6)
+
+
+def test_own_state_serving_pin(os_, monkeypatch):
+    repo, r = os_["repo"], os_["r"]
+    later = commit(repo, {"scripts_cosim/later.py": "1\n"}, "later code, same w")
+    monkeypatch.setattr(G, "OS_SERVE", later)
+    assert set(G.os_chain(str(repo))) == {os_["base"], r}
+    w = json.loads(json.dumps(os_["wr_body"]))
+    w["w_ms_per_plan"][GNN] = {"heavy": 9.9, "moderate": 9.9}
+    monkeypatch.setattr(G, "OS_SERVE", commit(repo, {G.W_FILE: w}, "later w moved"))
+    with pytest.raises(SystemExit, match="serving pin .* differs"):
+        G.os_chain(str(repo))
+    subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "side", os_["g2"]], check=True)
+    monkeypatch.setattr(G, "OS_SERVE", commit(repo, {"scripts_cosim/side.py": "1\n"}, "not on R"))
+    with pytest.raises(SystemExit, match="does not descend"):
+        G.os_chain(str(repo))
+
+
+def test_own_state_identity_allows_the_new_telemetry_only(os_):
+    os_["fill"]()
+    f = os_["dirs"]["ident"] / f"cc40s30149__g0heavy__{BAR}_k100_s0.summary.json"
+    x = json.loads(f.read_text())
+    x["peerExchangeByAccessClass"] = {"wired+wired": 1}
+    x["peerExchangeOverlap"] = {"pairs": 2}
+    x.setdefault("schedulerCounters", {}).update({"pg_fsaware_decisions": 0, "pg_fsaware_decisions_nonzero": 0})
+    f.write_text(json.dumps(x))
+    assert os_["read"]()["identity"].startswith("PASS")
+    x["schedulerCounters"]["pg_fsaware_decisions"] = 3
+    f.write_text(json.dumps(x))
+    with pytest.raises(SystemExit, match="misses its filed fl3 cell"):
+        os_["read"](out="p2.json")
