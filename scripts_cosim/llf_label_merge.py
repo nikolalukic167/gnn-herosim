@@ -42,26 +42,48 @@ def main(argv=None):
     ap.add_argument("--in", dest="inp", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--stats", required=True)
+    ap.add_argument("--carry-first-pass", nargs="*", default=[], help="datasets whose relabel did not finish: their FIRST-PASS label is carried, flagged relabel_unfinished (named in the stats)")
     a = ap.parse_args(argv)
     entries, pair, flagged, pools, sfs_wall, hand_diff = {}, {}, set(), {}, {}, {}
+    raw_rows: Dict[str, Dict[str, Any]] = {}
     for f in a.inp:
         for line in open(f):
+            if not line.strip():
+                continue
             e = json.loads(line)
             if e["gid"] in entries:
-                raise SystemExit(f"FAIL LOUD: {e['gid']} appears in two shards")
+                # a state may be in two files when a task was re-split while the first task was still running; the rows are deterministic, so they must be equal but for the wall times
+                same = {k: v for k, v in e.items() if k not in ("wall_s", "sfs_wall_s", "replay_setup_s")} == {k: v for k, v in raw_rows[e["gid"]].items() if k not in ("wall_s", "sfs_wall_s", "replay_setup_s")}
+                if not same:
+                    raise SystemExit(f"FAIL LOUD: {e['gid']} appears twice with different rows")
+                continue
+            raw_rows[e["gid"]] = e
             flagged.add(bool(e.get("stored_flows")))
             pair[e["gid"]] = e.get("stored_label_rtt")
             pools[e["gid"]] = e.get("winner_pool")
             hand_diff[e["gid"]] = e.get("hand_replan_differs")
             sfs_wall[e["gid"]] = e.get("sfs_wall_s")
             entries[e["gid"]] = {k: v for k, v in e.items() if k not in DROP}
-    expect = {s["gid"] for s in L.all_states(a.split, a.corpus)}
+    states_all = L.all_states(a.split, a.corpus)
+    expect = {s["gid"] for s in states_all}
+    carried = sorted(set(a.carry_first_pass or []))
+    for gid in carried:
+        if gid in entries:
+            raise SystemExit(f"FAIL LOUD: {gid} has a relabel row and is listed in --carry-first-pass")
+        st = next(s for s in states_all if s["gid"] == gid)
+        head, rows = L._stored_rows(L._dataset_dir(a.corpus, gid))
+        n = int(head["n_tasks"])
+        plan, rtt = L._plan_from_row(rows[0], n), float(rows[0]["rtt"])
+        entries[gid] = {"plans": [plan], "cd_rtt": rtt, "split": st["split"], "bucket": st["bucket"], "n_tasks": n, "method": "first_pass_carried", "current_label_source": head["label_source"],
+                        "differs": False, "gain": 0.0, "rtt_current": rtt, "rtt_sim": rtt, "n_plans_replayed": 0, "current_plan": plan, "best_tag": "label", "relabel_unfinished": True}
+        pair[gid], pools[gid], sfs_wall[gid], hand_diff[gid] = None, None, None, None
+        flagged.add(True)
     if set(entries) != expect:
         raise SystemExit(f"FAIL LOUD: {len(entries)} of {len(expect)} states; missing {sorted(expect - set(entries))[:5]}, extra {sorted(set(entries) - expect)[:5]}")
     if flagged != {True}:
         raise SystemExit("FAIL LOUD: not every shard row was relabelled with --stored-flows")
     body = {"_meta": {"version": L.RELABEL_VERSION, "stored_flows": True, "method": "exhaustive replay for plan spaces <= 600; else the 8 lowest-S plans plus the current label, replayed under option D with the "
-                      "stored flows of the snapshot; the fastest replayed plan is the label; the current label's replayed RTT is kept in the stats (it was stored under uncontended physics)", "n": len(entries)},
+                      "stored flows of the snapshot; the fastest replayed plan is the label; the current label's replayed RTT is kept in the stats (it was stored under uncontended physics)", "n": len(entries), **({"relabel_unfinished": carried} if carried else {})},
             **dict(sorted(entries.items()))}
     raw = json.dumps(body, indent=0, sort_keys=False) + "\n"
     Path(a.out).write_text(raw)
