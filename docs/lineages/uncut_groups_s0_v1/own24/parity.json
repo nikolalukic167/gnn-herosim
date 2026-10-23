@@ -1,0 +1,75 @@
+{
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed1.pt": {
+  "disable_mp": false,
+  "md5": "bf54d0cc0fc4306cc07676d4f1e2821c",
+  "platform_max_abs_diff": 0.00034818798303604126,
+  "task0_max_abs_diff": 0.00011937692761421204
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed2.pt": {
+  "disable_mp": false,
+  "md5": "5f4a66ca9acb6ac5888b89fa2ea2ddd1",
+  "platform_max_abs_diff": 0.02794593572616577,
+  "task0_max_abs_diff": 0.030238837003707886
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed3.pt": {
+  "disable_mp": false,
+  "md5": "2b359eade5a6a8e7eb47c2faf34bd76e",
+  "platform_max_abs_diff": 0.006392434239387512,
+  "task0_max_abs_diff": 0.00460408627986908
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed4.pt": {
+  "disable_mp": false,
+  "md5": "0db5142186789c69020d3f614ea977f9",
+  "platform_max_abs_diff": 0.013444319367408752,
+  "task0_max_abs_diff": 0.009137853980064392
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed5.pt": {
+  "disable_mp": false,
+  "md5": "14938c89ec3b513d4d9b2e10c01fa566",
+  "platform_max_abs_diff": 0.00015623867511749268,
+  "task0_max_abs_diff": 0.00010719895362854004
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed6.pt": {
+  "disable_mp": false,
+  "md5": "45a7ca8c149fc013aa96d8afc5e89b33",
+  "platform_max_abs_diff": 0.0006345510482788086,
+  "task0_max_abs_diff": 0.0029041171073913574
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed1.pt": {
+  "disable_mp": true,
+  "md5": "a59d2fb95c89b4ec18b6a0a2a875d2f6",
+  "platform_max_abs_diff": 0.0,
+  "task0_max_abs_diff": 0.0
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed2.pt": {
+  "disable_mp": true,
+  "md5": "1af09693b74c7ea89b6391535a49f764",
+  "platform_max_abs_diff": 0.0,
+  "task0_max_abs_diff": 0.0
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed3.pt": {
+  "disable_mp": true,
+  "md5": "ba147f2aadb2bf0eab4d1495675ec01a",
+  "platform_max_abs_diff": 0.0,
+  "task0_max_abs_diff": 0.0
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed4.pt": {
+  "disable_mp": true,
+  "md5": "a25342372864e36a5f2bc66616af70d5",
+  "platform_max_abs_diff": 0.0,
+  "task0_max_abs_diff": 0.0
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed5.pt": {
+  "disable_mp": true,
+  "md5": "ccf1a48bc34636109fdc3ceaa50040a8",
+  "platform_max_abs_diff": 0.0,
+  "task0_max_abs_diff": 0.0
+ },
+ "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed6.pt": {
+  "disable_mp": true,
+  "md5": "5853465b47345f497e0419bc4b891c52",
+  "platform_max_abs_diff": 0.0,
+  "task0_max_abs_diff": 0.0
+ },
+ "_verdict": "PARITY OK"
+}
