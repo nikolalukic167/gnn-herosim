@@ -1402,14 +1402,24 @@ class Platform:
         fabric = self.node.fabric
         t0 = self.env.now
 
-        def one(fl):
+        fx = task._fid.get("fx") if FIDELITY and getattr(task, "_fid", None) is not None else None
+
+        def one(fl, idx):
             start = self.env.now
+            if fx is not None:
+                fx.update(i=idx, phase="startup", phase_end=start + fl["b"])
             if fl["b"] > 0:
                 yield self.env.timeout(fl["b"])
+            if fx is not None:
+                fx.update(phase="bytes", phase_end=None)
             if fl["rest"] > 0:
-                yield fabric.fairshare.start(fl["hops"], fl["rest"], fl["scale"])
+                yield fabric.fairshare.start(fl["hops"], fl["rest"], fl["scale"], owner=(task.id, idx))
+            if fx is not None:
+                fx.update(phase="latency", phase_end=self.env.now + fl["latency"])
             if fl["latency"] > 0:
                 yield self.env.timeout(fl["latency"])
+            if fx is not None:
+                fx.update(phase="done", phase_end=None)
             seconds = self.env.now - start
             if fabric.access_classes:
                 fabric.record_exchange(fl["peer_node"], self.node.node_name, seconds, bytes_=fl["payload"],
@@ -1419,11 +1429,11 @@ class Platform:
             fabric.record_exchange_fairshare(seconds, fl["solo"])
 
         if exchange_fairshare_partners() == "concurrent":
-            procs = [self.env.process(one(fl)) for fl in flows]
+            procs = [self.env.process(one(fl, i)) for i, fl in enumerate(flows)]
             yield self.env.all_of(procs)
         else:
-            for fl in flows:
-                yield from one(fl)
+            for i, fl in enumerate(flows):
+                yield from one(fl, i)
         return self.env.now - t0
 
     def _audit_payload(self, kind: str, task: "Task", src_node_name: str, payload: float, latency: float) -> None:
@@ -1960,6 +1970,10 @@ class Platform:
         # Retrieve input data
         if FIDELITY:
             task._fid["io_end"] = self.env.now + input_estimate
+            if fairshare_flows:
+                # flow_snapshot: the read timeout's end and the exchange's progress, read by snapshot_fidelity.capture
+                task._fid["read_end"] = self.env.now + input_duration
+                task._fid["fx"] = {"plan": fairshare_flows, "i": 0, "phase": None, "phase_end": None}
         yield self.env.timeout(input_duration)
         if fairshare_flows:
             task.peer_exchange_time = yield from self._fairshare_exchange(task, fairshare_flows)
