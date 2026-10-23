@@ -26,7 +26,7 @@ env:
   NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
   PARTIAL_STATE_EXCHANGE_SECONDS: '1'
   NEAR_RTT_SKIP_FINAL_TEST: '1'
-  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_arm1_split.json
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_link_split.json
   NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_groups/llf_corpus/label_override_union_flows.json
   NEAR_RTT_ARM: mlp_same
   NEAR_RTT_BATCHED_TF: '1'
