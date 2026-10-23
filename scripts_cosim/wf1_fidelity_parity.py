@@ -122,7 +122,7 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
     os.environ["GNN_PREFIX_TRACE_PATH"] = trace.name
     records: List[Dict[str, Any]] = []
     try:
-        model, device = load_gnn_model(Path(job["checkpoint"]), space_config=None)
+        model, device = load_gnn_model(Path(job["checkpoint"]), space_config=space)  # the cell config carries preinit.replica_placement_rule: a checkpoint trained under fastest_compatible loads under it
         sim_inputs = load_simulation_inputs(Path(spec["sim_input"]))
         models = {"gnn_model": model, "device": device, "task_types_data": sim_inputs["task_types"]}
         sink = io.StringIO()

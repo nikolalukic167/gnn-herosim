@@ -95,3 +95,8 @@ def test_the_live_vs_cache_check_compares_the_v7_context_tables():
     assert not P._close(P._norm(a), P._norm(c))
     assert P._close(P._norm({"s0>core_0": 2}), P._norm({"s0>core_0": 2})) and not P._close(P._norm({"s0>core_0": 2}), P._norm({"s0>core_0": 3}))
     assert P._close(P._norm(None), P._norm(None))
+
+
+def test_the_fidelity_parity_loads_the_checkpoint_under_the_cells_own_config():
+    src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "wf1_fidelity_parity.py")).read()
+    assert 'load_gnn_model(Path(job["checkpoint"]), space_config=space)' in src and "space_config=None" not in src
