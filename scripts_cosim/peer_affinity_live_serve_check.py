@@ -62,6 +62,8 @@ PSC_FIELDS = (
     "peer_norm", "cand_nodes",
     # load_repr_v1 (partial_state_v4); absent on both sides of any earlier contract
     "backlog_s", "service_s",
+    # live_link_features_v1 (partial_state_v7): the active flows per link and the directed routes between the candidate nodes; absent (None) on both sides of any earlier contract
+    "link_counts", "link_routes",
 )
 
 
