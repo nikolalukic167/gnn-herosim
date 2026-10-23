@@ -43,6 +43,16 @@ def pick_states(chosen_path: str, n: int) -> List[Dict[str, Any]]:
     return [recs[int(i * step)] for i in range(n)]
 
 
+def pick_ids(chosen_path: str, ids: List[int]) -> List[Dict[str, Any]]:
+    """The listed snapshot ids, each of which must be a decision that placed its whole batch."""
+    want = {int(i) for i in ids}
+    recs = [json.loads(l) for l in open(chosen_path)]
+    out = [r for r in recs if int(r["snapshot_id"]) in want and r["chosen"] and not r.get("deferred")]
+    if len(out) != len(want):
+        raise SystemExit(f"FAIL LOUD: {len(want) - len(out)} of the listed snapshots are not whole-batch decisions of {chosen_path}")
+    return out
+
+
 def classes(snap: Dict[str, Any]) -> Dict[str, Any]:
     fid = snap["fidelity"]
     flows = fid.get("flows") or {}
@@ -96,7 +106,7 @@ def cmd_run(a):
     import multiprocessing as mp
 
     stem = Path(a.cell_dir) / a.stem
-    chosen = pick_states(f"{stem}.snapshots.jsonl.chosen.jsonl", a.n)
+    chosen = pick_states(f"{stem}.snapshots.jsonl.chosen.jsonl", a.n) if not a.ids_file else pick_ids(f"{stem}.snapshots.jsonl.chosen.jsonl", json.load(open(a.ids_file)))
     want = {int(r["snapshot_id"]): r for r in chosen}
     done = set()
     if os.path.exists(a.out):
@@ -131,6 +141,23 @@ def cmd_run(a):
             fh.flush()
             if k % 10 == 0:
                 print(f"[{k + 1}/{len(jobs)}] state {row['snapshot_id']} live {row['live_rtt']:.2f} off {row['rtt_off']:.2f} on {row['rtt_on']:.2f}", flush=True)
+
+
+def cmd_census(a):
+    """Ghost classes of every snapshot of a cell (no replay): one row per decision, with whether the decision placed its whole batch."""
+    stem = Path(a.cell_dir) / a.stem
+    placed = {}
+    for line in open(f"{stem}.snapshots.jsonl.chosen.jsonl"):
+        r = json.loads(line)
+        placed[int(r["snapshot_id"])] = bool(r["chosen"]) and not r.get("deferred")
+    n = 0
+    with open(f"{stem}.snapshots.jsonl") as fh, open(a.out, "w") as out:
+        for line in fh:
+            snap = json.loads(line)
+            sid = int(snap["snapshot_id"])
+            out.write(json.dumps({"cell": a.stem, "snapshot_id": sid, "whole_batch": placed.get(sid, False), **classes(snap)}) + "\n")
+            n += 1
+    print(f"{a.stem}: {n} snapshots", flush=True)
 
 
 def _q(xs: List[float], p: float) -> float:
@@ -176,14 +203,19 @@ def main(argv=None):
     r.add_argument("--cell-config", required=True)
     r.add_argument("--sim-input", required=True)
     r.add_argument("--n", type=int, default=240)
+    r.add_argument("--ids-file", default="", help="JSON list of snapshot ids to replay instead of the evenly spread --n")
     r.add_argument("--workers", type=int, default=8)
     r.add_argument("--state-timeout", type=float, default=7200.0)
     r.add_argument("--out", required=True)
+    c = sub.add_parser("census")
+    c.add_argument("--cell-dir", required=True)
+    c.add_argument("--stem", required=True)
+    c.add_argument("--out", required=True)
     q = sub.add_parser("read")
     q.add_argument("--rows", required=True)
     q.add_argument("--out", default="")
     a = ap.parse_args(argv)
-    {"run": cmd_run, "read": cmd_read}[a.cmd](a)
+    {"run": cmd_run, "read": cmd_read, "census": cmd_census}[a.cmd](a)
 
 
 if __name__ == "__main__":
