@@ -109,6 +109,12 @@ Conditions on the arms:
 
 ## Record
 
+- 2026-10-23 — **Seal disclosure: the selection runner saw as-built 20-epoch validation metrics** (SCIENTIST; agreed with the expert).
+  - **What happened.** At 20:12Z SCIENTIST, who runs `llf_select.py`, received S7's as-built CURVES flag (TRUE) with metric values attached, not TRUE/FALSE alone. The values were the gnn's and twin's 20-epoch seed-1 val/ce, task_acc_choice and plan_exact (gnn job 902811, run `m0dh6bkt`; twin job 902812, run `kety0rcz`).
+  - **What was not seen:** no live cell, no 100-epoch run, and no static or (b) metric.
+  - **Why it cannot change the choice:** the selection score is live latency from the fixed script (blob `54367447`), with no discretion left in it. The values seen are an offline proxy for one variant.
+  - **Fix.** S7 now sends only TRUE/FALSE, run ids and checkpoint md5s for the static and (b) flags. The A4 wording on who reads the 20-epoch curves is corrected above.
+
 - 2026-10-23 — **Pre-data amendment A5: (b)'s gnn gets pre-norm residual message passing** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any (b) selection or e100 training, as the expert reports).
   - **Evidence: S4's robustness table** (diagnostic runs, not selection runs; they read only (b)'s own training metrics).
     - No init or scaling fix is robust. Zero-init diverges on seed 3, rescaling on seeds 2 and 3, and both together on seed 3.
@@ -152,7 +158,7 @@ Conditions on the arms:
 - 2026-10-23 — **Pre-data amendment A4: the selection waits for (b); (b) is fixed, not marked ineligible** (the user's decision, relayed by the expert, overriding ruling (ii) of the defect entry; written by SCIENTIST; filed before any selection-run score is read, as the expert reports).
   1. **The selection read runs only when all three variants' 20-epoch seed-1 selection cells are complete:** as built, (a) and (b). The rule, its eligibility tests and its script are unchanged.
   2. **The wait is not outcome-dependent.** It was decided now, when no one had read any CPU variant's selection score.
-     - Until the selection read runs, the as-built and (a) selection cells and their 20-epoch curves stay unread. The only checks are completion and training health (crash, NaN/inf, job state), reported pass/fail with no metric value.
+     - Until the selection read runs, the as-built and (a) selection cells stay unread. Their 20-epoch curves are read only by the curves flag's owner (S7, who sees no live cell), who passes only TRUE/FALSE with run ids to the selection runner; everyone else leaves them unread. *(Wording fixed 2026-10-23: it first said the curves stay unread, which contradicted the curves flag.)* The only checks are completion and training health (crash, NaN/inf, job state), reported pass/fail with no metric value.
      - The selection script is run once, by one person, after the last cell completes.
   3. **The sealed 100-epoch runs of every variant (A3) continue meanwhile, sealed as filed.**
   4. **Pin.** (b) and its GPU twin train together at the fix pin, which is later than `10f3a9c4`, carries the fix merge, and has the full suite green. Disclosed on every (b) row.
