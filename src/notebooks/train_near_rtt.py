@@ -1144,6 +1144,7 @@ def move_graph_to_device(data: Data, device: torch.device) -> Data:
     return data
 
 
+from src.placement.link_features import LINK_EDGE_DIM  # noqa: E402
 NEAR_RTT_LOSS_MAX = 1e5  # fixed bound on a per-graph train CE (T up to ~230 tasks x ~ln 23 x 2 states is < 1.5e4); a trip is a crash
 if "NEAR_RTT_LOSS_MAX" in os.environ:
     raise RuntimeError("NEAR_RTT_LOSS_MAX is a fixed constant of the code, not an environment setting")
@@ -2716,6 +2717,12 @@ if os.environ.get("NEAR_RTT_LINK_CONV_EQUIV") == "1":
 
     equivalence_report(model, train_graphs, _equiv_loss, DEVICE, int(os.environ.get("NEAR_RTT_LINK_CONV_EQUIV_N", "150")), int(os.environ.get("NEAR_RTT_LINK_CONV_EQUIV_SEQ", "30")))
     raise SystemExit(0)
+if os.environ.get("NEAR_RTT_LINK_CONV_ZERO_INIT") == "1":
+    with torch.no_grad():
+        for _k, _p in model.named_parameters():
+            if _k.startswith("bip_convs.") and _k.endswith("message_mlp.0.weight"):
+                _p[:, -LINK_EDGE_DIM:] = 0.0
+                print(f"[zero-init] {_k} last {LINK_EDGE_DIM} input columns zeroed", flush=True)
 print(f"TRAINING ({TRAIN_OBJECTIVE})")
 print("=" * 80)
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
