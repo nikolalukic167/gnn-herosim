@@ -112,7 +112,7 @@ Conditions on the arms:
     |---|---|---|---|
     | as built (S4) | v7 gnn | v7 twin | v7 MLP, v7 wide MLP |
     | (a) static link block (S6) | `gnn_static`: link columns against the partners' candidate nodes, in the conv once per batch | `twin_static`: the same block in its scorer rows, MP off | `mlp_static`: the same block in its rows |
-    | (b) re-encode per placement (S4) | E1–E3 in the conv, re-encoded for each committed set; trained on GPU | the as-built v7 twin (its scorer sees the same E1–E3 per placement) | the as-built v7 MLP and wide MLP |
+    | (b) re-encode per placement (S4) | E1–E3 in the conv, re-encoded for each committed set; trained on GPU | a GPU-trained v7 twin, the same venue and recipe as (b) (its scorer sees the same E1–E3 per placement) | the as-built v7 MLP and wide MLP |
 
     Plus the references as registered (v6 fslabel arms, the bar).
   - **Conditions on the variants.**
@@ -120,6 +120,7 @@ Conditions on the arms:
     - (b) Parity: the re-encoded E1–E3 for a committed set equal the scorer's E1–E3 for that set, so the twin's information is the same. Serving is on CPU, and (b) is charged its own CPU w, measured on its serving code like the other v7 arms.
     - **GPU nondeterminism (b), disclosed.** (b) is the only arm trained on GPU. Its weights are not bit-reproducible across runs (`tests/test_trainer_determinism.py` covers CPU), and the contrast with a CPU-trained twin also changes the training venue. Disclosed with every (b) row.
       - SCIENTIST's condition: if (b) is selected, its twin for seeds 2–3 and confirmation is retrained on the same GPU venue and recipe, so venue is not confounded with message passing.
+      - Extension (the expert, 2026-10-23, before any v7 training): the confound also reaches the seed-1 score the selection rule reads. So (b)'s control twin at seed 1 is also a GPU-trained v7 twin, the same venue and recipe (S4), not the CPU-trained as-built twin.
       - Each (b) run records the two-run weight difference at seed 1 (one repeat run) for the record.
     - Every arm is charged its own measured w (as registered); none is aliased.
   - **What runs first.** The early collapse check (as registered) runs for `gnn_static`, `twin_static` and (b) as well as the as-built gnn and twin, before the development-1 grid. The development-1 grid is option D on 30176–30181, g0+g1, both rungs, seed 1, every arm above.
