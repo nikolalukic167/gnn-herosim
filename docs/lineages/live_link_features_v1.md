@@ -4,6 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
+- **Pre-data amendment A1 (2026-10-23; the user's decision; Record):** as built, v7's link columns E1–E3 reach only the EdgeScorer, which the twin shares, so message passing sees only the at-capture P1–P3. Two GNN variants, (a) a static link block in the conv and (b) re-encoding per placement, run beside the as-built arms at seed 1, 20 epochs, on 30176–30181. A rule fixed now picks the one variant carried to seeds 2–3 and confirmation. This stage gives no label.
 - **Standing answer (2026-10-23):** none yet. Until the confirmation read is filed, no message-passing claim may be made from this lineage.
 
 ## Motivation (sources checked by SCIENTIST, 2026-10-23)
@@ -102,6 +103,41 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-23 — **Pre-data amendment A1: two GNN variants put the link columns in the message passing, and a fixed rule picks one for confirmation** (the user's decision, relayed by the expert; written by SCIENTIST; filed before any v7 training or cell exists).
+  - **Why.** S4 confirmed that in `partial_state_v7` as built, the edge columns E1–E3 enter only the EdgeScorer, which the MP-OFF twin shares. The bipartite conv gets only the at-capture platform columns P1–P3. So the as-built gnn vs twin contrast tests message passing over P1–P3 alone: the live, prefix-refreshed link information reaches both arms equally, and through no message.
+  - **The development-1 arms** (seed 1, 20 epochs, the v7 corpus and labels as filed, W&B on every run):
+
+    | Variant | gnn | its control twin | MLPs |
+    |---|---|---|---|
+    | as built (S4) | v7 gnn | v7 twin | v7 MLP, v7 wide MLP |
+    | (a) static link block (S6) | `gnn_static`: link columns against the partners' candidate nodes, in the conv once per batch | `twin_static`: the same block in its scorer rows, MP off | `mlp_static`: the same block in its rows |
+    | (b) re-encode per placement (S4) | E1–E3 in the conv, re-encoded for each committed set; trained on GPU | the as-built v7 twin (its scorer sees the same E1–E3 per placement) | the as-built v7 MLP and wide MLP |
+
+    Plus the references as registered (v6 fslabel arms, the bar).
+  - **Conditions on the variants.**
+    - (a) Parity: `twin_static` and `mlp_static` carry the static block byte-identical to `gnn_static`'s, on captured states. Columns built at capture equal those built at serve (extending `tests/test_link_features.py`).
+    - (b) Parity: the re-encoded E1–E3 for a committed set equal the scorer's E1–E3 for that set, so the twin's information is the same. Serving is on CPU, and (b) is charged its own CPU w, measured on its serving code like the other v7 arms.
+    - **GPU nondeterminism (b), disclosed.** (b) is the only arm trained on GPU. Its weights are not bit-reproducible across runs (`tests/test_trainer_determinism.py` covers CPU), and the contrast with a CPU-trained twin also changes the training venue. Disclosed with every (b) row.
+      - SCIENTIST's condition: if (b) is selected, its twin for seeds 2–3 and confirmation is retrained on the same GPU venue and recipe, so venue is not confounded with message passing.
+      - Each (b) run records the two-run weight difference at seed 1 (one repeat run) for the record.
+    - Every arm is charged its own measured w (as registered); none is aliased.
+  - **What runs first.** The early collapse check (as registered) runs for `gnn_static`, `twin_static` and (b) as well as the as-built gnn and twin, before the development-1 grid. The development-1 grid is option D on 30176–30181, g0+g1, both rungs, seed 1, every arm above.
+  - **Curves.** Each run is read with `scripts_cosim/read_training_curves.py` against its chance floor, and the selected epoch is named. A run whose live curves do not leave the chance floor is reported as untrained.
+  - **Selection rule (fixed now, before any v7 training).** Exactly one of {as built, (a), (b)} is carried to seeds 2–3 and confirmation.
+    1. **Eligible:** the variant passed its parity test and the collapse check, and its gnn run is not untrained.
+    2. **Score:** the pooled median, over the 12 (topology, rung) values without runaways (statistic and runaway rule as `d_read`, seed 1), of the variant's gnn vs its own control twin as listed above. Lower is better.
+    3. **Ties** within 0.5 pp go to the all-cells pooled median, then to the simpler variant (as built < (a) < (b)).
+    4. **If no variant is eligible,** hold, and report to the user.
+    - The score is read once, by one script whose blob is filed before the first development-1 cell. Nothing else (MLP contrasts, bar contrasts, curves) enters the choice, and the choice is not revisited after seeds 2–3.
+  - **After the choice.** Seeds 2–3 run for the selected variant's gnn, control twin and MLPs only. They form the registered development grid with seed 1, still direction only. Confirmation then runs the selected variant's arms, as registered.
+  - **What this stage cannot give.** The development-1 read cannot give a label of any kind:
+    - it is one seed;
+    - n = 6 topologies, with an exact two-sided floor of p .03125;
+    - all 6 topologies have been read before under D;
+    - it chooses among three variants, so the chosen score is biased downward (winner's curse).
+    The registered confirmation labels apply unchanged to the selected variant's gnn vs its control twin. Its secondary rows name the variant.
+  - **Unchanged:** the corpus, labels, replay identity, confirmation topologies and statistic, the label order, and the report-both-ways rule.
 
 - 2026-10-23 — **Decision charge w of the four v7 arms, measured per arm (S4; the w-only pin is `s4/v7-w` f283b8e2, a child of `23d5c99b`).** A calibration, not a result: no outcome is read. Each v7 arm is charged its own w, never an alias of a v6 key.
   - **Series.** Job 902034 at `23d5c99b` (reference-physics merge of `s4/v7-arms`), **os-cpu-slurm-16, a different node than the filed w's** (those are node B = os-cpu-slurm-22; the node was held by another user's job for days, and the expert ruled node 16 on 2026-10-23, node 17 the fallback). AMD EPYC 9335 32-Core, SMT off, exclusive, PAR 1, 1 torch thread, 19461 g0, both rungs, k = 0, seed 1, 2 cells per kind, the exchange physics of option D (`R1A_EXCHANGE_TCP=1`, `R1A_EXCHANGE_FAIRSHARE=1`). Recipe of series 884584 through `cot_link_smt.sbatch` / `cot_link_steps.sh` (`cotenancy/`): H3pre (`cd_ib0` at `114cc0e7`), the four kinds, H3end. 32 min 22 s, 0 failed cells.
