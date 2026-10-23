@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import uncut_label_screen as L  # noqa: E402
 
-DROP = ("gid", "wall_s", "stored_label_rtt", "stored_flows", "winner_pool", "sfs_wall_s", "sfs_new_plans")
+DROP = ("gid", "wall_s", "stored_label_rtt", "stored_flows", "winner_pool", "sfs_wall_s", "sfs_new_plans", "hand_replan_differs")
 
 
 def served_map(snapfile: str, cache: Dict[str, Dict[int, Any]]) -> Dict[int, Any]:
