@@ -97,3 +97,20 @@ def test_untrained_checkpoint_shape_rule_names_the_grown_inputs():
         C.check_shapes("ra_gnn_eng_combfl_link", {**new, "edge_scorer.fc1.weight": torch.zeros(8, 42)}, old)
     mlp_old, mlp_new = {"net.0.weight": torch.zeros(5, 59)}, {"net.0.weight": torch.zeros(5, 65)}
     C.check_shapes("ra_mlp_wide_combfl_link", mlp_new, mlp_old)
+
+
+def test_the_conv_variant_has_its_own_sidecheck_arm_and_the_flags_are_checked(monkeypatch, tmp_path):
+    import hashlib
+
+    import joint_burst_v2_sidecheck as S
+
+    monkeypatch.setenv("R1A_SLATE", "declared_pruning_v1_uncapped")
+    split = tmp_path / "split.json"
+    split.write_text("{}")
+    good = {**_sidecar("gnn", False, True), "split_artifact": {"sha256": hashlib.sha256(split.read_bytes()).hexdigest()}}
+    assert S.check_ra(dict(good), "ra_gnn_eng_v7", str(split), "inf") == 0  # the as-built gnn, flag absent
+    assert S.check_ra({**good, "mp_link_edge_conv": False}, "ra_gnn_eng_v7", str(split), "inf") == 0
+    assert S.check_ra({**good, "mp_link_edge_conv": True}, "ra_gnn_eng_v7", str(split), "inf") == 1  # a conv checkpoint is not the as-built arm
+    assert S.check_ra({**good, "mp_link_edge_conv": True}, "ra_gnn_eng_v7conv", str(split), "inf") == 0
+    assert S.check_ra(dict(good), "ra_gnn_eng_v7conv", str(split), "inf") == 1  # nor the reverse
+    assert S.check_ra({**good, "mp_link_edge_conv": True, "mp_link_static_attr": True}, "ra_gnn_eng_v7conv", str(split), "inf") == 1

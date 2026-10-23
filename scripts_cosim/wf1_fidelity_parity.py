@@ -116,13 +116,13 @@ def _one(job: Dict[str, Any]) -> Dict[str, Any]:
         return orig(self, batch_tasks, system_state, queue_snapshot, temporal_state)
 
     GNNScheduler._prefix_inference = patched
-    os.environ["GNN_SERVE_CANDIDATE_SLATE"] = "declared_pruning_v1"  # the serving mode under test: the real scheduler code prunes
+    os.environ["GNN_SERVE_CANDIDATE_SLATE"] = os.environ.get("PARITY_SERVE_SLATE", "declared_pruning_v1")  # the serving mode under test: the real scheduler code prunes (PARITY_SERVE_SLATE=declared_pruning_v1_uncapped for the corpora the uncapped checkpoints serve)
     trace = tempfile.NamedTemporaryFile(prefix="fid_trace_", suffix=".pkl", delete=False)
     trace.close()
     os.environ["GNN_PREFIX_TRACE_PATH"] = trace.name
     records: List[Dict[str, Any]] = []
     try:
-        model, device = load_gnn_model(Path(job["checkpoint"]), space_config=None)
+        model, device = load_gnn_model(Path(job["checkpoint"]), space_config=space)  # the cell config carries preinit.replica_placement_rule: a checkpoint trained under fastest_compatible loads under it
         sim_inputs = load_simulation_inputs(Path(spec["sim_input"]))
         models = {"gnn_model": model, "device": device, "task_types_data": sim_inputs["task_types"]}
         sink = io.StringIO()

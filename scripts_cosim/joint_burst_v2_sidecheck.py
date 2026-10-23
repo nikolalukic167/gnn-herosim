@@ -46,7 +46,8 @@ ARM2_ARMS = {
 COMB_V6_ARMS = {"ra_gnn_eng_v6": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v6": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v6": RA_ARMS["ra_twin_eng"],
                 "ra_gnn_eng_physmp_v6": RA_ARMS["ra_gnn_eng_physmp"]}  # physMP quick look: FL gnn with the physics edge_attr live in the bipartite conv  # G8d: the FL twin
 # live_link_features_v1: the same architectures on partial_state_v7 (3 link columns on the platform block, 3 on the partial-state block: width 30)
-COMB_V7_ARMS = {"ra_gnn_eng_v7": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v7": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v7": RA_ARMS["ra_twin_eng"]}
+COMB_V7_ARMS = {"ra_gnn_eng_v7": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v7": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v7": RA_ARMS["ra_twin_eng"],
+                "ra_gnn_eng_v7conv": RA_ARMS["ra_gnn_eng"]}  # variant (b): the same gnn with mp_link_edge_conv (E1-E3 in the conv, re-encoded per placement)
 # live_link_features_v1, the static link block: the same architectures on partial_state_v8 (v7 + S1-S3, width 33); the gnn alone carries mp_link_static_attr
 COMB_V8_ARMS = {"ra_gnn_eng_v8": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v8": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v8": RA_ARMS["ra_twin_eng"]}
 ARM2_RANDOM_PREFIX_K = {"ra_gnn_eng_arm2k0": 0, "ra_twin_eng_arm2k0": 0}  # Arm 2-K0; every other Arm 2 arm is K = 2
@@ -74,6 +75,12 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
     if kind == "set_transformer" and not sc.get("set_heads"):
         print("FAIL LOUD: a set_transformer sidecar must record set_heads", file=sys.stderr)
         return 1
+    if arm in COMB_V7_ARMS:
+        # the link conv flags are sidecar-only records of which variant a checkpoint is: exactly the conv arm carries mp_link_edge_conv, and no v7 arm carries the static flag
+        if bool(sc.get("mp_link_edge_conv", False)) != (arm == "ra_gnn_eng_v7conv") or bool(sc.get("mp_link_static_attr", False)):
+            print(f"FAIL LOUD: sidecar mp_link_edge_conv={sc.get('mp_link_edge_conv')!r} mp_link_static_attr={sc.get('mp_link_static_attr')!r}, arm {arm} expects "
+                  f"mp_link_edge_conv={arm == 'ra_gnn_eng_v7conv'} and no static flag", file=sys.stderr)
+            return 1
     for k, v in want.items():
         if sc.get(k) != v:
             print(f"FAIL LOUD: sidecar {k}={sc.get(k)!r}, arm {arm} expects {v!r}", file=sys.stderr)

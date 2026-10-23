@@ -502,6 +502,9 @@ def _prefix_free_prefix_block(data: Data) -> None:
         dtype=torch.float32,
         device=data.edge_index.device,
     )
+    if NEAR_CFG.mp_link_edge_conv:
+        # nothing committed: the conv's link columns of the empty prefix are exactly zero
+        data.link_edge_conv_attr = torch.zeros((n_edges, 3), dtype=torch.float32, device=data.edge_index.device)
 
 
 def _masked_topo_regret_for_graph(
