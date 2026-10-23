@@ -4,6 +4,7 @@
 - **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
+- **Amendment A5b (2026-10-23; the user's decision, filed after the A5 gate data; Record):** (b) failed gate criterion (c) on seeds 2–3 with a flat scale offset at the last layer, not a divergence. (b) adds one final affine LayerNorm after its last pre-norm residual layer, behind a contract flag. The gate is rerun unchanged.
 - **Amendment A6 (2026-10-23; the user's decision; Record):** for the Monday time budget, the selected variant's arms train 40 epochs (seeds 1–3, fresh), not 100. The A3 100-epoch runs become a disclosed sensitivity, never pooled. Filed before the selection read.
 - **Amendment A5 (2026-10-23; the user's decision; Record):** no init or scaling fix made (b) train robustly, so (b)'s gnn gets pre-norm residual message passing, behind a contract flag that is off by default. (b)'s twin is unchanged. A stability gate on seeds 1–3 and the fix-pin checks come before any (b) training.
 - **Variant (b) training defect and amendment A4 (2026-10-23; the user's decision; Record):** S4's 1-epoch smoke of (b) has a train CE of ~3e7 (its GPU twin ~34). (b) is fixed, not dropped: the selection waits until all three variants' 20-epoch selection cells are complete, and meanwhile no CPU-variant score is read. A per-graph loss bound is added to all arms.
@@ -110,6 +111,24 @@ Conditions on the arms:
 
 ## Record
 
+- 2026-10-23 — **Amendment A5b: one final LayerNorm for (b), filed after the A5 gate data; the gate rule is unchanged** (the user's ruling, option 1, relayed by the expert; written by SCIENTIST; filed before any (b) selection or e100 training).
+  - **The A5 gate data (S4), seeds 1–3 to step ~300.**
+    - Criteria (a) (finite loss to step 300) and (b) (the loss bound never trips) pass on all three seeds.
+    - **Criterion (c) fails on seeds 2 and 3:** the maximum per-layer activation L2 is 12.6× and 10.9× the as-built v7 gnn's at the same seed and step, always at the last layer.
+    - **What the failure is:** the activations are flat at 15–31 over the steps, not growing. With no final norm, the residual stream carries a scale offset; it is not a divergence.
+    - Under A5 a failed gate goes back to the user. It did, and the user chose this change.
+  - **The change.** (b)'s gnn adds one final affine LayerNorm after the last pre-norm residual layer. It has no running statistics, and its affine weights are in the state dict, so a strict load fails across.
+    - It is recorded in the contract sidecar as `mp_conv_prenorm_final_norm` (name as built by S4). The loaders and serving read it from the contract, never from a default.
+    - It is valid only with `mp_conv_prenorm_residual`, and fails loud otherwise.
+    - The default is off. With it off, the A5 pre-norm code is byte-unchanged.
+    - **Disclosed with every (b) row:** the scorer's input is now layer-normalised, which the as-built and static gnns' are not. This replaces A5's "no final norm" disclosure.
+  - **The gate is rerun unchanged:** seeds 1–3 to step ~300, the same criteria (a)–(c), with (c) at ≤ 10× the as-built v7 gnn at the same seed and step.
+    - **(c) is read on the same tensors as in the A5 gate,** the per-layer outputs up to and including the last residual layer, before the new final norm.
+    - The final norm's output is reported beside them but not used for (c). Measured after a LayerNorm, (c) would pass by construction.
+    - Then come equivalence, determinism and the full suite at the fix pin, as in A5.
+    - A failed rerun goes back to the user again, with no retry on other seeds.
+  - **Disclosed:** A5b was filed after the A5 gate data was seen, and it changes the architecture, not the gate. The rule, its threshold and its tensors are as filed in A5. (b)'s w is measured on this code.
+
 - 2026-10-23 — **Pre-data amendment A6: after the selection, the winner trains 40 epochs, not 100; the 100-epoch runs become a disclosed sensitivity** (the user's decision, relayed by the expert; written by SCIENTIST; filed before the selection read). Amends A2 and A3.
   - **Recipe (replaces A2's 100 epochs).** The winner's arms, as listed per outcome in A3 (gnn, control twin, MLP, wide MLP), train at seeds 1–3:
     - 40 epochs, min-epochs 40, no early stop;
@@ -146,7 +165,7 @@ Conditions on the arms:
     - **Design facts (S4).**
       - "Stateless" means no running statistics, not no parameters. The LayerNorm has an elementwise affine (`bip_norms.{l}.weight` / `.bias`): one LayerNorm per layer, shared over the task and platform rows.
       - There is no linear skip: every `BipartiteEdgeConv` maps emb → emb, so the residual is the identity.
-      - There is no final norm after layer 3. So the scorer's input scale differs from the as-built gnn's, and this is disclosed with every (b) row.
+      - There is no final norm after layer 3. So the scorer's input scale differs from the as-built gnn's, and this is disclosed with every (b) row. *Superseded by A5b (2026-10-23): one final affine LayerNorm is added after layer 3.*
     - **The flag is weight-visible and in the contract.**
       - The affine parameters change the state dict, so a strict load fails across a pre-norm and a plain checkpoint.
       - The flag is also in the sidecar (`mp_conv_prenorm_residual`). The loaders and serving read it from the contract, never from a default (the `mp_residual` lesson).
