@@ -104,13 +104,15 @@ def _work(job: Dict[str, Any]) -> Dict[str, Any]:
     plan = [live_plan[g] for g in gids]
     done = np.load(job["tasks_npy"])[:, 1]
     live = float(sum(float(done[g]) - t for g in gids))
+    ms = float((json.load(open(job["cell_summary"])).get("env") or {}).get("HEROSIM_DECISION_COST_MS", 0.0))
+    live_adj = live - len(gids) * float(rec.get("plan_evals") or 0) * ms / 1000.0       # live charges the decision time to each task of the batch; replay and labels do not
     U._setup_env("cd_ib0", {"cell_summary": job["cell_summary"]}, check_arm=False)
     os.environ.update(HEROSIM_EXCHANGE_FAIRSHARE="1", HEROSIM_EXCHANGE_TCP="1")
     from src.placement import snapshot_fidelity
 
     spec = {"snapshot": snap, "cell_config": job["cell_config"], "sim_input": job["sim_input"], "live_run_params": snapshot_fidelity.live_run_params()}
     types = [r["fn"] for r in batch]
-    out: Dict[str, Any] = {"snapshot_id": rec["snapshot_id"], "trigger_task_id": rec["trigger_task_id"], "time": t, "n_batch": len(gids), "live_rtt": live, **classes(snap)}
+    out: Dict[str, Any] = {"snapshot_id": rec["snapshot_id"], "trigger_task_id": rec["trigger_task_id"], "time": t, "n_batch": len(gids), "live_rtt": live, "live_rtt_adj": live_adj, "plan_evals": rec.get("plan_evals"), **classes(snap)}
     for name, flag in (("off", None), ("on", "1")):
         if flag is None:
             os.environ.pop(flow_replay.ENV, None)
@@ -120,6 +122,7 @@ def _work(job: Dict[str, Any]) -> Dict[str, Any]:
         rt, _setup, _runs = U.replay_rtts(spec, types, [plan])
         out[f"rtt_{name}"] = float(rt[0])
         out[f"gap_{name}"] = (float(rt[0]) - live) / live if live else None
+        out[f"gap_adj_{name}"] = (float(rt[0]) - live_adj) / live_adj if live_adj else None
         out[f"wall_{name}"] = time.time() - t0
     if job.get("flow_log"):
         out.update(later_flow_join(job["flow_log"], snap, gids, float(max(done[g] for g in gids))))
@@ -216,7 +219,8 @@ def cmd_read(a):
         groups["no_later_flow_on_batch_or_stored_links"] = [r for r in rows if not r["later_flow_on_batch_or_stored_links"]]
         groups["later_flow_on_batch_or_stored_links"] = [r for r in rows if r["later_flow_on_batch_or_stored_links"]]
         groups["no_later_flow_in_window_at_all"] = [r for r in rows if not r["later_flows_in_window"]]
-    out["gap_vs_live"] = {g: {"switch_off": _dist([r["gap_off"] for r in rs]), "switch_on": _dist([r["gap_on"] for r in rs])} for g, rs in groups.items()}
+    out["gap_vs_live_decision_time_removed"] = {g: {"switch_off": _dist([r["gap_adj_off"] for r in rs]), "switch_on": _dist([r["gap_adj_on"] for r in rs])} for g, rs in groups.items()}
+    out["gap_vs_live_raw"] = {g: {"switch_off": _dist([r["gap_off"] for r in rs]), "switch_on": _dist([r["gap_on"] for r in rs])} for g, rs in groups.items()}
     print(json.dumps(out, indent=1))
     if a.out:
         Path(a.out).write_text(json.dumps(out, indent=1) + "\n")
