@@ -2,6 +2,7 @@
 monkeypatched to this repo's commits and the 24 retest ids to 10 synthetic ones (an exact Wilcoxon on 10 topologies can reach Holm < .025)."""
 import hashlib
 import json
+from pathlib import Path
 import os
 import subprocess
 import sys
@@ -224,7 +225,7 @@ def test_own_state_md5_file_must_equal_the_checkpoint_snapshot(os_):
 
 def test_own_state_chain_refusals(os_, monkeypatch):
     repo, r = os_["repo"], os_["r"]
-    assert set(G.os_chain(str(repo))) == {os_["base"], r}
+    assert set(G.os_chain(str(repo))) == {os_["base"], r}  # OS_SERVE == OS_R in the fixture
     # a w link that also moves a frozen key
     subprocess.run(["git", "-C", str(repo), "checkout", "-q", "-b", "bad", os_["g2"]], check=True)
     w = json.loads(json.dumps(os_["wr_body"]))
@@ -303,7 +304,7 @@ def test_own_state_serving_pin(os_, monkeypatch):
     repo, r = os_["repo"], os_["r"]
     later = commit(repo, {"scripts_cosim/later.py": "1\n"}, "later code, same w")
     monkeypatch.setattr(G, "OS_SERVE", later)
-    assert set(G.os_chain(str(repo))) == {os_["base"], r}
+    assert set(G.os_chain(str(repo))) == {os_["base"], r, later}
     w = json.loads(json.dumps(os_["wr_body"]))
     w["w_ms_per_plan"][GNN] = {"heavy": 9.9, "moderate": 9.9}
     monkeypatch.setattr(G, "OS_SERVE", commit(repo, {G.W_FILE: w}, "later w moved"))
@@ -328,3 +329,33 @@ def test_own_state_identity_allows_the_new_telemetry_only(os_):
     f.write_text(json.dumps(x))
     with pytest.raises(SystemExit, match="misses its filed fl3 cell"):
         os_["read"](out="p2.json")
+
+
+def _move_to(os_, sha):
+    for d in ("new", "old", "ident"):
+        for f in os_["dirs"][d].glob("*.summary.json"):
+            x = json.loads(f.read_text())
+            old = x["code"]["commit"]
+            x["code"]["commit"] = sha
+            f.write_text(json.dumps(x))
+            lg = Path(str(f).replace(".summary.json", ".log"))
+            if lg.exists():
+                lg.write_text(lg.read_text().replace(old, sha).replace(old[:8], sha[:8]))
+
+
+def test_own_state_reads_end_to_end_at_a_later_serving_pin(os_, monkeypatch):
+    """The served cells (learned and identity) at a descendant of the retest pin with code changes and the same w: the whole read passes."""
+    later = commit(os_["repo"], {"scripts_cosim/later.py": "1\n"}, "later code, same w")
+    monkeypatch.setattr(G, "OS_SERVE", later)
+    os_["fill"]()
+    _move_to(os_, later)
+    res = os_["read"]()
+    assert res["F2"]["label"] == "MP-ATTRIBUTED" and res["serving_pin"] == later and res["identity"].startswith("PASS")
+
+
+def test_own_state_refuses_cells_at_the_retest_pin_when_serving_is_later(os_, monkeypatch):
+    later = commit(os_["repo"], {"scripts_cosim/later.py": "1\n"}, "later code, same w")
+    monkeypatch.setattr(G, "OS_SERVE", later)
+    os_["fill"]()
+    with pytest.raises(SystemExit, match="not the serving pin"):
+        os_["read"]()
