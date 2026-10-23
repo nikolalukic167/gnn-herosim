@@ -2055,7 +2055,7 @@ def os_args(a):
 
 
 def os_chain(repo):
-    """{OS_BASE: w, OS_R: w}. OS_R is a w-only child of OS_G2, OS_G2 of OS_G1, each link touching exactly its file; the w link adds only the two
+    """{OS_BASE: w, OS_R: w, OS_SERVE: w}. OS_R is a w-only child of OS_G2, OS_G2 of OS_G1, each link touching exactly its file; the w link adds only the two
     new kinds (w_frozen), and each new kind's w (scalar and by bucket) equals its filed arm's w at OS_R and at the pin that froze it (P7 / P7b)."""
     rev = lambda p: git(repo, "rev-parse", "--verify", p + "^{commit}").strip()
     for sha in (OS_BASE, OS_G1, OS_G2, OS_R, TW_P7, TW_P7B):
@@ -2094,7 +2094,7 @@ def os_chain(repo):
                 raise SystemExit(f"FAIL LOUD: the serving pin {OS_SERVE[:8]} {top}[{k!r}] differs from the retest pin {OS_R[:8]}'s")
     if wsv.get("k_cotenancy") != wr.get("k_cotenancy"):
         raise SystemExit(f"FAIL LOUD: the serving pin {OS_SERVE[:8]} k_cotenancy differs from the retest pin {OS_R[:8]}'s")
-    return {OS_BASE: wj(OS_BASE), OS_R: wr}
+    return {OS_BASE: wj(OS_BASE), OS_R: wr, OS_SERVE: wsv}
 
 
 def os_snapshot_md5(path):
@@ -2216,13 +2216,13 @@ def os_identity(ident_gate, ident_ref):
 
 def os_learned_cells(cells, ws, kr):
     """Every learned cell (new and old) ran at the retest pin and served k x its own frozen w there (asserts() charge-checks only its learned w kinds)."""
-    k = float(ws[OS_R]["k_cotenancy"]) if kr else 1.0
+    k = float(ws[OS_SERVE]["k_cotenancy"]) if kr else 1.0
     for key, s in cells.items():
         if key[0] not in OS_NEW + OS_OLD:
             continue
         if pin_match((s.get("code") or {}).get("commit"), [OS_SERVE]) is None:
             raise SystemExit(f"FAIL LOUD: learned cell {key} ran at {(s.get('code') or {}).get('commit')}, not the serving pin {OS_SERVE[:8]}")
-        charge_check(key, s, ws[OS_R], k)
+        charge_check(key, s, ws[OS_SERVE], k)
 
 
 def os_verdict(cells, topos):
