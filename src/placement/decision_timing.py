@@ -27,10 +27,14 @@ class DecisionLog:
     def __init__(self) -> None:
         self.calls: List[Tuple[int, float, int]] = []  # (tasks decided, seconds, refine moves)
         self.plan_evals: List[int] = []  # per call, when the caller meters plans (sched_plan_evals growth); else 0
+        self.link_capture: List[float] = []  # per call, partial_state_v7 only: seconds of the live link capture, already inside the call's seconds
 
-    def add(self, n_tasks: int, seconds: float, refine_moves: int = 0, plan_evals: int = 0) -> None:
+    def add(self, n_tasks: int, seconds: float, refine_moves: int = 0, plan_evals: int = 0, link_capture_s: Optional[float] = None) -> None:
+        """`link_capture_s` (v7 kinds only, None otherwise): the seconds of the call's link-state capture, which `seconds` already includes."""
         self.calls.append((int(n_tasks), float(seconds), int(refine_moves)))
         self.plan_evals.append(int(plan_evals))
+        if link_capture_s is not None:
+            self.link_capture.append(float(link_capture_s))
 
     def by_bucket(self) -> Dict[str, Dict[str, float]]:
         out = {tag: {"calls": 0, "total_s": 0.0, "plan_evals": 0} for _hi, tag in SIZE_BUCKETS}
@@ -68,6 +72,9 @@ class DecisionLog:
             "refine_moves_per_call_median": st.median(c[2] for c in self.calls),
             "by_bucket": self.by_bucket(),
         })
+        if self.link_capture:
+            lc = self.link_capture
+            out.update({"link_capture_s_total": sum(lc), "link_capture_s_per_call_mean": sum(lc) / len(lc), "link_capture_s_per_call_max": max(lc), "link_capture_calls": len(lc)})
         return out
 
 
