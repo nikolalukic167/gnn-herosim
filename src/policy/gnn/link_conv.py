@@ -335,6 +335,10 @@ def _debug_transform_e(LS: LinkStatic, data: Any, ctx: Any, attr: Tensor) -> Ten
         fwd = attr[:, LS.on(attr.device)["fwd"]].reshape(-1, LINK_EDGE_DIM)
         q = torch.quantile(fwd[:: max(1, fwd.shape[0] // 200000)], torch.tensor([0.5, 0.99], device=fwd.device), dim=0)
         print(f"[e-stats] graph={getattr(data, 'dataset_id', '?')} states={attr.shape[0]} mean={fwd.mean(0).tolist()} std={fwd.std(0).tolist()} p50={q[0].tolist()} p99={q[1].tolist()} max={fwd.max(0).values.tolist()}", flush=True)
+        from src.policy.gnn.link_static import link_static_attr_from_ctx
+
+        st = link_static_attr_from_ctx(data, ctx).to(torch.float32)
+        print(f"[s-stats] graph={getattr(data, 'dataset_id', '?')} rows={st.shape[0]} mean={st.mean(0).tolist()} std={st.std(0).tolist()} p99={torch.quantile(st[:: max(1, st.shape[0] // 200000)], 0.99, dim=0).tolist()} max={st.max(0).values.tolist()}", flush=True)
     sc = os.environ.get("LINK_CONV_E_SCALE")
     if sc:
         attr = attr / torch.tensor([float(v) for v in sc.split(",")], dtype=attr.dtype, device=attr.device)
