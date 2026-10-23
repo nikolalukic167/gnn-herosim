@@ -1,0 +1,78 @@
+{
+ "_provenance": {
+  "ra_gnn_eng_combfl_dgu_nosplit|s1": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed1.pt",
+   "src_mtime": "2026-10-23 11:05:45",
+   "contract_md5": "f26c16721ecbd7f5bfea2421250c46e8"
+  },
+  "ra_gnn_eng_combfl_dgu_nosplit|s2": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed2.pt",
+   "src_mtime": "2026-10-23 10:48:53",
+   "contract_md5": "caa2c6c2bbd6367925667010d8dc9f60"
+  },
+  "ra_gnn_eng_combfl_dgu_nosplit|s3": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed3.pt",
+   "src_mtime": "2026-10-23 10:56:46",
+   "contract_md5": "5bb572f34ca10df84bc66de68ba3f92f"
+  },
+  "ra_gnn_eng_combfl_dgu_nosplit|s4": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed4.pt",
+   "src_mtime": "2026-10-23 10:48:29",
+   "contract_md5": "ea510f6c97c00bca84bf90add2f5ebdc"
+  },
+  "ra_gnn_eng_combfl_dgu_nosplit|s5": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed5.pt",
+   "src_mtime": "2026-10-23 11:11:14",
+   "contract_md5": "1f400c6ed6cf268b76482be4dc39849b"
+  },
+  "ra_gnn_eng_combfl_dgu_nosplit|s6": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-gnn-seed6.pt",
+   "src_mtime": "2026-10-23 11:20:06",
+   "contract_md5": "6cd3e7bdf5fecafa15a6b5a81989e66b"
+  },
+  "ra_twin_eng_combfl_dgu_nosplit|s1": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed1.pt",
+   "src_mtime": "2026-10-23 13:43:10",
+   "contract_md5": "f7727caf1c3a4cb0e5f20f1fac62d03c"
+  },
+  "ra_twin_eng_combfl_dgu_nosplit|s2": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed2.pt",
+   "src_mtime": "2026-10-23 10:38:51",
+   "contract_md5": "059039f748e3205d03048f530410dc63"
+  },
+  "ra_twin_eng_combfl_dgu_nosplit|s3": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed3.pt",
+   "src_mtime": "2026-10-23 12:49:52",
+   "contract_md5": "a9ff70fdfc26f19250800086459f692d"
+  },
+  "ra_twin_eng_combfl_dgu_nosplit|s4": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed4.pt",
+   "src_mtime": "2026-10-23 13:17:22",
+   "contract_md5": "c2533846d2da37571d4a0218cb75d5ea"
+  },
+  "ra_twin_eng_combfl_dgu_nosplit|s5": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed5.pt",
+   "src_mtime": "2026-10-23 10:53:57",
+   "contract_md5": "19440c33166ff671c0fc4c5cca5884d4"
+  },
+  "ra_twin_eng_combfl_dgu_nosplit|s6": {
+   "source": "/share/nikola.lukic/uncut_groups/own24/ckpt_snapshot/uncut-dagger-full-twin-seed6.pt",
+   "src_mtime": "2026-10-23 10:28:55",
+   "contract_md5": "434fae81ededcd65dc7cc6c88c611ac8"
+  }
+ },
+ "_snapshot_time": "2026-10-23 22:37:35 CEST",
+ "_src_dir": "/home/nikola.lukic/gnn-herosim-wt/dagfull_05f52abb/models",
+ "ra_gnn_eng_combfl_dgu_nosplit|s1": "bf54d0cc0fc4306cc07676d4f1e2821c",
+ "ra_gnn_eng_combfl_dgu_nosplit|s2": "5f4a66ca9acb6ac5888b89fa2ea2ddd1",
+ "ra_gnn_eng_combfl_dgu_nosplit|s3": "2b359eade5a6a8e7eb47c2faf34bd76e",
+ "ra_gnn_eng_combfl_dgu_nosplit|s4": "0db5142186789c69020d3f614ea977f9",
+ "ra_gnn_eng_combfl_dgu_nosplit|s5": "14938c89ec3b513d4d9b2e10c01fa566",
+ "ra_gnn_eng_combfl_dgu_nosplit|s6": "45a7ca8c149fc013aa96d8afc5e89b33",
+ "ra_twin_eng_combfl_dgu_nosplit|s1": "a59d2fb95c89b4ec18b6a0a2a875d2f6",
+ "ra_twin_eng_combfl_dgu_nosplit|s2": "1af09693b74c7ea89b6391535a49f764",
+ "ra_twin_eng_combfl_dgu_nosplit|s3": "ba147f2aadb2bf0eab4d1495675ec01a",
+ "ra_twin_eng_combfl_dgu_nosplit|s4": "a25342372864e36a5f2bc66616af70d5",
+ "ra_twin_eng_combfl_dgu_nosplit|s5": "ccf1a48bc34636109fdc3ceaa50040a8",
+ "ra_twin_eng_combfl_dgu_nosplit|s6": "5853465b47345f497e0419bc4b891c52"
+}
