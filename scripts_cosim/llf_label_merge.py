@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import uncut_label_screen as L  # noqa: E402
 
-DROP = ("gid", "wall_s", "stored_label_rtt", "stored_flows")
+DROP = ("gid", "wall_s", "stored_label_rtt", "stored_flows", "winner_pool", "sfs_wall_s", "sfs_new_plans")
 
 
 def served_map(snapfile: str, cache: Dict[str, Dict[int, Any]]) -> Dict[int, Any]:
@@ -43,7 +43,7 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     ap.add_argument("--stats", required=True)
     a = ap.parse_args(argv)
-    entries, pair, flagged = {}, {}, set()
+    entries, pair, flagged, pools, sfs_wall = {}, {}, set(), {}, {}
     for f in a.inp:
         for line in open(f):
             e = json.loads(line)
@@ -51,6 +51,8 @@ def main(argv=None):
                 raise SystemExit(f"FAIL LOUD: {e['gid']} appears in two shards")
             flagged.add(bool(e.get("stored_flows")))
             pair[e["gid"]] = e.get("stored_label_rtt")
+            pools[e["gid"]] = e.get("winner_pool")
+            sfs_wall[e["gid"]] = e.get("sfs_wall_s")
             entries[e["gid"]] = {k: v for k, v in e.items() if k not in DROP}
     expect = {s["gid"] for s in L.all_states(a.split, a.corpus)}
     if set(entries) != expect:
@@ -75,15 +77,23 @@ def main(argv=None):
         b = agg.setdefault(e["bucket"], {"n": 0, "differs_from_first_pass": 0, "served_checked": 0, "first_pass_differs_from_served": 0, "final_differs_from_served": 0})
         b["n"] += 1
         b["differs_from_first_pass"] += int(e["differs"])
+        if pools[gid] is not None:
+            b.setdefault("winner_pool", {})
+            b["winner_pool"][pools[gid]] = b["winner_pool"].get(pools[gid], 0) + 1
+            b["sfs_wall_s"] = b.get("sfs_wall_s", 0.0) + float(sfs_wall[gid] or 0.0)
         if rec is not None and rec["chosen"]:
             b["served_checked"] += 1
             b["first_pass_differs_from_served"] += int(differs_from_served(e["current_plan"], trace, rec))
             b["final_differs_from_served"] += int(differs_from_served(e["plans"][0], trace, rec))
         if pair[gid] is not None and pair[gid] > 0:
             ratio.append(float(e["rtt_current"]) / float(pair[gid]))
+    pool_tot: Dict[str, int] = {}
+    for b in agg.values():
+        for k, v in (b.get("winner_pool") or {}).items():
+            pool_tot[k] = pool_tot.get(k, 0) + v
     tot = {k: sum(b[k] for b in agg.values()) for k in ("n", "differs_from_first_pass", "served_checked", "first_pass_differs_from_served", "final_differs_from_served")}
     stats = {"n": len(entries), "sha256": hashlib.sha256(raw.encode()).hexdigest(), "md5": hashlib.md5(raw.encode()).hexdigest(), "by_bucket": agg, "total": tot,
-             "share": {k: tot[k] / tot["served_checked"] if k.endswith("served") else tot[k] / tot["n"] for k in ("differs_from_first_pass", "first_pass_differs_from_served", "final_differs_from_served")}}
+             "winner_pool_total": pool_tot, "sfs_wall_s_total": sum(b.get("sfs_wall_s", 0.0) for b in agg.values()), "share": {k: tot[k] / tot["served_checked"] if k.endswith("served") else tot[k] / tot["n"] for k in ("differs_from_first_pass", "first_pass_differs_from_served", "final_differs_from_served")}}
     if ratio:
         ratio.sort()
         stats["current_label_rtt_under_flows_over_stored"] = {"median": ratio[len(ratio) // 2], "p10": ratio[len(ratio) // 10], "p90": ratio[9 * len(ratio) // 10]}

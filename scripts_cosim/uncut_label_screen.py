@@ -133,6 +133,35 @@ def plan_list(label: Sequence[Sequence[int]], small: bool, enum: Sequence[Dict[s
     return out
 
 
+def union_pools(plans: List[Dict[str, Any]], sfs_plans: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The candidate pool of the union relabel: `plans` (the label first, then the S pool) extended with the plans of the S_fs pool that are new, deduplicated by plan.
+    A plan in both pools keeps its position and its tag becomes '<S tag>+sfs_top'; a new one is appended tagged 'sfs_top'. The label (element 0) is never retagged."""
+    out = [dict(p) for p in plans]
+    pos = {plan_key(p["plan"]): i for i, p in enumerate(out)}
+    for c in sfs_plans:
+        if c["tag"] == "label":
+            continue
+        k = plan_key(c["plan"])
+        if k in pos:
+            if pos[k] != 0 and "sfs_top" not in out[pos[k]]["tag"]:
+                out[pos[k]]["tag"] += "+sfs_top"
+        else:
+            pos[k] = len(out)
+            out.append({"plan": c["plan"], "tag": "sfs_top"})
+    return out
+
+
+def winner_pool(tag: str, small: bool) -> str:
+    """Which pool the label came from: first_pass (the label stands), exhaustive (small state), S, S_fs, or both."""
+    if tag == "label":
+        return "first_pass"
+    if small:
+        return "exhaustive"
+    has_sfs = "sfs_top" in tag
+    has_s = any(t in tag for t in ("ils_top", "enum_top"))
+    return "both" if has_sfs and has_s else "S_fs" if has_sfs else "S"
+
+
 def decide(rtts: Sequence[float]) -> Dict[str, Any]:
     """rtts[0] is the current label's replayed RTT. The simulator label is the lowest; it differs only if it is lower by more than a relative REL_TOL."""
     best = min(range(len(rtts)), key=lambda i: (rtts[i], i))
@@ -191,7 +220,7 @@ def check_stored_rtt(gid: str, replayed: float, stored: float, record_pair: bool
         raise SystemExit(f"FAIL LOUD: {gid}: the current label's replayed RTT {replayed!r} is not the stored {stored!r}")
 
 
-def replay_state(corpus: str, s: Dict[str, Any], record_pair: bool = False) -> Dict[str, Any]:
+def replay_state(corpus: str, s: Dict[str, Any], record_pair: bool = False, union_sfs: bool = False) -> Dict[str, Any]:
     import gzip
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -223,6 +252,16 @@ def replay_state(corpus: str, s: Dict[str, Any], record_pair: bool = False) -> D
     if small and len(enum) != int(head["plan_space_size"]):
         raise SystemExit(f"FAIL LOUD: {s['gid']}: enumerated {len(enum)} plans, header plan space is {head['plan_space_size']}")
     plans = plan_list(label, small, enum, ils_rows)
+    sfs_wall, sfs_new = 0.0, 0
+    if union_sfs and not small:
+        # the S_fs pool (expert ruling 2026-10-23): the ILS priced with the shared-rate surrogate S_fs under the stored flows, same per-50 budget as the first-pass search; its top 8 by S_fs
+        # join the S pool and the label, deduplicated, and the fastest replayed plan wins
+        f = U.decision_pass({**{k: v for k, v in job.items() if k != "enum_cap"}, "keep_plans": True, "sfs": True}, "cd_ib0", 0, None, 50, None, check_arm=False)
+        sfs_wall = float(f["search_wall"])
+        sfs_plans = plan_list(label, False, (), [{"S": s_, "eval": e, "plan": pl} for e, s_, _it, pl in f["evals_full"]])
+        before = len(plans)
+        plans = union_pools(plans, sfs_plans)
+        sfs_new = len(plans) - before
     rt, setup, runs = U.replay_rtts(d["spec"], d["types"], [p["plan"] for p in plans])
     check_stored_rtt(s["gid"], rt[0], stored_rtt, record_pair)
     dec = decide(rt)
@@ -230,6 +269,7 @@ def replay_state(corpus: str, s: Dict[str, Any], record_pair: bool = False) -> D
     return {"gid": s["gid"], "bucket": s["bucket"], "n_tasks": n, "small": small, "label_source": head["label_source"], "n_plans": len(plans),
             "method": method, "label_plan": plans[dec["best_index"]]["plan"], "current_plan": plans[0]["plan"],
             "rtt_label": rt[0], "stored_label_rtt": stored_rtt, "rtt_sim": rt[dec["best_index"]], "best_tag": plans[dec["best_index"]]["tag"], **dec,
+            **({"winner_pool": winner_pool(plans[dec["best_index"]]["tag"], small), "sfs_wall_s": sfs_wall, "sfs_new_plans": sfs_new} if union_sfs else {}),
             "tags": [p["tag"] for p in plans], "rtts": rt, "plans": [p["plan"] for p in plans] if not small else None,
             "replay_setup_s": setup, "wall_s": time.time() - t0}
 
@@ -327,9 +367,10 @@ def read_done(path: str) -> Dict[str, Dict[str, Any]]:
 def _work(args):
     import resource
 
-    corpus, st, record_pair = args
-    r = replay_state(corpus, st, True) if record_pair else replay_state(corpus, st)
-    return {"gid": st["gid"], **sidecar_entry(r, st["split"]), **({"stored_label_rtt": r["stored_label_rtt"]} if record_pair else {}), "wall_s": r["wall_s"], "_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
+    corpus, st, record_pair, *rest = args
+    union = bool(rest and rest[0])
+    r = (replay_state(corpus, st, True, True) if union else replay_state(corpus, st, True)) if record_pair else replay_state(corpus, st)
+    return {"gid": st["gid"], **sidecar_entry(r, st["split"]), **({"stored_label_rtt": r["stored_label_rtt"]} if record_pair else {}), **({k: r[k] for k in ("winner_pool", "sfs_wall_s", "sfs_new_plans")} if union else {}), "wall_s": r["wall_s"], "_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0}
 
 
 def _init_worker():
@@ -352,6 +393,8 @@ def cmd_relabel(a):
         if not exchange_fairshare_enabled():
             raise SystemExit("FAIL LOUD: --stored-flows replays the snapshot's stored peer-exchange flows and needs HEROSIM_EXCHANGE_FAIRSHARE=1")
         os.environ[flow_replay.ENV] = "1"      # before any pool starts: spawned workers inherit it; a state without a flows block fails loud in flow_replay.require
+    if getattr(a, "union_sfs", False) and not (sf and getattr(a, "record_pair", False)):
+        raise SystemExit("FAIL LOUD: --union-sfs needs --stored-flows and --record-pair")
     rp = bool(getattr(a, "record_pair", False))
     if rp:
         from src.placement.network_fabric import exchange_fairshare_enabled
@@ -369,7 +412,7 @@ def cmd_relabel(a):
     max_rss = 0.0
     with open(a.out, "a") as fh:
         if a.workers <= 1:
-            results = (_work((a.corpus, st, rp)) for st in todo)
+            results = (_work((a.corpus, st, rp, bool(getattr(a, "union_sfs", False)))) for st in todo)
         else:
             # concurrent.futures: a worker that dies (the kernel's OOM kill) raises BrokenProcessPool instead of leaving the ordered result queue waiting forever; every wait has a timeout.
             # Memory a replay leaves behind in its process must not add up over a shard, so a FRESH pool serves each chunk of workers x max_tasks_per_child states. The executor's own max_tasks_per_child
@@ -384,7 +427,7 @@ def cmd_relabel(a):
                 for lo in range(0, len(todo), size):
                     chunk = todo[lo:lo + size]
                     pool = cf.ProcessPoolExecutor(a.workers, mp_context=mp.get_context(method), initializer=_init_worker)
-                    fs = [pool.submit(_work, (a.corpus, st, rp)) for st in chunk]
+                    fs = [pool.submit(_work, (a.corpus, st, rp, bool(getattr(a, "union_sfs", False)))) for st in chunk]
                     try:
                         for st, f in zip(chunk, fs):
                             try:
@@ -461,6 +504,7 @@ def main(argv=None):
     rl.add_argument("--state-timeout", type=float, default=3600.0)
     rl.add_argument("--limit-states", type=int, default=0)
     rl.add_argument("--stored-flows", action="store_true", help="replay each state's stored peer-exchange flows (HEROSIM_REPLAY_STORED_FLOWS=1): the candidate plans are priced against the background traffic the snapshot carried; needs a corpus captured with the flows block and HEROSIM_EXCHANGE_FAIRSHARE=1")
+    rl.add_argument("--union-sfs", action="store_true", help="union relabel: also run the S_fs ILS (pg_sfs, per-50 budget, under the stored flows) and replay the union of its top 8, the S pool and the label; needs --record-pair and --stored-flows; rows carry winner_pool")
     rl.add_argument("--record-pair", action="store_true", help="fair-share label test only: keep the replayed and the stored RTT of the current label instead of failing on a difference")
     mg = sub.add_parser("merge")
     mg.add_argument("--split", required=True)
