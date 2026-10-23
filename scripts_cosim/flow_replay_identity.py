@@ -130,6 +130,8 @@ def _work(job: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def cmd_run(a):
+    if a.allow_old_unplanned:
+        os.environ["HEROSIM_REPLAY_UNPLANNED_OLD"] = "1"          # inherited by the spawned workers
     import concurrent.futures as cf
     import multiprocessing as mp
 
@@ -234,6 +236,7 @@ def main(argv=None):
     r.add_argument("--stem", required=True)
     r.add_argument("--cell-config", required=True)
     r.add_argument("--sim-input", required=True)
+    r.add_argument("--allow-old-unplanned", action="store_true", help="a capture before schema v1.1: replay its unplanned ghosts the old way (sets HEROSIM_REPLAY_UNPLANNED_OLD=1)")
     r.add_argument("--n", type=int, default=240)
     r.add_argument("--flow-log", default="", help="the cell's HEROSIM_FLOW_LOG file: adds the later-flow join to every row")
     r.add_argument("--ids-file", default="", help="JSON list of snapshot ids to replay instead of the evenly spread --n")
