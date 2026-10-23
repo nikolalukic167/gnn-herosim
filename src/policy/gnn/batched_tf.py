@@ -62,9 +62,8 @@ def _unsupported(model: Any, ctx: Any) -> None:
         raise ValueError("NEAR_RTT_BATCHED_TF is defined for the prefix-conditioned scorer (partial_state_edge_dim > 0)")
     if ctx.contract not in rf.BOTH_DIRECTION_CONTRACTS or ctx.contract not in rf.PEER_BLOCK_CONTRACTS:
         raise ValueError(f"NEAR_RTT_BATCHED_TF is built for partial_state_v5, not {ctx.contract!r}")
-    if ctx.contract in rf.LINK_CONTRACTS:
-        raise ValueError(f"NEAR_RTT_BATCHED_TF has no builder for the {ctx.contract} link columns (E1-E3, partial-state columns 27-29): it would leave them at 0 while the sequential "
-                         "loss and the live decode compute them. Train with NEAR_RTT_BATCHED_TF=0, or add the vectorised link block to _blocks with a test against partial_state_columns.")
+    if ctx.contract in rf.LINK_CONTRACTS and (getattr(ctx, "link_counts", None) is None or getattr(ctx, "link_routes", None) is None):
+        raise ValueError(f"NEAR_RTT_BATCHED_TF: {ctx.contract} needs the context's link_counts and link_routes (the vectorised link block reads them)")
     if ctx.contract in rf.KRANK_ONEHOT_CONTRACTS:
         raise ValueError("NEAR_RTT_BATCHED_TF: one-hot krank contracts are not supported")
     if any(ctx.parents.get(t) for t in ctx.parents):
@@ -191,6 +190,77 @@ class _Static:
                     raise ValueError(f"NEAR_RTT_BATCHED_TF: no backlog for candidate {c!r}")
                 self.row_backlog[i] = float(ctx.backlog_s[c])
         self.ctx_load_seconds = bool(ctx.load_seconds)
+        self.link = _link_tables(ctx, self.nodes, nidx, self.Pm) if ctx.contract in rf.LINK_CONTRACTS else None
+        self.link_base = self.load_base + rf.LOAD_SECONDS_DIM + rf.EXCHANGE_PUSH_DIM
+
+
+def _link_tables(ctx: Any, nodes: Sequence[Any], nidx: Dict[Any, int], Pm: np.ndarray) -> Dict[str, Any]:
+    """Static tables of the partial_state_v7 link block (placement/link_features.py): the directed hops and bandwidths of every node pair, the link incidence of each route,
+    the context's active flows per link, and the ordered peer pairs (the flows a committed pair will run)."""
+    V = len(nodes)
+    lid: Dict[str, int] = {}
+    for hops in ctx.link_routes.values():
+        for key, _bw in hops:
+            lid.setdefault(str(key), len(lid))
+    for key in ctx.link_counts:
+        lid.setdefault(str(key), len(lid))
+    L = max(len(lid), 1)
+    H = max([len(h) for h in ctx.link_routes.values()] + [1])
+    hopl = np.full((V, V, H), -1, dtype=np.int64)
+    hopbw = np.zeros((V, V, H))
+    inc = np.zeros((V, V, L))
+    for a in nodes:
+        for b in nodes:
+            if a == b:
+                continue
+            hops = ctx.link_routes.get((a, b))
+            if hops is None:
+                raise ValueError(f"NEAR_RTT_BATCHED_TF: link_routes has no route {a!r} -> {b!r}; the batched link block needs every candidate-node pair")
+            for q, (key, bw) in enumerate(hops):
+                hopl[nidx[a], nidx[b], q] = lid[str(key)]
+                hopbw[nidx[a], nidx[b], q] = float(bw)
+                inc[nidx[a], nidx[b], lid[str(key)]] += 1.0
+    base = np.zeros(L)
+    for key, n_ in ctx.link_counts.items():
+        base[lid[str(key)]] = float(n_)
+    pu, pv = np.nonzero(Pm)
+    return {"HOPL": hopl, "HOPBW": hopbw, "HINC": inc, "base": base, "pu": pu.astype(np.int64), "pv": pv.astype(np.int64), "H": H, "L": L}
+
+
+def _link_block(S: "_Static", nd_plan: np.ndarray, M: np.ndarray, Mr: np.ndarray, PBl: np.ndarray, LEl: np.ndarray) -> np.ndarray:
+    """E1-E3 of every row, each task's rows under its own state M[t] (the vectorised twin of link_features.edge_columns plus pending_counts).
+    The sums over a row's partners run in ascending task index, which is the commit order of a corpus without DAG parents (what this loss supports), so the floats are the
+    definition's; the logs are math.log1p / math.log, not numpy's, so the last bit is the definition's too."""
+    LK, n, R = S.link, S.n, S.R
+    rt, rn = S.rt, S.row_node
+    u, v = LK["pu"], LK["pv"]
+    if len(u):
+        wk = M[:, u] * M[:, v] * (nd_plan[u] != nd_plan[v])[None, :]  # [state, pair]: both ends committed, on different nodes
+        pending = wk @ LK["HINC"][nd_plan[v], nd_plan[u]]  # the flow v -> u over its route, per link
+    else:
+        pending = np.zeros((n, LK["L"]))
+    counts = LK["base"][None, :] + pending  # [state, link]
+    hl = LK["HOPL"][nd_plan[None, :], rn[:, None]]  # [R, n, H]: the route partner j's node -> this row's node
+    bw = LK["HOPBW"][nd_plan[None, :], rn[:, None]]
+    valid = hl >= 0
+    act = np.where(valid, counts[rt[:, None, None], np.where(valid, hl, 0)], 0.0)
+    anyact = (act > 0.0).any(-1)
+    mib = 1024 ** 2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rate = np.where(valid, bw * mib / (act + 1.0), np.inf).min(-1)
+        solo_j = S.rBr * PBl + LEl
+        shared_j = np.where(anyact, S.rBr / rate + LEl, solo_j)
+    use = (Mr * S.rPr * (nd_plan[None, :] != rn[:, None])) > 0.0
+    shared = np.zeros(R)
+    solo = np.zeros(R)
+    for j in range(n):
+        shared = shared + np.where(use[:, j], shared_j[:, j], 0.0)
+        solo = solo + np.where(use[:, j], solo_j[:, j], 0.0)
+    busiest = np.where(use[:, :, None], act, 0.0).max(axis=(1, 2))
+    e1 = np.array([math.log1p(x) for x in shared])
+    e2 = np.array([math.log(a / b) if b > 0.0 and a > b else 0.0 for a, b in zip(shared, solo)])
+    e3 = np.array([math.log1p(float(x)) for x in busiest])
+    return np.stack([e1, e2, e3], axis=1)
 
 
 def _blocks(S: _Static, ctx: Any, data: Any, plan: Sequence[int], M: np.ndarray) -> np.ndarray:
@@ -255,6 +325,10 @@ def _blocks(S: _Static, ctx: Any, data: Any, plan: Sequence[int], M: np.ndarray)
         out[:, S.load_base + 0] = np.log1p(S.row_backlog)
         out[:, S.load_base + 1] = np.log1p(cs)
         out[:, S.load_base + 2] = np.log1p(S.row_backlog + cs)
+    if S.link is not None:
+        out[:, S.link_base:S.link_base + rf.LINK_EDGE_DIM] = _link_block(S, nd_plan, M, Mr, PBl, LEl)
+    elif ctx.contract in rf.LINK_CONTRACTS:
+        raise ValueError("NEAR_RTT_BATCHED_TF: a link contract reached _blocks without link tables")
     return out.astype(np.float32)
 
 
@@ -276,6 +350,9 @@ class BatchedTeacherForced:
         order = [int(t) for t in order]
         if sorted(order) != list(range(n)):
             raise ValueError("NEAR_RTT_BATCHED_TF: the commit order is not a permutation of the tasks")
+        if S.link is not None and order != list(range(n)):
+            raise ValueError("NEAR_RTT_BATCHED_TF: the link block sums each row's partners in ascending task index, the commit order of a corpus without DAG parents; "
+                             f"this commit order is {order[:8]}...")
         pos = np.empty(n, dtype=np.int64); pos[order] = np.arange(n)
         self.order = order
         Mpre = (pos[None, :] < pos[:, None]).astype(np.float64)  # strict prefix: a task's own commit is excluded
