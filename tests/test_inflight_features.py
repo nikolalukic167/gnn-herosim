@@ -40,7 +40,7 @@ def test_contract_family_and_defaults_unchanged(monkeypatch):
     assert v6 == "partial_state_v6" and RF.validate_partial_state_contract(v6) == v6
     for group in (RF.PEER_BLOCK_CONTRACTS, RF.LOAD_SECONDS_CONTRACTS, RF.BOTH_DIRECTION_CONTRACTS, RF.FOUR_TYPE_CONTRACTS):
         assert v6 in group and RF.PARTIAL_STATE_CONTRACT_V5 in group
-    assert RF.INFLIGHT_CONTRACTS == frozenset({v6, RF.PARTIAL_STATE_CONTRACT_V7})
+    assert RF.INFLIGHT_CONTRACTS == frozenset({v6, RF.PARTIAL_STATE_CONTRACT_V7, RF.PARTIAL_STATE_CONTRACT_V8})
     assert RF.partial_state_feature_dim(v6) == RF.partial_state_feature_dim(RF.PARTIAL_STATE_CONTRACT_V5) == 27
     assert RF.DEFAULT_PARTIAL_STATE_CONTRACT == RF.PARTIAL_STATE_CONTRACT_V1
     monkeypatch.delenv("PARTIAL_STATE_CONTRACT", raising=False)
