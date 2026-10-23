@@ -325,6 +325,7 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
 
 ## Record (newest first)
 
+- 2026-10-23 — **Own-state reader: pin and checkpoint-md5 source updated to the served set, before the read** (`--confirm-own-state`, `uncut_arm_gate_read.py` blob `50d744f2936afa27ee32d64683e86830b2e14887`). The serving pin is `05f52abb`, a descendant of the retest pin `211241a7` with the same w. The identity allow-list adds `peerExchangeByAccessClass`, `peerExchangeOverlap` and `env/GNN_MODEL_PATH`; `pg_fsaware_decisions*` must be 0. Checkpoint md5s come from S5's snapshot of the served best-val .pt files at the cancelled trainings (`own24/ckpt_snapshot/md5_dgu.json` md5 `80e3b6b4`).
 - 2026-10-23 — **Option D direction-only reads: on fair-share labels the GNN ties its MP-OFF twin, and its edge over the MLP is model class and width, not message passing** (filed by SCIENTIST at the expert's request; descriptive, no label, no registration; every figure below was re-read or recomputed by SCIENTIST from the files named). Paths are under `/share/nikola.lukic/uncut_groups/`. Option D is TCP slow start plus fair-share exchange (serial partners), default cellular uplink (definition and sources: `live_link_features_v1.md`, Motivation).
   - **Caveats on every row.**
     - 20 training epochs, not the filed arms' 100.
@@ -353,8 +354,8 @@ Not checked: the feature contract for very large batches (the `partial_state_v3`
     - **Seed 1's −12.31 % (the one-seed read, `d_fsl/read.txt` md5 `df11a847`) did not hold up.** Seeds 2 and 3 alone give −3.54 % and −8.27 % pooled.
     - Per-seed gnn vs twin: s1 −1.17 %, s2 −2.05 %, s3 −2.21 % pooled. The heavy medians are positive for all three seeds.
   - **(3) physMP** (S6, in `d_fsl/read.txt`, seed 1 only): no gain. physMP vs FL gnn is +7.56 % pooled (4/12, p .27): moderate +0.37 % (3/6), heavy +42.48 % (1/6).
-  - **(4) BLIND vs S_fs label search** (S7; `fs_sfs_study.py`, rows `dagger/fs_label/sfs/rows_*_of_20.jsonl`, md5 of their sorted md5 list `314060d0214bbd206628bacde671332d`; sample `sample_list.json` md5 `679ce21e`). No read file is on /share. SCIENTIST re-ran the reader's logic (scratch `sfs_read_check.py` md5 `9062fd76`).
-    - 500 states; BLIND reproduces the fair-share label test on 500/500.
+  - **(4) BLIND vs S_fs label search** (S7; `fs_sfs_study.py`, rows `dagger/fs_label/sfs/rows_*_of_20.jsonl`, md5 of their sorted md5 list `314060d0214bbd206628bacde671332d`; sample `sample_list.json` md5 `679ce21e`). SCIENTIST re-ran the reader's logic (scratch `sfs_read_check.py` md5 `9062fd76`).
+    - 500 states; BLIND reproduces the fair-share label test on 500/500. S7's filed read: `dagger/fs_label/sfs/read.json` md5 `443d302bdeff9abd78009085cf7dd261`, equal to SCIENTIST's recomputation.
     - S_fs finds a faster label on 30.8 % of states (≥ 5 % faster on 23.8 %) and a slower one on 20.0 %. The median gain where faster is 17.2 %, the mean gain 4.0 %, and the S_fs search wall is 0.81× BLIND's.
     - Small states (n = 70, exact reference): 1.4 % each way, mean regret 3.38 % (BLIND) vs 3.09 % (S_fs).
     - By bucket, S_fs is faster on 3.2 % (≤ 10 tasks), 24.0 % (11–50), 43.2 % (51–100) and 52.8 % (101–256).
