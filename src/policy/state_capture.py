@@ -153,7 +153,7 @@ class StateCaptureHelper:
         now = self.env.now
         inflight_on = inflight_enabled()
         link_on = link_features.link_enabled()
-        link_flows = None
+        link_table = None
         
         for node, platform in replicas:
             key = f"{node.node_name}:{platform.id}"
@@ -213,12 +213,12 @@ class StateCaptureHelper:
                 temporal_state[key][COUNT_KEY], temporal_state[key][WORK_KEY] = live_state(platform)
             if link_on:
                 # partial_state_v7: the active fair-share flows on the platform's node's access links (placement/link_features.py)
-                if link_flows is None:
+                if link_table is None:
                     share = getattr(getattr(node, "fabric", None), "fairshare", None)
                     if share is None:
                         raise RuntimeError("FAIL LOUD: partial_state_v7 needs the fair-share link fabric (HEROSIM_EXCHANGE_FAIRSHARE=1)")
-                    link_flows = link_features.flows_live(share, now)
-                temporal_state[key][link_features.NODE_KEY] = link_features.node_raw(link_flows, node.node_name)
+                    link_table = link_features.node_table(link_features.flows_live(share, now))
+                temporal_state[key][link_features.NODE_KEY] = link_features.node_raw((), node.node_name, link_table)
         
         return temporal_state
     
