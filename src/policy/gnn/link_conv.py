@@ -296,10 +296,68 @@ def state_log_softmax_per_state(b: BatchedTeacherForced, model: Any, data: Any, 
     return F.log_softmax(pad, dim=-1)
 
 
+def _encode_copies(model: Any, data: Any, attr: Tensor, edge_budget: int) -> Tuple[Tensor, Tensor]:
+    """The task and platform embeddings of every copy, [S * n_tasks, d] and [S * n_platforms, d] in copy order. Copies are encoded in chunks of at most `edge_budget` edges (the copies are disjoint, so a chunk
+    encodes exactly what the whole would), and under autograd each chunk runs inside torch.utils.checkpoint: only the chunk's inputs and outputs are kept, its activations are recomputed in the backward pass
+    (the RNG state is restored, so a dropout mask is the one the forward drew). That bounds the memory by one chunk instead of all 2T states of the largest group."""
+    from torch.utils.checkpoint import checkpoint
+
+    S = int(attr.shape[0])
+    per_copy = int(data.edge_index.size(1)) + int(getattr(data, "peer_edge_index", torch.empty(2, 0)).size(1)) + int(getattr(data, "node_edge_index", torch.empty(2, 0)).size(1))
+    step = max(1, min(S, int(edge_budget // max(per_copy, 1))))
+    tes: List[Tensor] = []
+    pes: List[Tensor] = []
+    for a in range(0, S, step):
+        chunk = attr[a:a + step]
+
+        def run(chunk=chunk):
+            return model._encode(replicate_graph(data, int(chunk.shape[0]), chunk))
+
+        if torch.is_grad_enabled():
+            te, pe = checkpoint(run, use_reentrant=False)
+        else:
+            te, pe = run()
+        tes.append(te)
+        pes.append(pe)
+    return torch.cat(tes, 0), torch.cat(pes, 0)
+
+
+_E_STATS_N = [0]
+
+
+def _debug_transform_e(LS: LinkStatic, data: Any, ctx: Any, attr: Tensor) -> Tensor:
+    """Diagnostics of the E instability (env only, never set in a registered run): LINK_CONV_E_STATS=1 prints per-column statistics of the forward rows over the first 40 graphs; LINK_CONV_E_SCALE=a,b,c divides
+    the columns; LINK_CONV_E_MODE=zero zeroes E, =static replaces it with the state-independent S1-S3 block."""
+    import os
+
+    if os.environ.get("LINK_CONV_E_STATS") == "1" and _E_STATS_N[0] < 40:
+        _E_STATS_N[0] += 1
+        fwd = attr[:, LS.on(attr.device)["fwd"]].reshape(-1, LINK_EDGE_DIM)
+        q = torch.quantile(fwd[:: max(1, fwd.shape[0] // 200000)], torch.tensor([0.5, 0.99], device=fwd.device), dim=0)
+        print(f"[e-stats] graph={getattr(data, 'dataset_id', '?')} states={attr.shape[0]} mean={fwd.mean(0).tolist()} std={fwd.std(0).tolist()} p50={q[0].tolist()} p99={q[1].tolist()} max={fwd.max(0).values.tolist()}", flush=True)
+        from src.policy.gnn.link_static import link_static_attr_from_ctx
+
+        st = link_static_attr_from_ctx(data, ctx).to(torch.float32)
+        print(f"[s-stats] graph={getattr(data, 'dataset_id', '?')} rows={st.shape[0]} mean={st.mean(0).tolist()} std={st.std(0).tolist()} p99={torch.quantile(st[:: max(1, st.shape[0] // 200000)], 0.99, dim=0).tolist()} max={st.max(0).values.tolist()}", flush=True)
+    sc = os.environ.get("LINK_CONV_E_SCALE")
+    if sc:
+        attr = attr / torch.tensor([float(v) for v in sc.split(",")], dtype=attr.dtype, device=attr.device)
+    mode = os.environ.get("LINK_CONV_E_MODE", "")
+    if mode == "zero":
+        attr = torch.zeros_like(attr)
+    elif mode == "static":
+        from src.policy.gnn.link_static import link_static_attr_from_ctx
+
+        attr = link_static_attr_from_ctx(data, ctx).to(attr.device, attr.dtype)[None].expand_as(attr).contiguous()
+    elif mode:
+        raise ValueError(f"LINK_CONV_E_MODE={mode!r}")
+    return attr
+
+
 def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int]], order: Sequence[int], full_context_weight: float, device: torch.device,
-                   max_elems: int = 3_000_000_000) -> Tensor:
+                   edge_budget: int = 300_000) -> Tensor:
     """The any-of-K teacher-forced CE of the re-encode variant: -logsumexp_k sum_t log p(plan_k[t] | prefix state), plus `full_context_weight` times the same over the full-context states.
-    Each distinct state is encoded under ITS committed set's conv block, all in one big graph."""
+    Each distinct state is encoded under ITS committed set's conv block, as a disjoint copy of the graph, in chunks of `edge_budget` edges with checkpointing (`_encode_copies`)."""
     from src.policy.gnn.batched_tf import _unsupported
 
     _unsupported(model, ctx)
@@ -309,20 +367,53 @@ def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int
     LS = static_of(data, ctx)
     Cm, ND = state_arrays(b)
     n_states = Cm.shape[0]
-    cost = n_states * (int(data.edge_index.size(1)) + int(getattr(data, "peer_edge_index", torch.empty(2, 0)).size(1))) * int(model.bip_convs[0].message_mlp[0].out_features)
-    if cost > max_elems:
-        raise RuntimeError(f"FAIL LOUD: link_conv_loss would hold {cost:.3g} edge-feature elements for {n_states} states of one graph (budget {max_elems:.3g}); "
-                           "a chunked two-pass backward is not implemented")
     rows = []
     step = max(1, int(_CHUNK_ELEMS // max(LS.R * LS.D * LS.H, 1)))
     with torch.no_grad():
         for a in range(0, n_states, step):
             rows.append(link_rows(LS, torch.from_numpy(Cm[a:a + step]).to(device), torch.from_numpy(ND[a:a + step]).to(device)))
-        attr = rows_to_edges(LS, torch.cat(rows, 0))
-    big = replicate_graph(data, n_states, attr)
-    task_emb, platform_emb = model._encode(big)
+        attr = _debug_transform_e(LS, data, ctx, rows_to_edges(LS, torch.cat(rows, 0)))
+    task_emb, platform_emb = _encode_copies(model, data, attr, edge_budget)
     lp = state_log_softmax_per_state(b, model, data, task_emb, platform_emb)
     loss = -torch.logsumexp(b.step_logps(lp, "prefix").sum(dim=1), dim=0)
     if full_context_weight > 0.0:
         loss = loss + full_context_weight * -torch.logsumexp(b.step_logps(lp, "full").sum(dim=1), dim=0)
     return loss
+
+
+def equivalence_report(model: Any, graphs: Sequence[Any], loss_fn: Any, device: torch.device, n_graphs: int, seq_max_tasks: int, small_budget: int = 60_000) -> None:
+    """Real-data check of the re-encode loss (NEAR_RTT_LINK_CONV_EQUIV=1 in the trainer): per sampled graph (every k-th by size, plus the largest ten) the loss and its gradient with the default chunk budget against a
+    small budget, against one unchunked call where it fits, and against the sequential closure for graphs up to `seq_max_tasks`. `loss_fn(model, data, seq)` returns the scalar loss; eval mode, dropout off."""
+    import time
+
+    model.eval()
+    order = sorted(range(len(graphs)), key=lambda i: int(graphs[i].n_tasks))
+    step = max(1, len(order) // max(1, n_graphs - 10))
+    picks = order[::step] + order[-10:]
+    defaults = link_conv_loss.__defaults__
+
+    def run(data, budget, seq):
+        link_conv_loss.__defaults__ = (budget,)
+        model.zero_grad(set_to_none=True)
+        loss = loss_fn(model, data, seq)
+        loss.backward()
+        g = torch.cat([p.grad.detach().flatten() if p.grad is not None else torch.zeros(p.numel(), device=device) for p in model.parameters()])
+        return float(loss.detach()), g
+
+    try:
+        for i in picks:
+            data = graphs[i]
+            nt = int(data.n_tasks)
+            t0 = time.time()
+            ref, gref = run(data, defaults[0], False)
+            row = f"[equiv] graph={getattr(data, 'dataset_id', '?')} n_tasks={nt} ce={ref:.6g} ce_per_task={ref / max(nt, 1):.4g} gnorm={float(gref.norm()):.4g}"
+            for name, budget, seq in (("small_budget", small_budget, False), ("unchunked", 10 ** 12, False), ("sequential", defaults[0], True)):
+                if seq and nt > seq_max_tasks:
+                    continue
+                if name == "unchunked" and nt > 80:
+                    continue
+                v, g = run(data, budget, seq)
+                row += f" | {name}: dce={v - ref:+.3g} grad_rel={float((g - gref).norm() / (gref.norm() + 1e-12)):.3g}"
+            print(row + f" ({time.time() - t0:.1f}s)", flush=True)
+    finally:
+        link_conv_loss.__defaults__ = defaults

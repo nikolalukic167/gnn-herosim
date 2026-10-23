@@ -189,6 +189,8 @@ class NearRttConfig:
     # live_link_features_v1: extra conv edge columns (src/placement/link_features.py; weight-visible, sidecar keys)
     mp_link_edge_conv: bool = os.environ.get("NEAR_RTT_MP_LINK_EDGE_CONV", "0") == "1"
     mp_link_static_attr: bool = os.environ.get("NEAR_RTT_MP_LINK_STATIC_ATTR", "0") == "1"
+    mp_conv_prenorm_residual: bool = os.environ.get("NEAR_RTT_MP_CONV_PRENORM_RESIDUAL", "0") == "1"
+    mp_conv_prenorm_final_norm: bool = os.environ.get("NEAR_RTT_MP_CONV_PRENORM_FINAL_NORM", "0") == "1"
     # bipartite_aggr_v1: how the bipartite conv pools over a task's candidate platforms.
     # "mean" is what bipartite_edge_v1 shipped; "sum" is the GIN's behaviour under test.
     mp_bipartite_aggr: str = os.environ.get("NEAR_RTT_MP_BIPARTITE_AGGR", "mean")
@@ -1144,6 +1146,16 @@ def move_graph_to_device(data: Data, device: torch.device) -> Data:
     return data
 
 
+from src.placement.link_features import LINK_EDGE_DIM  # noqa: E402
+NEAR_RTT_LOSS_MAX = 1e5  # fixed bound on a per-graph train CE (T up to ~230 tasks x ~ln 23 x 2 states is < 1.5e4); a trip is a crash
+if "NEAR_RTT_LOSS_MAX" in os.environ:
+    raise RuntimeError("NEAR_RTT_LOSS_MAX is a fixed constant of the code, not an environment setting")
+
+
+_LOSS_DEBUG_N = [0]
+_STEP_N = [0]
+
+
 def train_epoch(
     model: nn.Module,
     loader: DataLoader,
@@ -1193,6 +1205,12 @@ def train_epoch(
             else:
                 logits = model(data)
                 loss_ce, valid_ce = loss_original_ce(logits, data, DEVICE)
+            if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1" and valid_ce > 0:
+                _LOSS_DEBUG_N[0] += 1
+                if float(loss_ce.detach()) > 1e3 or _LOSS_DEBUG_N[0] % 200 == 0 or _LOSS_DEBUG_N[0] <= 60:
+                    print(f"[loss-debug] epoch={epoch} n={_LOSS_DEBUG_N[0]} graph={getattr(data, 'dataset_id', '?')} n_tasks={int(data.n_tasks)} ce={float(loss_ce.detach()):.6g}", flush=True)
+            if valid_ce > 0 and float(loss_ce.detach()) > NEAR_RTT_LOSS_MAX:
+                raise RuntimeError(f"train CE {float(loss_ce.detach()):.6g} for graph {getattr(data, 'dataset_id', '?')} (n_tasks={int(data.n_tasks)}) exceeds the fixed bound {NEAR_RTT_LOSS_MAX:g}: a label on a masked or misaligned candidate")
             if valid_ce > 0 and torch.isfinite(loss_ce):
                 loss_ce_total = loss_ce_total + loss_ce
                 n_ce += 1
@@ -1252,8 +1270,26 @@ def train_epoch(
         if not torch.isfinite(loss):
             continue
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1" and os.environ.get("NEAR_RTT_STEP_GROUPS") == "1" and (_STEP_N[0] < 40 or _STEP_N[0] % 10 == 9):
+            _groups: Dict[str, float] = {}
+            for _k, _p in model.named_parameters():
+                if _p.grad is None:
+                    continue
+                _parts = _k.split(".")
+                if _k.startswith("bip_convs.") and _k.endswith("message_mlp.0.weight"):
+                    _groups[f"{_parts[0]}.{_parts[1]}.msg0.E"] = float(_p.grad[:, -LINK_EDGE_DIM:].norm())
+                    _groups[f"{_parts[0]}.{_parts[1]}.msg0.rest"] = float(_p.grad[:, :-LINK_EDGE_DIM].norm())
+                else:
+                    _g = ".".join(_parts[:3] if _k.startswith("bip_convs.") else _parts[:2])
+                    _groups[_g] = (_groups.get(_g, 0.0) ** 2 + float(_p.grad.norm()) ** 2) ** 0.5
+            _ew = {f"L{_k.split('.')[1]}": round(float(_p.detach()[:, -LINK_EDGE_DIM:].norm()), 4) for _k, _p in model.named_parameters() if _k.startswith("bip_convs.") and _k.endswith("message_mlp.0.weight")}
+            print(f"[group-grad] step={_STEP_N[0] + 1} " + " ".join(f"{_k}={_v:.4g}" for _k, _v in sorted(_groups.items())) + f" | E_weight_norm={_ew} act_norm={getattr(model, '_dbg_act', None)}", flush=True)
+        _gn = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
+        if os.environ.get("NEAR_RTT_LOSS_DEBUG") == "1":
+            _STEP_N[0] += 1
+            if _STEP_N[0] <= 40 or _STEP_N[0] % 10 == 0:
+                print(f"[step-debug] step={_STEP_N[0]} graphs={_LOSS_DEBUG_N[0]} ce_avg={float(ce_avg.detach()):.5g} grad_norm_preclip={float(_gn):.5g} max_abs_param={max(float(p.detach().abs().max()) for p in model.parameters()):.5g}", flush=True)
 
         running_ce += float(ce_avg.item())
         running_rank += float(rank_avg.item())
@@ -2289,7 +2325,7 @@ if NEAR_CFG.arm_kind in GRAPH_FREE_ARMS:
             ("NEAR_RTT_MP_NETWORK_ENTITIES", NEAR_CFG.mp_network_entities), ("NEAR_RTT_MP_DAG_EDGES", NEAR_CFG.mp_dag_edges),
             ("NEAR_RTT_MP_PEER_EDGES", NEAR_CFG.mp_peer_edges), ("NEAR_RTT_MP_BIPARTITE_EDGE_CONV", NEAR_CFG.mp_bipartite_edge_conv),
             ("NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO", NEAR_CFG.mp_bipartite_edge_attr_zero),
-            ("NEAR_RTT_MP_LINK_EDGE_CONV", NEAR_CFG.mp_link_edge_conv), ("NEAR_RTT_MP_LINK_STATIC_ATTR", NEAR_CFG.mp_link_static_attr),
+            ("NEAR_RTT_MP_LINK_EDGE_CONV", NEAR_CFG.mp_link_edge_conv), ("NEAR_RTT_MP_LINK_STATIC_ATTR", NEAR_CFG.mp_link_static_attr), ("NEAR_RTT_MP_CONV_PRENORM_RESIDUAL", NEAR_CFG.mp_conv_prenorm_residual), ("NEAR_RTT_MP_CONV_PRENORM_FINAL_NORM", NEAR_CFG.mp_conv_prenorm_final_norm),
             ("NEAR_RTT_MP_BIPARTITE_HETERO", NEAR_CFG.mp_bipartite_hetero), ("NEAR_RTT_PLAN_RAW", NEAR_CFG.plan_raw),
             ("NEAR_RTT_PLAN_RAW_SUM", NEAR_CFG.plan_raw_sum), ("NEAR_RTT_PLAN_RAW_LOCAL", NEAR_CFG.plan_raw_local),
             ("GNN_DISABLE_MESSAGE_PASSING", os.environ.get("GNN_DISABLE_MESSAGE_PASSING", "").strip().lower() in ("1", "true", "yes")),
@@ -2338,6 +2374,8 @@ else:
         mp_bipartite_edge_attr_zero=NEAR_CFG.mp_bipartite_edge_attr_zero,
         mp_link_edge_conv=NEAR_CFG.mp_link_edge_conv,
         mp_link_static_attr=NEAR_CFG.mp_link_static_attr,
+        mp_conv_prenorm_residual=NEAR_CFG.mp_conv_prenorm_residual,
+        mp_conv_prenorm_final_norm=NEAR_CFG.mp_conv_prenorm_final_norm,
         mp_bipartite_aggr=NEAR_CFG.mp_bipartite_aggr,
         mp_bipartite_hetero=NEAR_CFG.mp_bipartite_hetero,
         task_type_onehot_dim=DAG_TASK_TYPE_ONEHOT_DIM if NEAR_CFG.task_type_onehot else 0,
@@ -2482,6 +2520,8 @@ def save_checkpoint(state_dict: Dict[str, Any], path: Path) -> None:
                 "mp_bipartite_edge_attr_zero": NEAR_CFG.mp_bipartite_edge_attr_zero,
                 "mp_link_edge_conv": NEAR_CFG.mp_link_edge_conv,
                 "mp_link_static_attr": NEAR_CFG.mp_link_static_attr,
+                "mp_conv_prenorm_residual": NEAR_CFG.mp_conv_prenorm_residual,
+                "mp_conv_prenorm_final_norm": NEAR_CFG.mp_conv_prenorm_final_norm,
                 # bipartite_aggr_v1: weight-invisible (aggr changes no parameter), so this
                 # sidecar is the ONLY record of which arm a checkpoint is.
                 "mp_bipartite_aggr": NEAR_CFG.mp_bipartite_aggr,
@@ -2688,6 +2728,21 @@ if phase_b_baseline is None and _resume_state is None:
     )
 
 print("=" * 80)
+if os.environ.get("NEAR_RTT_LINK_CONV_EQUIV") == "1":
+    from src.policy.gnn.link_conv import equivalence_report
+
+    def _equiv_loss(_m, _d, _seq):
+        object.__setattr__(NEAR_CFG, "batched_tf", not _seq)
+        return loss_tied_teacher_forced_ce(_m, move_graph_to_device(_d, DEVICE), DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight)[0]
+
+    equivalence_report(model, train_graphs, _equiv_loss, DEVICE, int(os.environ.get("NEAR_RTT_LINK_CONV_EQUIV_N", "150")), int(os.environ.get("NEAR_RTT_LINK_CONV_EQUIV_SEQ", "30")))
+    raise SystemExit(0)
+if os.environ.get("NEAR_RTT_LINK_CONV_ZERO_INIT") == "1":
+    with torch.no_grad():
+        for _k, _p in model.named_parameters():
+            if _k.startswith("bip_convs.") and _k.endswith("message_mlp.0.weight"):
+                _p[:, -LINK_EDGE_DIM:] = 0.0
+                print(f"[zero-init] {_k} last {LINK_EDGE_DIM} input columns zeroed", flush=True)
 print(f"TRAINING ({TRAIN_OBJECTIVE})")
 print("=" * 80)
 print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
@@ -2986,6 +3041,21 @@ wandb.log_artifact(artifact)
 wandb.finish()
 
 print("=" * 80)
+if os.environ.get("NEAR_RTT_LINK_CONV_ABLATE") == "1":
+    model.eval()
+    _abl = {}
+    for _mode in ("", "zero"):
+        os.environ["LINK_CONV_E_MODE"] = _mode
+        _tot = 0.0
+        _n = 0
+        with torch.no_grad():
+            for _g in val_graphs[:: max(1, len(val_graphs) // 200)]:
+                _l, _nt = loss_tied_teacher_forced_ce(model, move_graph_to_device(_g, DEVICE), DEVICE, full_context_weight=NEAR_CFG.full_context_ce_weight)
+                _tot += float(_l) / max(1, int(_g.n_tasks))
+                _n += 1
+        _abl[_mode or "real"] = _tot / max(1, _n)
+    os.environ["LINK_CONV_E_MODE"] = ""
+    print(f"[ablate] val CE per task over {_n} val graphs: E real {_abl['real']:.5g}  E zeroed {_abl['zero']:.5g}", flush=True)
 print("TRAINING COMPLETE")
 print("=" * 80)
 print(f"Model saved to: {model_path}")
