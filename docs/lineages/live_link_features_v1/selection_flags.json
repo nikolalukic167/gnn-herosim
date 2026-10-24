@@ -1,0 +1,29 @@
+{
+ "as_built": {
+  "curves": true,
+  "curves_source": "S7 2026-10-23: read_training_curves on 20-epoch s1, gnn job 902811 run m0dh6bkt (-final md5 b6893d3d), twin job 902812 run kety0rcz (-final md5 dfdd96b0)",
+  "parity": true,
+  "collapse": true,
+  "collapse_source": "user ruling (i), 2026-10-23 (live_link_features_v1 A1, dc7a027e): environment-runaway fails count as passes; all three variants enter. Collapse results and S6 labels reported beside the selection.",
+  "collapse_diagnosis": "S4 2026-10-23 PASS/FAIL: gnn and twin PASS 30176 g0 moderate and 30179 g0 heavy, FAIL 30181 g0 heavy (the same cell trips for as built, its twin and both static arms: environment). Health PASS 48/48. Reported beside the selection.",
+  "parity_source": "S4 PASS: tests/test_link_features.py::test_trainer_and_live_serving_give_bitwise_identical_columns_conv_inputs_and_logits_across_a_decode + tests/test_batched_tf_link.py; real-data live-vs-cache job 902171 10/10 clean (first_check_902171/parity/parity.json); re-run by SCIENTIST at b9963f51"
+ },
+ "static": {
+  "curves": true,
+  "parity": true,
+  "collapse": true,
+  "curves_source": "S7 2026-10-23: read_training_curves on 20-epoch s1; gnn uncut-linkstatic-gnn-eng job 902806 run mq1ny1o7 (-final md5 8ac70207, contract 9f571b4b), twin uncut-linkstatic-twin job 902807 run gx8jo901 (-final md5 f8b80e40, contract f6aad24d)",
+  "collapse_source": "user ruling (i), 2026-10-23 (live_link_features_v1 A1, dc7a027e): environment-runaway fails count as passes; all three variants enter. Collapse results and S6 labels reported beside the selection.",
+  "collapse_diagnosis": "S6 2026-10-23 (anomaly/fairshare/d_link/diag/): ENVIRONMENT on all 4 failing cells (gnn_static, twin_static x 30179/30181 g0 heavy): batch herd share 0.49-0.50 for every arm incl. bar and fslabel gnn; backlog grows as the bar's; peak flows/link 4-20x the fslabel gnn's, rising with the backlog. Reported beside the selection. Peak flows/link vs the bar: 30179 g0 heavy bar 1,787, gnn_static 1,020, twin_static 882; 30181 g0 heavy bar 1,726, gnn_static 449, twin_static 2,412. Quote: not separable from backlog growth.",
+  "parity_source": "S6 PASS: tests/test_link_static.py (full-decode live vs cache bitwise; gnn/twin/mlp/wide byte-identical scorer rows, columns 30-32) + tests/test_batched_tf_static.py; re-run by SCIENTIST at origin/reference-physics b9963f51: 14 passed"
+ },
+ "conv": {
+  "curves": true,
+  "parity": true,
+  "collapse": true,
+  "collapse_source": "user ruling (i), 2026-10-23 (live_link_features_v1 A1, dc7a027e): environment-runaway fails count as passes; all three variants enter. Collapse results and S6 labels reported beside the selection.",
+  "notes": "A5/A5b CPU equivalence with both flags PASS (job 903232), relayed by the expert; not the A1 (b) parity test.",
+  "parity_source": "S4 PASS: tests/test_link_conv.py (rows equal the definition with own placement left out, 5 seeds x 10 states; edge alignment; one encode per committed set; stored-table path bitwise); re-run by SCIENTIST at b9963f51 (35 passed with the as-built tests). No separate real-data job for (b). Real-data live-vs-cache for the (b) architecture: job 903320 (checkpoint job 903319, zero-extended calibration weights) at b0abbecc, 10/10 clean (first_check_903320/parity/parity.json); only the explained ghost-hosting diffs in old cols 9/11/17 and backlog_s. GPU equivalence 903231 PASS (max |dCE| 9.8e-4, grad rel 9e-6), CPU 903232 PASS.",
+  "curves_source": "S7 2026-10-24 via the expert: read_training_curves on 20-epoch s1; gnn job 903286 run bauq3seg (-final md5 f177c7c2, contract 6e09cd98), twin job 903287 run mkclvqtv (-final md5 a565948b, contract 95d1d34d)"
+ }
+}

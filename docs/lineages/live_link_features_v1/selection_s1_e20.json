@@ -1,0 +1,167 @@
+{
+ "rule": "live_link_features_v1 A1 (A4: all three variants complete)",
+ "choice": "static",
+ "reason": "lowest score without runaways",
+ "variants": {
+  "as_built": {
+   "gnn": "ra_gnn_eng_combfl_link",
+   "twin": "ra_twin_eng_combfl_link",
+   "dir": "as_built",
+   "flags": {
+    "curves": true,
+    "curves_source": "S7 2026-10-23: read_training_curves on 20-epoch s1, gnn job 902811 run m0dh6bkt (-final md5 b6893d3d), twin job 902812 run kety0rcz (-final md5 dfdd96b0)",
+    "parity": true,
+    "collapse": true,
+    "collapse_source": "user ruling (i), 2026-10-23 (live_link_features_v1 A1, dc7a027e): environment-runaway fails count as passes; all three variants enter. Collapse results and S6 labels reported beside the selection.",
+    "collapse_diagnosis": "S4 2026-10-23 PASS/FAIL: gnn and twin PASS 30176 g0 moderate and 30179 g0 heavy, FAIL 30181 g0 heavy (the same cell trips for as built, its twin and both static arms: environment). Health PASS 48/48. Reported beside the selection.",
+    "parity_source": "S4 PASS: tests/test_link_features.py::test_trainer_and_live_serving_give_bitwise_identical_columns_conv_inputs_and_logits_across_a_decode + tests/test_batched_tf_link.py; real-data live-vs-cache job 902171 10/10 clean (first_check_902171/parity/parity.json); re-run by SCIENTIST at b9963f51"
+   },
+   "eligible": true,
+   "score": 2.4726289189254715,
+   "n": 12,
+   "score_all": 2.8455181690425895,
+   "n_all": 12,
+   "per_topology": {
+    "moderate:30176": -0.6764371126903457,
+    "moderate:30177": -7.827553168069802,
+    "moderate:30178": -4.263689115877023,
+    "moderate:30179": -6.305946059534882,
+    "moderate:30180": 5.621694950541289,
+    "moderate:30181": -12.663413651183575,
+    "heavy:30176": 97.33319878377682,
+    "heavy:30177": 24.89529964255489,
+    "heavy:30178": -85.66257274966362,
+    "heavy:30179": 161.38364848143564,
+    "heavy:30180": 69.35119094505451,
+    "heavy:30181": 46.37401346292039
+   },
+   "per_topology_all": {
+    "moderate:30176": -0.6764371126903457,
+    "moderate:30177": -7.827553168069802,
+    "moderate:30178": -4.263689115877023,
+    "moderate:30179": -6.305946059534882,
+    "moderate:30180": 5.621694950541289,
+    "moderate:30181": -12.663413651183575,
+    "heavy:30176": 97.33319878377682,
+    "heavy:30177": 24.89529964255489,
+    "heavy:30178": 1183.720869679927,
+    "heavy:30179": 161.38364848143564,
+    "heavy:30180": 69.35119094505451,
+    "heavy:30181": 0.06934138754388997
+   },
+   "runaway_cells": [
+    "gnn:30178:g0:heavy",
+    "gnn:30181:g0:heavy",
+    "twin:30181:g0:heavy"
+   ]
+  },
+  "static": {
+   "gnn": "ra_gnn_eng_combfl_linkstatic",
+   "twin": "ra_twin_eng_combfl_linkstatic",
+   "dir": "static",
+   "flags": {
+    "curves": true,
+    "parity": true,
+    "collapse": true,
+    "curves_source": "S7 2026-10-23: read_training_curves on 20-epoch s1; gnn uncut-linkstatic-gnn-eng job 902806 run mq1ny1o7 (-final md5 8ac70207, contract 9f571b4b), twin uncut-linkstatic-twin job 902807 run gx8jo901 (-final md5 f8b80e40, contract f6aad24d)",
+    "collapse_source": "user ruling (i), 2026-10-23 (live_link_features_v1 A1, dc7a027e): environment-runaway fails count as passes; all three variants enter. Collapse results and S6 labels reported beside the selection.",
+    "collapse_diagnosis": "S6 2026-10-23 (anomaly/fairshare/d_link/diag/): ENVIRONMENT on all 4 failing cells (gnn_static, twin_static x 30179/30181 g0 heavy): batch herd share 0.49-0.50 for every arm incl. bar and fslabel gnn; backlog grows as the bar's; peak flows/link 4-20x the fslabel gnn's, rising with the backlog. Reported beside the selection. Peak flows/link vs the bar: 30179 g0 heavy bar 1,787, gnn_static 1,020, twin_static 882; 30181 g0 heavy bar 1,726, gnn_static 449, twin_static 2,412. Quote: not separable from backlog growth.",
+    "parity_source": "S6 PASS: tests/test_link_static.py (full-decode live vs cache bitwise; gnn/twin/mlp/wide byte-identical scorer rows, columns 30-32) + tests/test_batched_tf_static.py; re-run by SCIENTIST at origin/reference-physics b9963f51: 14 passed"
+   },
+   "eligible": true,
+   "score": 0.9694316062554831,
+   "n": 12,
+   "score_all": -0.9082193138901344,
+   "n_all": 12,
+   "per_topology": {
+    "moderate:30176": 0.46445633075898685,
+    "moderate:30177": 1.922635767035769,
+    "moderate:30178": -5.169204888303069,
+    "moderate:30179": -0.190646052129392,
+    "moderate:30180": -1.6257925756508769,
+    "moderate:30181": 1.4744068817519793,
+    "heavy:30176": 565.6276615807269,
+    "heavy:30177": -4.199264451853798,
+    "heavy:30178": 111.38083459506157,
+    "heavy:30179": 15.058901093862822,
+    "heavy:30180": -83.74059983774876,
+    "heavy:30181": 6.335280091279785
+   },
+   "per_topology_all": {
+    "moderate:30176": 0.46445633075898685,
+    "moderate:30177": 1.922635767035769,
+    "moderate:30178": -5.169204888303069,
+    "moderate:30179": -0.190646052129392,
+    "moderate:30180": -1.6257925756508769,
+    "moderate:30181": 1.4744068817519793,
+    "heavy:30176": 565.6276615807269,
+    "heavy:30177": -4.199264451853798,
+    "heavy:30178": 25.57979626995126,
+    "heavy:30179": -9.051428005786569,
+    "heavy:30180": -78.35721280521506,
+    "heavy:30181": -40.516790556222205
+   },
+   "runaway_cells": [
+    "gnn:30178:g0:heavy",
+    "gnn:30179:g0:heavy",
+    "gnn:30181:g0:heavy",
+    "twin:30178:g0:heavy",
+    "twin:30179:g0:heavy",
+    "twin:30180:g1:heavy",
+    "twin:30181:g0:heavy"
+   ]
+  },
+  "conv": {
+   "gnn": "ra_gnn_eng_combfl_linkconv",
+   "twin": "ra_twin_eng_combfl_link_gpu",
+   "dir": "conv",
+   "flags": {
+    "curves": true,
+    "parity": true,
+    "collapse": true,
+    "collapse_source": "user ruling (i), 2026-10-23 (live_link_features_v1 A1, dc7a027e): environment-runaway fails count as passes; all three variants enter. Collapse results and S6 labels reported beside the selection.",
+    "notes": "A5/A5b CPU equivalence with both flags PASS (job 903232), relayed by the expert; not the A1 (b) parity test.",
+    "parity_source": "S4 PASS: tests/test_link_conv.py (rows equal the definition with own placement left out, 5 seeds x 10 states; edge alignment; one encode per committed set; stored-table path bitwise); re-run by SCIENTIST at b9963f51 (35 passed with the as-built tests). No separate real-data job for (b). Real-data live-vs-cache for the (b) architecture: job 903320 (checkpoint job 903319, zero-extended calibration weights) at b0abbecc, 10/10 clean (first_check_903320/parity/parity.json); only the explained ghost-hosting diffs in old cols 9/11/17 and backlog_s. GPU equivalence 903231 PASS (max |dCE| 9.8e-4, grad rel 9e-6), CPU 903232 PASS.",
+    "curves_source": "S7 2026-10-24 via the expert: read_training_curves on 20-epoch s1; gnn job 903286 run bauq3seg (-final md5 f177c7c2, contract 6e09cd98), twin job 903287 run mkclvqtv (-final md5 a565948b, contract 95d1d34d)"
+   },
+   "eligible": true,
+   "score": 14.88572635566675,
+   "n": 11,
+   "score_all": 25.839370804541076,
+   "n_all": 12,
+   "per_topology": {
+    "moderate:30176": 13.865290361730343,
+    "moderate:30177": 10.907066762627366,
+    "moderate:30178": 14.362627691507608,
+    "moderate:30179": 15.193702079884817,
+    "moderate:30180": 14.88572635566675,
+    "moderate:30181": -3.9975247245479926,
+    "heavy:30176": 36.48503952919734,
+    "heavy:30177": 469.17342415782736,
+    "heavy:30178": 298.34499867648077,
+    "heavy:30179": -0.43221387049370347,
+    "heavy:30180": 111.17192992354609
+   },
+   "per_topology_all": {
+    "moderate:30176": 13.865290361730343,
+    "moderate:30177": 10.907066762627366,
+    "moderate:30178": 14.362627691507608,
+    "moderate:30179": 15.193702079884817,
+    "moderate:30180": 14.88572635566675,
+    "moderate:30181": -3.9975247245479926,
+    "heavy:30176": 36.48503952919734,
+    "heavy:30177": 469.17342415782736,
+    "heavy:30178": 100.97737049137288,
+    "heavy:30179": 1309.4646608716519,
+    "heavy:30180": 111.17192992354609,
+    "heavy:30181": 3809.928770466787
+   },
+   "runaway_cells": [
+    "gnn:30179:g1:heavy",
+    "gnn:30181:g1:heavy",
+    "twin:30178:g0:heavy",
+    "twin:30181:g0:heavy"
+   ]
+  }
+ }
+}
