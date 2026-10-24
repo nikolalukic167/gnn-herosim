@@ -5,6 +5,7 @@
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
 - **(b)'s decision charge re-measured on its A5/A5b code (2026-10-24; Record):** w is now 7.804 ms/plan moderate and 8.199 heavy (job 903323, node 17, H3 drift 0.22 % / 0.08 %), replacing the pre-A5 7.452 / 8.261 for every (b) cell.
+- **Selection (2026-10-24; Record):** STATIC is carried forward. At seed 1, 20 epochs, no variant's gnn beats its own twin (as built +2.47 %, static +0.97 %, (b) +14.89 %, pooled without runaways). Direction only.
 - **Amendment A5b (2026-10-23; the user's decision, filed after the A5 gate data; Record):** (b) failed gate criterion (c) on seeds 2–3 with a flat scale offset at the last layer, not a divergence. (b) adds one final affine LayerNorm after its last pre-norm residual layer, behind a contract flag. The gate is rerun unchanged.
 - **Amendment A6 (2026-10-23; the user's decision; Record):** for the Monday time budget, the selected variant's arms train 40 epochs (seeds 1–3, fresh), not 100. The A3 100-epoch runs become a disclosed sensitivity, never pooled. Filed before the selection read.
 - **Amendment A5 (2026-10-23; the user's decision; Record):** no init or scaling fix made (b) train robustly, so (b)'s gnn gets pre-norm residual message passing, behind a contract flag that is off by default. (b)'s twin is unchanged. A stability gate on seeds 1–3 and the fix-pin checks come before any (b) training.
@@ -12,7 +13,7 @@
 - **Pre-data amendment A3 (2026-10-23; the user's decision; Record):** seed-1 100-epoch runs of every variant start now, in parallel with the 20-epoch selection runs. They are sealed (no live cell, curves unread by the selectors) until the selection is filed. The winner's runs become A2's seed 1; the others are exploratory only.
 - **Pre-data amendment A2 (2026-10-23; the user's decision; Record):** after the seed-1 selection, the chosen variant's four arms train at 100 epochs (the cap), seeds 1–3 from scratch, for development and confirmation. The 20-epoch selection read is never pooled with them.
 - **Pre-data amendment A1 (2026-10-23; the user's decision; Record):** as built, v7's link columns E1–E3 reach only the EdgeScorer, which the twin shares, so message passing sees only the at-capture P1–P3. Two GNN variants, (a) a static link block in the conv and (b) re-encoding per placement, run beside the as-built arms at seed 1, 20 epochs, on 30176–30181. A rule fixed now picks the one variant carried to seeds 2–3 and confirmation. This stage gives no label.
-- **Standing answer (2026-10-23):** none yet. Until the confirmation read is filed, no message-passing claim may be made from this lineage.
+- **Standing answer (2026-10-24):** none yet. Until the confirmation read is filed, no message-passing claim may be made from this lineage.
 
 ## Motivation (sources checked by SCIENTIST, 2026-10-23)
 
@@ -115,6 +116,20 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-24 — **A1 selection read: STATIC is carried to seeds 1–3 (40 epochs, A6) and confirmation** (SCIENTIST ran `llf_select.py` blob `54367447` once, 10:42Z, on the expert's relay; all flags TRUE; output `live_link_features_v1/selection_s1_e20.json` md5 `9de058fac7e656bac899990b002b1574`, flags `selection_flags.json` md5 `b05fa09ee422d684389b199c8de6cd7a`).
+  - **Inputs.** Cells: as built `anomaly/fairshare/d_link_asbuilt/asb_*`, static `d_link/gw_*` (gnn) and `d_link/tm_*` (twin), (b) `d_link_conv/conv_*`; 48 per variant.
+  - **Scores** (gnn vs its own control twin, pooled median over (topology, rung), seed 1, 20 epochs; positive means the gnn is slower):
+
+    | variant | without runaways | n | all cells | runaway cells |
+    |---|---|---|---|---|
+    | as built | +2.47 % | 12 | +2.85 % | 3 |
+    | static | **+0.97 %** | 12 | −0.91 % | 7 |
+    | (b) re-encode | +14.89 % | 11 | +25.84 % | 4 |
+
+  - **Choice:** static, by the lowest score without runaways.
+  - **Read as a direction only (A1).** In every variant the gnn is not ahead of its own twin at seed 1. Per topology at moderate load: the as-built gnn is ahead on 5 of 6 topologies (−12.7 to +5.6 %); static is within ±5.2 %; (b) is slower on 5 of 6 (+10.9 to +15.2 %). Heavy load is dominated by single-cell swings (−86 % to +566 %) that the 10× runaway rule does not flag.
+  - **Collapse labels, reported beside the selection (ruling i, not a gate):** environment on 30181 g0 heavy for the as-built gnn and twin, the static gnn and twin and the (b) twin; static also on 30179 g0 heavy (S6: no herd excess, and not separable from backlog growth).
 
 - 2026-10-23 — **Amendment A5b: one final LayerNorm for (b), filed after the A5 gate data; the gate rule is unchanged** (the user's ruling, option 1, relayed by the expert; written by SCIENTIST; filed before any (b) selection or e100 training).
   - **The A5 gate data (S4), seeds 1–3 to step ~300.**
