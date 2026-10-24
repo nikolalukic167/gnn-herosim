@@ -250,3 +250,20 @@ def test_the_e40_configs_are_the_20_epoch_recipe_at_40_epochs_with_no_early_stop
         for sec in ("env", "cache_dir", "trainer", "unset_env"):
             assert a[sec] == b[sec], (arm, sec)
         assert {k: v for k, v in a["args"].items() if k not in ("epochs", "min-epochs", "patience")} == {k: v for k, v in b["args"].items() if k not in ("epochs", "min-epochs", "patience")}
+
+
+def test_the_static_e40_kinds_are_registered_like_the_20_epoch_kinds_and_carry_their_w():
+    import json
+
+    import fresh_topo_burst_v1_gate as G
+
+    w = json.load(open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "decision_cost_w.json")))
+    assert G.COMB_STATIC_E40 == tuple(f"{k}_e40" for k in G.COMB_STATIC) and len(G.COMB_STATIC_E40) == 4
+    for k, e in zip(G.COMB_STATIC, G.COMB_STATIC_E40):
+        assert e in G.RA_KINDS and e + "_nosplit" in G.R1A_ARMS and G.comb_contract(e) == V8 and G.COMB_CHECK[e] == G.COMB_CHECK[k]
+        assert G.COMB_STEMS[e] == G.COMB_STEMS[k] + "-e40" and (e in G.RA_MP_OFF) == ("twin" in e)
+        assert w["w_ms_per_plan"][e + "_nosplit"] == w["w_ms_per_plan"][k + "_nosplit"]
+        assert w["w_ms_per_plan_by_bucket"][e + "_nosplit"] == w["w_ms_per_plan_by_bucket"][k + "_nosplit"]
+        assert ("_source_" + e + "_nosplit") in w
+    src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "fresh_topo_burst_v1_gate.py")).read()
+    assert '"ra_mlp_same_combfl_linkstatic_e40", "ra_mlp_wide_combfl_linkstatic_e40"):' in src  # GNN_ARM_KIND is mlp_same for the 40-epoch MLPs
