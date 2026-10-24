@@ -1,0 +1,31 @@
+{
+ "primary_metric": "whole",
+ "runaway_metric": "same_as_stat",
+ "arm_median_pool": "all_seeds_pooled",
+ "runaway_unit": "any_seed_flags_cell",
+ "no_window_left": "drop_topology",
+ "weaker_order": [
+  "MP-ATTRIBUTED",
+  "MP-DIRECTION",
+  "TIE",
+  "TWIN-FASTER"
+ ],
+ "not_slower_than_mlp_pct": 0,
+ "seed_clause_reading": "same_reading_as_label",
+ "mp_direction_min_faster": 8,
+ "_why": {
+  "primary_metric": "The node's Secondary puts 'the after-360 s row beside the whole run', so the primary is the whole run (d_read reads the whole-run per-task mean).",
+  "runaway_metric": "'A cell is a runaway if it is > 10x its arm's median': the cell's own value, so the 10x test uses the statistic being read (whole for the primary, a360 for the a360 rows).",
+  "arm_median_pool": "'its arm's median in that rung': the arm is the kind; d_read (d_fsl3) took the median over all of the arm's cells in the load, seeds pooled.",
+  "runaway_unit": "The unit of the statistic is the seed-mean learned cell, and the node drops 'a pair when either cell is flagged': a runaway seed contaminates the mean, so the cell is flagged and the pair dropped (no reweighting the node does not describe).",
+  "no_window_left": "'per topology the median over the 2 windows' has no value when both pairs are dropped; the topology leaves that contrast's median, sign count and Wilcoxon.",
+  "weaker_order": "'The label is the weaker of the two readings': weaker for the MP claim, as the P9 precedent (uncut_arm_gate_read.TW_ORDER), strongest first.",
+  "not_slower_than_mlp_pct": "'the gnn is not slower than the MLP on either rung': the gnn-vs-MLP median <= 0 % on both rungs, in the reading being labelled.",
+  "seed_clause_reading": "'each seed alone gives a median <= -1 %': seed-matched gnn s vs twin s, on both rungs (the clause sits under 'on both rungs'), in the reading being labelled.",
+  "mp_direction_min_faster": "'>= 8/12 topologies faster': a count of 8, kept at 8 when drops leave fewer than 12 (it becomes harder, never easier)."
+ },
+ "_mapping": {
+  "a": "'v7 gnn / twin / MLP / wide' are the selected variant's arms (A1 selection 2026-10-24: STATIC), A6 40-epoch: gnn_static, twin_static, mlp_static, wide_static (A3: under (a), the wide-MLP control is wide_static). The MP-ATTRIBUTED MLP clause uses mlp_static. The v6 fslabel arms and the bar are references. A3 also keeps the v7 MLP and v7 wide MLP as pointwise references under (a); this reader does not include them, so they are not part of this read.",
+  "b": "Confirmed from the node text: a learned cell is the mean over seeds of the per-seed cell value (the whole-run task mean, or the after-360 mean for the a360 rows), and the paired % is taken on those seed means. This is not the P9 per-seed pairing, except in the seed clause, which is seed-matched by its own words."
+ }
+}
