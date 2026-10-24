@@ -1,0 +1,7 @@
+(b) re-encode arm on the sealed 12, whole mean, median paired % (n=12; all cells | without runaways); 1 seed, 20 epochs, best-val on the old-label metric, seen on the dev topologies. Reader: llf_reenc_read.py on llf_confirm_read.Grid.
+vs its GPU twin:   moderate +14.2 % (0/12, p .0005 | same)        heavy +8.8 % (3/12, p .20 | +8.4 % 3/11, p .15)       -> (b) is slower than its own twin
+vs CD bar:         moderate -4.4 % (9/12, p .18 | -4.3 % 9/12)     heavy -34.7 % (9/12, p .13 | -12.7 % 8/11, p .37)    -> ahead in sign, nothing significant
+vs static gnn s1:  moderate +15.8 % (0/12, p .0005)                heavy +34.1 % (3/12, p .016 | +22.2 %)               pooled s1-3: moderate +15.8 % (2/12; no-runaway +16.8 %, p .016), heavy -3.7 % | +1.1 % (p .73)
+vs wide MLP s1:    moderate -4.6 % (8/12, p .23)                   heavy -40.7 % (10/12, p .052 | -5.4 % 7/10, p .49)  -> same sign as the bar, not significant
+runaway cells (seed-cells, whole): (b) gnn 2 heavy / 0 moderate; (b) twin 4 heavy; bar 7 heavy + 1 moderate; static gnn 11 heavy + 1 moderate; wide 19 heavy + 0 whole moderate. a360 in the json.
+Every row carries the caveats above; (b) is charged its own decision time (heavy 8.3/6.9/10.7 ms by bucket vs static gnn 6.2/3.1/3.7), which is part of why it trails its twin and the static gnn.
