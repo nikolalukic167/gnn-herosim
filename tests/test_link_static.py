@@ -267,3 +267,18 @@ def test_the_static_e40_kinds_are_registered_like_the_20_epoch_kinds_and_carry_t
         assert ("_source_" + e + "_nosplit") in w
     src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "fresh_topo_burst_v1_gate.py")).read()
     assert '"ra_mlp_same_combfl_linkstatic_e40", "ra_mlp_wide_combfl_linkstatic_e40"):' in src  # GNN_ARM_KIND is mlp_same for the 40-epoch MLPs
+
+
+def test_the_confirmation_builder_refuses_every_non_static_e40_stem():
+    import re
+    import subprocess
+
+    src = open(os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "datalab", "llf_confirm_in.sh")).read()
+    m = re.search(r'grep -E "([^"]+)"; then echo "FAIL LOUD: a non-static e40', src)
+    assert m, "the hard refusal is missing from llf_confirm_in.sh"
+    rx = re.compile(m.group(1))
+    for bad in ("uncut-link-gnn-eng-e40-seed1.pt", "uncut-link-twin-e40-seed2.pt", "uncut-link-mlp-same-e40-seed3.pt", "uncut-linkconv-gnn-eng-e40-seed1.pt", "uncut-link-twin-gpu-e40-seed1.pt", "uncut-link-mlp-wide-e40-seed1.contract.json"):
+        assert rx.search(bad), bad
+    for ok in ("uncut-linkstatic-gnn-eng-e40-seed1.pt", "uncut-linkstatic-twin-e40-seed1.pt", "uncut-linkstatic-mlp-wide-e40-seed3.contract.json", "uncut-comb-fl-gnn-fslabel-seed1.pt"):
+        assert not rx.search(ok), ok
+    assert subprocess.run(["bash", "-n", os.path.join(os.path.dirname(__file__), "..", "scripts_cosim", "datalab", "llf_confirm_in.sh")]).returncode == 0

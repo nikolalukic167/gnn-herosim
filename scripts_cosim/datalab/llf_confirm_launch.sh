@@ -1,7 +1,8 @@
 #!/bin/bash
 # live_link_features_v1 confirmation cells (A6: static variant, 40-epoch seeds 1-3) on the 12 sealed ids: 30285-30287, 30289-30296 (input root llf_conf) and 30297 (llf_conf_r1).
 # Option D (TCP=1, FAIRSHARE=1 serial, default cellular uplink), cap200 inputs, nosplit k100, g0+g1, moderate+heavy. The recipe of S6's fs_g.sh (r1a_gate.sbatch at a pinned worktree) with one IN dir per root.
-#   PIN=<full sha> NODES="os-cpu-slurm-6 ..." [DRY=1] [GROUPS_ONLY="static refs bar"] [ROOTS_ONLY="main r1"] bash llf_confirm_launch.sh
+#   PIN=<full sha> NODES="os-cpu-slurm-6 ..." [DRY=1] [GROUPS_ONLY="static refs bar"] [ROOTS_ONLY="main r1"] [RUNGS_ONLY="moderate heavy"] bash llf_confirm_launch.sh
+# Waves: RUNGS_ONLY=moderate is 28 jobs (2 roots x 2 windows x 7 groups), then RUNGS_ONLY=heavy the other 28.
 # DRY=1 (the default) prints every sbatch and submits nothing. A real submit needs DRY=0 and refuses to take the queue over 44 (counts the batch first).
 # Job groups per (root, window, rung): static_s<N> = the four static e40 arms at seed N (3 jobs); refs_s<N> = the four v6 fslabel references at seed N (3 jobs); bar = cd_ib0_inflightfull_k100 seed 0.
 set -euo pipefail
@@ -16,7 +17,7 @@ BAR="cd_ib0_inflightfull_k100"
 declare -A PLACED
 read -r -a NODEARR <<< "$NODES"
 jobs=()   # root|win|rung|group|arms|seeds|split
-for root in ${ROOTS_ONLY:-main r1}; do for win in g0 g1; do for rung in moderate heavy; do
+for root in ${ROOTS_ONLY:-main r1}; do for win in g0 g1; do for rung in ${RUNGS_ONLY:-moderate heavy}; do
   for s in 1 2 3; do
     [[ " ${GROUPS_ONLY:-static refs bar} " == *" static "* ]] && jobs+=("$root|$win|$rung|static_s$s|$STATIC|$s|uncut_link_split.json")
     [[ " ${GROUPS_ONLY:-static refs bar} " == *" refs "* ]] && jobs+=("$root|$win|$rung|refs_s$s|$REFS|$s|uncut_arm1_split.json")
