@@ -1,0 +1,10 @@
+reviewer-defence analysis, sealed-12, windows g0+g1 (no g2/g3 cell of these arms exists), seeds 1-3, per-topology median over windows then median over 12 topologies, exact Wilcoxon; 'no runaway' = pairs with a flagged cell dropped
+moderate: mean gnn vs bar -15.67 % (10/12, p 0.0342) no-runaway, -15.67 % (9/12, p 0.204) all; vs wide -10.35 % (12/12, p 0.000488) / -10.35 % (11/12, p 0.0342); free decisions: vs bar -16.46 % (10/12, p 0.0269), vs wide -9.35 % (11/12, p 0.000977) (no runaway)
+moderate: task p50/p95/p99 gnn vs wide (no runaway) +2.00 % (2/12, p 0.0425) / -9.47 % (11/12, p 0.000977) / -10.71 % (11/12, p 0.000977); vs bar +20.48 % (2/12, p 0.021) / -8.03 % (8/12, p 0.129) / -13.67 % (9/12, p 0.266)
+moderate: request (fan-out) p50/p99 gnn vs bar (no runaway) +25.81 % (0/12, p 0.000488) / -40.33 % (11/12, p 0.00146); vs wide +13.13 % (0/12, p 0.000488) / -25.15 % (12/12, p 0.000488)
+moderate: charged decision time, median cell share of the mean latency (felt ms/task): gnn 1.04 % (47), wide 2.03 % (102), mlp 0.85 % (41), bar 0.10 % (6)
+heavy: mean gnn vs bar -22.89 % (9/12, p 0.339) no-runaway, -42.80 % (9/12, p 0.38) all; vs wide -5.13 % (7/10, p 0.695) / -17.62 % (7/12, p 0.569); free decisions: vs bar -24.37 % (9/12, p 0.301), vs wide -3.44 % (6/10, p 0.846) (no runaway)
+heavy: task p50/p95/p99 gnn vs wide (no runaway) -3.37 % (8/12, p 0.233) / -8.22 % (7/11, p 0.577) / -3.14 % (5/10, p 0.922); vs bar +18.58 % (0/12, p 0.000488) / -15.03 % (9/12, p 0.424) / -11.95 % (7/12, p 0.85)
+heavy: request (fan-out) p50/p99 gnn vs bar (no runaway) +16.66 % (0/12, p 0.000488) / -37.62 % (9/11, p 0.102); vs wide +5.39 % (5/12, p 0.733) / -7.22 % (6/8, p 0.25)
+heavy: charged decision time, median cell share of the mean latency (felt ms/task): gnn 1.86 % (68), wide 3.47 % (139), mlp 1.63 % (65), bar 0.13 % (9)
+decomposition, s/task, mean over cells without runaway (gnn / wide / mlp / bar): moderate mean 4.69 / 5.81 / 4.87 / 5.41, exchange 3.53 / 4.69 / 3.76 / 4.45, decision 0.047 / 0.102 / 0.041 / 0.005; heavy mean 4.89 / 5.28 / 5.19 / 6.73, exchange 3.37 / 3.81 / 3.71 / 5.50, decision 0.067 / 0.137 / 0.065 / 0.008
