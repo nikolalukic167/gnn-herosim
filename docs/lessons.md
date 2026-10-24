@@ -204,6 +204,7 @@ best) the two families read prefix-free task_acc 52.4 % / acc 24.4 % against ser
 `regret_oracle_topk` track sidecar coverage, not plan quality, and checkpoint selection on them can land on an early epoch. Since 301f293f the trainer does not log
 them on such teacher-forced runs (`NEAR_RTT_LOG_UNSERVED_METRICS=1` restores them). Read `mt_task_acc_choice`, `mt_plan_exact` and val `ce`, gate on `-final.pt`
 and check val `ce` for overfitting. The uncut_groups_s0_v1 Record ("the served checkpoint is `-final.pt`") owns the measurements.
+A label override makes it worse: with `NEAR_RTT_LABEL_OVERRIDE_JSON` the trainer replaces only the train labels ("val/test keep the sweep label"), so the checkpoint metric scores a different target from the one trained. In live_link_features_v1 (2026-10-24) every arm's best `regret_masked_topo` sat at 18.5–19.0 s against a worst-plan 19.7 s, and the best-val twin s1 was its first evaluation. The node's Record owns the measurements.
 
 **Two defects in `scripts_cosim/read_training_curves.py` found by this sweep** (S6 is fixing them):
 1. **Direction of the `mt_*` accuracies.** The SELECTION block takes the minimum of `val/mt_plan_exact`, `val/mt_task_acc_choice` and

@@ -1,20 +1,21 @@
 # live_link_features_v1 — do live link-sharing features let message passing beat its MP-OFF twin under fair-share physics?
 
-**Status:** `REGISTERED` (2026-10-23; no capture, label, training or cell yet). The user's go is relayed by the expert. SCIENTIST wrote the registration, and the expert coordinates. Tracks: S6 captures under option D, S7 owns the replay fix and its identity check, S4 owns `partial_state_v7` and its train/serve parity test.
-- **Question.** Under option D, can the GNN beat its own MP-OFF twin once both see the network flows that share each link? Both are given the same new columns, so a difference is message passing, not information.
-- **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
-- **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
-- **(b)'s decision charge re-measured on its A5/A5b code (2026-10-24; Record):** w is now 7.804 ms/plan moderate and 8.199 heavy (job 903323, node 17, H3 drift 0.22 % / 0.08 %), replacing the pre-A5 7.452 / 8.261 for every (b) cell.
-- **Confirmation reader frozen (2026-10-24; Record):** `llf_confirm_read.py` blob `bdce5ed3` (re-frozen for per-group pins) with `confirm_rulings.json`. The best-val checkpoint metric is at noise level, so the best-val wave serves a first-evaluation seed-1 twin. Primary is the epoch-40 wave (the user, option A); best-val is the secondary.
-- **Selection (2026-10-24; Record):** STATIC is carried forward. At seed 1, 20 epochs, no variant's gnn beats its own twin (as built +2.47 %, static +0.97 %, (b) +14.89 %, pooled without runaways). Direction only.
-- **Amendment A5b (2026-10-23; the user's decision, filed after the A5 gate data; Record):** (b) failed gate criterion (c) on seeds 2–3 with a flat scale offset at the last layer, not a divergence. (b) adds one final affine LayerNorm after its last pre-norm residual layer, behind a contract flag. The gate is rerun unchanged.
-- **Amendment A6 (2026-10-23; the user's decision; Record):** for the Monday time budget, the selected variant's arms train 40 epochs (seeds 1–3, fresh), not 100. The A3 100-epoch runs become a disclosed sensitivity, never pooled. Filed before the selection read.
-- **Amendment A5 (2026-10-23; the user's decision; Record):** no init or scaling fix made (b) train robustly, so (b)'s gnn gets pre-norm residual message passing, behind a contract flag that is off by default. (b)'s twin is unchanged. A stability gate on seeds 1–3 and the fix-pin checks come before any (b) training.
-- **Variant (b) training defect and amendment A4 (2026-10-23; the user's decision; Record):** S4's 1-epoch smoke of (b) has a train CE of ~3e7 (its GPU twin ~34). (b) is fixed, not dropped: the selection waits until all three variants' 20-epoch selection cells are complete, and meanwhile no CPU-variant score is read. A per-graph loss bound is added to all arms.
-- **Pre-data amendment A3 (2026-10-23; the user's decision; Record):** seed-1 100-epoch runs of every variant start now, in parallel with the 20-epoch selection runs. They are sealed (no live cell, curves unread by the selectors) until the selection is filed. The winner's runs become A2's seed 1; the others are exploratory only.
-- **Pre-data amendment A2 (2026-10-23; the user's decision; Record):** after the seed-1 selection, the chosen variant's four arms train at 100 epochs (the cap), seeds 1–3 from scratch, for development and confirmation. The 20-epoch selection read is never pooled with them.
-- **Pre-data amendment A1 (2026-10-23; the user's decision; Record):** as built, v7's link columns E1–E3 reach only the EdgeScorer, which the twin shares, so message passing sees only the at-capture P1–P3. Two GNN variants, (a) a static link block in the conv and (b) re-encoding per placement, run beside the as-built arms at seed 1, 20 epochs, on 30176–30181. A rule fixed now picks the one variant carried to seeds 2–3 and confirmation. This stage gives no label.
-- **Standing answer (2026-10-24):** none yet. Until the confirmation read is filed, no message-passing claim may be made from this lineage.
+**Status:** `CLOSED` (2026-10-24) — **TIE**. Registered 2026-10-23, before any data. Every amendment (A1–A6) and the reader rulings were filed before the confirmation read. The confirmation was read once with the frozen reader (`llf_confirm_read.py` blob `bdce5ed3`, `confirm_rulings.json` md5 `b609acef`).
+- **Question.** Under option D (fair share plus TCP), does the GNN beat its own MP-OFF twin when both see the same live link-sharing columns and train on labels from a replay that keeps in-flight flows?
+- **Outcome (2026-10-24).** Primary (epoch-40 wave, the user's option A): **TIE**, the weaker of all cells TIE and without runaways MP-DIRECTION.
+  - **Moderate:** gnn vs twin −6.90 %. It is faster on 10/12 topologies with all cells (Holm .30) and on 11/12 without runaways (p .034, Holm .068). All three seeds alone are negative (−7.7, −4.6 to −5.0, −8.2 %).
+  - **Heavy:** +13.0 % with all cells (4/12), −6.7 % without runaways (8/12, p .85).
+  - **Not MP-ATTRIBUTED:** the Holm bar fails at moderate, and heavy has no direction that survives the runaway reading.
+  - **The moderate direction is descriptive.** The registered labels have no per-rung label, so it is reported as a seed-consistent direction at moderate load only.
+- **Caveats a reader must not quote without.**
+  - One physics state (option D, cap200).
+  - The variant (static) was picked at seed 1 and 20 epochs on development topologies, then carried at 40 epochs.
+  - Heavy load is runaway-dominated: 191 runaway flags across all arms in the primary, the bar included.
+  - The best-val checkpoint metric scores the sweep labels, not the training labels, and selects at noise level. The secondary best-val wave reads MP-DIRECTION (moderate −6.58 %, 12/12, Holm .001), but it rests on a seed-1 twin served at its first evaluation (seed 1 −18 % / −80 %), and seed 3 is positive (+6.1 % / +3.8 %). It is not evidence for message passing.
+- **Model class, descriptive (primary file).**
+  - At moderate the static gnn is ahead of its MLP (−9.7 %) and of the parameter-matched wide MLP (−10.4 %, 12/12 without runaways). Its MP-OFF twin is close to the MLP (−1.8 %), so at moderate the gnn's edge over the pointwise arms is mostly the gnn-vs-twin difference.
+  - Against the v6 fslabel gnn it is −1.4 % at moderate and +21.7 % at heavy (all cells).
+- **Path.** The variant selection (A1 rule; STATIC, 2026-10-24), the A2–A6 training recipe, the admission and kill rules, and the reader rulings are all in the Record.
 
 ## Motivation (sources checked by SCIENTIST, 2026-10-23)
 
@@ -117,6 +118,33 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-24 — **CLOSED: TIE (confirmation, read once).** Reads by S5 at reader `f16c359a` (blob `bdce5ed3`; the output's reader sha256 `699326f575f5…` equals that blob's file). Outputs are in `live_link_features_v1/confirmation_reads/`: primary `read_primary_A_epoch40.json` md5 `7f882e8cd0c6de1bd1bdba750739a1be` (pins static `02668ecf`, refs and bar `0ec7cdcb`; 1,200 cells); secondary `read_secondary_bestval.json` md5 `35815889e8e59509199dc5d2ea721e2e` (all at `0ec7cdcb`; 1,200 cells). Interpretation by SCIENTIST.
+  - **Primary, gnn vs twin (whole run):**
+
+    | reading | moderate | heavy | label |
+    |---|---|---|---|
+    | all cells | −6.90 % (10/12, p .23, Holm .30) | +13.01 % (4/12, p .15, Holm .30) | TIE |
+    | without runaways | −6.90 % (11/12, p .034, Holm .068) | −6.68 % (8/12, p .85) | MP-DIRECTION |
+
+    - **Per seed (moderate / heavy).** All cells: s1 −7.66 / −13.57, s2 −4.62 / −0.34, s3 −8.24 / +3.15. Without runaways: s1 −7.66 / −10.71, s2 −5.03 / −9.15, s3 −8.24 / −7.67.
+    - **gnn vs mlp_static:** −9.68 / −22.48 % (all cells).
+    - **Label: TIE**, the weaker of the two readings. MP-DIRECTION fails with all cells because the heavy median is positive. MP-ATTRIBUTED fails on Holm at moderate (.068) and on heavy.
+  - **Secondary, best-val wave (descriptive):** MP-DIRECTION on both readings, moderate −6.58 % (12/12, Holm .001) and heavy −62.4 % (all cells).
+    - It is driven by seed 1, −18.1 / −79.6 %, where the twin is served at its first evaluation (A6 notes). Seed 3 is +6.07 / +3.78 %, so the seed clause fails.
+    - This is what the checkpoint-metric finding predicts. It is not quoted as evidence for message passing.
+  - **Secondary rows, primary file (whole run).**
+    - **All cells:**
+      - moderate: gnn vs wide static −10.35 % (11/12), twin vs mlp static −1.80 % (8/12), gnn vs bar −15.67 % (9/12);
+      - heavy: gnn vs bar −42.80 % (9/12);
+      - gnn vs the v6 fslabel gnn: −1.40 % moderate, +21.73 % heavy.
+    - **Without runaways:**
+      - moderate: gnn vs wide static −10.35 % (12/12), gnn vs bar −15.67 % (10/12);
+      - gnn vs the fslabel gnn: −1.40 % moderate, −1.76 % heavy.
+    - The after-360 rows have the same signs at moderate (gnn vs twin −6.88 %).
+  - **What it rules out, and what it leaves.**
+    - Rules out: a message-passing win under option D with these features and labels at this power (12 topologies, 3 seeds, 40 epochs).
+    - Leaves open: a moderate-load direction, seed-consistent and Holm .068. Any follow-up needs its own registration and fresh topologies, and must not reuse these 12 as confirmation.
 
 - 2026-10-24 — **Confirmation reader re-frozen: `scripts_cosim/llf_confirm_read.py` blob `bdce5ed36eacbadeed84dca764a4ba33192f1a79`** (was `eca50ed9`; S5's per-group pin check, merged at `65bcf62b`; checked by SCIENTIST: only `load()`/`run()`/`main()` pin handling and the docstring change, and the statistic, rulings and labels are untouched; before any confirmation cell is read). The primary mixes static cells at `02668ecf` with reference and bar cells at `0ec7cdcb`. `git diff 0ec7cdcb 02668ecf` changes only `scripts_cosim/datalab/llf_confirm_in.sh` and `llf_confirm_launch.sh` (nothing in `src/` or `scripts_cosim/*.py`), and `0ec7cdcb` is an ancestor of `02668ecf`. Same `confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`). Primary invocation: `--pin static=02668ecf,refs=0ec7cdcb,bar=0ec7cdcb`.
 
