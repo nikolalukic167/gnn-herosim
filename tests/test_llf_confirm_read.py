@@ -216,3 +216,114 @@ def test_run_records_pins_by_group(tmp_path):
     grid(tmp_path / "cells", make(1.05, 1.02, 0.5), pin_of=two)
     res = R.run(str(tmp_path / "cells"), RUL, TOPOS, "static=02668ecf,refs=0ec7cdcb,bar=0ec7cdcb", None, "x")
     assert res["pins_by_group"]["static"] == [STATIC_PIN] and res["pins_by_group"]["refs"] == [REF_PIN] and res["label"] == "MP-ATTRIBUTED"
+
+
+CD_TOPOS = tuple(range(40001, 40013))
+
+
+def cd_env(arm, seed, rung):
+    if arm in R.CD_CKPT:
+        return {"GNN_MODEL_PATH": f"/x/models/{R.CD_CKPT[arm]}{seed}.pt", "HEROSIM_DECISION_COST_MS_BY_BUCKET": json.dumps(R.CD_CHARGE[(arm, rung)])}
+    return {"HEROSIM_DECISION_COST_MS": "0.01098"} if arm == "bar" else {}
+
+
+def cd_grid(tmp, f, pin_of=lambda arm: "abcd1234", env_of=cd_env):
+    n = 0
+    for arm, kind in R.CD_ARMS.items():
+        for s in ((0,) if arm in R.S0_ARMS else R.SEEDS):
+            for t in CD_TOPOS:
+                for w in R.WINDOWS:
+                    for r in R.RUNGS:
+                        d = tmp / ("a" if n % 2 else "b")
+                        d.mkdir(exist_ok=True)
+                        v = f(arm, s, t, w, r)
+                        (d / f"cc40s{t}__{w}{r}__{kind}_s{s}.summary.json").write_text(json.dumps(
+                            {"averageElapsedTime": v, "steady_state": {"after_360s": {"mean": v * 0.9}}, "code": {"commit": pin_of(arm), "dirty": False}, "servers": 24,
+                             "env": env_of(arm, s, r)}))
+                        n += 1
+    return n
+
+
+def cd_f(arm, s, t, w, r):
+    ratio = {"gnn": 1.0, "wide": 1.05, "mlp": 1.05, "bar": 1.2, "reactive": 1.5, "random": 2.0}[arm]
+    return base(t, w, r) * ratio * (1 + 0.01 * ((t * 7 + s) % 5 - 2))
+
+
+def test_cd_mode_primary_is_four_tests_with_holm_over_four(tmp_path):
+    assert cd_grid(tmp_path, cd_f) == 12 * 2 * 2 * (3 * 3 + 3)
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
+    keys = {f"gnn_vs_{b}|{r}" for b in ("bar", "wide") for r in R.RUNGS}
+    assert set(res["primary"]["all"]) == keys == set(res["labels"])
+    row = res["primary"]["no_runaway"]["gnn_vs_bar|moderate"]
+    assert row["median_pct"] < -10 and row["faster"] == 12
+    assert row["holm_p"] == pytest.approx(min(1.0, 4 * row["p"]), rel=1e-9)
+    assert res["labels"]["gnn_vs_bar|moderate"] == "CONFIRMED"
+    assert any(k.startswith("all|whole|gnn_vs_reactive|") for k in res["secondary"]) and any(k.startswith("no_runaway|a360|bar_vs_random|") for k in res["secondary"])
+    assert set(res["per_seed_median_pct"]["gnn_vs_wide|heavy|all"]) == set(R.SEEDS)
+
+
+def test_cd_labels():
+    ok = {"median_pct": -5.0, "holm_p": 0.01}
+    assert R.cd_label(ok, {"median_pct": -1.0}) == "CONFIRMED"
+    assert R.cd_label(ok, {"median_pct": 0.5}) == "DIRECTION"          # the all-cells guard
+    assert R.cd_label({"median_pct": -5.0, "holm_p": 0.2}, {"median_pct": -1.0}) == "DIRECTION"
+    assert R.cd_label({"median_pct": 0.0, "holm_p": 0.001}, {"median_pct": -1.0}) == "NOT-FASTER"
+    assert R.cd_label({"median_pct": None, "holm_p": None}, {"median_pct": None}) == "NOT-FASTER"
+
+
+def test_cd_mode_all_cells_guard_blocks_confirmed(tmp_path):
+    # gnn runs away on 2 cells of topology 40001: the pair drops without runaways, but the all-cells heavy median vs bar turns positive via many runaways
+    bad = {(t, w) for t in CD_TOPOS[:8] for w in R.WINDOWS}
+    cd_grid(tmp_path, lambda a, s, t, w, r: cd_f(a, s, t, w, r) * (50.0 if a == "gnn" and r == "heavy" and (t, w) in bad else 1.0))
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
+    assert res["primary"]["all"]["gnn_vs_bar|heavy"]["median_pct"] > 0
+    assert res["labels"]["gnn_vs_bar|heavy"] != "CONFIRMED"
+
+
+def test_cd_mode_pin_groups_and_missing_cell_fail_loud(tmp_path):
+    cd_grid(tmp_path, cd_f, pin_of=lambda arm: "bbbb0000" if arm in R.S0_ARMS else "aaaa1111")
+    with pytest.raises(SystemExit, match="exactly static and bar"):
+        R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,refs=x,bar=bbbb0000", R.CD_ARMS)
+    V, pins, by = R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,bar=bbbb0000", R.CD_ARMS)
+    assert by == {"static": ["aaaa1111"], "bar": ["bbbb0000"]}
+    next(tmp_path.glob("*/cc40s40001__g0moderate__random_s0.summary.json")).unlink()
+    with pytest.raises(SystemExit, match="missing"):
+        R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,bar=bbbb0000", R.CD_ARMS)
+
+
+@pytest.mark.parametrize("bad", ["ckpt", "seed", "charge", "bar"])
+def test_cd_mode_checkpoint_and_charge_checks_fail_loud(tmp_path, bad):
+    def env_of(arm, s, r):
+        e = cd_env(arm, s, r)
+        if bad == "ckpt" and arm == "wide" and s == 2:
+            e["GNN_MODEL_PATH"] = "/x/models/uncut-linkstatic-gnn-eng-e40-seed2.pt"
+        if bad == "seed" and arm == "gnn" and s == 3:
+            e["GNN_MODEL_PATH"] = "/x/models/" + R.CD_CKPT["gnn"] + "1.pt"
+        if bad == "charge" and arm == "mlp" and r == "heavy":
+            e["HEROSIM_DECISION_COST_MS_BY_BUCKET"] = json.dumps(R.CD_CHARGE[("mlp", "moderate")])
+        if bad == "bar" and arm == "bar":
+            e["HEROSIM_DECISION_COST_MS"] = "0.5"
+        return e
+    cd_grid(tmp_path, cd_f, env_of=env_of)
+    with pytest.raises(SystemExit, match="FAIL LOUD"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
+
+
+def test_cd_mode_runaway_pairs_drop_without_runaways(tmp_path):
+    cd_grid(tmp_path, lambda a, s, t, w, r: cd_f(a, s, t, w, r) * (50.0 if (a, t, w, r) == ("gnn", 40001, "g0", "heavy") else 1.0))
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
+    assert any(x["arm"] == "gnn" and x["topology"] == 40001 for x in res["runaways"])
+    assert res["primary"]["all"]["gnn_vs_bar|heavy"]["n"] == 12
+
+
+FILED = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "lineages", "live_link_features_v1", "confirmation_reads", "read_primary_A_epoch40.json")
+
+
+@pytest.mark.skipif(not (os.environ.get("LLF_PARENT_CELLS_A") and os.path.exists(FILED)), reason="needs the parent's 1,200 sealed cells (LLF_PARENT_CELLS_A) and the filed read")
+def test_default_mode_reproduces_the_filed_primary_read(tmp_path):
+    rul = json.load(open(os.path.join(os.path.dirname(FILED), "..", "confirm_rulings.json")))
+    res = R.run(os.environ["LLF_PARENT_CELLS_A"], rul, R.IDS, "static=02668ecf,refs=0ec7cdcb,bar=0ec7cdcb", None, R.IDS_SHA256)
+    want = json.load(open(FILED))
+    got = json.loads(json.dumps(res, default=str))
+    got.pop("reader_sha256"); want.pop("reader_sha256")
+    assert got == want
