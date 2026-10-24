@@ -182,7 +182,11 @@ def summary(res: Dict[str, Any]) -> str:
         out.append(f"{rung}: task p50/p95/p99 gnn vs wide (no runaway) {line(T['task|p50|gnn_vs_wide|%s|no_runaway' % rung])} / {line(T['task|p95|gnn_vs_wide|%s|no_runaway' % rung])} / {line(T['task|p99|gnn_vs_wide|%s|no_runaway' % rung])};"
                    f" vs bar {line(T['task|p50|gnn_vs_bar|%s|no_runaway' % rung])} / {line(T['task|p95|gnn_vs_bar|%s|no_runaway' % rung])} / {line(T['task|p99|gnn_vs_bar|%s|no_runaway' % rung])}")
         out.append(f"{rung}: request (fan-out) p50/p99 gnn vs bar (no runaway) {line(T['request_fanout|p50|gnn_vs_bar|%s|no_runaway' % rung])} / {line(T['request_fanout|p99|gnn_vs_bar|%s|no_runaway' % rung])}; vs wide {line(T['request_fanout|p50|gnn_vs_wide|%s|no_runaway' % rung])} / {line(T['request_fanout|p99|gnn_vs_wide|%s|no_runaway' % rung])}")
-        out.append(f"{rung}: charged decision share of the mean latency (pooled over cells): " + ", ".join(f"{a} {100 * S[a + '|' + rung]['share_of_mean_latency_pooled']:.2f} % ({1000 * S[a + '|' + rung]['felt_s_per_task_mean']:.1f} ms/task)" for a in SHOW))
+        out.append(f"{rung}: charged decision time, median cell share of the mean latency (felt ms/task): " + ", ".join(f"{a} {100 * S[a + '|' + rung]['share_median_cell']:.2f} % ({1000 * S[a + '|' + rung]['felt_s_per_task_mean']:.0f})" for a in SHOW))
+    Dc = res["decomposition"]
+    out.append("decomposition, s/task, mean over cells without runaway (gnn / wide / mlp / bar): " + "; ".join(
+        f"{rung} mean " + " / ".join(f"{Dc[a + '|' + rung]['no_runaway_mean']['mean']:.2f}" for a in SHOW) + ", exchange " + " / ".join(f"{Dc[a + '|' + rung]['no_runaway_mean']['exchange']:.2f}" for a in SHOW)
+        + ", decision " + " / ".join(f"{Dc[a + '|' + rung]['no_runaway_mean']['decision_felt']:.3f}" for a in SHOW) for rung in R.RUNGS))
     return "\n".join(out) + "\n"
 
 
