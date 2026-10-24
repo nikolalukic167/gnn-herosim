@@ -1,7 +1,7 @@
 # llf_cd_confirm_v1 — does the static link-feature GNN beat the CD bar and the parameter-matched MLP on fresh topologies?
 
-**Status:** `REGISTERED` (2026-10-24). Signed by SCIENTIST at the expert's request with the user's go, before any mint or cell. Nothing below is read until the reader is frozen by blob.
-- **Question.** Under option D, do the epoch-40 static link-feature GNN checkpoints of `live_link_features_v1` beat (a) the CD bar `cd_ib0_inflightfull_k100` and (b) the parameter-matched wide MLP, on 12 topologies none of them has been read on?
+**Status:** `REGISTERED` (2026-10-24; amendment A1, n = 24, filed the same day before any mint). Signed by SCIENTIST at the expert's request with the user's go, before any mint or cell. Nothing below is read until the reader is frozen by blob.
+- **Question.** Under option D, do the epoch-40 static link-feature GNN checkpoints of `live_link_features_v1` beat (a) the CD bar `cd_ib0_inflightfull_k100` and (b) the parameter-matched wide MLP, on 24 topologies none of them has been read on?
 - **Parent.** `live_link_features_v1` (CLOSED TIE). Its primary file, read on the sealed 12, is the motivation. Those 12 ids are spent and are not reused here.
 - **No training.** The arms are the parent's filed checkpoints, served as they were.
 
@@ -42,7 +42,7 @@
 
 ## Topologies
 
-- **Ids.** 12 new ids, the lowest free run ≥ 30304 under TE3's rescan rule. They are rescanned just before the mint.
+- **Ids.** 24 new ids (amendment A1), the lowest free run of 24 ≥ 30304 under TE3's rescan rule. They are rescanned just before the mint.
 - **Disjoint from:**
   - every id list in `live_link_features_v1.md` and `uncut_groups_s0_v1.md`;
   - fresh6 30298–30303;
@@ -59,7 +59,7 @@
 ## Cells
 
 - Option D, windows **g0 + g1**, both rungs. Learned arms at seeds 1–3; bar, reactive and random at s0.
-- That is 12 runs × 12 topologies × 2 windows × 2 rungs = 576 cells.
+- That is 12 runs × 24 topologies × 2 windows × 2 rungs = 1,152 cells.
 - The descriptive reactive cells are the admission cells for g0 and g1.
 
 ## Statistic and primary family
@@ -100,13 +100,14 @@
 ## Prior (SCIENTIST)
 
 - P(CONFIRMED), per test:
-  - gnn vs wide MLP, moderate: ≈ 0.55;
-  - gnn vs bar, moderate: ≈ 0.3;
-  - each heavy test: ≈ 0.1.
-- **Why the bar test is hard:** at n = 12 and Holm over 4, the second-smallest p must be below .0167. The motivating raw p was .034.
+  - gnn vs wide MLP, moderate: ≈ 0.7;
+  - gnn vs bar, moderate: ≈ 0.5;
+  - each heavy test: ≈ 0.15.
+- **Why n = 24:** at n = 12 and Holm over 4, the bar test would likely need p < .0167 against a motivating raw p of .034. Doubling the topologies makes that reachable at the motivating effect size, if the effect holds on fresh topologies (winner's curse applies).
 
 ## Record
 
+- 2026-10-24 — **Amendment A1: n = 24 topologies, not 12** (the expert's decision; filed by SCIENTIST before any mint or cell). The 24 ids are the lowest free run of 24 ≥ 30304, under the same exclusions and the same mint and admission rule; replacements are made as before. The cells grow to 1,152 at g0 + g1. Everything else is as registered.
 - 2026-10-24 — **Registered** (SCIENTIST, at the expert's request with the user's go; before any mint or cell). The motivation table was recomputed from the parent's primary file. The checkpoint md5s and the per-(arm, rung) decision charges were read from the served files and from the cells of `d_conf_final` on datalab.
   - Changes from the expert's draft:
     - the primary reading is fixed as without runaways, with the all-cells sign guard;
