@@ -27,4 +27,6 @@ for D in in_llf_conf:llf_conf in_llf_conf_r1:llf_conf_r1; do d=${D%%:*}; r=${D##
   for f in uncut_arm1_split.json uncut_link_split.json; do ln -s $(readlink -f $SPL/$f) $U/xs/$d/$f; done
   for w in wf1_heavy wf1_moderate; do ln -s $(readlink -f $U/$r/gate_inputs_cap200/inputs_group/$w) $U/xs/$d/$w; done
 done
+# hard refusal (expert, 2026-10-24): nothing of the as-built v7 (uncut-link-*-e40), (b) (uncut-linkconv-*-e40) or the GPU twin (uncut-link-twin-gpu-e40) may ever be served in the confirmation
+if ls $U/xs/in_llf_conf/models $U/xs/in_llf_conf_r1/models | grep -E "^uncut-link(conv)?-.*e40"; then echo "FAIL LOUD: a non-static e40 checkpoint is in a confirmation IN dir"; rm -rf $U/xs/in_llf_conf $U/xs/in_llf_conf_r1 "$MAN.tmp"; exit 5; fi
 mv "$MAN.tmp" "$MAN"; wc -l "$MAN"; ls $U/xs/in_llf_conf $U/xs/in_llf_conf_r1
