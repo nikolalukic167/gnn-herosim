@@ -37,6 +37,10 @@ ARMS = {  # name -> gate kind (the static variant's e40 best-val arms, and the v
     "mlp": "ra_mlp_same_combfl_linkstatic_e40_nosplit_k100", "wide": "ra_mlp_wide_combfl_linkstatic_e40_nosplit_k100",
     "fs_gnn": "ra_gnn_eng_fslabel_combfl_nosplit_k100", "fs_twin": "ra_twin_eng_fslabel_combfl_nosplit_k100",
     "fs_mlp": "ra_mlp_same_fslabel_combfl_nosplit_k100", "fs_wide": "ra_mlp_wide_fslabel_combfl_nosplit_k100", "bar": BAR}
+CD_ARMS = {  # --mode cd (llf_cd_confirm): the static epoch-40 gnn and the MLPs against the CD bar, reactive and random; no twin, no fs_*
+    "gnn": ARMS["gnn"], "wide": ARMS["wide"], "mlp": ARMS["mlp"], "bar": BAR, "reactive": "reactive", "random": "random"}
+S0_ARMS = ("bar", "reactive", "random")   # single-seed (s0) arms, the rest run at seeds 1-3
+CD_PRIMARY = (("gnn", "bar"), ("gnn", "wide"))
 LABELS = ("MP-ATTRIBUTED", "MP-DIRECTION", "TIE", "TWIN-FASTER")
 RUNAWAY_X = 10.0
 STATS = ("whole", "a360")
@@ -72,18 +76,20 @@ def check_rulings(r):
 NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.summary\.json$")
 
 
-def load(root, topos, pin):
+def load(root, topos, pin, arms=None, check=None):
     """{(kind, seed, topology, window, rung): {'whole', 'a360'}}: exactly the expected grid, nothing else.
     pin: one code.commit prefix for every cell, or 'group=prefix,...' with the groups static (gnn, twin, mlp, wide), refs (the four fair-share-label arms) and bar: each cell must
     match its own group's prefix and every listed prefix must be used. Returns (cells, the commits seen, the commits seen per group)."""
-    group_of = {ARMS[a]: ("bar" if a == "bar" else "refs" if a.startswith("fs_") else "static") for a in ARMS}
+    arms = ARMS if arms is None else arms
+    group_of = {arms[a]: ("bar" if a in S0_ARMS else "refs" if a.startswith("fs_") else "static") for a in arms}
+    groups = tuple(sorted(set(group_of.values()), key=("static", "refs", "bar").index))
     if "=" in pin:
         want_pin = dict(p.split("=", 1) for p in pin.split(","))
-        if set(want_pin) != {"static", "refs", "bar"} or not all(want_pin.values()):
-            raise SystemExit(f"FAIL LOUD: --pin groups must be exactly static, refs and bar, got {sorted(want_pin)}")
+        if set(want_pin) != set(groups) or not all(want_pin.values()):
+            raise SystemExit(f"FAIL LOUD: --pin groups must be exactly {', '.join(groups[:-1])} and {groups[-1]}, got {sorted(want_pin)}")
     else:
-        want_pin = {g: pin for g in ("static", "refs", "bar")}
-    want = {(ARMS[a], 0 if a == "bar" else s, t, w, r) for a in ARMS for s in ((0,) if a == "bar" else SEEDS) for t in topos for w in WINDOWS for r in RUNGS}
+        want_pin = {g: pin for g in groups}
+    want = {(arms[a], 0 if a in S0_ARMS else s, t, w, r) for a in arms for s in ((0,) if a in S0_ARMS else SEEDS) for t in topos for w in WINDOWS for r in RUNGS}
     V, pins, by_group = {}, set(), {g: set() for g in want_pin}
     for f in sorted(glob.glob(os.path.join(root, "*", "cc40s*.summary.json"))):
         m = NAME.match(os.path.basename(f))
@@ -99,6 +105,8 @@ def load(root, topos, pin):
         grp = group_of[key[0]]
         if code.get("dirty") is not False or not str(code.get("commit", "")).startswith(want_pin[grp]) or s.get("servers") != 24:
             raise SystemExit(f"FAIL LOUD: {f} ran at {code.get('commit')} dirty={code.get('dirty')} servers={s.get('servers')}, not {want_pin[grp]} clean at 24 servers")
+        if check is not None:
+            check(key, s, f)
         pins.add(code["commit"])
         by_group[grp].add(code["commit"])
         a360 = ((s.get("steady_state") or {}).get("after_360s") or {}).get("mean")
@@ -115,16 +123,17 @@ def load(root, topos, pin):
 
 
 class Grid:
-    def __init__(self, V, topos, rul):
+    def __init__(self, V, topos, rul, arms=None):
         self.V, self.topos, self.rul = V, tuple(topos), rul
+        self.arms = ARMS if arms is None else arms
         self.flag = {}   # (kind, seed, t, w, rung, stat) -> bool
         self.med = {}
 
     def seeds(self, arm):
-        return (0,) if arm == "bar" else SEEDS
+        return (0,) if arm in S0_ARMS else SEEDS
 
     def raw(self, arm, seed, t, w, rung, stat):
-        return self.V[(ARMS[arm], seed, t, w, rung)][stat]
+        return self.V[(self.arms[arm], seed, t, w, rung)][stat]
 
     def arm_median(self, arm, seed, rung, mstat):
         pool = self.rul["arm_median_pool"]
@@ -155,8 +164,8 @@ class Grid:
         for t in self.topos:
             pcts = []
             for w in WINDOWS:
-                x, fx = self.cell(a, t, w, rung, stat, reading, seed if a != "bar" else None)
-                y, fy = self.cell(b, t, w, rung, stat, reading, seed if b != "bar" else None)
+                x, fx = self.cell(a, t, w, rung, stat, reading, seed if a not in S0_ARMS else None)
+                y, fy = self.cell(b, t, w, rung, stat, reading, seed if b not in S0_ARMS else None)
                 if not (fx or fy):
                     pcts.append(100.0 * (x / y - 1.0))
             per[t] = st.median(pcts) if pcts else None
@@ -167,7 +176,7 @@ class Grid:
 
     def runaways(self):
         out = []
-        for a in ARMS:
+        for a in self.arms:
             for s in self.seeds(a):
                 for rung in RUNGS:
                     for t in self.topos:
@@ -213,6 +222,105 @@ def secondary(g):
     return out
 
 
+CD_MODE_POINTS = ("primary_metric", "runaway_metric", "arm_median_pool", "runaway_unit", "no_window_left")
+
+
+def check_rulings_cd(r):
+    """The cd mode has no label, so only the statistic-defining rulings are required (same keys and values as check_rulings)."""
+    miss = [k for k in CD_MODE_POINTS if k not in r]
+    if miss:
+        raise SystemExit(f"FAIL LOUD: --rulings lacks {miss}; SCIENTIST rules on every open point before the freeze")
+    for k in CD_MODE_POINTS:
+        if r[k] not in RULING_POINTS[k]:
+            raise SystemExit(f"FAIL LOUD: ruling {k}={r[k]!r} is not one of {RULING_POINTS[k]}")
+    return r
+
+
+CD_CKPT = {  # arm -> checkpoint basename stem (seed appended): llf_cd_confirm_v1 "Arms"
+    "gnn": "uncut-linkstatic-gnn-eng-e40-seed", "wide": "uncut-linkstatic-mlp-wide-e40-seed", "mlp": "uncut-linkstatic-mlp-same-e40-seed"}
+CD_CHARGE = {  # (arm, rung) -> {bucket: ms}: the parent primary's measured decision charge, llf_cd_confirm_v1 "Decision charge"
+    ("gnn", "moderate"): {"le10": 5.01465, "11_50": 2.254181, "gt50": 2.191336}, ("gnn", "heavy"): {"le10": 6.151998, "11_50": 3.103575, "gt50": 3.678685},
+    ("wide", "moderate"): {"le10": 4.527073, "11_50": 3.585821, "gt50": 7.915672}, ("wide", "heavy"): {"le10": 5.008803, "11_50": 5.134591, "gt50": 10.944349},
+    ("mlp", "moderate"): {"le10": 4.275423, "11_50": 1.91878, "gt50": 2.003687}, ("mlp", "heavy"): {"le10": 5.181011, "11_50": 3.17074, "gt50": 3.602202}}
+CD_BAR_CHARGE = 0.01098
+
+
+def cd_check(key, s, f):
+    """Fail loud when a cell's served checkpoint or decision charge is not the registered one."""
+    kind, seed, _t, _w, rung = key
+    env = s.get("env") or {}
+    arm = next(a for a, k in CD_ARMS.items() if k == kind)
+    if arm in CD_CKPT:
+        want = f"{CD_CKPT[arm]}{seed}.pt"
+        got = os.path.basename(str(env.get("GNN_MODEL_PATH", "")))
+        if got != want:
+            raise SystemExit(f"FAIL LOUD: {f} served {got!r}, not {want}")
+        raw = env.get("HEROSIM_DECISION_COST_MS_BY_BUCKET")
+        try:
+            have = json.loads(raw)
+        except (TypeError, ValueError):
+            have = None
+        if have != CD_CHARGE[(arm, rung)]:
+            raise SystemExit(f"FAIL LOUD: {f} decision charge {raw!r}, not {CD_CHARGE[(arm, rung)]}")
+    elif arm == "bar":
+        if float(env.get("HEROSIM_DECISION_COST_MS", "nan")) != CD_BAR_CHARGE:
+            raise SystemExit(f"FAIL LOUD: {f} bar decision charge {env.get('HEROSIM_DECISION_COST_MS')!r}, not {CD_BAR_CHARGE}")
+
+
+def cd_label(nr, al):
+    """CONFIRMED: without-runaways median < 0, Holm p < .05 and the all-cells median < 0; DIRECTION: median < 0 otherwise; NOT-FASTER: median >= 0 or no topology left."""
+    if nr["median_pct"] is None or nr["median_pct"] >= 0:
+        return "NOT-FASTER"
+    if nr["holm_p"] is not None and nr["holm_p"] < 0.05 and al["median_pct"] is not None and al["median_pct"] < 0:
+        return "CONFIRMED"
+    return "DIRECTION"
+
+
+def run_cd(root, rulings, topos, pin, out_path, ids_sha=None):
+    """llf_cd_confirm_v1: gnn vs bar and gnn vs wide x {moderate, heavy}; Holm over the 4 in each reading; the label reads without runaways with the all-cells sign guard."""
+    rul = check_rulings_cd(rulings)
+    if out_path and os.path.exists(out_path):
+        raise SystemExit(f"FAIL LOUD: {out_path} exists (read once)")
+    V, pins, pins_by_group = load(root, topos, pin, CD_ARMS, check=cd_check)
+    g = Grid(V, topos, rul, CD_ARMS)
+    stat = rul["primary_metric"]
+    primary = {}
+    for reading in ("all", "no_runaway"):
+        rows = {f"{a}_vs_{b}|{r}": g.contrast(a, b, r, stat, reading) for a, b in CD_PRIMARY for r in RUNGS}
+        hp = holm({k: v["p"] for k, v in rows.items()})
+        primary[reading] = {k: {kk: vv for kk, vv in v.items() if kk != "per_topology"} | {"holm_p": hp[k]} for k, v in rows.items()}
+    labels = {k: cd_label(primary["no_runaway"][k], primary["all"][k]) for k in primary["no_runaway"]}
+    per_seed = {f"{a}_vs_{b}|{r}|{rd}": {s_: g.contrast(a, b, r, stat, rd, seed=s_)["median_pct"] for s_ in SEEDS} for a, b in CD_PRIMARY for r in RUNGS for rd in ("all", "no_runaway")}
+    names = list(CD_ARMS)
+    sec = {}
+    for reading in ("all", "no_runaway"):
+        for st_ in STATS:
+            for i, a in enumerate(names):
+                for b in names[i + 1:]:
+                    for r in RUNGS:
+                        sec[f"{reading}|{st_}|{a}_vs_{b}|{r}"] = g.contrast(a, b, r, st_, reading)
+    res = {"family": "llf_cd_confirm_v1 (read once)", "mode": "cd", "topologies": list(topos), "ids_sha256": ids_sha, "pins": pins, "pins_by_group": pins_by_group, "cells": len(V),
+           "rulings": rul, "primary_metric": stat, "labels": labels, "primary": primary, "per_seed_median_pct": per_seed, "runaways": g.runaways(), "secondary": sec,
+           "reader_sha256": hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()}
+    if out_path:
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        with open(out_path + ".tmp", "w") as fh:
+            json.dump(res, fh, indent=1, default=str)
+        os.replace(out_path + ".tmp", out_path)
+    return res
+
+
+def show_cd(res):
+    fm = lambda x: "n/a" if x is None else f"{x:.4g}"
+    print(f"llf_cd_confirm_v1; primary metric {res['primary_metric']}; cells {res['cells']}; pins {res['pins']}")
+    for k, lab in res["labels"].items():
+        print(f"  {k:22s} {lab}")
+        for reading in ("no_runaway", "all"):
+            row = res["primary"][reading][k]
+            print(f"      [{reading:10s}] median {fm(row['median_pct'])} % faster {row['faster']}/{row['n']} p {fm(row['p'])} holm(4) {fm(row['holm_p'])}")
+    print(f"runaway cells: {len(res['runaways'])}")
+
+
 def run(root, rulings, topos, pin, out_path, ids_sha=None):
     rul = check_rulings(rulings)
     if out_path and os.path.exists(out_path):
@@ -249,7 +357,19 @@ def main():
     ap.add_argument("--rulings", required=True)
     ap.add_argument("--pin", required=True, help="one code.commit prefix for every cell, or static=<prefix>,refs=<prefix>,bar=<prefix>")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--mode", choices=("confirm", "cd"), default="confirm")
+    ap.add_argument("--ids", help="cd mode: comma-separated topology ids")
+    ap.add_argument("--ids-sha256", help="cd mode: sha256 of the comma-joined id list, as filed")
     a = ap.parse_args()
+    if a.mode == "cd":
+        if not a.ids or not a.ids_sha256:
+            raise SystemExit("FAIL LOUD: --mode cd needs --ids and --ids-sha256")
+        ids = tuple(int(x) for x in a.ids.split(","))
+        sha = hashlib.sha256(",".join(map(str, ids)).encode()).hexdigest()
+        if sha != a.ids_sha256 or len(set(ids)) != len(ids):
+            raise SystemExit("FAIL LOUD: the id list does not match the filed sha256 (or repeats an id)")
+        show_cd(run_cd(a.cells, json.load(open(a.rulings)), ids, a.pin, a.out, sha))
+        return
     sha = hashlib.sha256(",".join(map(str, IDS)).encode()).hexdigest()
     if sha != IDS_SHA256:
         raise SystemExit("FAIL LOUD: the id list in this reader is not the sealed one")
