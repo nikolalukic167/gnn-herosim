@@ -236,3 +236,17 @@ def test_the_wide_static_arm_is_registered_like_the_other_three():
         assert c["args"]["hidden-dim"] == c["args"]["embedding-dim"] == 675 and c["args"]["epochs"] == c["args"]["min-epochs"] == c["args"]["patience"] == epochs
         assert c["env"]["PARTIAL_STATE_CONTRACT"] == V8 and c["env"]["NEAR_RTT_ARM"] == "mlp_same" and "NEAR_RTT_MP_LINK_STATIC_ATTR" not in c["env"]
         assert c["wandb"]["run_name"] == "uncut-linkstatic-mlp-wide" + ("-e100" if suffix else "")
+
+
+def test_the_e40_configs_are_the_20_epoch_recipe_at_40_epochs_with_no_early_stop():
+    import yaml
+
+    root = os.path.join(os.path.dirname(__file__), "..", "experiments")
+    for arm in ("gnn", "twin", "mlp", "mlp_wide"):
+        a = yaml.safe_load(open(os.path.join(root, f"uncut_linkstatic_{arm}.yaml")))
+        b = yaml.safe_load(open(os.path.join(root, f"uncut_linkstatic_{arm}_e40.yaml")))
+        assert b["args"]["epochs"] == b["args"]["min-epochs"] == b["args"]["patience"] == 40
+        assert b["wandb"]["run_name"] == a["wandb"]["run_name"] + "-e40"
+        for sec in ("env", "cache_dir", "trainer", "unset_env"):
+            assert a[sec] == b[sec], (arm, sec)
+        assert {k: v for k, v in a["args"].items() if k not in ("epochs", "min-epochs", "patience")} == {k: v for k, v in b["args"].items() if k not in ("epochs", "min-epochs", "patience")}
