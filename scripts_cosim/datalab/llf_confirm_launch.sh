@@ -4,12 +4,19 @@
 #   PIN=<full sha> NODES="os-cpu-slurm-6 ..." [DRY=1] [GROUPS_ONLY="static refs bar"] [ROOTS_ONLY="main r1"] [RUNGS_ONLY="moderate heavy"] bash llf_confirm_launch.sh
 # Waves: RUNGS_ONLY=moderate is 28 jobs (2 roots x 2 windows x 7 groups), then RUNGS_ONLY=heavy the other 28.
 # DRY=1 (the default) prints every sbatch and submits nothing. A real submit needs DRY=0 and refuses to take the queue over 44 (counts the batch first).
+# FINAL=1 serves the epoch-40 -final.pt checkpoints of the static arms instead of the best-validation ones (a secondary read, never mixed with the primary): IN dirs xs/in_llf_conf_final[_r1] (built by
+# llf_confirm_in.sh MODE=final), outputs anomaly/fairshare/d_conf_final/, job names llfcf-*; only the static groups exist in that wave (refs and the bar are the same cells as the primary's).
 # Job groups per (root, window, rung): static_s<N> = the four static e40 arms at seed N (3 jobs); refs_s<N> = the four v6 fslabel references at seed N (3 jobs); bar = cd_ib0_inflightfull_k100 seed 0.
 set -euo pipefail
 PIN=${PIN:?set PIN}; NODES=${NODES:?set NODES (space separated; at most 2 jobs per node are placed)}; DRY=${DRY:-1}
 U=/share/nikola.lukic/uncut_groups; WTP=$HOME/gnn-herosim-wt/s6_lk_${PIN:0:8}
 [[ $(git -C "$WTP" rev-parse HEAD) == "$PIN" ]] || { echo "FAIL LOUD: worktree $WTP is not at $PIN"; exit 2; }
-declare -A INDIR=([main]=$U/xs/in_llf_conf [r1]=$U/xs/in_llf_conf_r1)
+FINAL=${FINAL:-0}; SUF=""; CONF=d_conf; JN=llfc
+if [[ $FINAL == 1 ]]; then
+  [[ " ${GROUPS_ONLY:-} " == " static " ]] || { echo "FAIL LOUD: FINAL=1 serves the static arms only: set GROUPS_ONLY=static"; exit 2; }
+  SUF=_final; CONF=d_conf_final; JN=llfcf
+fi
+declare -A INDIR=([main]=$U/xs/in_llf_conf$SUF [r1]=$U/xs/in_llf_conf_r1$SUF)
 declare -A TOPOS=([main]=30285,30286,30287,30289,30290,30291,30292,30293,30294,30295,30296 [r1]=30297)
 STATIC="ra_gnn_eng_combfl_linkstatic_e40_nosplit_k100,ra_twin_eng_combfl_linkstatic_e40_nosplit_k100,ra_mlp_same_combfl_linkstatic_e40_nosplit_k100,ra_mlp_wide_combfl_linkstatic_e40_nosplit_k100"
 REFS="ra_gnn_eng_fslabel_combfl_nosplit_k100,ra_twin_eng_fslabel_combfl_nosplit_k100,ra_mlp_same_fslabel_combfl_nosplit_k100,ra_mlp_wide_fslabel_combfl_nosplit_k100"
@@ -35,12 +42,12 @@ for j in "${jobs[@]}"; do
   for k in $(seq 0 $(( ${#NODEARR[@]} - 1 ))); do n=${NODEARR[$(( (i + k) % ${#NODEARR[@]} ))]}; if (( ${PLACED[$n]:-0} < 2 )); then node=$n; break; fi; done
   [[ -n "$node" ]] || { echo "FAIL LOUD: no node with fewer than 2 of my jobs left among: $NODES"; exit 1; }
   PLACED[$node]=$(( ${PLACED[$node]:-0} + 1 )); i=$(( i + 1 ))
-  sub=${root}_${win}${rung}_${group}; out=$U/anomaly/fairshare/d_conf/$sub
+  sub=${root}_${win}${rung}_${group}; out=$U/anomaly/fairshare/$CONF/$sub
   [[ -e $out && "$DRY" != 1 ]] && { echo "FAIL LOUD: $out exists"; exit 2; }
   cmd=(env WT=$WTP EXPECT_HEAD=${PIN:0:8} IN=${INDIR[$root]} OUT=$out SELECT=$U/arm1_selected.json R1A_ARMS=$arms R1A_SEEDS=$seeds R1A_TOPOS=${TOPOS[$root]} R1A_WINDOWS=$win WF1_RUNGS=$rung
        PAR=8 CELL_MEM=16G LIMIT=14400 R1A_SPLIT=$split R1A_SLATE=declared_pruning_v1_uncapped R1A_EXCHANGE_TCP=1 R1A_EXCHANGE_FAIRSHARE=1
-       sbatch --parsable --export=ALL -p CPU-amd -w $node --cpus-per-task=16 --mem=120G -t 12:00:00 -J llfc-$sub -o $U/anomaly/fairshare/d_conf/logs/llfc-%x-%j.out $WTP/scripts_cosim/datalab/r1a_gate.sbatch)
+       sbatch --parsable --export=ALL -p CPU-amd -w $node --cpus-per-task=16 --mem=120G -t 12:00:00 -J $JN-$sub -o $U/anomaly/fairshare/$CONF/logs/$JN-%x-%j.out $WTP/scripts_cosim/datalab/r1a_gate.sbatch)
   if [[ "$DRY" == 1 ]]; then echo "${cmd[*]}" | sed "s#$U/##g; s#$HOME/##g"; else
-    mkdir -p "$out" "$U/anomaly/fairshare/d_conf/logs"; ( unset R1A_EXCHANGE_FAIRSHARE_PARTNERS HEROSIM_ACCESS_CELLULAR_OUT_MBPS; "${cmd[@]}" ); fi
+    mkdir -p "$out" "$U/anomaly/fairshare/$CONF/logs"; ( unset R1A_EXCHANGE_FAIRSHARE_PARTNERS HEROSIM_ACCESS_CELLULAR_OUT_MBPS; "${cmd[@]}" ); fi
 done
 echo "jobs: ${#jobs[@]}"
