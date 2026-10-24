@@ -5,6 +5,7 @@
 - **Why now.** On fair-share labels the GNN beats the MLP but ties its twin. The audit found the cause in the labels: they priced only the contention inside a batch, because the replay drops the flows already in flight (see Motivation).
 - **Primary contrast:** v7 gnn vs v7 twin, read once on 12 newly minted topologies. Development on 30176–30181 gives a direction only and can't produce a label.
 - **(b)'s decision charge re-measured on its A5/A5b code (2026-10-24; Record):** w is now 7.804 ms/plan moderate and 8.199 heavy (job 903323, node 17, H3 drift 0.22 % / 0.08 %), replacing the pre-A5 7.452 / 8.261 for every (b) cell.
+- **Confirmation reader frozen (2026-10-24; Record):** `llf_confirm_read.py` blob `eca50ed9` with `confirm_rulings.json`. The best-val checkpoint metric is at noise level, so the best-val wave serves a first-evaluation seed-1 twin. Which wave (best-val or epoch-40) is primary is the user's choice, pending.
 - **Selection (2026-10-24; Record):** STATIC is carried forward. At seed 1, 20 epochs, no variant's gnn beats its own twin (as built +2.47 %, static +0.97 %, (b) +14.89 %, pooled without runaways). Direction only.
 - **Amendment A5b (2026-10-23; the user's decision, filed after the A5 gate data; Record):** (b) failed gate criterion (c) on seeds 2–3 with a flat scale offset at the last layer, not a divergence. (b) adds one final affine LayerNorm after its last pre-norm residual layer, behind a contract flag. The gate is rerun unchanged.
 - **Amendment A6 (2026-10-23; the user's decision; Record):** for the Monday time budget, the selected variant's arms train 40 epochs (seeds 1–3, fresh), not 100. The A3 100-epoch runs become a disclosed sensitivity, never pooled. Filed before the selection read.
@@ -116,6 +117,16 @@ Conditions on the arms:
   - For it: this is the first set of labels that prices contention from outside the batch.
 
 ## Record
+
+- 2026-10-24 — **Confirmation reader frozen: `scripts_cosim/llf_confirm_read.py` blob `eca50ed97ef63debff4a03baf508905700886ea8`** (S5 wrote it from the registered text, merged at `7dcac079`; frozen by SCIENTIST before any confirmation cell is read). The confirmation is read once with this blob and `live_link_features_v1/confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`).
+  - **Rulings, from the registered text.** Primary on the whole run. The runaway test uses the statistic being read, with the arm median pooled over seeds. A seed-mean cell is flagged if any seed is, and its pair is dropped. A topology with no window left is dropped. "Weaker" follows the P9 order (MP-ATTRIBUTED > MP-DIRECTION > TIE > TWIN-FASTER). The MLP clause is a gnn-vs-MLP median ≤ 0 % on both rungs. The seed clause is seed-matched within the reading. MP-DIRECTION needs a count of 8 topologies faster. Reasons per point are in the file.
+  - **Arms.** The registered "v7" arms are the selected STATIC variant's 40-epoch arms (gnn, twin, MLP, wide static), with the v6 fslabel arms and the bar as references. The v7 MLP and v7 wide MLP references of A3 are not in this read.
+  - **Two waves.** `d_conf` serves the best-validation checkpoints (A6). `d_conf_final` (pin `02668ecf`) serves the epoch-40 `-final.pt` checkpoints and is read by the same blob and rulings. Both were decided before any confirmation cell was read. **Which wave is primary is the user's choice, pending.** The other wave is a disclosed secondary, never pooled.
+  - **A6 checkpoint notes (training logs only).**
+    - The best-val epoch is ≥ 35 for twin s3 (38) and MLP s1 (39).
+    - The best-val checkpoint is the first evaluation for twin s1, wide s1 and wide s3 (val CE 41.1, 40.7, 39.0, against 33–35 for the other seeds; train CE falls to about 17 by epoch 40).
+    - The checkpoint metric, val/regret_masked_topo, is computed on validation labels that keep the sweep label ("val/test keep the sweep label"), not the flow-replay labels the arms train on. Every arm's best is 18.48–19.02 s, against a random-plan regret of 9.9 s and a worst-plan regret of 19.7 s on that set, with about 20 % of decodes mapped.
+    - So best-val selection is at noise level here, and the best-val wave serves a seed-1 twin taken at its first evaluation.
 
 - 2026-10-24 — **A1 selection read: STATIC is carried to seeds 1–3 (40 epochs, A6) and confirmation** (SCIENTIST ran `llf_select.py` blob `54367447` once, 10:42Z, on the expert's relay; all flags TRUE; output `live_link_features_v1/selection_s1_e20.json` md5 `9de058fac7e656bac899990b002b1574`, flags `selection_flags.json` md5 `b05fa09ee422d684389b199c8de6cd7a`).
   - **Inputs.** Cells: as built `anomaly/fairshare/d_link_asbuilt/asb_*`, static `d_link/gw_*` (gnn) and `d_link/tm_*` (twin), (b) `d_link_conv/conv_*`; 48 per variant.
