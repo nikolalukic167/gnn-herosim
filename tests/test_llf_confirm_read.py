@@ -17,7 +17,7 @@ def base(t, w, rung):
     return (4.0 + 0.13 * (t % 7) + 0.2 * (w == "g1")) * (1.5 if rung == "heavy" else 1.0)
 
 
-def grid(tmp, f, pin="0ec7cdcb1234"):
+def grid(tmp, f, pin="0ec7cdcb1234", pin_of=None):
     """f(arm, seed, t, w, rung) -> the task mean; writes one summary per expected cell into two subdirectories."""
     n = 0
     for arm, kind in R.ARMS.items():
@@ -29,7 +29,7 @@ def grid(tmp, f, pin="0ec7cdcb1234"):
                         d = tmp / ("main" if n % 2 else "r1")
                         d.mkdir(exist_ok=True)
                         (d / f"cc40s{t}__{w}{r}__{kind}_s{s}.summary.json").write_text(json.dumps(
-                            {"averageElapsedTime": v, "steady_state": {"after_360s": {"mean": v * 0.9}}, "code": {"commit": pin, "dirty": False}, "servers": 24}))
+                            {"averageElapsedTime": v, "steady_state": {"after_360s": {"mean": v * 0.9}}, "code": {"commit": pin_of(arm) if pin_of else pin, "dirty": False}, "servers": 24}))
                         n += 1
     return n
 
@@ -178,3 +178,41 @@ def test_output_is_written_once(tmp_path):
     assert json.load(open(out))["label"] == res["label"]
     with pytest.raises(SystemExit, match="read once"):
         R.run(str(tmp_path / "cells"), RUL, TOPOS, "0ec7cdcb", str(out), "x")
+
+
+STATIC_PIN, REF_PIN = "02668ecf0000", "0ec7cdcb1111"
+two = lambda arm: STATIC_PIN if arm in ("gnn", "twin", "mlp", "wide") else REF_PIN
+
+
+def test_group_pins_accept_each_group_at_its_own_commit_and_record_them(tmp_path):
+    grid(tmp_path, make(), pin_of=two)
+    V, pins, by_group = R.load(str(tmp_path), TOPOS, "static=02668ecf,refs=0ec7cdcb,bar=0ec7cdcb")
+    assert len(V) == 12 * 2 * 2 * 25 and pins == sorted([REF_PIN, STATIC_PIN]) and by_group == {"static": [STATIC_PIN], "refs": [REF_PIN], "bar": [REF_PIN]}
+    with pytest.raises(SystemExit, match="not 0ec7cdcb"):  # a single pin is the old behaviour: the static cells are at the other commit
+        R.load(str(tmp_path), TOPOS, "0ec7cdcb")
+
+
+def test_group_pins_refuse_a_static_cell_at_the_refs_commit_an_unused_pin_or_a_bad_group_set(tmp_path):
+    grid(tmp_path, make(), pin_of=two)
+    with pytest.raises(SystemExit, match="not 02668ecf"):
+        R.load(str(tmp_path), TOPOS, "static=02668ecf,refs=02668ecf,bar=02668ecf")
+    with pytest.raises(SystemExit, match="exactly static, refs and bar"):
+        R.load(str(tmp_path), TOPOS, "static=02668ecf,refs=0ec7cdcb")
+    with pytest.raises(SystemExit, match="not 02668ecf"):
+        R.load(str(tmp_path), TOPOS, "static=02668ecf,refs=0ec7cdcb,bar=02668ecf")
+
+
+def test_group_pins_refuse_a_listed_pin_that_no_cell_ran_at(tmp_path):
+    grid(tmp_path, make(), pin="0ec7cdcb1234")
+    with pytest.raises(SystemExit, match="not 02668ecf"):
+        R.load(str(tmp_path), TOPOS, "static=02668ecf,refs=0ec7cdcb,bar=0ec7cdcb")
+    # all cells at one commit but two listed prefixes of that same commit: both are used, the read goes through
+    V, pins, _ = R.load(str(tmp_path), TOPOS, "static=0ec7,refs=0ec7cdcb,bar=0ec7cdcb1234")
+    assert pins == ["0ec7cdcb1234"]
+
+
+def test_run_records_pins_by_group(tmp_path):
+    (tmp_path / "cells").mkdir()
+    grid(tmp_path / "cells", make(1.05, 1.02, 0.5), pin_of=two)
+    res = R.run(str(tmp_path / "cells"), RUL, TOPOS, "static=02668ecf,refs=0ec7cdcb,bar=0ec7cdcb", None, "x")
+    assert res["pins_by_group"]["static"] == [STATIC_PIN] and res["pins_by_group"]["refs"] == [REF_PIN] and res["label"] == "MP-ATTRIBUTED"
