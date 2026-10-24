@@ -4,6 +4,7 @@
 - **Question.** Under option D, do the epoch-40 static link-feature GNN checkpoints of `live_link_features_v1` beat (a) the CD bar `cd_ib0_inflightfull_k100` and (b) the parameter-matched wide MLP, on 24 topologies none of them has been read on?
 - **Parent.** `live_link_features_v1` (CLOSED TIE). Its primary file, read on the sealed 12, is the motivation. Those 12 ids are spent and are not reused here.
 - **No training.** The arms are the parent's filed checkpoints, served as they were.
+- **Reader frozen** (2026-10-24): `llf_confirm_read.py` blob `d6e186b5`, `--mode cd`. **Descriptive additions** (2026-10-24, the user's request): gnn/MLP seeds 4–6 and the (b) re-encode checkpoint. Neither enters the registered family unless the user pools seeds 4–6 before the read. Both are in the Record.
 
 ## Motivation (parent primary file, `read_primary_A_epoch40.json` md5 `7f882e8cd0c6de1bd1bdba750739a1be`, whole run; checked by SCIENTIST)
 
@@ -107,6 +108,23 @@
 
 ## Record
 
+- 2026-10-24 — **Descriptive additions, filed before any fresh-24 cell is read** (the user's request, relayed by the expert; written by SCIENTIST). Neither changes the registered family or labels.
+  - **(a) Seeds 4–6.** The static gnn, the wide MLP and the same-input MLP each train at seeds 4–6, with the parent's A6 recipe (40 epochs, min-epochs 40, no early stop; same corpus, labels and contract) and wandb logging. They serve their `-final.pt` on the fresh 24 (g0 + g1, both rungs) at the registered (arm, rung) decision charges.
+    - Run `tests/test_trainer_determinism.py` before training. File the nine checkpoint md5s before the first cell.
+    - Their cells go in a cells root separate from the primary's. The reader refuses unexpected cells and reads seeds 1–3 only.
+    - **Default: descriptive**, reported as a seeds 4–6 row and a seeds 1–6 row beside each primary test.
+    - Pooling them into the primary is the user's call, and it must be made before the primary read. Pooling changes the reader's seed set, so it also needs a re-freeze. If no pooling decision is filed by the time of the read, the primary is read on seeds 1–3 as registered.
+  - **(b) Re-encode variant, as a descriptive arm.** Its only checkpoint is `uncut-linkconv-gnn-eng-seed1.pt` (md5 `f177c7c27748b7e82448e912d9b70074`; contract `6e09cd98…`, staged in `xs/in_link_conv`, `xs/in_llf_conf_reenc` and `xs/in_llf_conf_r1_reenc`, all identical).
+    - It is the 20-epoch, seed-1, best-val checkpoint from the A1 selection. No retraining.
+    - It is served on the fresh 24 and on the parent's sealed 12, at its re-measured charge (`live_link_features_v1`, 2026-10-24 (b) w entry: by bucket ≤10 / 11–50 / >50, moderate 8.050 / 6.554 / 9.366 ms, heavy 8.288 / 6.904 / 10.745 ms).
+    - Caveats for every row: one seed; 20 epochs, not 40; selected on a validation metric that scores the sweep labels; seen on the development topologies in the selection. Never a label, never pooled.
+- 2026-10-24 — **Reader frozen: `scripts_cosim/llf_confirm_read.py` blob `d6e186b504e652ea9750fadb15c3ee15cfc17438`** (S5's `--mode cd`, merged at `b91cdb33`; frozen by SCIENTIST before any fresh-24 cell is read). The rulings file is `live_link_features_v1/confirm_rulings.json`, md5 `b609acef33b10e7369a0f5aa58b42477`, unchanged.
+  - **Invocation:** `--mode cd --ids <the 24 filed ids> --ids-sha256 <as filed> --pin static=02668ecf,bar=0ec7cdcb`. The `bar` group holds bar, reactive and random, so the descriptive reactive g0/g1 cells must run at `0ec7cdcb`.
+  - **Checks by SCIENTIST:**
+    - **Default mode unchanged.** Rerun on the parent's 1,200 cells (`d_conf_primaryA`), it reproduces `read_primary_A_epoch40.json` in every key but `reader_sha256`.
+    - **Cells are checked against the registration.** cd mode checks the id sha256 and the per-group pins. It also checks each learned cell's `GNN_MODEL_PATH` basename against arm and seed, each learned cell's per-(arm, rung) charge against the Arms table, and the bar's 0.01098 ms.
+    - **The family and labels are as registered:** four tests, Holm over the 4 within each reading. The label reads without runaways, with the all-cells guard: CONFIRMED / DIRECTION / NOT-FASTER.
+    - **Tests pass:** 28 passed, 1 skipped (the parent regression, which SCIENTIST ran directly above).
 - 2026-10-24 — **Amendment A1: n = 24 topologies, not 12** (the expert's decision; filed by SCIENTIST before any mint or cell). The 24 ids are the lowest free run of 24 ≥ 30304, under the same exclusions and the same mint and admission rule; replacements are made as before. The cells grow to 1,152 at g0 + g1. Everything else is as registered.
 - 2026-10-24 — **Registered** (SCIENTIST, at the expert's request with the user's go; before any mint or cell). The motivation table was recomputed from the parent's primary file. The checkpoint md5s and the per-(arm, rung) decision charges were read from the served files and from the cells of `d_conf_final` on datalab.
   - Changes from the expert's draft:
