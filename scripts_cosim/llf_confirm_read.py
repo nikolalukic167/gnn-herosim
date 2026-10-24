@@ -12,7 +12,7 @@ the after-360 s row beside the whole run.
 Where the node text leaves a point open this reader does NOT choose: every such point is a key of the --rulings JSON (written by SCIENTIST) and the reader refuses to run
 without all of them. The points are listed in RULING_POINTS below.
 
-  llf_confirm_read.py --cells <dir with the cell subdirs> --rulings rulings.json --pin <code.commit prefix> --out read.json
+  llf_confirm_read.py --cells <dir with the cell subdirs> --rulings rulings.json --pin <code.commit prefix | static=P,refs=P,bar=P> --out read.json
 
 The cell subdirectories (any names) hold cc40s<topology>__<window><rung>__<kind>_s<seed>.summary.json. A missing, duplicated, unexpected, dirty or wrong-pin cell fails loud.
 """
@@ -73,10 +73,18 @@ NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.summary\.js
 
 
 def load(root, topos, pin):
-    """{(kind, seed, topology, window, rung): {'whole', 'a360'}}: exactly the expected grid, nothing else."""
-    kinds = {v: k for k, v in ARMS.items()}
+    """{(kind, seed, topology, window, rung): {'whole', 'a360'}}: exactly the expected grid, nothing else.
+    pin: one code.commit prefix for every cell, or 'group=prefix,...' with the groups static (gnn, twin, mlp, wide), refs (the four fair-share-label arms) and bar: each cell must
+    match its own group's prefix and every listed prefix must be used. Returns (cells, the commits seen, the commits seen per group)."""
+    group_of = {ARMS[a]: ("bar" if a == "bar" else "refs" if a.startswith("fs_") else "static") for a in ARMS}
+    if "=" in pin:
+        want_pin = dict(p.split("=", 1) for p in pin.split(","))
+        if set(want_pin) != {"static", "refs", "bar"} or not all(want_pin.values()):
+            raise SystemExit(f"FAIL LOUD: --pin groups must be exactly static, refs and bar, got {sorted(want_pin)}")
+    else:
+        want_pin = {g: pin for g in ("static", "refs", "bar")}
     want = {(ARMS[a], 0 if a == "bar" else s, t, w, r) for a in ARMS for s in ((0,) if a == "bar" else SEEDS) for t in topos for w in WINDOWS for r in RUNGS}
-    V, pins = {}, set()
+    V, pins, by_group = {}, set(), {g: set() for g in want_pin}
     for f in sorted(glob.glob(os.path.join(root, "*", "cc40s*.summary.json"))):
         m = NAME.match(os.path.basename(f))
         if not m:
@@ -88,9 +96,11 @@ def load(root, topos, pin):
             raise SystemExit(f"FAIL LOUD: unexpected cell {key} ({f})")
         s = json.load(open(f))
         code = s.get("code") or {}
-        if code.get("dirty") is not False or not str(code.get("commit", "")).startswith(pin) or s.get("servers") != 24:
-            raise SystemExit(f"FAIL LOUD: {f} ran at {code.get('commit')} dirty={code.get('dirty')} servers={s.get('servers')}, not {pin} clean at 24 servers")
+        grp = group_of[key[0]]
+        if code.get("dirty") is not False or not str(code.get("commit", "")).startswith(want_pin[grp]) or s.get("servers") != 24:
+            raise SystemExit(f"FAIL LOUD: {f} ran at {code.get('commit')} dirty={code.get('dirty')} servers={s.get('servers')}, not {want_pin[grp]} clean at 24 servers")
         pins.add(code["commit"])
+        by_group[grp].add(code["commit"])
         a360 = ((s.get("steady_state") or {}).get("after_360s") or {}).get("mean")
         if s.get("averageElapsedTime") is None or a360 is None:
             raise SystemExit(f"FAIL LOUD: {f} has no averageElapsedTime / steady_state.after_360s.mean")
@@ -98,7 +108,10 @@ def load(root, topos, pin):
     miss = sorted(want - set(V))
     if miss:
         raise SystemExit(f"FAIL LOUD: {len(miss)} of {len(want)} cells missing, first {miss[:3]}")
-    return V, sorted(pins), kinds
+    unused = sorted(p for p in set(want_pin.values()) if not any(c.startswith(p) for c in pins))
+    if unused:
+        raise SystemExit(f"FAIL LOUD: the listed pin(s) {unused} are used by no cell")
+    return V, sorted(pins), {g: sorted(c) for g, c in by_group.items()}
 
 
 class Grid:
@@ -204,13 +217,13 @@ def run(root, rulings, topos, pin, out_path, ids_sha=None):
     rul = check_rulings(rulings)
     if out_path and os.path.exists(out_path):
         raise SystemExit(f"FAIL LOUD: {out_path} exists (read once)")
-    V, pins, _ = load(root, topos, pin)
+    V, pins, pins_by_group = load(root, topos, pin)
     g = Grid(V, topos, rul)
     labels, evidence = {}, {}
     for reading in ("all", "no_runaway"):
         labels[reading], evidence[reading] = primary_label(g, reading)
     final = max(labels.values(), key=rul["weaker_order"].index)
-    res = {"family": "live_link_features_v1 confirmation (read once)", "topologies": list(topos), "ids_sha256": ids_sha, "pins": pins, "cells": len(V), "rulings": rul,
+    res = {"family": "live_link_features_v1 confirmation (read once)", "topologies": list(topos), "ids_sha256": ids_sha, "pins": pins, "pins_by_group": pins_by_group, "cells": len(V), "rulings": rul,
            "primary_metric": rul["primary_metric"], "label": final, "label_by_reading": labels, "evidence": evidence, "runaways": g.runaways(), "secondary": secondary(g),
            "reader_sha256": hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()}
     if out_path:
@@ -234,7 +247,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cells", required=True)
     ap.add_argument("--rulings", required=True)
-    ap.add_argument("--pin", required=True)
+    ap.add_argument("--pin", required=True, help="one code.commit prefix for every cell, or static=<prefix>,refs=<prefix>,bar=<prefix>")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     sha = hashlib.sha256(",".join(map(str, IDS)).encode()).hexdigest()
