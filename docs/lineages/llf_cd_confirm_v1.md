@@ -4,7 +4,7 @@
 - **Question.** Under option D, do the epoch-40 static link-feature GNN checkpoints of `live_link_features_v1` beat (a) the CD bar `cd_ib0_inflightfull_k100` and (b) the parameter-matched wide MLP, on 24 topologies none of them has been read on?
 - **Parent.** `live_link_features_v1` (CLOSED TIE). Its primary file, read on the sealed 12, is the motivation. Those 12 ids are spent and are not reused here.
 - **No training.** The arms are the parent's filed checkpoints, served as they were.
-- **Seeds 1–6 (amendment A2, 2026-10-25, the user's POOL, filed before any primary cell is read).** The learned arms of the primary are the static e40 `-final.pt` gnn, wide MLP and same-input MLP at seeds 1–6. **Reader frozen** at `llf_confirm_read.py` blob `b3ea4ed9`, `--mode cd`. The (b) re-encode checkpoint stays descriptive. Both are in the Record.
+- **Seeds 1–6 (amendment A2, 2026-10-25, the user's POOL, filed before any primary cell is read).** The learned arms of the primary are the static e40 `-final.pt` gnn, wide MLP and same-input MLP at seeds 1–6. **Reader frozen** at `llf_confirm_read.py` blob `bab527b0`, `--mode cd`. The (b) re-encode checkpoint stays descriptive. Both are in the Record.
 
 ## Motivation (parent primary file, `read_primary_A_epoch40.json` md5 `7f882e8cd0c6de1bd1bdba750739a1be`, whole run; checked by SCIENTIST)
 
@@ -108,7 +108,7 @@
 
 ## Record
 
-- 2026-10-25 — **Amendment A2: the primary learned arms run at seeds 1–6, and the reader is re-frozen at blob `b3ea4ed9597b43e200db4a9ab2ae8948adb32ad9`** (the user's POOL decision, relayed by the expert; filed by SCIENTIST before any primary cell is read). It replaces the default "descriptive" for (a) in the 2026-10-24 additions entry. The family, readings, guard and labels are unchanged.
+- 2026-10-25 — **Amendment A2: the primary learned arms run at seeds 1–6, and the reader is frozen at blob `bab527b01d52b17735bad9908e81799699a468b0`** (the user's POOL decision, relayed by the expert; filed by SCIENTIST before any primary cell is read). It replaces the default "descriptive" for (a) in the 2026-10-24 additions entry. The family, readings, guard and labels are unchanged.
   - **Seeds 4–6.** These are the static e40 `-final.pt` gnn, wide MLP and same-input MLP. The served files are in `xs/in_llf_cd_s456/models/`, listed in `xs/llf_conf_models_final_s456.md5` (sha256 `ae613e9843b84aadf0f6f1deab79278662e21fa5abcfb5f5457ab2f5a1ab9b47`). SCIENTIST re-hashed all nine, and they match.
   - **Cells.** The cells are in `llf_cd_conf/d_cd_s456`. Its 864 summaries are all at `02668ecf`, clean, and serve from `in_llf_cd_s456` (checked from the summaries' provenance fields only).
   - **Seeds and runaways.** A learned cell is the mean over its six seeds, and the runaway arm median pools all six. Seed blocks s1–3 and s4–6 are reported alone, as descriptive rows.
@@ -116,9 +116,11 @@
     - reads the learned arms at seeds 1–6;
     - takes several `--cells` roots;
     - takes the reactive cells from the flat admission directory via `--react-cells`, reading only `reactive_s0` cells of g0/g1, so the g2/g3 admission cells there are ignored;
-    - writes `seeds` and `per_seed_block`.
-    - The default mode is untouched. Rerun on the parent's 1,200 cells, it reproduces `read_primary_A_epoch40.json` in every key but `reader_sha256`. Tests: 30 passed, 1 skipped (that regression, run directly).
-  - **Invocation:** `--mode cd --cells llf_cd_conf/d_cd,llf_cd_conf/d_cd_s456 --react-cells llf_cd_conf/cells_react --ids 30327,…,30350 --ids-sha256 8d9d17a1b7e5c45ea4eb8fa99e11ddca46ff3f32248f7ce1e727d44424d1c563 --pin static=02668ecf,bar=0ec7cdcb`, with `live_link_features_v1/confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`). It is read once.
+    - writes `seeds` and `per_seed_block`;
+    - with `--allow-missing`, accepts only named random-arm cells as absent and records them in `allowed_missing`. A named cell that exists, a non-random cell, or any other missing cell still fails loud. The random rows of an affected topology use its remaining window.
+    - The default mode is untouched. Rerun on the parent's 1,200 cells, it reproduces `read_primary_A_epoch40.json` in every key but `reader_sha256`. Tests: 31 passed, 1 skipped (that regression, run directly).
+  - **Random, descriptive.** 94 of 96 cells exist. 30327 and 30344 g0 moderate are deterministic watchdog stalls: the 30327 rerun in `d_cd_rr` stalled at the same simulated instant, 5,359 of 9,354 arrivals.
+  - **Invocation:** `--mode cd --cells llf_cd_conf/d_cd,llf_cd_conf/d_cd_s456 --react-cells llf_cd_conf/cells_react --allow-missing cc40s30327__g0moderate__random_s0,cc40s30344__g0moderate__random_s0 --ids 30327,…,30350 --ids-sha256 8d9d17a1b7e5c45ea4eb8fa99e11ddca46ff3f32248f7ce1e727d44424d1c563 --pin static=02668ecf,bar=0ec7cdcb`, with `live_link_features_v1/confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`). It is read once.
 - 2026-10-24 — **Descriptive additions, filed before any fresh-24 cell is read** (the user's request, relayed by the expert; written by SCIENTIST). Neither changes the registered family or labels.
   - **(a) Seeds 4–6.** The static gnn, the wide MLP and the same-input MLP each train at seeds 4–6, with the parent's A6 recipe (40 epochs, min-epochs 40, no early stop; same corpus, labels and contract) and wandb logging. They serve their `-final.pt` on the fresh 24 (g0 + g1, both rungs) at the registered (arm, rung) decision charges.
     - Run `tests/test_trainer_determinism.py` before training. File the nine checkpoint md5s before the first cell.

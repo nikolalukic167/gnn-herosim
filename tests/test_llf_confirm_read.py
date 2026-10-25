@@ -347,6 +347,25 @@ def test_cd_mode_seed_blocks_read_each_block_alone(tmp_path):
     assert res["primary"]["all"]["gnn_vs_wide|moderate"]["median_pct"] == pytest.approx(R.Grid(R.load(str(tmp_path), CD_TOPOS, "abcd1234", R.CD_ARMS, seeds=R.CD_SEEDS)[0], CD_TOPOS, RUL, R.CD_ARMS, seeds=R.CD_SEEDS).contrast("gnn", "wide", "moderate", "whole", "all")["median_pct"])
 
 
+def test_cd_mode_allow_missing_is_random_only_and_named(tmp_path):
+    cd_grid(tmp_path, cd_f)
+    gone = ("random", 0, 40001, "g0", "moderate")
+    next(tmp_path.glob("*/cc40s40001__g0moderate__random_s0.summary.json")).unlink()
+    with pytest.raises(SystemExit, match="1 of .* cells missing"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", allow_missing=[gone])
+    assert res["allowed_missing"] == ["cc40s40001__g0moderate__random_s0"]
+    assert res["secondary"]["all|whole|gnn_vs_random|moderate"]["n"] == 12              # 40001 keeps g1
+    assert res["secondary"]["all|whole|gnn_vs_random|moderate"]["per_topology"][40001] is not None
+    with pytest.raises(SystemExit, match="only cells of the random arm"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", allow_missing=[gone, ("cd_ib0_inflightfull_k100", 0, 40001, "g0", "moderate")])
+    with pytest.raises(SystemExit, match="which exist"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", allow_missing=[gone, ("random", 0, 40002, "g0", "moderate")])
+    next(tmp_path.glob("*/cc40s40002__g1heavy__reactive_s0.summary.json")).unlink()
+    with pytest.raises(SystemExit, match="missing"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", allow_missing=[gone])
+
+
 FILED = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "lineages", "live_link_features_v1", "confirmation_reads", "read_primary_A_epoch40.json")
 
 
