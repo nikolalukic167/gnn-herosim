@@ -53,7 +53,7 @@ node. `tests/test_record_hygiene.py` enforces it.
 
 | Lineage | Status | Outcome |
 |---|---|---|
-| [**knative_stable_v1**](docs/lineages/knative_stable_v1.md) | `CLOSED` | **STOP-NO-STABLE-RATE.** Reactive Knative is not stable under option D at any rate from moderate down to 1/32 of it: best 10/12 topologies at f=0.03125 against 11 needed, failing the transfer clause (fair-share slowdown > 3×) with queue share ≤ 0.1; no study run. |
+| [**knative_stable_v1**](docs/lineages/knative_stable_v1.md) | `CLOSED` | **STOP-NO-STABLE-RATE.** Reactive Knative is not stable under option D at any rate from moderate down to 1/32 of it: best 10/12 topologies at f=0.03125 against 11 needed, failing the transfer clause (fair-share slowdown > 3×) with queue share ≤ 0.1 at the lightest rates; no study run. |
 | [**llf_cd_confirm_v1**](docs/lineages/llf_cd_confirm_v1.md) | `CLOSED` | **CONFIRMED (4/4).** Under option D the static link-feature GNN beats the CD bar (−21/−26 %) and the parameter-matched wide MLP (−9/−33 %), 24 fresh topologies, 6 seeds, Holm ≤ .003. No twin: not an MP claim; heavy is runaway-dominated. |
 | [**live_link_features_v1**](docs/lineages/live_link_features_v1.md) | `CLOSED` | **TIE.** Under option D the static link-feature gnn vs its MP-OFF twin: moderate −6.9 % (11/12 without runaways, Holm .068, 3/3 seeds), heavy +13 % with all cells. Not MP-ATTRIBUTED; the best-val wave's MP-DIRECTION rests on a first-epoch twin. |
 | [**decision_cost_s0_v1**](docs/lineages/decision_cost_s0_v1.md) | `CLOSED` | Decision time charged as simulated time: NO-LEARNED-WIN-AT-ANY-k, SEARCH-WIN-NOT-GNN, MP-NOT-ATTRIBUTED; exact arms out of budget at k = 1 (+9.5 / +197 %); cd_expand is the in-budget bar (capped seat); prune +5.15 % at k = 0.25. |
