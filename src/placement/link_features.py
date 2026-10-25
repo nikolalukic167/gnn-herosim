@@ -43,6 +43,7 @@ import numpy as np
 LINK_PLATFORM_DIM = 3
 LINK_EDGE_DIM = 3
 LINK_STATIC_DIM = 3
+LINK_OUT_DIM = 4
 MIB = 1024 ** 2
 
 Hop = Tuple[str, float]
@@ -151,6 +152,61 @@ def edge_columns(
         solo += solo_s
     e2 = math.log(shared / solo) if solo > 0.0 and shared > solo else 0.0
     return math.log1p(shared), e2, math.log1p(float(busiest))
+
+
+def out_edge_columns(
+    counts: Mapping[str, int],
+    routes: Mapping[Tuple[Any, Any], Sequence[Hop]],
+    node_exchange: Mapping[Tuple[Any, Any], Tuple[float, float]],
+    partners: Iterable[Tuple[Any, float]],
+    node: Any,
+) -> Tuple[float, float, float, float]:
+    """partial_state_v9 R1-R3 and U1 of one candidate `node` over the committed `partners` = (partner node, payload bytes): the OUTBOUND direction of the exchange.
+
+    The pair table is symmetric, so every remote committed partner also pulls from the candidate: the flow runs node -> partner over the candidate's own access
+    uplink first. E1-E3 price only the partner -> node direction. `counts` are the active flows plus the pending flows of the committed prefix, as for E1-E3.
+
+        R1  log1p(sum_j shared_j)   shared_j = b_j / min over the hops of node -> node_j of (MB/s * MiB / (active + 1)) plus the route latency; the solo price,
+                                    b * seconds-per-byte of the pair, when no hop of the route is loaded
+        R2  log(sum shared / sum solo), 0 when the solo sum is 0 or the shared sum does not exceed it
+        R3  log1p(largest active count on any hop of any of those routes, before adding this flow)
+        U1  log1p(B * (c + k) / (bw * MiB)), the seconds the candidate's uplink (the first hop of its routes: bandwidth bw MB/s, c flows on it) needs for this
+            task's k remote outbound flows of B bytes in all when they share it with the c flows already there; 0 for k = 0. R1 prices each flow as the one new
+            flow on its route, U1 prices the k flows as sharing the uplink with one another.
+
+    Remote partners only (a co-located partner moves nothing)."""
+    shared = solo = 0.0
+    busiest = 0
+    k = 0
+    total = 0.0
+    c = 0
+    bw_up = 0.0
+    up_key = None
+    for node_j, b in partners:
+        if node_j == node:
+            continue
+        pb, lat = node_exchange[(node, node_j)]
+        lat = lat if pb > 0.0 else 0.0
+        solo_s = b * pb + lat
+        hops = routes[(node, node_j)]
+        active = [counts.get(key, 0) for key, _bw in hops]
+        if any(active):
+            rate = min(bw * MIB / (n + 1) for (_k, bw), n in zip(hops, active))
+            shared += b / rate + lat
+            busiest = max(busiest, max(active))
+        else:
+            shared += solo_s
+        solo += solo_s
+        if k and hops[0][0] != up_key:
+            raise ValueError(f"FAIL LOUD: out_edge_columns: the routes of node {node!r} do not share one first hop ({up_key!r} vs {hops[0][0]!r}); U1 is defined for an access-link topology")
+        up_key = hops[0][0]
+        k += 1
+        total += b
+        c = active[0]
+        bw_up = hops[0][1]
+    r2 = math.log(shared / solo) if solo > 0.0 and shared > solo else 0.0
+    u1 = math.log1p(total * (c + k) / (bw_up * MIB)) if k else 0.0
+    return math.log1p(shared), r2, math.log1p(float(busiest)), u1
 
 
 def static_edge_columns(

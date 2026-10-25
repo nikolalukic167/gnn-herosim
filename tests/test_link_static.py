@@ -34,7 +34,7 @@ def test_v8_is_33_wide_and_extends_v7_in_every_family():
     for fam in (RF.VALID_PARTIAL_STATE_CONTRACTS, RF.PEER_BLOCK_CONTRACTS, RF.LOAD_SECONDS_CONTRACTS, RF.BOTH_DIRECTION_CONTRACTS, RF.FOUR_TYPE_CONTRACTS,
                 RF.INFLIGHT_CONTRACTS, RF.LINK_CONTRACTS):
         assert V8 in fam and V7 in fam
-    assert RF.STATIC_LINK_CONTRACTS == frozenset({V8})
+    assert RF.STATIC_LINK_CONTRACTS == frozenset({V8, RF.PARTIAL_STATE_CONTRACT_V9})  # v9 extends v8 (tests/test_link_out.py)
 
 
 def test_static_columns_against_hand_computed_values(fabric_env):
