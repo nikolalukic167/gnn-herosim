@@ -56,8 +56,8 @@ Option D, windows **g0 + g1**, both rungs. gnn and twin at seeds 1–6, bar at s
   - **CONFIRMED:** median < 0, Holm p < .05, and the all-cells median < 0.
   - **DIRECTION:** median < 0, not CONFIRMED.
   - **NOT-FASTER:** median ≥ 0, or no topology left.
-  - **UNDERPOWERED (precedence as `scale_d_v1` v3 item 4):** CONFIRMED stands at any n. A test with n_eff < 8 topologies after the drops that is not CONFIRMED is labelled UNDERPOWERED (median and count reported) in place of DIRECTION or NOT-FASTER. The Holm family stays m = 2.
-- **Failed learned cells (as `scale_d_v1` v3 item 3).** A gnn or twin cell that fails twice (killed, then rerun once with a longer wall; a watchdog stall counts as a failure) drops its (topology, window, rung) pair from both readings, and the count is reported per arm. **Any gnn failure at a rung blocks CONFIRMED for the test at that rung**, so a gnn failure cannot hide the way a runaway can. Any other missing cell fails loud.
+  - **UNDERPOWERED:** as `scale_d_v1` (v3, item 4, "Primary family" there): CONFIRMED stands at any n; a test with n_eff < 8 topologies after the drops that is not CONFIRMED is labelled UNDERPOWERED in place of DIRECTION or NOT-FASTER. The Holm family stays m = 2.
+- **Failed learned cells:** the `scale_d_v1` v3 rule ("Failed learned cells" there), applied to the gnn and twin kinds. A cell that fails twice drops its (topology, window, rung) pair from both readings and is counted per arm; any gnn failure at a rung blocks CONFIRMED for the test at that rung; any other missing cell fails loud.
 - **Power.** The exact Wilcoxon with n topologies all one sign has p = 2/2ⁿ: n = 24 → 1.2e-7, n = 12 → .0005, n = 8 → .0078. With Holm over 2 the smaller p must be < .025 and the larger < .05. In `llf_cd_confirm_v1` the gnn alone lost 16 (topology, window) cells to runaways at heavy, and any-seed-flags-cell drops more at six seeds, so **heavy may well end UNDERPOWERED**; that is a registered outcome, not a failure of the design.
 - **Descriptive beside each test:** the all-cells row; seeds 1–3, seeds 4–6 and each seed alone; the after-360 s row; free-decisions row; gnn vs bar and twin vs bar (context); the runaway list per arm; per-task and request p50/p99 and the link-load rows, with the fresh-24 reviewer-defence script's definitions; the measured/charged decision-time ratios.
 - **Not run, not quoted:** reactive and random.
@@ -67,6 +67,7 @@ Option D, windows **g0 + g1**, both rungs. gnn and twin at seeds 1–6, bar at s
 | Reading | Statement allowed |
 |---|---|
 | moderate CONFIRMED | the gnn beats its twin at moderate on fresh topologies (the parent's direction holds); not a message-passing attribution on its own (capacity: 507,524 vs 257,156 parameters) |
+| moderate CONFIRMED and `llf_cd_confirm_v1`'s gnn vs the parameter-matched wide MLP (506k parameters; CONFIRMED there at both rungs) | together the strongest MP-adjacent claim this design allows: the gnn beats its twin and beats a same-size pointwise model. Still not an attribution to message passing alone: the two contrasts come from different topology sets and the wide MLP is not run here |
 | moderate DIRECTION | the sign repeats; no claim |
 | moderate NOT-FASTER | the parent's moderate direction did not repeat; the TIE of `live_link_features_v1` stands |
 | heavy CONFIRMED | stated as a direction plus Holm, not a magnitude (runaway-dominated) |
@@ -88,4 +89,4 @@ This node is itself the live gate: every number is a served simulation cell. Wal
 
 ## Record
 
-- 2026-10-25 — **Drafted** (S7, at the expert's request; the user wants the MP test). Unsigned. Sources read: `llf_cd_confirm_v1` (design, arms, charges, reader, labels), `live_link_features_v1` (parent outcome), `scale_d_v1` v3 (failed-learned-cell rule, UNDERPOWERED precedence, completion definition; read on `scientist/scale-d-v3`, not yet merged), `knative_stable_v1` (admission, id rule), the twin charge strings and md5s from `d_conf_final` and `xs/llf_conf_models_final.md5` on datalab. The two `scale_d_v1` rules are restated above in full so this node does not depend on that branch.
+- 2026-10-25 — **Drafted** (S7, at the expert's request; the user wants the MP test). Unsigned. Sources read: `llf_cd_confirm_v1` (design, arms, charges, reader, labels), `live_link_features_v1` (parent outcome), `scale_d_v1` v3 (failed-learned-cell rule, UNDERPOWERED precedence, completion definition; merged at `47466dc1`), `knative_stable_v1` (admission, id rule), the twin charge strings and md5s from `d_conf_final` and `xs/llf_conf_models_final.md5` on datalab.
