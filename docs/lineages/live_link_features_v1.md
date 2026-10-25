@@ -10,7 +10,7 @@
 - **Caveats a reader must not quote without.**
   - One physics state (option D, cap200).
   - The variant (static) was picked at seed 1 and 20 epochs on development topologies, then carried at 40 epochs.
-  - Heavy load is runaway-dominated: 191 runaway flags across all arms in the primary, the bar included.
+  - Heavy load is runaway-dominated: 191 runaway flags across all arms in the primary, the bar included. Runaways are real overloads of cellular uplinks (ρ > 1), not an artefact of the equal-split fair-share rule; max-min moves exchange by ≤ ~7 % (2026-10-25, under Motivation → Option D).
   - The best-val checkpoint metric scores the sweep labels, not the training labels, and selects at noise level. The secondary best-val wave reads MP-DIRECTION (moderate −6.58 %, 12/12, Holm .001), but it rests on a seed-1 twin served at its first evaluation (seed 1 −18 % / −80 %), and seed 3 is positive (+6.1 % / +3.8 %). It is not evidence for message passing.
 - **Model class, descriptive (primary file).**
   - At moderate the static gnn is ahead of its MLP (−9.7 %) and of the parameter-matched wide MLP (−10.4 %, 12/12 without runaways). Its MP-OFF twin is close to the MLP (−1.8 %), so at moderate the gnn's edge over the pointwise arms is mostly the gnn-vs-twin difference.
