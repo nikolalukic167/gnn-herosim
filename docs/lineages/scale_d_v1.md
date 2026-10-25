@@ -1,8 +1,19 @@
 # scale_d_v1 — does the llf_cd_confirm_v1 win survive 64 and 128 servers under option D?
 
-**Status:** `REGISTERED` (2026-10-25). Drafted by S6 (v1, v2 with the expert's rulings); v3 signed by SCIENTIST with seven amendments the expert accepted, before any mint or cell. Every bar below is written before any scale-A or scale-B topology exists.
+**Status:** `CLOSED` (2026-10-25) — **CONFIRMED (3/4) at 64 servers; gnn vs wide heavy DIRECTION**. Registered 2026-10-25 (v3 signed before any mint or cell; drafted by S6, v3 signed by SCIENTIST with seven amendments the expert accepted). Each scale was read once with the frozen reader (`llf_confirm_read.py` blob `cbf7fb08`, `confirm_rulings.json` md5 `b609acef`).
 - **Question.** The static e40 link-feature GNN beat the CD bar and the parameter-matched wide MLP at 24 servers (`llf_cd_confirm_v1`, 4/4 CONFIRMED). Does that hold with the cluster 2.7× larger (scale A, 64 servers, primary) and 5.3× larger (scale B, 128 servers, descriptive), with clients per server and arrivals per server held at the 24-server values? Nothing is trained: the parent's `-final.pt` checkpoints (seeds 1–3) are served unchanged.
-- **Outcome.** Not run.
+- **Outcome (2026-10-25).** **At 64 servers the static gnn beats the parameter-matched wide MLP at moderate, and leads it at heavy only as a direction that sits in the opening.** Scale A, 18 topologies, seeds 1–3, Holm over 4, without runaways:
+  - **vs the wide MLP:**
+    - moderate −22.6 % (17/18, Holm 7e-5), CONFIRMED;
+    - heavy −17.6 % (14/18, p .154), DIRECTION. After 360 s the heavy row is +20 % with all cells (7/18) and −12.6 % without runaways (9/16), so the heavy lead is in the scale-from-zero opening.
+  - **vs the bar:** moderate −37.6 % (18/18, Holm 3e-5) and heavy −44.8 % (16/18, Holm 7e-4), both CONFIRMED. This is vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
+  - **vs the same-input MLP (descriptive):** −23.3 % moderate (18/18), −23.5 % heavy (14/17).
+  - **Scale B (128 servers, 6 topologies): direction only.** On every whole-run row the gnn is faster on 6/6 topologies (moderate / heavy): vs the bar −52 / −56 %, vs the wide MLP −35 / −60 %, vs the MLP −33 / −75 %. The reader prints UNDERPOWERED; the registration gives B no label.
+- **Caveats a reader must not quote without.**
+  - **The gnn rows are charge-limited** (registered flag, both rungs of A). At 64 servers every learned arm's measured decision time is about 4–5× its charge. Normalised by the 24-server ratio: gnn 3.12 / 3.24, wide 3.02 / 3.07, MLP 3.39 / 3.62. The gnn is just above the wide MLP, so its margin over the wide MLP may be slightly flattered. At B every arm is 10–20× under-charged (gnn flag at moderate only).
+  - **Heavy:** quote it as a direction plus Holm, not a magnitude.
+  - **Seeds, gnn vs wide moderate:** −31.6, −4.2 and −16.3 %. Seed 2 is weak.
+  - **HEFT is a mechanism row.** It collapses at 64 and 128 servers: every arm, the bar included, is 88–99 % faster. Not investigated, and not to be quoted as a comparison.
 - **What this is not.** Not a message-passing claim (no twin). Not a Knative claim (reactive is not run at these scales: under D it link-saturates, `llf_cd_confirm_v1` head). Not comparable to the earlier 64- and 128-server sets (`size64`, `size128`, 30129–30140 and 30241–30252): those used 160 clients, uncontended or TCP-off physics and the FL checkpoints. Never put a row of either in one table with a row here.
 
 ## Design
@@ -106,6 +117,24 @@ Per test, scale A: gnn vs wide MLP moderate ≈ 0.5; gnn vs bar moderate ≈ 0.5
 7. **Completion (v3), for admission:** a bar cell completes only if its summary exists with `num_tasks` = 50,000 and a finite `endTime`, there is no `.failed.json` for it, and it did not end in a watchdog stall or a wall kill. Unknown is a fail. Only `queue_share` and completion are read.
 
 ## Record
+
+- 2026-10-25 — **Reads, scale A then B, each run once** (SCIENTIST). Frozen blob `cbf7fb08`, the registered invocation on the `cells_learned`, `cells_bar` and `cells_heft` roots. `cells_heft_uncharged_void` was excluded. Pins `02668ecf` / `0ec7cdcb`. No failed cell and no gnn block.
+  - **The ids sha256 was not filed before the read.** The read uses the sha256 of the comma-joined lists, which match `ids.txt` and `admission_{A,B}.json`: A `42018603ebdcef25042b52fb03514e98164086bb45a380e34fdfb3f7aadad75e`, B `fbd68ac720e2bf5de308cf1c517713f1d69f0c5b09f0b3fd5020df7cf099f8cb`. The expert confirmed no other value exists.
+  - **First attempt.** It failed loud before any value was read: the 96 HEFT cells had been launched as kind `heft`, so they carried no decision charge. S6 fixed `scale_d_launch.sh`, the cells were rerun as `heft_k100` (0.003035 / 0.002807 ms, checked on all 96), and the old cells were moved to `cells_heft_uncharged_void`.
+  - **Scale A** (792 cells). Output `scale_d_v1/reads/read_A.json` (md5 `12f5c485210d0fda44c093985204ae2b`). Without runaways (all cells):
+    - gnn vs bar moderate −37.55 %, 18/18, Holm 3.1e-5 (−48.17 %, 17/18), CONFIRMED.
+    - gnn vs bar heavy −44.81 %, 16/18, Holm 6.6e-4 (the same), CONFIRMED.
+    - gnn vs wide moderate −22.56 %, 17/18, Holm 6.9e-5 (−25.72 %, 16/18, p .027), CONFIRMED.
+    - gnn vs wide heavy −17.61 %, 14/18, p .154 (the same), DIRECTION.
+  - **Descriptive, A.**
+    - After 360 s, gnn vs wide without runaways: −28.7 % moderate (17/18), −12.6 % heavy (9/16). With all cells, heavy is +20.1 % (7/18).
+    - Seeds, gnn vs bar: −41.1, −40.3, −37.5 (moderate) and −52.8, −49.9, −42.4 (heavy). Seeds, gnn vs wide heavy: −28.6, −7.7, −26.4.
+    - Runaway cells (whole run): gnn 5 moderate, wide 4 moderate, MLP 4 moderate + 9 heavy, bar 8 moderate.
+    - Charge ratio (measured ÷ charged, median over 108 cells, moderate / heavy): gnn 4.52 / 3.95, wide 4.26 / 4.33, MLP 4.81 / 4.42. The flag is on at both rungs.
+  - **Scale B** (264 cells, descriptive). Output `scale_d_v1/reads/read_B.json` (md5 `b818cd18c1b0fe476d6eba744ed64a6e`).
+    - Every whole-run gnn row is 6/6 (p .031, the n = 6 floor).
+    - Without runaways, moderate / heavy: vs the bar −51.95 / −55.67 %; vs the wide MLP −35.31 / −59.97 %; vs the MLP −32.52 / −74.54 %.
+    - Charge ratio: gnn 10.4 / 11.1, wide 10.0 / 18.0, MLP 12.4 / 20.0. The flag is on at moderate only.
 
 - 2026-10-25 — **Reader frozen: `scripts_cosim/llf_confirm_read.py` blob `cbf7fb08e7c60ea228c2a33959f746d521eeb2c4`** (SCIENTIST, before any study cell is read; one freeze for `knative_stable_v1`, `scale_d_v1` and `mp_confirm_v1`). The rulings file is `live_link_features_v1/confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`). Both filed reads are reproduced in every key but `reader_sha256`: `read_primary_A_epoch40.json` (default mode) and `llf_cd_confirm_v1/reads/read_primary_cd.json` (its frozen cd invocation). Tests: 40 passed, 1 skipped (that regression, run directly). An extended read records its options in `options`; a default read carries no new key. Invocation (scale A): `--mode cd --arms gnn,wide,mlp,bar,heft --seeds 1,2,3 --servers 64 --clients 427 --min-n 8 --charge-ratio` plus `[--failed-learned <cells>]`, `--cells`, `--ids`, `--ids-sha256` and `--pin static=02668ecf,bar=0ec7cdcb`. Scale B is the same with `--servers 128 --clients 853`, descriptive. The charge ratio uses the 24-server medians filed in v3.
 - 2026-10-25 — **Draft** (S6). Not signed. Sources read: `llf_cd_confirm_v1` (design, charges, reader), `big_groups_inputs.sbatch`, `size64_mint.sh` / `s128c320_mint.sh` (the old M convention), the cell summaries of `llf_cd_conf`, `size64` and `size128`, and the code paths named under Pre-checks.

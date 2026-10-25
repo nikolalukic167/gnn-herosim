@@ -2,6 +2,7 @@
 
 **Status:** `CLOSED` (2026-10-24) — **TIE**. Registered 2026-10-23, before any data. Every amendment (A1–A6) and the reader rulings were filed before the confirmation read. The confirmation was read once with the frozen reader (`llf_confirm_read.py` blob `bdce5ed3`, `confirm_rulings.json` md5 `b609acef`).
 - **Question.** Under option D (fair share plus TCP), does the GNN beat its own MP-OFF twin when both see the same live link-sharing columns and train on labels from a replay that keeps in-flight flows?
+- **Superseded on the gnn-vs-twin contrast by `mp_confirm_v1` (CONFIRMED, 2026-10-25).** On 24 fresh topologies at seeds 1–6, the same static e40 gnn beats a separately trained MP-OFF twin at moderate (−4.25 %, 21/24, Holm .0036) and, as a direction, at heavy. The TIE below is this node's own read on its 12 topologies at seeds 1–3, and still stands as that read. It is no longer the answer to the contrast.
 - **Outcome (2026-10-24).** Primary (epoch-40 wave, the user's option A): **TIE**, the weaker of all cells TIE and without runaways MP-DIRECTION.
   - **Moderate:** gnn vs twin −6.90 %. It is faster on 10/12 topologies with all cells (Holm .30) and on 11/12 without runaways (p .034, Holm .068). All three seeds alone are negative (−7.7, −4.6 to −5.0, −8.2 %).
   - **Heavy:** +13.0 % with all cells (4/12), −6.7 % without runaways (8/12, p .85).
