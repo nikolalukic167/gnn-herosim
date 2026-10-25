@@ -66,6 +66,11 @@ Scope: the AGENTS.md standing block, the `throughline.md` head, the first 25 `LI
 | mixed_dispatch / radical_physics pilots | rows | 2026-09, old physics (heads say so) | R1 | NO; row tag added |
 | L2D: MP ties at the authors' lr, +1.5–5 pp converged | [literature_reeval_v1](../lineages/literature_reeval_v1.md) row | 2026-09, upstream L2D env | None (not HeROsim) | n/a |
 
+## 2026-10-25 — A registered per-(arm, rung) value must be copied from every rung's cells
+
+`llf_cd_confirm_v1` registered the bar's decision charge as 0.01098 ms, copied from one heavy cell. The filed w is per rung (0.0116 moderate / 0.01098 heavy, `decision_cost_w.json`).
+The reader's fail-loud charge check refused the first moderate bar cell before any statistic was computed. The fix: the reader checks per rung, at blob `e7cd3aae`.
+
 ## 2026-10-20 — Two uncut-reader defects: a loss labelled "WIN-NOT-UNCUT", and the degree layout's k<L>/ roots
 
 Both are in `scripts_cosim/uncut_arm_gate_read.py`. Both were found during filed reads; neither reader was changed, because the readers are frozen.
