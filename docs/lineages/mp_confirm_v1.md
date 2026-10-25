@@ -1,9 +1,13 @@
 # mp_confirm_v1 — on fresh topologies, does the static link-feature GNN beat its separately trained MP-OFF twin under option D?
 
-**Status:** `REGISTERED` (2026-10-25). Drafted by S7 at the expert's request with the user's go; signed by SCIENTIST with four amendments the expert accepted, before any mint or cell, any twin checkpoint at seeds 4–6, or any read.
+**Status:** `CLOSED` (2026-10-25) — **CONFIRMED (2/2)**. Registered 2026-10-25, before any mint or cell, any twin checkpoint at seeds 4–6, or any read. Drafted by S7 at the expert's request with the user's go; signed by SCIENTIST with four amendments the expert accepted. The primary (seeds 1–6 pooled) was read once with the frozen reader (`llf_confirm_read.py` blob `cbf7fb08`, `confirm_rulings.json` md5 `b609acef`).
 - **Question.** Under option D (fair share plus TCP), does the epoch-40 static link-feature GNN `uncut-linkstatic-gnn-eng-e40` beat its MP-OFF twin `uncut-linkstatic-twin-e40`, trained separately on the same corpus, labels and contract, on 24 topologies on which neither has been served? Seeds 1–6 of each arm, moderate and heavy.
 - **Why.** `live_link_features_v1` closed TIE on this contrast with a moderate direction (−6.90 %, 11/12 without runaways, Holm .068, 3/3 seeds negative) and no heavy direction. `llf_cd_confirm_v1` then confirmed the gnn against the bar and the parameter-matched wide MLP with no twin in the design, and says why it wins is not settled. This node is the missing contrast, on topologies whose gnn values have not been read, at six seeds.
-- **Outcome.** Not run.
+- **Outcome.** **The gnn beats its separately trained MP-OFF twin at both rungs on 24 fresh topologies (seeds 1–6 pooled, Holm over 2).** Moderate −4.25 % without runaways (21/24, Holm .0036; all cells −3.41 %, 19/24), 6/6 seeds negative. Heavy CONFIRMED as a direction plus Holm, not a magnitude (12/16, Holm .0155; all cells 14/24, p .58).
+  - **Capacity control (descriptive, same 24 ids).** The 257k twin beats the 506k parameter-matched wide MLP: −6.7 % moderate (19/23), −40.6 % heavy (13/16). The gnn beats the wide MLP −10.2 % (22/23) and −44.0 % (15/15). Parameter count alone does not explain the gnn's lead. This is still not an attribution to message passing alone: no 507k MP-OFF twin was trained, and gnn vs wide is outside the Holm family.
+  - **Heavy is runaway-dominated.** 77 gnn and 73 twin heavy cells are runaways, so 8 of 24 topologies drop and n = 16. The seed blocks disagree on strength: s1–3 −5.5 % (14/18, p .018), s4–6 −11.2 % (13/20, p .23). Seed 4 alone is +3.5 %.
+  - **Moderate seeds 4–6 are weaker** than seeds 1–3: −3.2 % (18/24) against −6.2 % (21/24).
+  - It confirms, on topologies whose gnn values had not been read, the moderate direction that `live_link_features_v1` left at TIE on the same contrast.
 - **What this is not.** Not a Knative claim (reactive is not run: under D it link-saturates, `llf_cd_confirm_v1` head). Not a rerun of the parent's sealed 12 (spent). **A win here is not by itself "message passing helps":** the gnn has 507,524 parameters and the twin 257,156 (seed-1 `.pt`), so a gnn win mixes message passing with capacity. The parameter-matched wide MLP (506k) is the capacity control and is **served here as a descriptive arm on the same 24 ids** (amended), so gnn vs wide and gnn vs twin come from one topology set; `llf_cd_confirm_v1` has gnn vs wide CONFIRMED on another set (−9.3 % moderate, −33.2 % heavy). The primary answers only "gnn vs its twin".
 
 ## Motivation (parent primary, whole run, checked by SCIENTIST in `live_link_features_v1`)
@@ -94,6 +98,26 @@ P(moderate CONFIRMED) ≈ 0.45. The parent's −6.9 % was selected by raw p, so 
 This node is itself the live gate: every number is a served simulation cell. Wall and queue estimates come from `llf_cd_confirm_v1` (2,016 cells) and are refreshed by S5/S6 before launch.
 
 ## Record
+
+- 2026-10-25 — **PRIMARY read, seeds 1–6 pooled: CONFIRMED at both rungs** (SCIENTIST, run once; the lineage's verdict). Frozen blob `cbf7fb08`, the filed primary invocation on `cells_s123`, `cells_s456` and the bar's `cells_adm`. 1,824 cells as registered (1,152 gnn/twin, 576 wide, 96 bar), pins `02668ecf` / `0ec7cdcb`, ids sha `3d92a583…`, no failed cell, no gnn block. Output `mp_confirm_v1/reads/read_primary.json` (md5 `b8c8b75f5808850eba6ede9bc5e583ec`).
+  - Seeds 4–6 inputs: S6 trained the twin s4–6 (jobs 906451–3, 40 epochs, W&B). SCIENTIST re-hashed the `-final` `.pt` and `.contract.json` against `xs/llf_conf_models_final_s456_twin.md5` (sha256 `24349aa1…3605`). The contracts differ from the s1 twin only in `train_seed`, with `disable_message_passing` true. S4 served the wave as jobs 907214–907225 (864/864, 0 failed).
+  - **Primary, gnn vs twin, without runaways (all cells):**
+    - Moderate −4.25 %, 21/24, p .0018, Holm .0036 (all cells −3.41 %, 19/24, p .084). **CONFIRMED.**
+    - Heavy −12.73 %, 12/16, p .0155, Holm .0155 (all cells −11.47 %, 14/24, p .58). **CONFIRMED** (stated as a direction plus Holm).
+  - **Seeds, without runaways.** Moderate: −2.8, −6.5, −9.0, −0.8, −3.8, −1.9 %. Heavy: −3.9, −4.9, −0.1, +3.5, −6.2, −9.3 %.
+  - **Seed blocks, without runaways.**
+    - Moderate: s1–3 −6.16 % (21/24, p 1.0e-5); s4–6 −3.18 % (18/24, p .027).
+    - Heavy: s1–3 −5.52 % (14/18, p .018); s4–6 −11.2 % (13/20, p .23).
+  - **After 360 s, without runaways:** −5.06 % moderate (21/24), −13.6 % heavy (13/14).
+  - **Runaways (whole run, cells).**
+    - Heavy: gnn 77 on 16 topologies, twin 73 on 16, wide 90 on 22, bar 20.
+    - Moderate: gnn 6, twin 1, wide 10, bar 13.
+  - **Descriptive, without runaways (raw p, outside the family).**
+    - gnn vs wide: −10.23 % (22/23) moderate, −43.99 % (15/15) heavy.
+    - twin vs wide: −6.74 % (19/23), −40.56 % (13/16).
+    - gnn vs bar: −19.29 % (23/23), −25.83 % (15/18).
+    - twin vs bar: −12.76 % (20/23), −14.12 % (14/20).
+  - The interim (seeds 1–3, below) is a subset of these cells and is not combined with them.
 
 - 2026-10-25 — **INTERIM read, seeds 1–3** (SCIENTIST, run once; descriptive for the lineage, the primary seeds 1–6 read is the verdict). Frozen blob `cbf7fb08`, the filed interim invocation on `cells_s123` plus the bar's `cells_adm` (960 cells, pins `02668ecf` / `0ec7cdcb`, ids sha `3d92a583…`). Output `mp_confirm_v1/reads/read_interim_s123.json` (md5 `f0a17e560514d1c69f071201a6ae2da3`). Labels: moderate **INTERIM-CONFIRMED** (−6.16 %, 21/24, Holm 2.1e-5; all cells −5.82 %, 20/24); heavy **INTERIM-CONFIRMED** (−5.52 %, 14/18, Holm .018; all cells −13.1 %, 17/24, p .75). Heavy rests on the reading without runaways: 23 of 48 (topology, window) pairs drop (gnn 17 cells flagged, twin 19).
 - 2026-10-25 — **Reader frozen: `scripts_cosim/llf_confirm_read.py` blob `cbf7fb08e7c60ea228c2a33959f746d521eeb2c4`** (SCIENTIST, before any study cell is read; one freeze for `knative_stable_v1`, `scale_d_v1` and `mp_confirm_v1`). The rulings file is `live_link_features_v1/confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`). Both filed reads are reproduced in every key but `reader_sha256`: `read_primary_A_epoch40.json` (default mode) and `llf_cd_confirm_v1/reads/read_primary_cd.json` (its frozen cd invocation). Tests: 40 passed, 1 skipped (that regression, run directly). An extended read records its options in `options`; a default read carries no new key. Invocations: the primary is `--mode cd --arms gnn,twin,wide,bar --primary gnn:twin --min-n 8` on both seed roots (seeds 1–6 by default); the interim is the same with `--seeds 1,2,3 --tag INTERIM` on the seeds 1–3 root. Add `[--failed-learned <cells>]`, `--cells`, `--ids`, `--ids-sha256` and `--pin static=02668ecf,bar=0ec7cdcb`. The twin is checked against `uncut-linkstatic-twin-e40-seed<N>.pt` and its d_conf_final charge.
