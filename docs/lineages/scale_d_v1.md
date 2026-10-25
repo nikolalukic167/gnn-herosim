@@ -118,7 +118,7 @@ Per test, scale A: gnn vs wide MLP moderate ≈ 0.5; gnn vs bar moderate ≈ 0.5
 
 ## Record
 
-- 2026-10-25 — **Reads, scale A then B, each run once** (SCIENTIST). Frozen blob `cbf7fb08`, the registered invocation on the `cells_learned`, `cells_bar` and `cells_heft` roots. `cells_heft_uncharged_void` and `cells_sym` were excluded. Pins `02668ecf` / `0ec7cdcb`. No failed cell and no gnn block.
+- 2026-10-25 — **Reads, scale A then B, each run once** (SCIENTIST). Frozen blob `cbf7fb08`, the registered invocation on the `cells_learned`, `cells_bar` and `cells_heft` roots. `cells_heft_uncharged_void` was excluded. Pins `02668ecf` / `0ec7cdcb`. No failed cell and no gnn block.
   - **The ids sha256 was not filed before the read.** The read uses the sha256 of the comma-joined lists, which match `ids.txt` and `admission_{A,B}.json`: A `42018603ebdcef25042b52fb03514e98164086bb45a380e34fdfb3f7aadad75e`, B `fbd68ac720e2bf5de308cf1c517713f1d69f0c5b09f0b3fd5020df7cf099f8cb`. The expert confirmed no other value exists.
   - **First attempt.** It failed loud before any value was read: the 96 HEFT cells had been launched as kind `heft`, so they carried no decision charge. S6 fixed `scale_d_launch.sh`, the cells were rerun as `heft_k100` (0.003035 / 0.002807 ms, checked on all 96), and the old cells were moved to `cells_heft_uncharged_void`.
   - **Scale A** (792 cells). Output `scale_d_v1/reads/read_A.json` (md5 `12f5c485210d0fda44c093985204ae2b`). Without runaways (all cells):
