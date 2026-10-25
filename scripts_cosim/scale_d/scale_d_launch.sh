@@ -44,7 +44,7 @@ case $KIND in
     printf 'study %s %s\n' $SD/$SC/in $IDS > $ROOTS
     case $KIND in
       bar)     run JN=sd$SC-bar WINDOWS="g0 g1" GROUPS_ONLY="s0" S0_ARMS=cd_ib0_inflightfull_k100 LIMIT=${LIMIT:-43200} PAR_N=${PAR_N:-8} CELLMEM=${CELLMEM:-16G};;
-      heft)    run JN=sd$SC-heft WINDOWS="g0 g1" GROUPS_ONLY="s0" S0_ARMS=heft LIMIT=${LIMIT:-43200};;
+      heft)    run JN=sd$SC-heft WINDOWS="g0 g1" GROUPS_ONLY="s0" S0_ARMS=heft_k100 LIMIT=${LIMIT:-43200};;
       learned) run JN=sd$SC-ln WINDOWS="g0 g1" GROUPS_ONLY="static_s1 static_s2 static_s3" LIMIT=${LIMIT:-43200};;
     esac;;
   quick)
