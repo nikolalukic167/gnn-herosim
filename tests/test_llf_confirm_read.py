@@ -368,6 +368,168 @@ def test_cd_mode_allow_missing_is_random_only_and_named(tmp_path):
         R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", allow_missing=[gone])
 
 
+XRATIO = {"gnn": 1.0, "twin": 1.04, "wide": 1.05, "mlp": 1.05, "bar": 1.2, "reactive": 1.5, "random": 2.0, "heft": 1.3}
+
+
+def xf(arm, s, t, w, r):
+    return base(t, w, "moderate" if r not in R.RUNGS else r) * XRATIO[arm] * (1 + 0.01 * ((t * 7 + s) % 5 - 2))
+
+
+def xenv(arm, seed, crung):
+    if arm in R.CD_CKPT:
+        return {"GNN_MODEL_PATH": f"/x/models/{R.CD_CKPT[arm]}{seed}.pt", "HEROSIM_DECISION_COST_MS_BY_BUCKET": json.dumps(R.CD_CHARGE[(arm, crung)])}
+    if arm in ("bar", "heft"):
+        return {"HEROSIM_DECISION_COST_MS": str((R.CD_BAR_CHARGE if arm == "bar" else R.CD_HEFT_CHARGE)[crung])}
+    return {}
+
+
+def xgrid(tmp, arms, seeds, rungs, f=xf, servers=24, clients=None, charge_rung=None, env_of=xenv, fields=None, skip=()):
+    """Cells of the extended cd mode; fields(arm, s, t, w, r) -> extra summary keys."""
+    n = 0
+    for arm in arms:
+        kind = R.CD_ARM_REGISTRY[arm]
+        for s in ((0,) if arm in R.S0_ARMS else seeds):
+            for t in CD_TOPOS:
+                for w in R.WINDOWS:
+                    for r in rungs:
+                        if (arm, s, t, w, r) in skip:
+                            continue
+                        d = tmp / f"sub{n % 3}"
+                        d.mkdir(parents=True, exist_ok=True)
+                        v = f(arm, s, t, w, r)
+                        body = {"averageElapsedTime": v, "steady_state": {"after_360s": {"mean": v * 0.9}}, "code": {"commit": "abcd1234", "dirty": False},
+                                "servers": servers, "env": env_of(arm, s, (charge_rung or {}).get(r, r))}
+                        if clients is not None:
+                            body["clients"] = clients
+                        body.update(fields(arm, s, t, w, r) if fields else {})
+                        (d / f"cc40s{t}__{w}{r}__{kind}_s{s}.summary.json").write_text(json.dumps(body))
+                        n += 1
+    return n
+
+
+def stable_fields(bad=()):
+    def fields(arm, s, t, w, r):
+        if arm != "reactive":
+            return {}
+        drain = 0.5 if (t, w) in bad else 0.05
+        return {"endTime": 1000.0 * (1 + drain), "arrival_end": {"last_arrival_s": 1000.0}, "queue_share": 0.001,
+                "peerExchangeFairshare": {"flow_seconds": 200.0, "extra_seconds": 100.0}}
+    return fields
+
+
+def test_reactive_stability_rule():
+    ok = {"endTime": 1100.0, "last_arrival_s": 1000.0, "flow_seconds": 300.0, "extra_seconds": 200.0, "queue_share": 0.8}
+    assert R.reactive_stable(ok)                                                  # drain .10, slowdown 3.0, queue .80: all on the bound
+    assert not R.reactive_stable(ok | {"endTime": 1100.5})
+    assert not R.reactive_stable(ok | {"extra_seconds": 200.5})
+    assert not R.reactive_stable(ok | {"queue_share": 0.81})
+    assert not R.reactive_stable(ok | {"flow_seconds": None}) and not R.reactive_stable({})
+    assert not R.reactive_stable(ok | {"extra_seconds": 300.0})                   # no solo time left: unknown
+
+
+KS_ARMS = ["gnn", "wide", "mlp", "bar", "reactive", "random", "heft"]
+
+
+def test_knative_rung_admission_and_holm_over_three(tmp_path):
+    bad = {(40001, "g0"), (40001, "g1"), (40002, "g0")}
+    xgrid(tmp_path, KS_ARMS, R.CD_SEEDS, ("f0.125",), charge_rung={"f0.125": "moderate"}, fields=stable_fields(bad))
+    pairs = [("gnn", "reactive"), ("gnn", "bar"), ("gnn", "wide")]
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", arms=KS_ARMS, primary_pairs=pairs, rungs=("f0.125",),
+                   charge_rung={"f0.125": "moderate"}, admit_reactive=True)
+    assert set(res["labels"]) == {"gnn_vs_reactive|f0.125", "gnn_vs_bar|f0.125", "gnn_vs_wide|f0.125"}
+    assert res["admission"]["excluded"] == ["40001:g0:f0.125", "40001:g1:f0.125", "40002:g0:f0.125"]
+    assert res["admission"]["topologies_with_no_admitted_window"] == {"f0.125": [40001]}
+    row = res["primary"]["no_runaway"]["gnn_vs_bar|f0.125"]
+    assert row["n"] == 11 and row["holm_p"] == pytest.approx(min(1.0, 3 * row["p"]), rel=1e-9)
+    assert res["options"]["admit_reactive"] is True and res["cells"] == 12 * 2 * (3 * 6 + 4)
+    # a cell carrying the f-rung's own (unregistered) charge instead of the moderate copy fails loud
+    for f in tmp_path.glob("*/*__ra_gnn_eng_*f0.125*.summary.json"):
+        f.unlink()
+    xgrid(tmp_path, ["gnn"], R.CD_SEEDS, ("f0.125",), env_of=lambda a, s, r: xenv(a, s, "heavy"))
+    with pytest.raises(SystemExit, match="decision charge"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", arms=KS_ARMS, primary_pairs=pairs, rungs=("f0.125",),
+                 charge_rung={"f0.125": "moderate"}, admit_reactive=True)
+
+
+def test_scale_size_checks_failed_learned_block_and_underpowered(tmp_path):
+    arms = ["gnn", "wide", "mlp", "bar", "heft"]
+    gone = ("gnn", 2, 40003, "g1", "heavy")
+    xgrid(tmp_path, arms, R.SEEDS, R.RUNGS, servers=64, clients=427, skip={gone})
+    kind_gone = (R.CD_ARM_REGISTRY["gnn"], 2, 40003, "g1", "heavy")
+    kw = dict(arms=arms, servers=64, clients=427, seeds=R.SEEDS, min_n=8)
+    with pytest.raises(SystemExit, match="missing"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", **kw)
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", failed_learned=[kind_gone], **kw)
+    assert res["gnn_blocked_by_failure"] == {"moderate": False, "heavy": True}
+    assert res["labels"]["gnn_vs_bar|moderate"] == "CONFIRMED"
+    assert res["labels"]["gnn_vs_bar|heavy"] == "DIRECTION" and res["primary"]["no_runaway"]["gnn_vs_bar|heavy"]["holm_p"] < 0.05   # blocked
+    with pytest.raises(SystemExit, match="clients=427, not 160"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", failed_learned=[kind_gone], **(kw | {"clients": 160}))
+    with pytest.raises(SystemExit, match="not abcd1234 clean at 24 servers"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", failed_learned=[kind_gone], **(kw | {"servers": 24}))
+    with pytest.raises(SystemExit, match="only learned-arm cells"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", failed_learned=[("cd_ib0_inflightfull_k100", 0, 40001, "g0", "heavy")], **kw)
+
+
+def test_cd_label_precedence():
+    nr = lambda m, h, n: {"median_pct": m, "holm_p": h, "n": n}
+    al = {"median_pct": -1.0}
+    assert R.cd_label(nr(-5.0, 0.04, 7), al, min_n=8) == "CONFIRMED"              # CONFIRMED stands at any n
+    assert R.cd_label(nr(-5.0, 0.2, 7), al, min_n=8) == "UNDERPOWERED"
+    assert R.cd_label(nr(3.0, 0.2, 7), al, min_n=8) == "UNDERPOWERED"
+    assert R.cd_label(nr(None, None, 0), {"median_pct": None}, min_n=8) == "UNDERPOWERED"
+    assert R.cd_label(nr(-5.0, 0.01, 12), al, blocked=True, min_n=8) == "DIRECTION"
+    assert R.cd_label(nr(-5.0, 0.01, 7), al, blocked=True, min_n=8) == "UNDERPOWERED"
+
+
+def test_twin_arm_interim_tag_and_checkpoint_check(tmp_path):
+    arms = ["gnn", "twin", "wide", "bar"]
+    xgrid(tmp_path, arms, R.SEEDS, R.RUNGS)
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", arms=arms, primary_pairs=[("gnn", "twin")], seeds=R.SEEDS, min_n=8, tag="INTERIM")
+    assert set(res["labels"]) == {"gnn_vs_twin|moderate", "gnn_vs_twin|heavy"} and all(v.startswith("INTERIM-") for v in res["labels"].values())
+    row = res["primary"]["no_runaway"]["gnn_vs_twin|moderate"]
+    assert row["holm_p"] >= row["p"] and res["options"]["tag"] == "INTERIM"
+    f = next(tmp_path.glob("*/cc40s40001__g0moderate__ra_twin_eng_*_s2.summary.json"))
+    d = json.loads(f.read_text()); d["env"]["GNN_MODEL_PATH"] = "/x/models/uncut-linkstatic-gnn-eng-e40-seed2.pt"; f.write_text(json.dumps(d))
+    with pytest.raises(SystemExit, match="served"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", arms=arms, primary_pairs=[("gnn", "twin")], seeds=R.SEEDS)
+
+
+def test_heft_charge_checked_per_rung(tmp_path):
+    arms = ["gnn", "wide", "bar", "heft"]
+    xgrid(tmp_path, arms, R.SEEDS, R.RUNGS, env_of=lambda a, s, r: xenv(a, s, "moderate" if a == "heft" else r))
+    with pytest.raises(SystemExit, match="heft decision charge"):
+        R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", arms=arms, seeds=R.SEEDS)
+
+
+def test_charge_ratio_normalised_and_flag(tmp_path):
+    arms = ["gnn", "wide", "bar"]
+
+    def fields(arm, s, t, w, r):
+        if arm not in ("gnn", "wide"):
+            return {}
+        x = {"gnn": 2.0, "wide": 1.41}[arm] if r == "moderate" else 1.0     # measured / charged
+        wv = R.CD_CHARGE[(arm, r)]
+        return {"decisionTiming": {"by_bucket": {b: {"total_s": x * wv[b] * 10 / 1000.0, "plan_evals": 10} for b in wv}}}
+    xgrid(tmp_path, arms, R.SEEDS, R.RUNGS, servers=64, fields=fields)
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", arms=arms, seeds=R.SEEDS, servers=64, charge_ratio=True)
+    cr = res["charge_ratio"]
+    assert cr["ratios"]["gnn|moderate"]["median"] == pytest.approx(2.0) and cr["ratios"]["gnn|moderate"]["normalised"] == pytest.approx(2.0 / 1.45)
+    assert cr["gnn_charge_limited"] == {"moderate": False, "heavy": False}       # 1.38 normalised: under the 1.5 bar
+    res2_fields = lambda a, s, t, w, r: fields(a, s, t, w, r) if a != "gnn" or r != "moderate" else {"decisionTiming": {"by_bucket": {b: {"total_s": 2.5 * v * 10 / 1000.0, "plan_evals": 10} for b, v in R.CD_CHARGE[("gnn", "moderate")].items()}}}
+    for f in tmp_path.glob("*/*.summary.json"):
+        f.unlink()
+    xgrid(tmp_path, arms, R.SEEDS, R.RUNGS, servers=64, fields=res2_fields)
+    res2 = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x", arms=arms, seeds=R.SEEDS, servers=64, charge_ratio=True)
+    assert res2["charge_ratio"]["gnn_charge_limited"]["moderate"] is True        # 2.5 / 1.45 = 1.72 > 1.5 and > wide's 1.0
+
+
+def test_default_cd_read_carries_no_extension_keys(tmp_path):
+    cd_grid(tmp_path, cd_f)
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
+    assert not {"options", "admission", "charge_ratio", "gnn_blocked_by_failure"} & set(res)
+
+
 FILED = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "lineages", "live_link_features_v1", "confirmation_reads", "read_primary_A_epoch40.json")
 
 

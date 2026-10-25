@@ -95,6 +95,7 @@ Unknown (missing, failed, killed twice, a missing field) is not a pass. A killed
 
 ## Record
 
+- 2026-10-25 — **Reader frozen: `scripts_cosim/llf_confirm_read.py` blob `cbf7fb08e7c60ea228c2a33959f746d521eeb2c4`** (SCIENTIST, before any study cell is read; one freeze for `knative_stable_v1`, `scale_d_v1` and `mp_confirm_v1`). The rulings file is `live_link_features_v1/confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`). Both filed reads are reproduced in every key but `reader_sha256`: `read_primary_A_epoch40.json` (default mode) and `llf_cd_confirm_v1/reads/read_primary_cd.json` (its frozen cd invocation). Tests: 40 passed, 1 skipped (that regression, run directly). An extended read records its options in `options`; a default read carries no new key. Invocation: `--mode cd --arms gnn,wide,mlp,bar,reactive,random,heft --primary gnn:reactive,gnn:bar,gnn:wide --rungs <chosen f tag> --charge-rung <chosen f tag>=moderate --admit-reactive` plus `--cells`, `--ids`, `--ids-sha256` and `--pin static=02668ecf,bar=0ec7cdcb`. The admission is computed in the reader by the stability rule, and the admitted and excluded (topology, window) lists are written to the output. The HEFT cell kind is `heft_k100`; a different name fails loud as an unexpected cell.
 - 2026-10-25 — **Registered** (SCIENTIST; the user's "go A", relayed by the expert; before any calibration or study cell).
   - **Changes from the expert's draft:**
     - the stability transfer clause is a mean ratio from the summary sums, not a median;
