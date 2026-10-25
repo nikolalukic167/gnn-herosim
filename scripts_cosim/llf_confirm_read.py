@@ -45,6 +45,8 @@ S0_ARMS = ("bar", "reactive", "random")   # single-seed (s0) arms, the rest run 
 CD_SEEDS = (1, 2, 3, 4, 5, 6)              # llf_cd_confirm_v1 amendment A2 (the user's POOL): learned arms at seeds 1-6
 CD_SEED_BLOCKS = ((1, 2, 3), (4, 5, 6))   # descriptive per-block rows
 CD_PRIMARY = (("gnn", "bar"), ("gnn", "wide"))
+CD_ARM_REGISTRY = {**CD_ARMS, "twin": ARMS["twin"], "heft": "heft_k100"}   # --arms picks from these (knative_stable_v1, scale_d_v1: heft; mp_confirm_v1: twin)
+S0_ARMS = S0_ARMS + ("heft",)
 LABELS = ("MP-ATTRIBUTED", "MP-DIRECTION", "TIE", "TWIN-FASTER")
 RUNAWAY_X = 10.0
 STATS = ("whole", "a360")
@@ -77,14 +79,16 @@ def check_rulings(r):
     return r
 
 
-NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.summary\.json$")
+NAME = re.compile(r"^cc40s(\d+)__(g\d)([A-Za-z][A-Za-z0-9.]*)__(.+)_s(\d+)\.summary\.json$")  # rung: moderate, heavy or a registered tag (knative_stable_v1: f<fraction>)
 
 
-def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_missing=()):
+def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_missing=(), rungs=RUNGS, servers=24, clients=None, failed_learned=(), extra=None):
     """{(kind, seed, topology, window, rung): {'whole', 'a360'}}: exactly the expected grid, nothing else.
     pin: one code.commit prefix for every cell, or 'group=prefix,...' with the groups static (gnn, twin, mlp, wide), refs (the four fair-share-label arms) and bar: each cell must
     match its own group's prefix and every listed prefix must be used. Returns (cells, the commits seen, the commits seen per group).
-    root: one directory of cell subdirectories, or a list of them. flat: optional (dir, kind): cells of that kind directly in dir, only for WINDOWS (other files there are ignored)."""
+    root: one directory of cell subdirectories, or a list of them. flat: optional (dir, kind): cells of that kind directly in dir, only for WINDOWS (other files there are ignored).
+    failed_learned: learned-arm cells known to have failed twice (scale_d_v1 v3), accepted as absent like allow_missing. extra: optional {} filled with
+    the per-cell fields admission and the charge ratio need (only when given, so the filed reads are unchanged)."""
     arms = ARMS if arms is None else arms
     group_of = {arms[a]: ("bar" if a in S0_ARMS else "refs" if a.startswith("fs_") else "static") for a in arms}
     groups = tuple(sorted(set(group_of.values()), key=("static", "refs", "bar").index))
@@ -94,7 +98,7 @@ def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_
             raise SystemExit(f"FAIL LOUD: --pin groups must be exactly {', '.join(groups[:-1])} and {groups[-1]}, got {sorted(want_pin)}")
     else:
         want_pin = {g: pin for g in groups}
-    want = {(arms[a], 0 if a in S0_ARMS else s, t, w, r) for a in arms for s in ((0,) if a in S0_ARMS else seeds) for t in topos for w in WINDOWS for r in RUNGS}
+    want = {(arms[a], 0 if a in S0_ARMS else s, t, w, r) for a in arms for s in ((0,) if a in S0_ARMS else seeds) for t in topos for w in WINDOWS for r in rungs}
     V, pins, by_group = {}, set(), {g: set() for g in want_pin}
     roots = [root] if isinstance(root, str) else list(root)
     files = [f for r_ in roots for f in sorted(glob.glob(os.path.join(r_, "*", "cc40s*.summary.json")))]
@@ -102,7 +106,7 @@ def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_
         fdir, fkind = flat
         for f in sorted(glob.glob(os.path.join(fdir, "cc40s*.summary.json"))):
             m = NAME.match(os.path.basename(f))
-            if m and m.group(4) == fkind and m.group(2) in WINDOWS:
+            if m and m.group(4) == fkind and m.group(2) in WINDOWS and m.group(3) in rungs:
                 files.append(f)
     for f in files:
         m = NAME.match(os.path.basename(f))
@@ -116,8 +120,10 @@ def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_
         s = json.load(open(f))
         code = s.get("code") or {}
         grp = group_of[key[0]]
-        if code.get("dirty") is not False or not str(code.get("commit", "")).startswith(want_pin[grp]) or s.get("servers") != 24:
-            raise SystemExit(f"FAIL LOUD: {f} ran at {code.get('commit')} dirty={code.get('dirty')} servers={s.get('servers')}, not {want_pin[grp]} clean at 24 servers")
+        if code.get("dirty") is not False or not str(code.get("commit", "")).startswith(want_pin[grp]) or s.get("servers") != servers:
+            raise SystemExit(f"FAIL LOUD: {f} ran at {code.get('commit')} dirty={code.get('dirty')} servers={s.get('servers')}, not {want_pin[grp]} clean at {servers} servers")
+        if clients is not None and s.get("clients") != clients:
+            raise SystemExit(f"FAIL LOUD: {f} has clients={s.get('clients')}, not {clients}")
         if check is not None:
             check(key, s, f)
         pins.add(code["commit"])
@@ -126,10 +132,17 @@ def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_
         if s.get("averageElapsedTime") is None or a360 is None:
             raise SystemExit(f"FAIL LOUD: {f} has no averageElapsedTime / steady_state.after_360s.mean")
         V[key] = {"whole": float(s["averageElapsedTime"]), "a360": float(a360)}
+        if extra is not None:
+            extra[key] = cell_extra(s)
     allow = set(allow_missing)
     bad = sorted(k for k in allow if k not in want or k[0] != "random")
     if bad:
         raise SystemExit(f"FAIL LOUD: --allow-missing names {bad}: only cells of the random arm in the grid may be allowed missing")
+    learned_kinds = {arms[a] for a in arms if a not in S0_ARMS}
+    badf = sorted(k for k in failed_learned if k not in want or k[0] not in learned_kinds)
+    if badf:
+        raise SystemExit(f"FAIL LOUD: --failed-learned names {badf}: only learned-arm cells in the grid")
+    allow |= set(failed_learned)
     present = sorted(allow & set(V))
     if present:
         raise SystemExit(f"FAIL LOUD: --allow-missing names {present}, which exist; the list is stale")
@@ -142,9 +155,33 @@ def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_
     return V, sorted(pins), {g: sorted(c) for g, c in by_group.items()}
 
 
+def cell_extra(s):
+    """The fields knative_stable_v1's admission and scale_d_v1's charge ratio read (None where absent)."""
+    fs, ae, dt = s.get("peerExchangeFairshare") or {}, s.get("arrival_end") or {}, s.get("decisionTiming") or {}
+    env = s.get("env") or {}
+    return {"endTime": s.get("endTime"), "last_arrival_s": ae.get("last_arrival_s"), "flow_seconds": fs.get("flow_seconds"), "extra_seconds": fs.get("extra_seconds"),
+            "queue_share": s.get("queue_share"), "num_tasks": s.get("num_tasks"), "by_bucket": dt.get("by_bucket"), "charge_by_bucket": env.get("HEROSIM_DECISION_COST_MS_BY_BUCKET")}
+
+
+STABLE_DRAIN, STABLE_SLOWDOWN, STABLE_QUEUE = 0.10, 3.0, 0.80   # knative_stable_v1 "Stability rule"
+
+
+def reactive_stable(x):
+    """knative_stable_v1: drain (end - last arrival) / last arrival <= 0.10, fair-share flow / solo seconds <= 3, queue_share <= 0.80; unknown is not a pass."""
+    try:
+        end, last, flow, extra_s, qs = (float(x[k]) for k in ("endTime", "last_arrival_s", "flow_seconds", "extra_seconds", "queue_share"))
+    except (TypeError, ValueError, KeyError):
+        return False
+    solo = flow - extra_s
+    if not (last > 0 and solo > 0) or any(v != v for v in (end, last, flow, extra_s, qs)):
+        return False
+    return (end - last) / last <= STABLE_DRAIN and flow / solo <= STABLE_SLOWDOWN and qs <= STABLE_QUEUE
+
+
 class Grid:
-    def __init__(self, V, topos, rul, arms=None, seeds=SEEDS):
+    def __init__(self, V, topos, rul, arms=None, seeds=SEEDS, rungs=RUNGS, excluded=()):
         self.V, self.topos, self.rul, self.seed_set = V, tuple(topos), rul, tuple(seeds)
+        self.rungs, self.excluded = tuple(rungs), set(excluded)   # excluded: (topology, window, rung) not admitted; every arm's cell there is absent
         self.arms = ARMS if arms is None else arms
         self.flag = {}   # (kind, seed, t, w, rung, stat) -> bool
         self.med = {}
@@ -168,7 +205,7 @@ class Grid:
         return self.raw(arm, seed, t, w, rung, mstat) > RUNAWAY_X * self.arm_median(arm, seed, rung, mstat)
 
     def has(self, arm, seed, t, w, rung):
-        return (self.arms[arm], seed, t, w, rung) in self.V
+        return (self.arms[arm], seed, t, w, rung) in self.V and (t, w, rung) not in self.excluded
 
     def cell(self, arm, t, w, rung, stat, reading, only_seed=None):
         """(value, flagged): the seed-mean learned cell (or the single seed, or tuple of seeds, asked for); (None, None) for an allowed-missing cell."""
@@ -203,7 +240,7 @@ class Grid:
         out = []
         for a in self.arms:
             for s in self.seeds(a):
-                for rung in RUNGS:
+                for rung in self.rungs:
                     for t in self.topos:
                         for w in WINDOWS:
                             for stat in STATS:
@@ -262,19 +299,38 @@ def check_rulings_cd(r):
 
 
 CD_CKPT = {  # arm -> checkpoint basename stem (seed appended): llf_cd_confirm_v1 "Arms"
-    "gnn": "uncut-linkstatic-gnn-eng-e40-seed", "wide": "uncut-linkstatic-mlp-wide-e40-seed", "mlp": "uncut-linkstatic-mlp-same-e40-seed"}
+    "gnn": "uncut-linkstatic-gnn-eng-e40-seed", "wide": "uncut-linkstatic-mlp-wide-e40-seed", "mlp": "uncut-linkstatic-mlp-same-e40-seed",
+    "twin": "uncut-linkstatic-twin-e40-seed"}
 CD_CHARGE = {  # (arm, rung) -> {bucket: ms}: the parent primary's measured decision charge, llf_cd_confirm_v1 "Decision charge"
     ("gnn", "moderate"): {"le10": 5.01465, "11_50": 2.254181, "gt50": 2.191336}, ("gnn", "heavy"): {"le10": 6.151998, "11_50": 3.103575, "gt50": 3.678685},
     ("wide", "moderate"): {"le10": 4.527073, "11_50": 3.585821, "gt50": 7.915672}, ("wide", "heavy"): {"le10": 5.008803, "11_50": 5.134591, "gt50": 10.944349},
-    ("mlp", "moderate"): {"le10": 4.275423, "11_50": 1.91878, "gt50": 2.003687}, ("mlp", "heavy"): {"le10": 5.181011, "11_50": 3.17074, "gt50": 3.602202}}
+    ("mlp", "moderate"): {"le10": 4.275423, "11_50": 1.91878, "gt50": 2.003687}, ("mlp", "heavy"): {"le10": 5.181011, "11_50": 3.17074, "gt50": 3.602202},
+    ("twin", "moderate"): {"le10": 4.323723, "11_50": 1.878764, "gt50": 2.129705}, ("twin", "heavy"): {"le10": 4.826589, "11_50": 2.525467, "gt50": 2.983758}}  # twin: the parent primary's cells
 CD_BAR_CHARGE = {"moderate": 0.0116, "heavy": 0.01098}   # cd_ib0_inflightfull w per rung (decision_cost_w.json), as the parent primary's bar cells
+CD_HEFT_CHARGE = {"moderate": 0.003035, "heavy": 0.002807}   # heft w per rung (decision_cost_w.json; scale_d_v1, knative_stable_v1)
+CHARGE_RATIO_REF24 = {("gnn", "moderate"): 1.45, ("gnn", "heavy"): 1.22, ("wide", "moderate"): 1.41, ("wide", "heavy"): 1.41,
+                      ("mlp", "moderate"): 1.42, ("mlp", "heavy"): 1.22}   # scale_d_v1 v3: median measured/charged at 24 servers (llf_cd_confirm_v1 cells)
+CHARGE_LIMITED_X = 1.5
 
 
-def cd_check(key, s, f):
+def make_cd_check(arms=None, charge_rung=None):
+    """cd_check over `arms`; charge_rung maps a cell's rung to the rung whose registered charge it must carry (knative_stable_v1: f<x> -> moderate)."""
+    arms = CD_ARMS if arms is None else arms
+    charge_rung = charge_rung or {}
+
+    def check(key, s, f):
+        kind, seed, t, w, rung = key
+        return cd_check(key, s, f, arms, charge_rung.get(rung, rung))
+    return check
+
+
+def cd_check(key, s, f, arms=None, crung=None):
     """Fail loud when a cell's served checkpoint or decision charge is not the registered one."""
     kind, seed, _t, _w, rung = key
+    arms = CD_ARMS if arms is None else arms
+    rung = rung if crung is None else crung
     env = s.get("env") or {}
-    arm = next(a for a, k in CD_ARMS.items() if k == kind)
+    arm = next(a for a, k in arms.items() if k == kind)
     if arm in CD_CKPT:
         want = f"{CD_CKPT[arm]}{seed}.pt"
         got = os.path.basename(str(env.get("GNN_MODEL_PATH", "")))
@@ -287,49 +343,128 @@ def cd_check(key, s, f):
             have = None
         if have != CD_CHARGE[(arm, rung)]:
             raise SystemExit(f"FAIL LOUD: {f} decision charge {raw!r}, not {CD_CHARGE[(arm, rung)]}")
-    elif arm == "bar":
-        if float(env.get("HEROSIM_DECISION_COST_MS", "nan")) != CD_BAR_CHARGE[rung]:
-            raise SystemExit(f"FAIL LOUD: {f} bar decision charge {env.get('HEROSIM_DECISION_COST_MS')!r}, not {CD_BAR_CHARGE[rung]}")
+    elif arm in ("bar", "heft"):
+        want = (CD_BAR_CHARGE if arm == "bar" else CD_HEFT_CHARGE)[rung]
+        if float(env.get("HEROSIM_DECISION_COST_MS", "nan")) != want:
+            raise SystemExit(f"FAIL LOUD: {f} {arm} decision charge {env.get('HEROSIM_DECISION_COST_MS')!r}, not {want}")
 
 
-def cd_label(nr, al):
-    """CONFIRMED: without-runaways median < 0, Holm p < .05 and the all-cells median < 0; DIRECTION: median < 0 otherwise; NOT-FASTER: median >= 0 or no topology left."""
+def cd_label(nr, al, blocked=False, min_n=None):
+    """CONFIRMED: without-runaways median < 0, Holm p < .05 and the all-cells median < 0; DIRECTION: median < 0 otherwise; NOT-FASTER: median >= 0 or no topology left.
+    blocked (scale_d_v1 v3: a gnn cell failed at this rung): never CONFIRMED. min_n (scale_d_v1 v3): a test that is not CONFIRMED with n < min_n is UNDERPOWERED."""
     if nr["median_pct"] is None or nr["median_pct"] >= 0:
-        return "NOT-FASTER"
-    if nr["holm_p"] is not None and nr["holm_p"] < 0.05 and al["median_pct"] is not None and al["median_pct"] < 0:
+        lab = "NOT-FASTER"
+    elif not blocked and nr["holm_p"] is not None and nr["holm_p"] < 0.05 and al["median_pct"] is not None and al["median_pct"] < 0:
         return "CONFIRMED"
-    return "DIRECTION"
+    else:
+        lab = "DIRECTION"
+    if min_n is not None and (nr.get("n") or 0) < min_n:
+        return "UNDERPOWERED"
+    return lab
 
 
-def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, flat=None, allow_missing=()):
-    """llf_cd_confirm_v1: gnn vs bar and gnn vs wide x {moderate, heavy}; Holm over the 4 in each reading; the label reads without runaways with the all-cells sign guard."""
+def charge_ratios(extra, arms, rungs):
+    """scale_d_v1 v3: per (arm, rung) the median over cells of sum(measured bucket seconds) / sum(charged w x plan_evals), and it normalised by the arm's 24-server median."""
+    out = {}
+    for a in arms:
+        if a not in CD_CKPT:
+            continue
+        for r in rungs:
+            vals = []
+            for (kind, _s, _t, _w, rung), x in extra.items():
+                if kind != arms[a] or rung != r:
+                    continue
+                try:
+                    w = json.loads(x["charge_by_bucket"])
+                    meas = sum(float(b["total_s"]) for b in x["by_bucket"].values()) * 1000.0
+                    chg = sum(float(w[k]) * float(b["plan_evals"]) for k, b in x["by_bucket"].items())
+                except (TypeError, ValueError, KeyError, AttributeError):
+                    raise SystemExit(f"FAIL LOUD: {kind} {r}: decisionTiming.by_bucket or the charge string is unreadable")
+                vals.append(meas / chg)
+            if vals:
+                ref = CHARGE_RATIO_REF24.get((a, r))
+                med = st.median(vals)
+                out[f"{a}|{r}"] = {"median": med, "n": len(vals), "ref24": ref, "normalised": None if ref is None else med / ref}
+    flags = {}
+    for r in rungs:
+        g_, w_ = out.get(f"gnn|{r}"), out.get(f"wide|{r}")
+        if g_ and g_["normalised"] is not None:
+            flags[r] = bool(g_["normalised"] > CHARGE_LIMITED_X and (w_ is None or w_["normalised"] is None or g_["normalised"] > w_["normalised"]))
+    return {"ratios": out, "gnn_charge_limited": flags}
+
+
+def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, flat=None, allow_missing=(), arms=None, primary_pairs=None, rungs=RUNGS,
+           servers=24, clients=None, failed_learned=(), admit_reactive=False, charge_rung=None, min_n=None, charge_ratio=False, tag=None):
+    """llf_cd_confirm_v1: gnn vs bar and gnn vs wide x {moderate, heavy}; Holm over the 4 in each reading; the label reads without runaways with the all-cells sign guard.
+    The keyword options extend it (every one off by default, so the filed llf_cd_confirm_v1 read is reproduced byte for byte):
+      arms / primary_pairs / rungs   the arm set (names from CD_ARM_REGISTRY), the primary contrasts and the rungs; Holm over len(pairs) x len(rungs)
+      servers / clients              the size every cell must carry (scale_d_v1)
+      failed_learned                 learned cells that failed twice: absent, and a gnn one blocks CONFIRMED at its rung (scale_d_v1 v3)
+      admit_reactive                 a (topology, window, rung) enters only if its reactive cell is stable (knative_stable_v1); computed here
+      charge_rung                    {cell rung: rung whose registered charge it carries} (knative_stable_v1: the moderate copies)
+      min_n                          UNDERPOWERED below this n_eff unless CONFIRMED (scale_d_v1 v3)
+      charge_ratio                   report the measured/charged decision-time ratios and the gnn charge-limited flag (scale_d_v1 v3)
+      tag                            prefix every label (mp_confirm_v1: INTERIM for the seeds 1-3 read)"""
     rul = check_rulings_cd(rulings)
     if out_path and os.path.exists(out_path):
         raise SystemExit(f"FAIL LOUD: {out_path} exists (read once)")
-    V, pins, pins_by_group = load(root, topos, pin, CD_ARMS, check=cd_check, seeds=seeds, flat=flat, allow_missing=allow_missing)
-    g = Grid(V, topos, rul, CD_ARMS, seeds=seeds)
+    arm_set = CD_ARMS if arms is None else {a: CD_ARM_REGISTRY[a] for a in arms}
+    pairs = CD_PRIMARY if primary_pairs is None else tuple(primary_pairs)
+    for a, b in pairs:
+        if a not in arm_set or b not in arm_set:
+            raise SystemExit(f"FAIL LOUD: primary pair {a} vs {b} names an arm outside {sorted(arm_set)}")
+    if admit_reactive and "reactive" not in arm_set:
+        raise SystemExit("FAIL LOUD: admission reads the reactive cells, but reactive is not an arm")
+    want_extra = admit_reactive or charge_ratio
+    extra = {} if want_extra else None
+    check = cd_check if (arms is None and not charge_rung) else make_cd_check(arm_set, charge_rung)
+    V, pins, pins_by_group = load(root, topos, pin, arm_set, check=check, seeds=seeds, flat=flat, allow_missing=allow_missing, rungs=rungs,
+                                  servers=servers, clients=clients, failed_learned=failed_learned, extra=extra)
+    excluded, admission = set(), None
+    if admit_reactive:
+        rk = arm_set["reactive"]
+        admitted = {(t, w, r): (rk, 0, t, w, r) in extra and reactive_stable(extra[(rk, 0, t, w, r)]) for t in topos for w in WINDOWS for r in rungs}
+        excluded = {k for k, ok in admitted.items() if not ok}
+        admission = {"admitted": sorted(f"{t}:{w}:{r}" for (t, w, r), ok in admitted.items() if ok), "excluded": sorted(f"{t}:{w}:{r}" for t, w, r in excluded),
+                     "topologies_with_no_admitted_window": {r: sorted(t for t in topos if all((t, w, r) in excluded for w in WINDOWS)) for r in rungs},
+                     "rule": {"drain_max": STABLE_DRAIN, "slowdown_max": STABLE_SLOWDOWN, "queue_share_max": STABLE_QUEUE}}
+    g = Grid(V, topos, rul, arm_set, seeds=seeds, rungs=rungs, excluded=excluded)
+    blocked = {r: any(k[0] == arm_set.get("gnn") and k[4] == r for k in failed_learned) for r in rungs}
     stat = rul["primary_metric"]
     primary = {}
     for reading in ("all", "no_runaway"):
-        rows = {f"{a}_vs_{b}|{r}": g.contrast(a, b, r, stat, reading) for a, b in CD_PRIMARY for r in RUNGS}
+        rows = {f"{a}_vs_{b}|{r}": g.contrast(a, b, r, stat, reading) for a, b in pairs for r in rungs}
         hp = holm({k: v["p"] for k, v in rows.items()})
         primary[reading] = {k: {kk: vv for kk, vv in v.items() if kk != "per_topology"} | {"holm_p": hp[k]} for k, v in rows.items()}
-    labels = {k: cd_label(primary["no_runaway"][k], primary["all"][k]) for k in primary["no_runaway"]}
-    per_seed = {f"{a}_vs_{b}|{r}|{rd}": {s_: g.contrast(a, b, r, stat, rd, seed=s_)["median_pct"] for s_ in seeds} for a, b in CD_PRIMARY for r in RUNGS for rd in ("all", "no_runaway")}
+    labels = {k: cd_label(primary["no_runaway"][k], primary["all"][k], blocked=blocked[k.split("|")[1]], min_n=min_n) for k in primary["no_runaway"]}
+    if tag:
+        labels = {k: f"{tag}-{v}" for k, v in labels.items()}
+    per_seed = {f"{a}_vs_{b}|{r}|{rd}": {s_: g.contrast(a, b, r, stat, rd, seed=s_)["median_pct"] for s_ in seeds} for a, b in pairs for r in rungs for rd in ("all", "no_runaway")}
     blocks = [b_ for b_ in CD_SEED_BLOCKS if set(b_) <= set(seeds)] if tuple(seeds) != tuple(SEEDS) else []
     per_block = {f"{a}_vs_{b}|{r}|{rd}": {"s" + "".join(map(str, b_)): {k: v for k, v in g.contrast(a, b, r, stat, rd, seed=b_).items() if k != "per_topology"} for b_ in blocks}
-                 for a, b in CD_PRIMARY for r in RUNGS for rd in ("all", "no_runaway")}
-    names = list(CD_ARMS)
+                 for a, b in pairs for r in rungs for rd in ("all", "no_runaway")}
+    names = list(arm_set)
     sec = {}
     for reading in ("all", "no_runaway"):
         for st_ in STATS:
             for i, a in enumerate(names):
                 for b in names[i + 1:]:
-                    for r in RUNGS:
+                    for r in rungs:
                         sec[f"{reading}|{st_}|{a}_vs_{b}|{r}"] = g.contrast(a, b, r, st_, reading)
     res = {"family": "llf_cd_confirm_v1 (read once)", "mode": "cd", "topologies": list(topos), "ids_sha256": ids_sha, "pins": pins, "pins_by_group": pins_by_group, "cells": len(V),
            "rulings": rul, "allowed_missing": sorted(f"cc40s{t}__{w}{r}__{k}_s{s_}" for k, s_, t, w, r in allow_missing), "primary_metric": stat, "labels": labels, "primary": primary, "seeds": list(seeds), "per_seed_median_pct": per_seed, "per_seed_block": per_block, "runaways": g.runaways(), "secondary": sec,
            "reader_sha256": hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()}
+    opts = {"arms": arms, "primary_pairs": None if primary_pairs is None else [list(p_) for p_ in pairs], "rungs": None if tuple(rungs) == RUNGS else list(rungs),
+            "servers": None if servers == 24 else servers, "clients": clients, "failed_learned": sorted(f"cc40s{t}__{w}{r}__{k}_s{s_}" for k, s_, t, w, r in failed_learned) or None,
+            "admit_reactive": admit_reactive or None, "charge_rung": charge_rung or None, "min_n": min_n, "charge_ratio": charge_ratio or None, "tag": tag}
+    opts = {k: v for k, v in opts.items() if v is not None}
+    if opts:   # only an extended read carries these keys; the filed llf_cd_confirm_v1 read has none of them
+        res["options"] = opts
+        res["gnn_blocked_by_failure"] = blocked
+        if admission is not None:
+            res["admission"] = admission
+        if charge_ratio:
+            res["charge_ratio"] = charge_ratios(extra, arm_set, rungs)
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
         with open(out_path + ".tmp", "w") as fh:
@@ -390,6 +525,18 @@ def main():
     ap.add_argument("--ids-sha256", help="cd mode: sha256 of the comma-joined id list, as filed")
     ap.add_argument("--allow-missing", default="", help="cd mode: comma-separated random cells known not to exist (cc40s<t>__<w><rung>__random_s0); any other missing cell fails loud")
     ap.add_argument("--react-cells", help="cd mode: a flat directory holding the reactive_s0 cells (the admission screen); only WINDOWS are read")
+    ap.add_argument("--arms", help="cd mode: comma-separated arms from CD_ARM_REGISTRY (default the llf_cd_confirm_v1 set)")
+    ap.add_argument("--primary", help="cd mode: comma-separated A:B primary contrasts (default gnn:bar,gnn:wide)")
+    ap.add_argument("--rungs", help="cd mode: comma-separated rungs (default moderate,heavy; knative_stable_v1: its chosen f<x> tag)")
+    ap.add_argument("--charge-rung", help="cd mode: comma-separated RUNG=REGISTERED_RUNG charge copies (knative_stable_v1: f<x>=moderate)")
+    ap.add_argument("--seeds", help="cd mode: comma-separated learned seeds (default 1-6)")
+    ap.add_argument("--servers", type=int, default=24, help="cd mode: the server count every cell must carry")
+    ap.add_argument("--clients", type=int, help="cd mode: the client count every cell must carry")
+    ap.add_argument("--failed-learned", default="", help="cd mode: learned cells that failed twice (scale_d_v1 v3); a gnn one blocks CONFIRMED at its rung")
+    ap.add_argument("--admit-reactive", action="store_true", help="cd mode: knative_stable_v1 cell admission from the reactive cells")
+    ap.add_argument("--min-n", type=int, help="cd mode: UNDERPOWERED below this n_eff unless CONFIRMED (scale_d_v1 v3: 8)")
+    ap.add_argument("--charge-ratio", action="store_true", help="cd mode: report measured/charged decision-time ratios (scale_d_v1 v3)")
+    ap.add_argument("--tag", help="cd mode: prefix every label (mp_confirm_v1: INTERIM)")
     a = ap.parse_args()
     if a.mode == "cd":
         if not a.ids or not a.ids_sha256:
@@ -399,13 +546,43 @@ def main():
         if sha != a.ids_sha256 or len(set(ids)) != len(ids):
             raise SystemExit("FAIL LOUD: the id list does not match the filed sha256 (or repeats an id)")
         flat = (a.react_cells, CD_ARMS["reactive"]) if a.react_cells else None
-        allow = []
-        for c in filter(None, a.allow_missing.split(",")):
-            m = NAME.match(c + ".summary.json")
-            if not m:
-                raise SystemExit(f"FAIL LOUD: --allow-missing entry {c!r} is not cc40s<t>__<w><rung>__<kind>_s<seed>")
-            allow.append((m.group(4), int(m.group(5)), int(m.group(1)), m.group(2), m.group(3)))
-        show_cd(run_cd(a.cells.split(","), json.load(open(a.rulings)), ids, a.pin, a.out, sha, flat=flat, allow_missing=allow))
+
+        def cells(arg, flag):
+            out = []
+            for c in filter(None, arg.split(",")):
+                m = NAME.match(c + ".summary.json")
+                if not m:
+                    raise SystemExit(f"FAIL LOUD: {flag} entry {c!r} is not cc40s<t>__<w><rung>__<kind>_s<seed>")
+                out.append((m.group(4), int(m.group(5)), int(m.group(1)), m.group(2), m.group(3)))
+            return out
+        kw = {}
+        if a.arms:
+            kw["arms"] = a.arms.split(",")
+            bad = [x for x in kw["arms"] if x not in CD_ARM_REGISTRY]
+            if bad:
+                raise SystemExit(f"FAIL LOUD: --arms {bad} not in {sorted(CD_ARM_REGISTRY)}")
+        if a.primary:
+            kw["primary_pairs"] = [tuple(x.split(":")) for x in a.primary.split(",")]
+        if a.rungs:
+            kw["rungs"] = tuple(a.rungs.split(","))
+        if a.charge_rung:
+            kw["charge_rung"] = dict(x.split("=", 1) for x in a.charge_rung.split(","))
+        if a.seeds:
+            kw["seeds"] = tuple(int(x) for x in a.seeds.split(","))
+        if a.clients is not None:
+            kw["clients"] = a.clients
+        if a.failed_learned:
+            kw["failed_learned"] = cells(a.failed_learned, "--failed-learned")
+        if a.admit_reactive:
+            kw["admit_reactive"] = True
+        if a.min_n is not None:
+            kw["min_n"] = a.min_n
+        if a.charge_ratio:
+            kw["charge_ratio"] = True
+        if a.tag:
+            kw["tag"] = a.tag
+        show_cd(run_cd(a.cells.split(","), json.load(open(a.rulings)), ids, a.pin, a.out, sha, flat=flat, allow_missing=cells(a.allow_missing, "--allow-missing"),
+                       servers=a.servers, **kw))
         return
     sha = hashlib.sha256(",".join(map(str, IDS)).encode()).hexdigest()
     if sha != IDS_SHA256:
