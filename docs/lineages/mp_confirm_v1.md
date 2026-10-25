@@ -4,7 +4,7 @@
 - **Question.** Under option D (fair share plus TCP), does the epoch-40 static link-feature GNN `uncut-linkstatic-gnn-eng-e40` beat its MP-OFF twin `uncut-linkstatic-twin-e40`, trained separately on the same corpus, labels and contract, on 24 topologies on which neither has been served? Seeds 1–6 of each arm, moderate and heavy.
 - **Why.** `live_link_features_v1` closed TIE on this contrast with a moderate direction (−6.90 %, 11/12 without runaways, Holm .068, 3/3 seeds negative) and no heavy direction. `llf_cd_confirm_v1` then confirmed the gnn against the bar and the parameter-matched wide MLP with no twin in the design, and says why it wins is not settled. This node is the missing contrast, on topologies whose gnn values have not been read, at six seeds.
 - **Outcome.** Not run.
-- **What this is not.** Not a Knative claim (reactive is not run: under D it link-saturates, `llf_cd_confirm_v1` head). Not a rerun of the parent's sealed 12 (spent). **A win here is not by itself "message passing helps":** the gnn has 507,524 parameters and the twin 257,156 (seed-1 `.pt`), so a gnn win mixes message passing with capacity. The parameter-matched wide MLP is the capacity control and is not run here; its result is in `llf_cd_confirm_v1` (gnn −9.3 % moderate, −33.2 % heavy). This node answers only "gnn vs its twin".
+- **What this is not.** Not a Knative claim (reactive is not run: under D it link-saturates, `llf_cd_confirm_v1` head). Not a rerun of the parent's sealed 12 (spent). **A win here is not by itself "message passing helps":** the gnn has 507,524 parameters and the twin 257,156 (seed-1 `.pt`), so a gnn win mixes message passing with capacity. The parameter-matched wide MLP (506k) is the capacity control and is **served here as a descriptive arm on the same 24 ids** (amended), so gnn vs wide and gnn vs twin come from one topology set; `llf_cd_confirm_v1` has gnn vs wide CONFIRMED on another set (−9.3 % moderate, −33.2 % heavy). The primary answers only "gnn vs its twin".
 
 ## Motivation (parent primary, whole run, checked by SCIENTIST in `live_link_features_v1`)
 
@@ -19,15 +19,17 @@
 |---|---|---|---|
 | static gnn `ra_gnn_eng_combfl_linkstatic_e40_nosplit_k100` | 1–6 | `uncut-linkstatic-gnn-eng-e40-seed{1..6}-final.pt`, the same files and md5s as `llf_cd_confirm_v1` (lists `xs/llf_conf_models_final.md5` md5 `a126f46b5f30dd88ba43795d91c20ab3` and `xs/llf_conf_models_final_s456.md5` sha256 `ae613e9843b84aadf0f6f1deab79278662e21fa5abcfb5f5457ab2f5a1ab9b47`); pin `02668ecf` | treatment |
 | MP-OFF twin `ra_twin_eng_combfl_linkstatic_e40_nosplit_k100` | 1–6 | `uncut-linkstatic-twin-e40-seed{1..6}-final.pt`; s1–3 md5 `056c4843…`, `b44e374b…`, `ca369012…` (`xs/llf_conf_models_final.md5`); s4–6 trained by S6 and filed (below); pin `02668ecf` | control |
+| wide MLP `ra_mlp_wide_combfl_linkstatic_e40_nosplit_k100` | 1–6 | `uncut-linkstatic-mlp-wide-e40-seed{1..6}-final.pt`, already trained, the same files and md5s as `llf_cd_confirm_v1` (s1–3 `23498572…`, `f4f01f8e…`, `cc654108…`; s4–6 `04357770…`, `7db997a7…`, `c670b6ae…`); pin `02668ecf` | descriptive capacity control, same 24 ids (amended) |
 | bar `cd_ib0_inflightfull_k100` | 0 | pin `0ec7cdcb` | admission and context row |
 
-- **Twin seeds 4–6** are trained with the parent's A6 recipe (40 epochs, min-epochs 40, no early stop; same corpus, labels and contract, wandb logging), after `tests/test_trainer_determinism.py` passes. **The md5s of all twelve served `.pt` and their `.contract.json` are filed before the first cell of either arm**; SCIENTIST re-hashes them. If a twin seed fails to train, the expert rules before any cell, and the seed set is not changed after the first cell.
+- **Twin seeds 4–6** are trained by S6 with the parent's A6 recipe (40 epochs, min-epochs 40, no early stop; same corpus, labels and contract, wandb logging), after `tests/test_trainer_determinism.py` passes. **Md5 rule (amended 2026-10-25):** the md5s of the seeds 1–3 `.pt` and `.contract.json` (both arms) are filed before the first cell; the md5s of the seeds 4–6 files (both arms) are filed before the first seeds 4–6 cell. SCIENTIST re-hashes each set. If a twin seed fails to train, the expert rules before any seeds 4–6 cell is served; the primary seed set 1–6 is not changed after the first cell, and no interim value may be used in that ruling.
 - **Decision charge.** Every cell carries its arm's measured per-(arm, rung) charge, as in the parent. The gnn's is the `llf_cd_confirm_v1` table. The twin's is the parent's `d_conf_final` value, identical on seeds 1–3 and applied to seeds 4–6 (ms, le10 / 11_50 / gt50):
 
   | arm | moderate | heavy |
   |---|---|---|
   | gnn | 5.01465 / 2.254181 / 2.191336 | 6.151998 / 3.103575 / 3.678685 |
   | twin | 4.323723 / 1.878764 / 2.129705 | 4.826589 / 2.525467 / 2.983758 |
+  | wide MLP | 4.527073 / 3.585821 / 7.915672 | 5.008803 / 5.134591 / 10.944349 |
   | bar | 0.0116 | 0.01098 |
 
   The gnn is charged more than the twin in every bucket; that is part of every gnn-vs-twin number. The free-decisions row is reported beside it, descriptive.
@@ -45,7 +47,8 @@
 
 ## Cells
 
-Option D, windows **g0 + g1**, both rungs. gnn and twin at seeds 1–6, bar at s0: 2 × 6 × 24 × 2 × 2 = **1,152 learned cells** plus 24 × 2 × 2 = **96 bar cells**. Cells live in their own roots, separate from every other study's.
+Option D, windows **g0 + g1**, both rungs. gnn and twin at seeds 1–6, bar at s0: 2 × 6 × 24 × 2 × 2 = **1,152 primary learned cells**, **576 descriptive wide-MLP cells** (seeds 1–6) and 24 × 2 × 2 = **96 bar cells**, 1,824 in all. Cells live in their own roots, separate from every other study's.
+- **Serving order (amended).** Right after admission, seeds 1–3 of the gnn, the twin and the wide MLP are served, with the bar (the bar cells are the admission cells). Seeds 4–6 are served when S6 files their md5s. Seeds 1–3 and seeds 4–6 go in separate cell roots.
 
 ## Statistic, primary family and labels
 
@@ -59,15 +62,15 @@ Option D, windows **g0 + g1**, both rungs. gnn and twin at seeds 1–6, bar at s
   - **UNDERPOWERED:** as `scale_d_v1` (v3, item 4, "Primary family" there): CONFIRMED stands at any n; a test with n_eff < 8 topologies after the drops that is not CONFIRMED is labelled UNDERPOWERED in place of DIRECTION or NOT-FASTER. The Holm family stays m = 2.
 - **Failed learned cells:** the `scale_d_v1` v3 rule ("Failed learned cells" there), applied to the gnn and twin kinds. A cell that fails twice drops its (topology, window, rung) pair from both readings and is counted per arm; any gnn failure at a rung blocks CONFIRMED for the test at that rung; any other missing cell fails loud.
 - **Power.** The exact Wilcoxon with n topologies all one sign has p = 2/2ⁿ: n = 24 → 1.2e-7, n = 12 → .0005, n = 8 → .0078. With Holm over 2 the smaller p must be < .025 and the larger < .05. In `llf_cd_confirm_v1` the gnn alone lost 16 (topology, window) cells to runaways at heavy, and any-seed-flags-cell drops more at six seeds, so **heavy may well end UNDERPOWERED**; that is a registered outcome, not a failure of the design.
-- **Descriptive beside each test:** the all-cells row; seeds 1–3, seeds 4–6 and each seed alone; the after-360 s row; free-decisions row; gnn vs bar and twin vs bar (context); the runaway list per arm; per-task and request p50/p99 and the link-load rows, with the fresh-24 reviewer-defence script's definitions; the measured/charged decision-time ratios.
-- **Not run, not quoted:** reactive and random.
+- **Descriptive beside each test:** gnn vs wide MLP and twin vs wide MLP on the same 24 ids (raw p, no label, outside the Holm family: the primary stays gnn vs twin, Holm over 2); the all-cells row; seeds 1–3, seeds 4–6 and each seed alone; the after-360 s row; free-decisions row; gnn vs bar and twin vs bar (context); the runaway list per arm; per-task and request p50/p99 and the link-load rows, with the fresh-24 reviewer-defence script's definitions; the measured/charged decision-time ratios.
+- **Not run, not quoted:** reactive and random. The wide MLP is served and read descriptively only; a wide-MLP failed cell fails loud and does not block any label.
 
 ## What each outcome means (fixed now)
 
 | Reading | Statement allowed |
 |---|---|
 | moderate CONFIRMED | the gnn beats its twin at moderate on fresh topologies (the parent's direction holds); not a message-passing attribution on its own (capacity: 507,524 vs 257,156 parameters) |
-| moderate CONFIRMED and `llf_cd_confirm_v1`'s gnn vs the parameter-matched wide MLP (506k parameters; CONFIRMED there at both rungs) | together the strongest MP-adjacent claim this design allows: the gnn beats its twin and beats a same-size pointwise model. Still not an attribution to message passing alone: the two contrasts come from different topology sets and the wide MLP is not run here |
+| moderate CONFIRMED and `llf_cd_confirm_v1`'s gnn vs the parameter-matched wide MLP (506k parameters; CONFIRMED there at both rungs) | together the strongest MP-adjacent claim this design allows: the gnn beats its twin and beats a same-size pointwise model. Still not an attribution to message passing alone: gnn vs wide is read here only descriptively (no label, outside the Holm family) |
 | moderate DIRECTION | the sign repeats; no claim |
 | moderate NOT-FASTER | the parent's moderate direction did not repeat; the TIE of `live_link_features_v1` stands |
 | heavy CONFIRMED | stated as a direction plus Holm, not a magnitude (runaway-dominated) |
@@ -75,9 +78,11 @@ Option D, windows **g0 + g1**, both rungs. gnn and twin at seeds 1–6, bar at s
 
 ## Reader
 
-- `llf_confirm_read.py`, mode `cd`, extended with a `twin` arm and the 2-test family: the tests above, Holm over 2, the labels including UNDERPOWERED and the gnn-failure block, the failed-learned-cell rule with an allow-list of learned kinds, and the seed sets 1–6. It checks the id-list sha256; every cell's pin per group (static `02668ecf`, bar `0ec7cdcb`); each learned cell's `env.GNN_MODEL_PATH` basename against arm and seed (`uncut-linkstatic-gnn-eng-e40-seed{N}.pt` / `uncut-linkstatic-twin-e40-seed{N}.pt`); each learned cell's charge string against the table above; the bar's per-rung charge. It fails loud on any mismatch.
+- `llf_confirm_read.py`, mode `cd`, extended with a `twin` arm and the 2-test family: the tests above, Holm over 2, the labels including UNDERPOWERED and the gnn-failure block, the failed-learned-cell rule with an allow-list of learned kinds, and the seed sets 1–6. It checks the id-list sha256; every cell's pin per group (static `02668ecf`, bar `0ec7cdcb`); each learned cell's `env.GNN_MODEL_PATH` basename against arm and seed (`uncut-linkstatic-gnn-eng-e40-seed{N}.pt` / `uncut-linkstatic-twin-e40-seed{N}.pt`); each learned cell's charge string against the table above (the wide MLP's `uncut-linkstatic-mlp-wide-e40-seed{N}.pt` and charge included); the bar's per-rung charge. It fails loud on any mismatch.
 - **The default mode and both `llf_cd_confirm_v1` invocations must reproduce their filed outputs except `reader_sha256`** (tests run on the parent's sealed cells or a fixture, and on the fresh-24 `read_primary_cd.json` inputs).
-- SCIENTIST freezes the blob, with the rulings file, before the first cell is read. **The read runs once**, after all 1,248 cells are in or the failed-cell rule has been applied.
+- SCIENTIST freezes the blob, with the rulings file, before the first cell is read. The reader takes the seed set as a parameter (`--seeds`, as `scale_d_v1` v3), and **one frozen blob serves both reads below**.
+- **Primary read (fixed now): seeds 1–6 pooled, run once**, after all 1,824 cells are in or the failed-cell rule has been applied. **Its verdict is the lineage's verdict, whatever the interim says.**
+- **Interim read (amended 2026-10-25, the user wants results faster): gnn vs twin at seeds 1–3**, run once as soon as the 864 seeds 1–3 learned cells (gnn, twin, wide) and the bar cells exist (or the failed-cell rule has been applied to them). Same statistic, family (2 tests, Holm over 2), reading, guard and labels, reported as `INTERIM` (for example INTERIM-DIRECTION) in its own output file. The interim is descriptive for the lineage: **it cannot stop, extend or change anything** (not the seed set, the serving of seeds 4–6, the topologies, the labels or the primary), and no ruling made after it may cite its values. It looks at a subset of the cells the primary will pool, so its p-values are not independent of the primary's and are never combined with them.
 
 ## Prior (SCIENTIST to file at signing)
 
@@ -89,4 +94,5 @@ This node is itself the live gate: every number is a served simulation cell. Wal
 
 ## Record
 
+- 2026-10-25 — **Amended before signing** (S7, at the expert's request; the user wants results faster): added the INTERIM read at seeds 1–3, kept the primary at the pooled seeds 1–6 read, serving in two steps, and the md5 rule per seed set. No family, label or statistic changed. Also added (the expert, same amendment): the wide MLP -final seeds 1–6 (already trained, md5s filed) as a served descriptive arm on the same 24 ids, +576 cells (1,824 in all), seeds 1–3 in the first wave; the outcome-table row no longer says the wide MLP is not run.
 - 2026-10-25 — **Drafted** (S7, at the expert's request; the user wants the MP test). Unsigned. Sources read: `llf_cd_confirm_v1` (design, arms, charges, reader, labels), `live_link_features_v1` (parent outcome), `scale_d_v1` v3 (failed-learned-cell rule, UNDERPOWERED precedence, completion definition; merged at `47466dc1`), `knative_stable_v1` (admission, id rule), the twin charge strings and md5s from `d_conf_final` and `xs/llf_conf_models_final.md5` on datalab.
