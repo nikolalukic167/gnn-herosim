@@ -224,7 +224,7 @@ CD_TOPOS = tuple(range(40001, 40013))
 def cd_env(arm, seed, rung):
     if arm in R.CD_CKPT:
         return {"GNN_MODEL_PATH": f"/x/models/{R.CD_CKPT[arm]}{seed}.pt", "HEROSIM_DECISION_COST_MS_BY_BUCKET": json.dumps(R.CD_CHARGE[(arm, rung)])}
-    return {"HEROSIM_DECISION_COST_MS": "0.01098"} if arm == "bar" else {}
+    return {"HEROSIM_DECISION_COST_MS": str(R.CD_BAR_CHARGE[rung])} if arm == "bar" else {}
 
 
 def cd_grid(tmp, f, pin_of=lambda arm: "abcd1234", env_of=cd_env, layout=None):
@@ -292,7 +292,7 @@ def test_cd_mode_pin_groups_and_missing_cell_fail_loud(tmp_path):
         R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,bar=bbbb0000", R.CD_ARMS, seeds=R.CD_SEEDS)
 
 
-@pytest.mark.parametrize("bad", ["ckpt", "seed", "charge", "bar"])
+@pytest.mark.parametrize("bad", ["ckpt", "seed", "charge", "bar", "bar_rung"])
 def test_cd_mode_checkpoint_and_charge_checks_fail_loud(tmp_path, bad):
     def env_of(arm, s, r):
         e = cd_env(arm, s, r)
@@ -304,6 +304,8 @@ def test_cd_mode_checkpoint_and_charge_checks_fail_loud(tmp_path, bad):
             e["HEROSIM_DECISION_COST_MS_BY_BUCKET"] = json.dumps(R.CD_CHARGE[("mlp", "moderate")])
         if bad == "bar" and arm == "bar":
             e["HEROSIM_DECISION_COST_MS"] = "0.5"
+        if bad == "bar_rung" and arm == "bar" and r == "moderate":
+            e["HEROSIM_DECISION_COST_MS"] = str(R.CD_BAR_CHARGE["heavy"])
         return e
     cd_grid(tmp_path, cd_f, env_of=env_of)
     with pytest.raises(SystemExit, match="FAIL LOUD"):

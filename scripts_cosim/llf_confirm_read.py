@@ -267,7 +267,7 @@ CD_CHARGE = {  # (arm, rung) -> {bucket: ms}: the parent primary's measured deci
     ("gnn", "moderate"): {"le10": 5.01465, "11_50": 2.254181, "gt50": 2.191336}, ("gnn", "heavy"): {"le10": 6.151998, "11_50": 3.103575, "gt50": 3.678685},
     ("wide", "moderate"): {"le10": 4.527073, "11_50": 3.585821, "gt50": 7.915672}, ("wide", "heavy"): {"le10": 5.008803, "11_50": 5.134591, "gt50": 10.944349},
     ("mlp", "moderate"): {"le10": 4.275423, "11_50": 1.91878, "gt50": 2.003687}, ("mlp", "heavy"): {"le10": 5.181011, "11_50": 3.17074, "gt50": 3.602202}}
-CD_BAR_CHARGE = 0.01098
+CD_BAR_CHARGE = {"moderate": 0.0116, "heavy": 0.01098}   # cd_ib0_inflightfull w per rung (decision_cost_w.json), as the parent primary's bar cells
 
 
 def cd_check(key, s, f):
@@ -288,8 +288,8 @@ def cd_check(key, s, f):
         if have != CD_CHARGE[(arm, rung)]:
             raise SystemExit(f"FAIL LOUD: {f} decision charge {raw!r}, not {CD_CHARGE[(arm, rung)]}")
     elif arm == "bar":
-        if float(env.get("HEROSIM_DECISION_COST_MS", "nan")) != CD_BAR_CHARGE:
-            raise SystemExit(f"FAIL LOUD: {f} bar decision charge {env.get('HEROSIM_DECISION_COST_MS')!r}, not {CD_BAR_CHARGE}")
+        if float(env.get("HEROSIM_DECISION_COST_MS", "nan")) != CD_BAR_CHARGE[rung]:
+            raise SystemExit(f"FAIL LOUD: {f} bar decision charge {env.get('HEROSIM_DECISION_COST_MS')!r}, not {CD_BAR_CHARGE[rung]}")
 
 
 def cd_label(nr, al):
