@@ -304,6 +304,7 @@ order, its serving candidate set or the load it was gated at. Fix that one and i
 - **Decode order:** revising its plan with its own score recovers 8.9 % of CD's refine gain.
 - **Load:** at arrivals ×2 slower, with every policy time constant scaled, the gap is +13.8 % (0/10).
 - **Out-of-batch blindness:** worth ~3.4 % (blind-CD vs CD, direction only).
+- **look for a lighter arrival rate at which reactive Knative is stable under option D** (`knative_stable_v1`: reactive s0 on the sealed 12 at 1/2, 1/4, 1/8, 1/16 and 1/32 of moderate stable on 0 / 0 / 0 / 6 / 10 of 12 topologies, 11 needed; the fair-share slowdown stays above 3× while drain ≈ 0 and queue share ≤ 0.1. The user ruled STOP: no payload fallback, no 1/64 rung)
 
 What the score cannot express is CD's load balancing: queue drain in seconds plus in-batch committed
 service.

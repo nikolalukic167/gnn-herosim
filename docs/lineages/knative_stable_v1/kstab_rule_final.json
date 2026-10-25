@@ -1,0 +1,1248 @@
+{
+ "rule": "drain<=0.10, slowdown<=3, queue_share<=0.80; topology passes if g0 and g1 stable; chosen = highest f with >=11/12",
+ "chosen": "STOP-NO-STABLE-RATE",
+ "levels": {
+  "0.5": {
+   "topologies_passing": 0,
+   "rung_passes": false,
+   "cells": {
+    "30285": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 2.650303406664522,
+      "slowdown": 464.36887961289693,
+      "queue_share": 0.0001012388965024459,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30286": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "MISSING",
+      "stable": false
+     }
+    },
+    "30287": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 1.9233478747572323,
+      "slowdown": 358.0315591461772,
+      "queue_share": 0.00016934170107719924,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30289": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 1.3615229054851505,
+      "slowdown": 273.403204828585,
+      "queue_share": 0.0002552020004338831,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30290": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 1.7357383856948116,
+      "slowdown": 344.3829420491784,
+      "queue_share": 0.00021310114452649032,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30291": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 2.7709834773125066,
+      "slowdown": 567.4840400435409,
+      "queue_share": 6.26751546937661e-05,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30292": {
+     "g0": {
+      "state": "OK",
+      "drain": 2.6024450559223777,
+      "slowdown": 481.3368244407564,
+      "queue_share": 7.090319740246015e-05,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "MISSING",
+      "stable": false
+     }
+    },
+    "30293": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "MISSING",
+      "stable": false
+     }
+    },
+    "30294": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "MISSING",
+      "stable": false
+     }
+    },
+    "30295": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "MISSING",
+      "stable": false
+     }
+    },
+    "30296": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "MISSING",
+      "stable": false
+     }
+    },
+    "30297": {
+     "g0": {
+      "state": "MISSING",
+      "stable": false
+     },
+     "g1": {
+      "state": "MISSING",
+      "stable": false
+     }
+    }
+   }
+  },
+  "0.25": {
+   "topologies_passing": 0,
+   "rung_passes": false,
+   "cells": {
+    "30285": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.3363734766918913,
+      "slowdown": 96.61429477337701,
+      "queue_share": 0.0004292977482364836,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.12872568746040136,
+      "slowdown": 54.261026543327255,
+      "queue_share": 0.0011204373955049443,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30286": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.20655062506903235,
+      "slowdown": 64.7163389956194,
+      "queue_share": 0.0007259379992559442,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.1648347157143848,
+      "slowdown": 51.63154943728508,
+      "queue_share": 0.0010027124712203286,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30287": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.3049492329607949,
+      "slowdown": 93.89072215089081,
+      "queue_share": 0.0005195556891015773,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.18750379528371844,
+      "slowdown": 74.26818105481078,
+      "queue_share": 0.0008394858377078892,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30289": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.18897593867968482,
+      "slowdown": 65.00085069256143,
+      "queue_share": 0.0006949453315654548,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.14671824582405918,
+      "slowdown": 63.33166413505392,
+      "queue_share": 0.0010192176068282168,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30290": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.154553612953802,
+      "slowdown": 73.34323667267809,
+      "queue_share": 0.0008653738696097851,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.1451961192832034,
+      "slowdown": 67.42271446820693,
+      "queue_share": 0.001112925597376377,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30291": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.35573747161055475,
+      "slowdown": 132.9416803208966,
+      "queue_share": 0.00025784576122651106,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.17062479197403926,
+      "slowdown": 67.97621136245714,
+      "queue_share": 0.0008051591609965173,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30292": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.17459127797688923,
+      "slowdown": 58.571912453282046,
+      "queue_share": 0.0007805559103375869,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.14951711989964325,
+      "slowdown": 58.54671347049855,
+      "queue_share": 0.0009678072633189552,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30293": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.2409625599419679,
+      "slowdown": 71.04806274939173,
+      "queue_share": 0.0005867040553668701,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.1581105994580343,
+      "slowdown": 59.86330773659907,
+      "queue_share": 0.0010048781443322415,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30294": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.17693532079728191,
+      "slowdown": 61.120581301897296,
+      "queue_share": 0.0009557183657946846,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.1738929798606085,
+      "slowdown": 63.484223122096864,
+      "queue_share": 0.001043846307272739,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30295": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.004402748532214838,
+      "slowdown": 4.455523298571443,
+      "queue_share": 0.014351959475781958,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.004401280942804928,
+      "slowdown": 4.110646562883153,
+      "queue_share": 0.018715277161136707,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30296": {
+     "g0": {
+      "state": "OK",
+      "drain": 1.5485217654835308,
+      "slowdown": 464.1743866978817,
+      "queue_share": 7.318667882332665e-05,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.16235148009031494,
+      "slowdown": 59.67608518625729,
+      "queue_share": 0.0009415611473242346,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30297": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.40993219294803707,
+      "slowdown": 37.53442166652837,
+      "queue_share": 0.0011910289642414387,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 1.1654993760829986,
+      "slowdown": 280.95823255459953,
+      "queue_share": 0.00015669590245081556,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    }
+   }
+  },
+  "0.125": {
+   "topologies_passing": 0,
+   "rung_passes": false,
+   "cells": {
+    "30285": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.045846393272474376,
+      "slowdown": 30.93588152991631,
+      "queue_share": 0.0009872550078454845,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.029801545265884372,
+      "slowdown": 25.62672812826473,
+      "queue_share": 0.0016135283089971084,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30286": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.03135618461330106,
+      "slowdown": 34.553392805110306,
+      "queue_share": 0.0010023584017518567,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.02291408148867869,
+      "slowdown": 23.500463942889265,
+      "queue_share": 0.001567326192841023,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30287": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.3677982116988684,
+      "slowdown": 264.71457328154656,
+      "queue_share": 0.00012115016862162424,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.27501931250520373,
+      "slowdown": 152.01190571341058,
+      "queue_share": 0.00030908006566762476,
+      "ok_drain": false,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30289": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.03536493580619921,
+      "slowdown": 33.167252419618485,
+      "queue_share": 0.0009807115397350086,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0233551373376364,
+      "slowdown": 30.657545342078844,
+      "queue_share": 0.0016250979409630812,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30290": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.04258386638800086,
+      "slowdown": 41.56328649279198,
+      "queue_share": 0.0010988255503620124,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.036599975687475625,
+      "slowdown": 38.84345587554979,
+      "queue_share": 0.0013188690573207155,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30291": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0459565771230186,
+      "slowdown": 40.294671998549845,
+      "queue_share": 0.000741473973986736,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.023210505534858428,
+      "slowdown": 23.66161406612291,
+      "queue_share": 0.0015208394431543999,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30292": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.035768848901272444,
+      "slowdown": 29.446403734968058,
+      "queue_share": 0.001150655211792038,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.02035924318447338,
+      "slowdown": 27.133020239143143,
+      "queue_share": 0.0015751203955693197,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30293": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.005043731113351675,
+      "slowdown": 3.87316836576705,
+      "queue_share": 0.027819194044001832,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.024385809644574145,
+      "slowdown": 15.353154150937472,
+      "queue_share": 0.006114956446669079,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30294": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.05744082366794242,
+      "slowdown": 27.261343317792317,
+      "queue_share": 0.0027899886801383026,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0544481801681171,
+      "slowdown": 14.80357209704556,
+      "queue_share": 0.0067913633582484855,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30295": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0011161155903176437,
+      "slowdown": 3.233449679656908,
+      "queue_share": 0.03923706145012296,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0016796075881411888,
+      "slowdown": 2.9661891186821396,
+      "queue_share": 0.04145341577373355,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30296": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.05341693755344113,
+      "slowdown": 39.40149713855579,
+      "queue_share": 0.0008379086793717251,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.033796153804407175,
+      "slowdown": 31.57233196858459,
+      "queue_share": 0.0017044739352735083,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30297": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0005559751173360537,
+      "slowdown": 3.3733729113573854,
+      "queue_share": 0.03487933855494021,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0018888308172415203,
+      "slowdown": 3.1413995702927457,
+      "queue_share": 0.03887873398735394,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    }
+   }
+  },
+  "0.0625": {
+   "topologies_passing": 6,
+   "rung_passes": false,
+   "cells": {
+    "30285": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0024741617170292566,
+      "slowdown": 4.493016003953575,
+      "queue_share": 0.029532784885188828,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.001486148314108708,
+      "slowdown": 4.2668589077255294,
+      "queue_share": 0.031420963966213696,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30286": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0033973725272625007,
+      "slowdown": 4.314792007398347,
+      "queue_share": 0.026425029656902035,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.002999893700697395,
+      "slowdown": 3.5927557188863215,
+      "queue_share": 0.03465504103739643,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30287": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.00019511396798352167,
+      "slowdown": 2.8862235632485125,
+      "queue_share": 0.053915743420748785,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0011641558278725355,
+      "slowdown": 2.9183334737755926,
+      "queue_share": 0.05052684890845568,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30289": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0011758439206865845,
+      "slowdown": 4.726210607776539,
+      "queue_share": 0.028509064840081106,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0018976785879188786,
+      "slowdown": 3.8607021828160835,
+      "queue_share": 0.03517382730615341,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30290": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.003629027040201399,
+      "slowdown": 3.839936385124177,
+      "queue_share": 0.04405038368634514,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0012262973817203265,
+      "slowdown": 3.444242684882925,
+      "queue_share": 0.046765845498041046,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30291": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0011557454536060467,
+      "slowdown": 3.6462081688001287,
+      "queue_share": 0.0328939987676084,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0012775069246785916,
+      "slowdown": 3.4964916149294156,
+      "queue_share": 0.03281664555907013,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30292": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.003923160166708629,
+      "slowdown": 4.812935588013039,
+      "queue_share": 0.03353805269408546,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.002172450970307405,
+      "slowdown": 3.922033842269007,
+      "queue_share": 0.04143102262653344,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     }
+    },
+    "30293": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0005728240398752301,
+      "slowdown": 2.72615473672539,
+      "queue_share": 0.05916546198401586,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0005623761284646521,
+      "slowdown": 2.8334640139782645,
+      "queue_share": 0.06063602964555297,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30294": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.0002263877662335852,
+      "slowdown": 2.960621520345268,
+      "queue_share": 0.060336316969975136,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0021707465899088165,
+      "slowdown": 2.8096244918779307,
+      "queue_share": 0.05746472847984795,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30295": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.00021391263532673577,
+      "slowdown": 2.4520657708922986,
+      "queue_share": 0.0765188465467933,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0005733962673198328,
+      "slowdown": 2.4081639300671815,
+      "queue_share": 0.07142967029167237,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30296": {
+     "g0": {
+      "state": "OK",
+      "drain": 2.089016848240694e-05,
+      "slowdown": 2.886075773198983,
+      "queue_share": 0.05663202696847794,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0006573307040918404,
+      "slowdown": 2.8036072501328286,
+      "queue_share": 0.0547293746511136,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30297": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.000261824553675384,
+      "slowdown": 2.743266196154151,
+      "queue_share": 0.06261826498312487,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0008444058620961231,
+      "slowdown": 2.4721278189543083,
+      "queue_share": 0.0696266613589784,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    }
+   }
+  },
+  "0.03125": {
+   "topologies_passing": 10,
+   "rung_passes": false,
+   "cells": {
+    "30285": {
+     "g0": {
+      "state": "OK",
+      "drain": 4.549336247490151e-05,
+      "slowdown": 2.9428726513404966,
+      "queue_share": 0.06936636258578378,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0009507300348618228,
+      "slowdown": 2.9259808792051802,
+      "queue_share": 0.06272690181434638,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30286": {
+     "g0": {
+      "state": "OK",
+      "drain": 4.359420415082714e-06,
+      "slowdown": 2.9443808300034333,
+      "queue_share": 0.0579310888109112,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.00030489845446043045,
+      "slowdown": 2.7153006199928233,
+      "queue_share": 0.057525897814225006,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30287": {
+     "g0": {
+      "state": "OK",
+      "drain": 7.044284262911307e-07,
+      "slowdown": 2.6050729515675846,
+      "queue_share": 0.0792683961609063,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0007547693226901002,
+      "slowdown": 2.55296053695845,
+      "queue_share": 0.07110884222096137,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30289": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.00012667336795274152,
+      "slowdown": 3.1781068365274066,
+      "queue_share": 0.06094748893693597,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0009453452963667419,
+      "slowdown": 2.7599141612074027,
+      "queue_share": 0.06438126706298702,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30290": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.00024492313018549593,
+      "slowdown": 2.830013233969704,
+      "queue_share": 0.08077322677786655,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0007415654758379562,
+      "slowdown": 2.5829543825877614,
+      "queue_share": 0.07761940554679302,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30291": {
+     "g0": {
+      "state": "OK",
+      "drain": 4.406533800568139e-06,
+      "slowdown": 2.9333318241612503,
+      "queue_share": 0.05914536927763846,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0010486503872762121,
+      "slowdown": 2.816079451932569,
+      "queue_share": 0.0563114697775942,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30292": {
+     "g0": {
+      "state": "OK",
+      "drain": 0.00026750881500017305,
+      "slowdown": 3.053994959404325,
+      "queue_share": 0.07815344767558188,
+      "ok_drain": true,
+      "ok_slow": false,
+      "ok_queue": true,
+      "stable": false
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0009474234009196551,
+      "slowdown": 2.8922061517501962,
+      "queue_share": 0.07325571924138598,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30293": {
+     "g0": {
+      "state": "OK",
+      "drain": 4.561693233488981e-06,
+      "slowdown": 2.5791435699742515,
+      "queue_share": 0.08621311846393002,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0007313318280232926,
+      "slowdown": 2.5307573154084495,
+      "queue_share": 0.07976100516106427,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30294": {
+     "g0": {
+      "state": "OK",
+      "drain": 3.916565583340085e-06,
+      "slowdown": 2.6164926488453073,
+      "queue_share": 0.08244713757608295,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0006810995598970277,
+      "slowdown": 2.444502153055882,
+      "queue_share": 0.07783683395956724,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30295": {
+     "g0": {
+      "state": "OK",
+      "drain": 3.175833299974556e-06,
+      "slowdown": 2.3174966495542817,
+      "queue_share": 0.09885439828723484,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0002564862056222873,
+      "slowdown": 2.325380777514854,
+      "queue_share": 0.08924545183222471,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30296": {
+     "g0": {
+      "state": "OK",
+      "drain": 3.4560045746650004e-06,
+      "slowdown": 2.5872862929483973,
+      "queue_share": 0.08423404708009549,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.0002626846578096583,
+      "slowdown": 2.5285006752922197,
+      "queue_share": 0.07453725999729231,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    },
+    "30297": {
+     "g0": {
+      "state": "OK",
+      "drain": 4.134946821879752e-06,
+      "slowdown": 2.568791455507089,
+      "queue_share": 0.0872486405536932,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     },
+     "g1": {
+      "state": "OK",
+      "drain": 0.00040994141776526925,
+      "slowdown": 2.3148436174178073,
+      "queue_share": 0.0829007414531283,
+      "ok_drain": true,
+      "ok_slow": true,
+      "ok_queue": true,
+      "stable": true
+     }
+    }
+   }
+  }
+ }
+}
