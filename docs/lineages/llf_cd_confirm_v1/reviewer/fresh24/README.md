@@ -1,0 +1,7 @@
+Reviewer-defence analysis on the fresh-24 cells of llf_cd_confirm_v1 (descriptive; no label), run after the primary read (08403874).
+
+- `scripts_cosim/llf_reviewer_fresh24.py` imports the analysis blocks of `llf_reviewer_defence.py` unchanged; only the loader differs (several cell directories, pins 02668ecf for the static arms and 0ec7cdcb for bar / random / reactive / (b)). Cells: d_cd (seeds 1-3, bar and random s0), d_cd_s456 (seeds 4-6), cells_react g0+g1 (reactive s0), anomaly/fairshare/d_conf_reenc2 ((b) re-encode gnn and its GPU twin, seed 1). Workload: llf_cd_conf/in_cap200.
+- Views of the learned arms: `s1-6` (the primary's; reproduces its rows: gnn vs bar -21.08 / -26.11 %, vs wide -9.27 / -33.22 % without runaways), `s123`, `s456`. Windows g0 and g1 (no g2/g3 cell of the learned arms exists).
+- Denominators: a learned arm has 24 topologies x 2 windows x seeds seed-cells per rung: 144 at seeds 1-3, 144 at seeds 4-6, 288 at seeds 1-6. bar, random, reactive, (b) arms: 48.
+- Random: 2 moderate cells absent (watchdog stalls), left out of its medians. Reactive and random write no peer-group size into `tasks_bsz.npy`; the workload's own is used there (other checks unchanged).
+- Keys: `views.<view>.{tail,free_decisions,decision_share,decomposition,runaway_counts}`, `reenc` ((b) vs static gnn seed 1 / pooled, vs its twin, vs bar, vs wide), `link_load` and `exchange_per_task` (median / min / max over each arm's cells), `missing_cells_left_out`.
