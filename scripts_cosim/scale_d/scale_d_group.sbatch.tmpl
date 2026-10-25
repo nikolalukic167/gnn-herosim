@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH -J sd-grp
+#SBATCH -p CPU-amd
+#SBATCH -c 2
+#SBATCH --mem=16G
+#SBATCH -t 01:00:00
+#SBATCH -o __X__/logs/group-%j.out
+set -euo pipefail
+eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn
+cd __WT__
+python3 scripts_cosim/uncut_groups_group_inputs.py --src __ROOT__/inputs --dst __ROOT__/inputs_group
+(cd __ROOT__/inputs && md5sum -c MD5SUMS | grep -vc OK || true)
+(cd __ROOT__/inputs_group && md5sum -c MD5SUMS | grep -vc OK || true)
+echo "x1 inputs MD5SUMS $(md5sum < __ROOT__/inputs/MD5SUMS | cut -c1-32) inputs_group MD5SUMS $(md5sum < __ROOT__/inputs_group/MD5SUMS | cut -c1-32)"
+python3 - __ROOT__ "__IDS__" <<'P'
+import json, sys
+root, ids = sys.argv[1], sys.argv[2].split()
+for tag in ("moderate", "heavy"):
+    for t in ids:
+        c = json.load(open(f"{root}/inputs_group/wf1_{tag}/cfg/cc40s{t}.json"))
+        assert (c["nodes"]["client_nodes"]["count"], c["nodes"]["server_nodes"]["count"]) == (__NC__, __NS__), (tag, t)
+        assert c["network"]["topology"]["seed"] == int(t), (tag, t)
+        assert abs(c["network"]["topology"]["connection_probability"] - 0.6) < 1e-12, (tag, t)
+        assert (c.get("preinit") or {}).get("replica_placement_rule") == "fastest_compatible", (tag, t)
+print("cfgs OK: __NC__ x __NS__, p 0.6, topology seed = id, replica rule fastest_compatible")
+P
+echo done

@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH -J sd-cap200
+#SBATCH -p CPU-amd
+#SBATCH -c 2
+#SBATCH --mem=16G
+#SBATCH -t 01:00:00
+#SBATCH -o __X__/logs/cap200-%j.out
+set -euo pipefail
+eval "$(micromamba shell hook --shell bash)" && micromamba activate gnn
+X=__X__; SRC=$X/gate_inputs_x1/inputs_group; DST=$X/gate_inputs_cap200/inputs_group
+[[ ! -e $X/gate_inputs_cap200 ]] || { echo "FAIL LOUD: gate_inputs_cap200 exists"; exit 2; }
+mkdir -p $DST
+cp $SRC/manifest_*.json $DST/
+for r in moderate heavy; do mkdir -p $DST/wf1_$r/wl; cp -r $SRC/wf1_$r/cfg $DST/wf1_$r/cfg; done
+python3 - "$SRC" "$DST" <<'PYEOF'
+import glob, hashlib, json, os, sys
+src, dst = sys.argv[1], sys.argv[2]
+CAP = 200e6
+for f in sorted(glob.glob(os.path.join(src, "wf1_*/wl/*.json"))):
+    raw = open(f, "rb").read()
+    d = json.loads(raw)
+    pe = d["peer_exchange"]
+    n_clip = sum(1 for p in pe if p[2] > CAP)
+    before = sum(p[2] for p in pe)
+    for p in pe:
+        if p[2] > CAP:
+            p[2] = CAP
+    after = sum(p[2] for p in pe)
+    d["payload_cap_v1"] = {"cap_bytes": CAP, "rule": "min(bytes, cap) per pair; nothing else changed",
+                           "source_sha256": hashlib.sha256(raw).hexdigest(), "pairs": len(pe), "pairs_clipped": n_clip,
+                           "bytes_before": before, "bytes_after": after}
+    out = os.path.join(dst, os.path.relpath(f, src))
+    with open(out + ".tmp", "w") as fh:
+        json.dump(d, fh)
+    os.replace(out + ".tmp", out)
+    print(os.path.relpath(f, src), "pairs", len(pe), "clipped", n_clip, "bytes kept %.3f" % (after / before))
+PYEOF
+( cd $DST && find . -type f ! -name MD5SUMS | sort | xargs md5sum > MD5SUMS && md5sum -c --quiet MD5SUMS && echo "MD5SUMS ok $(wc -l < MD5SUMS) files" )
+echo "cap200 inputs_group MD5SUMS $(md5sum < $DST/MD5SUMS | cut -c1-32)"
+echo "cfg md5 x1 vs cap200: $(cat $SRC/wf1_moderate/cfg/*.json $SRC/wf1_heavy/cfg/*.json | md5sum | cut -c1-32) $(cat $DST/wf1_moderate/cfg/*.json $DST/wf1_heavy/cfg/*.json | md5sum | cut -c1-32)"
+echo DONE
