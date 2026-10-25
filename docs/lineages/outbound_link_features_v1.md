@@ -1,6 +1,6 @@
 # outbound_link_features_v1 — does a GNN that also sees the outbound side of the exchange beat the bar, its MP-OFF twin and the MLPs under option D?
 
-**Status:** `REGISTERED` (2026-10-25) — registered before any v9 checkpoint, mint or cell. Drafted by S7 at the expert's request with the user's ruling on the primary contrast. Not yet signed by SCIENTIST. The registered bar is `cd_ib0_inflightfull_k100` (pin `0ec7cdcb`).
+**Status:** `REGISTERED` (2026-10-25) — registered before any v9 checkpoint, mint or cell. Drafted by S7 at the expert's request with the user's ruling on the primary contrast. Signed by SCIENTIST (2026-10-26) with nine amendments, before any v9 checkpoint, mint or cell, and before the counted probe run. The registered bar is `cd_ib0_inflightfull_k100` (pin `0ec7cdcb`).
 - **Question.** Under option D (fair share plus TCP), do the `partial_state_v9` GNN and its separately trained MP-OFF twin, which add the outbound direction of the peer exchange to `partial_state_v8`, beat (a) the registered bar, (b) the v9 MP-OFF twin, (c) the parameter-matched wide MLP and (d) the same-input MLP, on fresh topologies?
 - **Caveat on the bar (quote with every bar number).** vs the registered bar (`0ec7cdcb`), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
 - **Why.** `llf_cd_confirm_v1` confirmed the static link-feature gnn against the bar and the wide MLP; `mp_confirm_v1` confirmed it against its MP-OFF twin (the parent's TIE in `live_link_features_v1` is superseded). Every link column of v7/v8 prices the partner → candidate direction. The pair table is symmetric, so each remote partner also pulls from the candidate over the candidate's own access uplink (cellular out 4 / in 75 MB/s). v5+ already carries the push direction at the solo rate (columns 25–26); no column prices it at the live fair-share rate, and none counts the candidate's own outbound flows sharing its uplink.
@@ -64,5 +64,24 @@ The parent's, with `confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477
 The bar contrast is expected to confirm: the v8 gnn already beat the same bar by −21 % / −26 % and the bar prices the outbound side wrongly. The informative contrasts are the twin and the v8 secondary. P(gnn v9 CONFIRMED vs v8 at either rung) about 0.3. P(gnn v9 CONFIRMED vs the v9 twin, both rungs) about 0.5, given `mp_confirm_v1`.
 
 ## Record
+
+- 2026-10-26 — **Signed** (SCIENTIST, before any v9 checkpoint, mint or cell, and before the counted probe run).
+  - **Amendments, applied by S7 in `ba792fa6`:**
+    - the frozen probe files, with the md5 gate in the sbatch and the ≥ 20-row clause;
+    - bar-only admission as `mp_confirm_v1`, completion as `scale_d_v1` ruling 7, and the id sha256 filed before any cell;
+    - the runaway, failed-cell and UNDERPOWERED rules;
+    - the cross-pin identity check;
+    - seeds 1–6 for all four v9 arms, and the 1 % parameter tolerance;
+    - the cell count and job plan;
+    - the merge sha `eaca0224`;
+    - the reader reproduction set;
+    - the status wording.
+  - Checked: the three probe md5s match the files; the sbatch refuses a mismatched script and an existing output dir. The node names no other bar.
+  - The probe's per-cell failures go to `fails.txt`, and the read does not gate on them. Their count is filed with the counted run.
+  - **SCIENTIST's prior:**
+    - P(probe PASS) ≈ 0.6.
+    - P(CONFIRMED at both rungs): vs the bar ≈ 0.7; vs the v9 twin ≈ 0.3; vs the v9 wide MLP ≈ 0.45; vs the v9 same-input MLP ≈ 0.45.
+    - P(v9 vs v8 CONFIRMED at either rung) ≈ 0.2.
+    - The twin reads the new columns through the same scorer, so the new columns should help both arms. The gnn-vs-twin margin should stay near `mp_confirm_v1`'s, and heavy is runaway-dominated.
 
 - 2026-10-25 — **REGISTERED.** Contract and tests merged as `eaca0224`. The probe files are frozen by md5 above; the counted probe run follows the merge of this node. No v9 checkpoint, mint or cell exists.
