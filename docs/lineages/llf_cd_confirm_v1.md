@@ -1,10 +1,18 @@
 # llf_cd_confirm_v1 — does the static link-feature GNN beat the CD bar and the parameter-matched MLP on fresh topologies?
 
-**Status:** `REGISTERED` (2026-10-24; amendment A1, n = 24, before any mint; amendment A2, seeds 1–6, 2026-10-25, before any primary cell is read). Signed by SCIENTIST at the expert's request with the user's go, before any mint or cell. Nothing below is read until the reader is frozen by blob.
-- **Question.** Under option D, do the epoch-40 static link-feature GNN checkpoints of `live_link_features_v1` beat (a) the CD bar `cd_ib0_inflightfull_k100` and (b) the parameter-matched wide MLP, on 24 topologies none of them has been read on?
-- **Parent.** `live_link_features_v1` (CLOSED TIE). Its primary file, read on the sealed 12, is the motivation. Those 12 ids are spent and are not reused here.
-- **No training.** The arms are the parent's filed checkpoints, served as they were.
-- **Seeds 1–6 (amendment A2, 2026-10-25, the user's POOL, filed before any primary cell is read).** The learned arms of the primary are the static e40 `-final.pt` gnn, wide MLP and same-input MLP at seeds 1–6. **Reader frozen** at `llf_confirm_read.py` blob `e7cd3aae`, `--mode cd`. The (b) re-encode checkpoint stays descriptive. Both are in the Record.
+**Status:** `CLOSED` (2026-10-25) — **CONFIRMED (4/4)**. Registered 2026-10-24, before any mint or cell. A1 (n = 24) and A2 (seeds 1–6, the user's POOL) were both filed before the primary read. The read ran once (`llf_confirm_read.py` blob `e7cd3aae`, `confirm_rulings.json` md5 `b609acef`).
+- **Question.** Under option D, do the epoch-40 static link-feature GNN checkpoints of `live_link_features_v1` beat (a) the CD bar `cd_ib0_inflightfull_k100` and (b) the parameter-matched wide MLP, on 24 fresh topologies? There is no training here: the parent's checkpoints are served as filed, at seeds 1–6.
+- **Outcome (2026-10-25).** **A graph model beats the CD bar and a parameter-matched MLP**, on 24 fresh topologies (30327–30350) with 6 seeds. Without runaways, Holm over 4:
+  - **vs the bar:** moderate −21.1 % (21/23 topologies faster, Holm .003); heavy −26.1 % (18/20, Holm .003).
+  - **vs the wide MLP:** moderate −9.3 % (22/23, Holm .0005); heavy −33.2 % (14/15, Holm .0005).
+  - **Consistency.** Seeds 1–3 and 4–6 each favour the gnn on all four tests, and so does every seed alone.
+- **Caveats a reader must not quote without.**
+  - **Not a message-passing claim.** The design has no MP-OFF twin. The parent's twin tied the gnn (TIE), and at moderate it sat close to the MLP; that is a separate result on another topology set.
+  - **Heavy is runaway-dominated.** Quote heavy as a direction plus Holm, not as a magnitude. Runaway (topology, window) cells at heavy: wide 31, MLP 27, bar 17, and **the gnn itself 16**. Heavy vs wide keeps 15 of 24 topologies; the heavy all-cells medians (−53 to −57 %) mostly measure the controls' runaways.
+  - **The all-cells guard is a sign check only.** It holds on all four tests, but gnn vs wide at moderate with all cells is −9.5 % at p .065.
+  - **Do not quote the reactive or random rows** (about −99.9 %). Under D these arms saturate the links. S7's diagnosis: about 124k transfers per cell at about 2,000 s each, a peak of 5,783 flows on one link, queue share about 1e-4. The request timeout covers only the rendezvous wait, not transfers (`src/placement/request_timeout.py:1–3`). The constraint regime for them is pending the user's call.
+  - **One physics state** (option D, cap200). The decision charge is per arm and rung as measured; the wide MLP's charge is up to 3× the gnn's on groups over 50 tasks.
+- **Path.** The registration, A1, A2, the reader freezes and the read are in the Record. The parent's motivation numbers are below.
 
 ## Motivation (parent primary file, `read_primary_A_epoch40.json` md5 `7f882e8cd0c6de1bd1bdba750739a1be`, whole run; checked by SCIENTIST)
 
@@ -108,6 +116,23 @@
 
 ## Record
 
+- 2026-10-25 — **CLOSED: CONFIRMED (4/4)** (SCIENTIST; the read is the entry below, `read_primary_cd.json` md5 `05d3cbe5c196ca0a5163408eabc13208`).
+
+  | test | without runaways (primary) | Holm (4) | all cells (guard) | seeds 1–3 / 4–6, without runaways |
+  |---|---|---|---|---|
+  | gnn vs bar, moderate | −21.08 % (21/23, p .0031) | .0031 | −23.42 % (22/24, p .0022) | −20.3 % (24/24) / −19.2 % (21/23) |
+  | gnn vs bar, heavy | −26.11 % (18/20, p .0014) | .0029 | −56.58 % (20/24, p .025) | −31.9 % (20/23) / −28.9 % (20/21) |
+  | gnn vs wide, moderate | −9.27 % (22/23, p .00015) | .00049 | −9.47 % (20/24, p .065) | −8.4 % (23/24) / −10.7 % (22/23) |
+  | gnn vs wide, heavy | −33.22 % (14/15, p .00012) | .00049 | −53.16 % (22/24, p .00085) | −25.9 % (16/19) / −27.2 % (15/18) |
+
+  - **Per seed.** All six seeds are negative on all four tests in both readings. gnn vs wide spreads by seed: moderate −4.3 to −15.7 %; heavy without runaways −4.8 to −34.4 %.
+  - **Runaways.** Distinct (topology, window) cells flagged at heavy: wide 31, mlp 27, bar 17, gnn 16. At moderate: bar 10, wide 5, gnn 4, mlp 1. Under the any-seed-flags-cell ruling, six seeds drop more pairs than three.
+  - **Descriptive, without runaways.** After 360 s, gnn vs bar −17.0 % (21/23) moderate and −18.0 % (17/19) heavy; gnn vs wide −9.5 % (21/22) and −44.1 % (11/11). gnn vs same-input MLP −7.3 % (22/23) moderate and −6.9 % (11/15) heavy. Wide vs bar −10.8 % (22/24) moderate and +17.9 % (7/16) heavy. MLP vs bar −15.0 % (21/23) moderate.
+  - **Not quoted.** The reactive and random rows: see the head.
+  - **What it settles, and what it does not.**
+    - Settled: under option D the static link-feature gnn beats the CD bar and a parameter-matched pointwise model on fresh topologies.
+    - Not settled: why it wins. With no twin, model class, message passing and features are not separated.
+    - Not covered: Knative under D, whose regime is pending.
 - 2026-10-25 — **Primary read, run once** (SCIENTIST, with reader blob `e7cd3aae` at `d658321d`; the output's `reader_sha256` `947886fca295…` is that file's). The invocation is the frozen one in the A2 entry. Output: `llf_cd_confirm_v1/reads/read_primary_cd.json`, md5 `05d3cbe5c196ca0a5163408eabc13208`, 2,014 cells; `allowed_missing` holds the two random cells. Labels: gnn vs bar moderate CONFIRMED, heavy CONFIRMED; gnn vs wide moderate CONFIRMED, heavy CONFIRMED. Interpretation pending.
 - 2026-10-25 — **Amendment A2: the primary learned arms run at seeds 1–6, and the reader is frozen at blob `e7cd3aae6c29f35981cf5c7f85a0bb068de010de`** (the user's POOL decision, relayed by the expert; filed by SCIENTIST before any primary cell is read). It replaces the default "descriptive" for (a) in the 2026-10-24 additions entry. The family, readings, guard and labels are unchanged.
   - **Seeds 4–6.** These are the static e40 `-final.pt` gnn, wide MLP and same-input MLP. The served files are in `xs/in_llf_cd_s456/models/`, listed in `xs/llf_conf_models_final_s456.md5` (sha256 `ae613e9843b84aadf0f6f1deab79278662e21fa5abcfb5f5457ab2f5a1ab9b47`). SCIENTIST re-hashed all nine, and they match.
