@@ -108,6 +108,7 @@
 
 ## Record
 
+- 2026-10-25 — **Primary read, run once** (SCIENTIST, with reader blob `e7cd3aae` at `d658321d`; the output's `reader_sha256` `947886fca295…` is that file's). The invocation is the frozen one in the A2 entry. Output: `llf_cd_confirm_v1/reads/read_primary_cd.json`, md5 `05d3cbe5c196ca0a5163408eabc13208`, 2,014 cells; `allowed_missing` holds the two random cells. Labels: gnn vs bar moderate CONFIRMED, heavy CONFIRMED; gnn vs wide moderate CONFIRMED, heavy CONFIRMED. Interpretation pending.
 - 2026-10-25 — **Amendment A2: the primary learned arms run at seeds 1–6, and the reader is frozen at blob `e7cd3aae6c29f35981cf5c7f85a0bb068de010de`** (the user's POOL decision, relayed by the expert; filed by SCIENTIST before any primary cell is read). It replaces the default "descriptive" for (a) in the 2026-10-24 additions entry. The family, readings, guard and labels are unchanged.
   - **Seeds 4–6.** These are the static e40 `-final.pt` gnn, wide MLP and same-input MLP. The served files are in `xs/in_llf_cd_s456/models/`, listed in `xs/llf_conf_models_final_s456.md5` (sha256 `ae613e9843b84aadf0f6f1deab79278662e21fa5abcfb5f5457ab2f5a1ab9b47`). SCIENTIST re-hashed all nine, and they match.
   - **Cells.** The cells are in `llf_cd_conf/d_cd_s456`. Its 864 summaries are all at `02668ecf`, clean, and serve from `in_llf_cd_s456` (checked from the summaries' provenance fields only).
