@@ -31,7 +31,12 @@ case $KIND in
     [[ $SC =~ ^(SA|SB)$ && -d $SD/$SC/in ]] || { echo "FAIL LOUD: SA|SB staged"; exit 2; }
     SID=$(cat $SD/$SC/ids.txt); ROOTS=$SD/$SC/roots.txt; OUT=$SD/$SC/cells
     printf 'smoke %s %s\n' $SD/$SC/in $SID > $ROOTS
-    run JN=sdsmk WINDOWS=g0 RUNGS=moderate GROUPS_ONLY="s0 static_s1" S0_ARMS=cd_ib0_inflightfull_k100,heft_network_batch LIMIT=86400 PAR_N=1 CELLMEM=64G;;
+    run JN=sdsmk WINDOWS=g0 RUNGS=moderate GROUPS_ONLY="s0 static_s1" S0_ARMS=cd_ib0_inflightfull_k100,heft LIMIT=86400 PAR_N=1 CELLMEM=64G;;
+  smokebar)
+    [[ $SC =~ ^(SA|SB)$ && -d $SD/$SC/in ]] || { echo "FAIL LOUD: SA|SB staged"; exit 2; }
+    SID=$(cat $SD/$SC/ids.txt); ROOTS=$SD/$SC/roots.txt; OUT=$SD/$SC/cells_s0
+    printf 'smoke %s %s\n' $SD/$SC/in $SID > $ROOTS
+    run JN=sdsmk WINDOWS=g0 RUNGS=moderate GROUPS_ONLY="s0" S0_ARMS=cd_ib0_inflightfull_k100,heft LIMIT=86400 PAR_N=1 CELLMEM=64G;;
   bar|heft|learned)
     need_sc
     [ "$KIND" = bar ] || { : "${PAR_N:?FAIL LOUD: set PAR_N from the smoke}"; : "${CELLMEM:?FAIL LOUD: set CELLMEM from the smoke MaxRSS}"; }
@@ -39,7 +44,7 @@ case $KIND in
     printf 'study %s %s\n' $SD/$SC/in $IDS > $ROOTS
     case $KIND in
       bar)     run JN=sd$SC-bar WINDOWS="g0 g1" GROUPS_ONLY="s0" S0_ARMS=cd_ib0_inflightfull_k100 LIMIT=${LIMIT:-43200} PAR_N=${PAR_N:-8} CELLMEM=${CELLMEM:-16G};;
-      heft)    run JN=sd$SC-heft WINDOWS="g0 g1" GROUPS_ONLY="s0" S0_ARMS=heft_network_batch LIMIT=${LIMIT:-43200};;
+      heft)    run JN=sd$SC-heft WINDOWS="g0 g1" GROUPS_ONLY="s0" S0_ARMS=heft LIMIT=${LIMIT:-43200};;
       learned) run JN=sd$SC-ln WINDOWS="g0 g1" GROUPS_ONLY="static_s1 static_s2 static_s3" LIMIT=${LIMIT:-43200};;
     esac;;
   quick)
