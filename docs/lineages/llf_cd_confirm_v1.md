@@ -116,6 +116,13 @@
 
 ## Record
 
+- 2026-10-25 — **Fixed-bar descriptive read** (SCIENTIST; not registered, no label). The bar priced only inbound exchange, so a cellular server's 4 MB/s uplink went unpriced. The fixed bar `cd_ib0_inflightfull_sym_k100` (s0, `HEROSIM_PG_EXCHANGE_SYMMETRIC=1`, pin `e616a946`, 96 cells in `llf_cd_conf/d_sym`, the user's go) also charges each remote partner's pull from the candidate. It is read against this lineage's filed cells and ids by the frozen reader `cbf7fb08`, imported unchanged by the wrapper `reads/sym_bar_read.py` (md5 `2aa674b2b18fa0ea8d6f8aec80b7d952`), which only registers the second bar kind with its own pin and checks. The wrapper reproduces all 80 filed secondary rows and the filed runaway list exactly. Output `reads/read_symbar_descriptive.json` (md5 `bdf19e76dc1d8b6dd6023005ce3bc6cd`). Without runaways (all cells), raw p:
+  - fixed vs old bar: moderate −28.0 % (−34.9 %), 24/24, p 1.2e-7; heavy −25.9 % (−32.8 %), 20/24, p 3.2e-4;
+  - gnn vs fixed bar: moderate **+11.9 %** (+12.5 %), 1/24 faster, p 2.4e-7; heavy −5.4 % (−0.1 %), 12/21, p .54. Every seed is +8.4 to +11.3 % at moderate and −3.3 to −9.7 % at heavy;
+  - wide MLP vs fixed bar: +24.0 % (0/24) and +52.6 % (3/16). The same-input MLP: +21.8 % (0/24) and +3.5 % (7/17, p .31).
+  - Runaway (topology, window) cells: fixed bar 0 moderate and 11 heavy; old bar 10 and 17.
+  - **So under option D the CONFIRMED gnn-vs-bar margin depends on the bar's inbound-only pricing:** with the uplink priced, the hand rule is ahead at moderate and the heavy rung is not separated.
+
 - 2026-10-25 — **CLOSED: CONFIRMED (4/4)** (SCIENTIST; the read is the entry below, `read_primary_cd.json` md5 `05d3cbe5c196ca0a5163408eabc13208`).
 
   | test | without runaways (primary) | Holm (4) | all cells (guard) | seeds 1–3 / 4–6, without runaways |
