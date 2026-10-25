@@ -64,6 +64,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds",
+    "pg_exchange_sym_evals",
     "pg_fsaware_decisions", "pg_fsaware_decisions_nonzero",
     "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
     "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
@@ -95,6 +96,10 @@ PG_INFLIGHT_ENV = "HEROSIM_PG_INFLIGHT"
 # tasks waiting on the compute lock (and in their input stage) are invisible to the drain walk. 1 adds `live_audit.inflight_full_seconds`, the remaining service of
 # every task in `platform.inflight`. Default 0 = the registered rule, byte-identical; never together with HEROSIM_PG_INFLIGHT.
 PG_INFLIGHT_FULL_ENV = "HEROSIM_PG_INFLIGHT_FULL"
+# fixed-bar sensitivity: the exchange term charges only the pulls INTO the candidate's node, but `orchestrator.peer_exchange` is symmetric, so every remote partner also
+# pulls from the candidate over the candidate's uplink (cellular: out 4 / in 75 MB/s). 1 adds, per known remote partner, the reverse transfer n -> partner (the partner's
+# `_payload_transfer_time` from n plus its `peer_link_latency`), the evaluations are counted (pg_exchange_sym_evals) but not metered: like the inbound loop they sit inside the candidate's one plan eval. Default 0 = the registered rule, byte-identical.
+PG_EXCHANGE_SYMMETRIC_ENV = "HEROSIM_PG_EXCHANGE_SYMMETRIC"
 # accel pull-hold control (cd_pull): price the wait an image pull holding the candidate node's local storage adds at the
 # task's output write, max(0, hold - time to that write); needs the pull ledger (HEROSIM_PULL_LEDGER=1)
 PG_PULL_HOLD_ENV = "HEROSIM_PG_PULL_HOLD"
@@ -297,6 +302,17 @@ def _require_peer_physics(policy_name: str) -> None:
 
 
 from src.placement.decision_cost import meter as _meter
+from src.placement.infrastructure import Platform as _Platform
+
+
+class _PeerView:
+    """A partner's node seen as a transfer destination: lets the platform's own transfer and latency methods price the reverse direction n -> partner."""
+
+    _payload_transfer_time = _Platform._payload_transfer_time
+    peer_link_latency = _Platform.peer_link_latency
+
+    def __init__(self, node: Any) -> None:
+        self.node = node
 
 
 class _PeerGreedyCore:
@@ -362,6 +378,12 @@ class _PeerGreedyCore:
             raise ValueError(f"FAIL LOUD: {PG_INFLIGHT_ENV} and {PG_INFLIGHT_FULL_ENV} are both 1; the full variant includes the running task")
         self.pg_inflight_full_charged = 0
         self.pg_inflight_full_seconds = 0.0
+        raw_sym = os.environ.get(PG_EXCHANGE_SYMMETRIC_ENV, "0").strip() or "0"
+        if raw_sym not in ("0", "1"):
+            raise ValueError(f"FAIL LOUD: {PG_EXCHANGE_SYMMETRIC_ENV} must be 0 or 1, got {raw_sym!r}")
+        self.pg_exchange_sym = raw_sym == "1"
+        self.pg_exchange_sym_evals = 0
+        self._pg_node_by_name: Dict[str, Any] = {}
         fairshare_aware.forget_switch()  # the cached switch is re-read when a scheduler is built
         self.pg_fsaware = fairshare_aware_enabled()
         self.pg_fsaware_decisions = 0
@@ -438,6 +460,10 @@ class _PeerGreedyCore:
             raise RuntimeError(f"FAIL LOUD: {PG_ORACLE_SEARCH_ENV}=1 needs {PG_ORACLE_ENV}=1")
         self.pg_sfs = False        # S_fs: set around a label search by the offline driver (uncut_ils._search_at_decision), never from the environment
         self.pg_shared_link = _pg_flag(PG_SHARED_LINK_ENV)
+        if self.pg_shared_link and self.pg_exchange_sym:
+            raise ValueError(f"FAIL LOUD: {PG_EXCHANGE_SYMMETRIC_ENV} is not defined with {PG_SHARED_LINK_ENV}")
+        if self.pg_exchange_sym:
+            self._require_sym_scope()
         if self.pg_shared_link and not (self._pg_batched and self.exchange_on):
             raise RuntimeError(f"FAIL LOUD: {PG_SHARED_LINK_ENV}=1 prices a batch's pairs over shared links: it needs a batched flavour with peer exchange; "
                                f"{self._policy_label}")
@@ -573,6 +599,32 @@ class _PeerGreedyCore:
                 peer_node_name, context="peer-greedy estimate")
         return total
 
+    @staticmethod
+    def _require_sym_scope() -> None:
+        """The reverse seconds flow into the service `_pg_choose` returns (committed backlog, `_pg_plan_cost`), where they would be phantom backlog and double-count
+        pairs. Under batch alpha 0 (ib0) that service is not read, so the flag is defined for the per-arrival greedy and the CD refine at alpha 0 only."""
+        raw_b = os.environ.get(PG_BATCH_ALPHA_ENV, "").strip()
+        if not raw_b or float(raw_b) != 0.0:
+            raise RuntimeError(f"FAIL LOUD: {PG_EXCHANGE_SYMMETRIC_ENV}=1 needs {PG_BATCH_ALPHA_ENV}=0, got {raw_b!r}")
+        for name in (PG_CD_EXPANSION_ENV, PG_CD_EXACT_ENV, PG_ILS_PER_ENV, PG_ORACLE_ENV):
+            if os.environ.get(name, "").strip() not in ("", "0"):
+                raise RuntimeError(f"FAIL LOUD: {PG_EXCHANGE_SYMMETRIC_ENV}=1 is not defined with {name}")
+
+    def _pg_exch(self, node: "Node", platform: "Platform", peer_nodes: Sequence[Tuple[str, float]]) -> float:
+        """The exchange term of the score: the inbound pulls, plus under HEROSIM_PG_EXCHANGE_SYMMETRIC=1 the partners' pulls from `node` (counted, not metered)."""
+        total = self._pg_exchange_seconds(node, platform, peer_nodes)
+        if not self.pg_exchange_sym or not peer_nodes:
+            return total
+        if not self._pg_node_by_name:
+            self._pg_node_by_name = {n.node_name: n for n in self.nodes.items}
+        for peer_node_name, payload in peer_nodes:
+            if peer_node_name == node.node_name:
+                continue
+            view = _PeerView(self._pg_node_by_name[peer_node_name])
+            total += payload_seconds(view, node.node_name, payload) + view.peer_link_latency(node.node_name, context="peer-greedy reverse estimate")
+            self.pg_exchange_sym_evals += 1
+        return total
+
     def _pg_xf(self, platform) -> float:
         if not self.pg_exec_oracle:
             return 1.0
@@ -624,7 +676,7 @@ class _PeerGreedyCore:
             lat = network_latency_between(task.node_name, node, nodes)
             base = (drain if not self.pg_alpha_on else self.pg_drain_alpha * (drain - committed_service.get(key, 0.0))
                     + self.pg_batch_alpha * committed_service.get(key, 0.0)) + cold + exec_s + lat
-            exch = self._pg_exchange_seconds(node, platform, peer_nodes)
+            exch = self._pg_exch(node, platform, peer_nodes)
             if getattr(self, "pg_pull_hold", False):
                 hold_key = f"pull_hold:{node.node_name}"
                 if hold_key not in memo:
@@ -863,7 +915,7 @@ class PeerGreedySelfPredictNetworkScheduler(PeerGreedyLookaheadNetworkScheduler)
                      + incoming_cold_start_time(partner, platform)
                      + float(task_type["executionTime"].get(plat_type, 0.0) or 0.0) * xf
                      + network_latency_between(partner.node_name, node, self.nodes.items)
-                     + self.pg_exchange_scale * self._pg_exchange_seconds(node, platform, known))
+                     + self.pg_exchange_scale * self._pg_exch(node, platform, known))
             key = (score, node.id, platform.id)
             if best is None or key < best[0]:
                 best = (key, node.node_name)
@@ -952,7 +1004,7 @@ class PeerGreedyLearnedNetworkScheduler(PeerGreedyNetworkScheduler):
             exec_s = float(task.type["executionTime"].get(plat_type, 0.0) or 0.0)
             cold = incoming_cold_start_time(task, platform)
             lat = network_latency_between(task.node_name, node, nodes)
-            exch = self._pg_exchange_seconds(node, platform, peer_nodes)
+            exch = self._pg_exch(node, platform, peer_nodes)
             rows.append((node, platform, exec_s + comm + exch, [drain, cold, exec_s, lat, exch]))
         torch = self._torch
         norm = [[(r[3][j] - self._sc_mean[j]) / self._sc_sd[j] for j in range(len(self._sc_mean))]
@@ -1192,7 +1244,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         elif self.pg_shared_link:
             exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
         else:
-            exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+            exch = [self._pg_exch(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
         in_wait = self._pg_input_link_wait(batch_tasks, plan) if self.pg_input_link else [0.0] * n
         xf = [self._pg_xf(plan[i][1]) for i in range(n)]
         exec_s = [self._pg_exec_table(batch_tasks[i].type, plan[i][1].type["shortName"]) * xf[i] for i in range(n)]
@@ -1251,7 +1303,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         elif self.pg_shared_link:
             exch = self._pg_exchange_shared(batch_tasks, plan, orch, peer_nodes_of)
         else:
-            exch = [self._pg_exchange_seconds(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
+            exch = [self._pg_exch(plan[i][0], plan[i][1], peer_nodes_of[i]) for i in range(n)]
         in_wait = self._pg_input_link_wait(batch_tasks, plan) if self.pg_input_link else [0.0] * n
         xf = [self._pg_xf(plan[i][1]) for i in range(n)]
         exec_s = [float(batch_tasks[i].type["executionTime"].get(plan[i][1].type["shortName"], 0.0) or 0.0) * xf[i] for i in range(n)]

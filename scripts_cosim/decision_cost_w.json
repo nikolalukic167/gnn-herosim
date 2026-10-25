@@ -716,6 +716,7 @@
  ],
  "w_ms_per_plan_alias": {
   "cd_ib0_inflightfull_fsaware": "cd_ib0_inflightfull",
+  "cd_ib0_inflightfull_sym": "cd_ib0_inflightfull",
   "ra_gnn_eng_physmp_combfl_nosplit": "ra_gnn_eng_combfl_nosplit",
   "cd_ib0_inflightfull_fsawarec": "cd_ib0_inflightfull",
   "cd_ib0_inflightfull_fsaware2": "cd_ib0_inflightfull",
