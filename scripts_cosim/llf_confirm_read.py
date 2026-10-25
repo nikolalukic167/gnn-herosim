@@ -13,6 +13,8 @@ Where the node text leaves a point open this reader does NOT choose: every such 
 without all of them. The points are listed in RULING_POINTS below.
 
   llf_confirm_read.py --cells <dir with the cell subdirs> --rulings rulings.json --pin <code.commit prefix | static=P,refs=P,bar=P> --out read.json
+  llf_confirm_read.py --mode cd --cells <root>[,<root>...] --react-cells <flat reactive dir> --ids <ids> --ids-sha256 <sha> --rulings rulings.json --pin static=P,bar=P --out read.json
+    (llf_cd_confirm_v1: learned arms at seeds 1-6, amendment A2)
 
 The cell subdirectories (any names) hold cc40s<topology>__<window><rung>__<kind>_s<seed>.summary.json. A missing, duplicated, unexpected, dirty or wrong-pin cell fails loud.
 """
@@ -40,6 +42,8 @@ ARMS = {  # name -> gate kind (the static variant's e40 best-val arms, and the v
 CD_ARMS = {  # --mode cd (llf_cd_confirm): the static epoch-40 gnn and the MLPs against the CD bar, reactive and random; no twin, no fs_*
     "gnn": ARMS["gnn"], "wide": ARMS["wide"], "mlp": ARMS["mlp"], "bar": BAR, "reactive": "reactive", "random": "random"}
 S0_ARMS = ("bar", "reactive", "random")   # single-seed (s0) arms, the rest run at seeds 1-3
+CD_SEEDS = (1, 2, 3, 4, 5, 6)              # llf_cd_confirm_v1 amendment A2 (the user's POOL): learned arms at seeds 1-6
+CD_SEED_BLOCKS = ((1, 2, 3), (4, 5, 6))   # descriptive per-block rows
 CD_PRIMARY = (("gnn", "bar"), ("gnn", "wide"))
 LABELS = ("MP-ATTRIBUTED", "MP-DIRECTION", "TIE", "TWIN-FASTER")
 RUNAWAY_X = 10.0
@@ -76,10 +80,11 @@ def check_rulings(r):
 NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.summary\.json$")
 
 
-def load(root, topos, pin, arms=None, check=None):
+def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None):
     """{(kind, seed, topology, window, rung): {'whole', 'a360'}}: exactly the expected grid, nothing else.
     pin: one code.commit prefix for every cell, or 'group=prefix,...' with the groups static (gnn, twin, mlp, wide), refs (the four fair-share-label arms) and bar: each cell must
-    match its own group's prefix and every listed prefix must be used. Returns (cells, the commits seen, the commits seen per group)."""
+    match its own group's prefix and every listed prefix must be used. Returns (cells, the commits seen, the commits seen per group).
+    root: one directory of cell subdirectories, or a list of them. flat: optional (dir, kind): cells of that kind directly in dir, only for WINDOWS (other files there are ignored)."""
     arms = ARMS if arms is None else arms
     group_of = {arms[a]: ("bar" if a in S0_ARMS else "refs" if a.startswith("fs_") else "static") for a in arms}
     groups = tuple(sorted(set(group_of.values()), key=("static", "refs", "bar").index))
@@ -89,9 +94,17 @@ def load(root, topos, pin, arms=None, check=None):
             raise SystemExit(f"FAIL LOUD: --pin groups must be exactly {', '.join(groups[:-1])} and {groups[-1]}, got {sorted(want_pin)}")
     else:
         want_pin = {g: pin for g in groups}
-    want = {(arms[a], 0 if a in S0_ARMS else s, t, w, r) for a in arms for s in ((0,) if a in S0_ARMS else SEEDS) for t in topos for w in WINDOWS for r in RUNGS}
+    want = {(arms[a], 0 if a in S0_ARMS else s, t, w, r) for a in arms for s in ((0,) if a in S0_ARMS else seeds) for t in topos for w in WINDOWS for r in RUNGS}
     V, pins, by_group = {}, set(), {g: set() for g in want_pin}
-    for f in sorted(glob.glob(os.path.join(root, "*", "cc40s*.summary.json"))):
+    roots = [root] if isinstance(root, str) else list(root)
+    files = [f for r_ in roots for f in sorted(glob.glob(os.path.join(r_, "*", "cc40s*.summary.json")))]
+    if flat is not None:
+        fdir, fkind = flat
+        for f in sorted(glob.glob(os.path.join(fdir, "cc40s*.summary.json"))):
+            m = NAME.match(os.path.basename(f))
+            if m and m.group(4) == fkind and m.group(2) in WINDOWS:
+                files.append(f)
+    for f in files:
         m = NAME.match(os.path.basename(f))
         if not m:
             continue
@@ -123,14 +136,14 @@ def load(root, topos, pin, arms=None, check=None):
 
 
 class Grid:
-    def __init__(self, V, topos, rul, arms=None):
-        self.V, self.topos, self.rul = V, tuple(topos), rul
+    def __init__(self, V, topos, rul, arms=None, seeds=SEEDS):
+        self.V, self.topos, self.rul, self.seed_set = V, tuple(topos), rul, tuple(seeds)
         self.arms = ARMS if arms is None else arms
         self.flag = {}   # (kind, seed, t, w, rung, stat) -> bool
         self.med = {}
 
     def seeds(self, arm):
-        return (0,) if arm in S0_ARMS else SEEDS
+        return (0,) if arm in S0_ARMS else self.seed_set
 
     def raw(self, arm, seed, t, w, rung, stat):
         return self.V[(self.arms[arm], seed, t, w, rung)][stat]
@@ -148,8 +161,8 @@ class Grid:
         return self.raw(arm, seed, t, w, rung, mstat) > RUNAWAY_X * self.arm_median(arm, seed, rung, mstat)
 
     def cell(self, arm, t, w, rung, stat, reading, only_seed=None):
-        """(value, flagged): the seed-mean learned cell (or the single seed asked for)."""
-        ss = self.seeds(arm) if only_seed is None else (only_seed,)
+        """(value, flagged): the seed-mean learned cell (or the single seed, or tuple of seeds, asked for)."""
+        ss = self.seeds(arm) if only_seed is None else tuple(only_seed) if isinstance(only_seed, tuple) else (only_seed,)
         vals = [(self.raw(arm, s, t, w, rung, stat), self.seed_flagged(arm, s, t, w, rung, stat)) for s in ss]
         if reading == "all":
             return st.fmean(v for v, _ in vals), False
@@ -276,13 +289,13 @@ def cd_label(nr, al):
     return "DIRECTION"
 
 
-def run_cd(root, rulings, topos, pin, out_path, ids_sha=None):
+def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, flat=None):
     """llf_cd_confirm_v1: gnn vs bar and gnn vs wide x {moderate, heavy}; Holm over the 4 in each reading; the label reads without runaways with the all-cells sign guard."""
     rul = check_rulings_cd(rulings)
     if out_path and os.path.exists(out_path):
         raise SystemExit(f"FAIL LOUD: {out_path} exists (read once)")
-    V, pins, pins_by_group = load(root, topos, pin, CD_ARMS, check=cd_check)
-    g = Grid(V, topos, rul, CD_ARMS)
+    V, pins, pins_by_group = load(root, topos, pin, CD_ARMS, check=cd_check, seeds=seeds, flat=flat)
+    g = Grid(V, topos, rul, CD_ARMS, seeds=seeds)
     stat = rul["primary_metric"]
     primary = {}
     for reading in ("all", "no_runaway"):
@@ -290,7 +303,10 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None):
         hp = holm({k: v["p"] for k, v in rows.items()})
         primary[reading] = {k: {kk: vv for kk, vv in v.items() if kk != "per_topology"} | {"holm_p": hp[k]} for k, v in rows.items()}
     labels = {k: cd_label(primary["no_runaway"][k], primary["all"][k]) for k in primary["no_runaway"]}
-    per_seed = {f"{a}_vs_{b}|{r}|{rd}": {s_: g.contrast(a, b, r, stat, rd, seed=s_)["median_pct"] for s_ in SEEDS} for a, b in CD_PRIMARY for r in RUNGS for rd in ("all", "no_runaway")}
+    per_seed = {f"{a}_vs_{b}|{r}|{rd}": {s_: g.contrast(a, b, r, stat, rd, seed=s_)["median_pct"] for s_ in seeds} for a, b in CD_PRIMARY for r in RUNGS for rd in ("all", "no_runaway")}
+    blocks = [b_ for b_ in CD_SEED_BLOCKS if set(b_) <= set(seeds)] if tuple(seeds) != tuple(SEEDS) else []
+    per_block = {f"{a}_vs_{b}|{r}|{rd}": {"s" + "".join(map(str, b_)): {k: v for k, v in g.contrast(a, b, r, stat, rd, seed=b_).items() if k != "per_topology"} for b_ in blocks}
+                 for a, b in CD_PRIMARY for r in RUNGS for rd in ("all", "no_runaway")}
     names = list(CD_ARMS)
     sec = {}
     for reading in ("all", "no_runaway"):
@@ -300,7 +316,7 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None):
                     for r in RUNGS:
                         sec[f"{reading}|{st_}|{a}_vs_{b}|{r}"] = g.contrast(a, b, r, st_, reading)
     res = {"family": "llf_cd_confirm_v1 (read once)", "mode": "cd", "topologies": list(topos), "ids_sha256": ids_sha, "pins": pins, "pins_by_group": pins_by_group, "cells": len(V),
-           "rulings": rul, "primary_metric": stat, "labels": labels, "primary": primary, "per_seed_median_pct": per_seed, "runaways": g.runaways(), "secondary": sec,
+           "rulings": rul, "primary_metric": stat, "labels": labels, "primary": primary, "seeds": list(seeds), "per_seed_median_pct": per_seed, "per_seed_block": per_block, "runaways": g.runaways(), "secondary": sec,
            "reader_sha256": hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()}
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
@@ -360,6 +376,7 @@ def main():
     ap.add_argument("--mode", choices=("confirm", "cd"), default="confirm")
     ap.add_argument("--ids", help="cd mode: comma-separated topology ids")
     ap.add_argument("--ids-sha256", help="cd mode: sha256 of the comma-joined id list, as filed")
+    ap.add_argument("--react-cells", help="cd mode: a flat directory holding the reactive_s0 cells (the admission screen); only WINDOWS are read")
     a = ap.parse_args()
     if a.mode == "cd":
         if not a.ids or not a.ids_sha256:
@@ -368,7 +385,8 @@ def main():
         sha = hashlib.sha256(",".join(map(str, ids)).encode()).hexdigest()
         if sha != a.ids_sha256 or len(set(ids)) != len(ids):
             raise SystemExit("FAIL LOUD: the id list does not match the filed sha256 (or repeats an id)")
-        show_cd(run_cd(a.cells, json.load(open(a.rulings)), ids, a.pin, a.out, sha))
+        flat = (a.react_cells, CD_ARMS["reactive"]) if a.react_cells else None
+        show_cd(run_cd(a.cells.split(","), json.load(open(a.rulings)), ids, a.pin, a.out, sha, flat=flat))
         return
     sha = hashlib.sha256(",".join(map(str, IDS)).encode()).hexdigest()
     if sha != IDS_SHA256:

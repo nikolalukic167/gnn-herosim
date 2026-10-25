@@ -227,15 +227,15 @@ def cd_env(arm, seed, rung):
     return {"HEROSIM_DECISION_COST_MS": "0.01098"} if arm == "bar" else {}
 
 
-def cd_grid(tmp, f, pin_of=lambda arm: "abcd1234", env_of=cd_env):
+def cd_grid(tmp, f, pin_of=lambda arm: "abcd1234", env_of=cd_env, layout=None):
     n = 0
     for arm, kind in R.CD_ARMS.items():
-        for s in ((0,) if arm in R.S0_ARMS else R.SEEDS):
+        for s in ((0,) if arm in R.S0_ARMS else R.CD_SEEDS):
             for t in CD_TOPOS:
                 for w in R.WINDOWS:
                     for r in R.RUNGS:
-                        d = tmp / ("a" if n % 2 else "b")
-                        d.mkdir(exist_ok=True)
+                        d = tmp / ("a" if n % 2 else "b") if layout is None else layout(tmp, arm, s)
+                        d.mkdir(parents=True, exist_ok=True)
                         v = f(arm, s, t, w, r)
                         (d / f"cc40s{t}__{w}{r}__{kind}_s{s}.summary.json").write_text(json.dumps(
                             {"averageElapsedTime": v, "steady_state": {"after_360s": {"mean": v * 0.9}}, "code": {"commit": pin_of(arm), "dirty": False}, "servers": 24,
@@ -250,7 +250,7 @@ def cd_f(arm, s, t, w, r):
 
 
 def test_cd_mode_primary_is_four_tests_with_holm_over_four(tmp_path):
-    assert cd_grid(tmp_path, cd_f) == 12 * 2 * 2 * (3 * 3 + 3)
+    assert cd_grid(tmp_path, cd_f) == 12 * 2 * 2 * (3 * 6 + 3)
     res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
     keys = {f"gnn_vs_{b}|{r}" for b in ("bar", "wide") for r in R.RUNGS}
     assert set(res["primary"]["all"]) == keys == set(res["labels"])
@@ -259,7 +259,8 @@ def test_cd_mode_primary_is_four_tests_with_holm_over_four(tmp_path):
     assert row["holm_p"] == pytest.approx(min(1.0, 4 * row["p"]), rel=1e-9)
     assert res["labels"]["gnn_vs_bar|moderate"] == "CONFIRMED"
     assert any(k.startswith("all|whole|gnn_vs_reactive|") for k in res["secondary"]) and any(k.startswith("no_runaway|a360|bar_vs_random|") for k in res["secondary"])
-    assert set(res["per_seed_median_pct"]["gnn_vs_wide|heavy|all"]) == set(R.SEEDS)
+    assert set(res["per_seed_median_pct"]["gnn_vs_wide|heavy|all"]) == set(R.CD_SEEDS) and res["seeds"] == [1, 2, 3, 4, 5, 6]
+    assert set(res["per_seed_block"]["gnn_vs_bar|moderate|no_runaway"]) == {"s123", "s456"}
 
 
 def test_cd_labels():
@@ -283,12 +284,12 @@ def test_cd_mode_all_cells_guard_blocks_confirmed(tmp_path):
 def test_cd_mode_pin_groups_and_missing_cell_fail_loud(tmp_path):
     cd_grid(tmp_path, cd_f, pin_of=lambda arm: "bbbb0000" if arm in R.S0_ARMS else "aaaa1111")
     with pytest.raises(SystemExit, match="exactly static and bar"):
-        R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,refs=x,bar=bbbb0000", R.CD_ARMS)
-    V, pins, by = R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,bar=bbbb0000", R.CD_ARMS)
+        R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,refs=x,bar=bbbb0000", R.CD_ARMS, seeds=R.CD_SEEDS)
+    V, pins, by = R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,bar=bbbb0000", R.CD_ARMS, seeds=R.CD_SEEDS)
     assert by == {"static": ["aaaa1111"], "bar": ["bbbb0000"]}
     next(tmp_path.glob("*/cc40s40001__g0moderate__random_s0.summary.json")).unlink()
     with pytest.raises(SystemExit, match="missing"):
-        R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,bar=bbbb0000", R.CD_ARMS)
+        R.load(str(tmp_path), CD_TOPOS, "static=aaaa1111,bar=bbbb0000", R.CD_ARMS, seeds=R.CD_SEEDS)
 
 
 @pytest.mark.parametrize("bad", ["ckpt", "seed", "charge", "bar"])
@@ -314,6 +315,36 @@ def test_cd_mode_runaway_pairs_drop_without_runaways(tmp_path):
     res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
     assert any(x["arm"] == "gnn" and x["topology"] == 40001 for x in res["runaways"])
     assert res["primary"]["all"]["gnn_vs_bar|heavy"]["n"] == 12
+
+
+def cd_layout(tmp, arm, s):
+    """The fresh-24 layout: s0 arms but reactive and seeds 1-3 in d_cd/<sub>, seeds 4-6 in d_cd_s456/<sub>, reactive flat in cells_react."""
+    if arm == "reactive":
+        return tmp / "cells_react"
+    return tmp / ("d_cd_s456" if s in (4, 5, 6) else "d_cd") / f"sub_{arm}_{s}"
+
+
+def test_cd_mode_reads_two_roots_and_the_flat_reactive_dir(tmp_path):
+    cd_grid(tmp_path, cd_f, layout=cd_layout)
+    (tmp_path / "cells_react" / "cc40s40001__g2heavy__reactive_s0.summary.json").write_text("{}")   # g2/g3 admission cells are ignored
+    (tmp_path / "cells_react" / "cc40s40001__g3heavy__reactive_s0.failed.json").write_text("{}")
+    roots = [str(tmp_path / "d_cd"), str(tmp_path / "d_cd_s456")]
+    flat = (str(tmp_path / "cells_react"), R.CD_ARMS["reactive"])
+    res = R.run_cd(roots, RUL, CD_TOPOS, "abcd1234", None, "x", flat=flat)
+    assert res["cells"] == 12 * 2 * 2 * (3 * 6 + 3)
+    with pytest.raises(SystemExit, match="missing"):
+        R.run_cd(roots[:1], RUL, CD_TOPOS, "abcd1234", None, "x", flat=flat)
+    with pytest.raises(SystemExit, match="missing"):
+        R.run_cd(roots, RUL, CD_TOPOS, "abcd1234", None, "x")
+
+
+def test_cd_mode_seed_blocks_read_each_block_alone(tmp_path):
+    # seeds 4-6 of the gnn are 20 % slower: pooled and s123 favour the gnn vs wide, s456 does not
+    cd_grid(tmp_path, lambda a, s, t, w, r: cd_f(a, s, t, w, r) * (1.2 if a == "gnn" and s >= 4 else 1.0))
+    res = R.run_cd(str(tmp_path), RUL, CD_TOPOS, "abcd1234", None, "x")
+    blk = res["per_seed_block"]["gnn_vs_wide|moderate|all"]
+    assert blk["s123"]["median_pct"] < 0 < blk["s456"]["median_pct"]
+    assert res["primary"]["all"]["gnn_vs_wide|moderate"]["median_pct"] == pytest.approx(R.Grid(R.load(str(tmp_path), CD_TOPOS, "abcd1234", R.CD_ARMS, seeds=R.CD_SEEDS)[0], CD_TOPOS, RUL, R.CD_ARMS, seeds=R.CD_SEEDS).contrast("gnn", "wide", "moderate", "whole", "all")["median_pct"])
 
 
 FILED = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "lineages", "live_link_features_v1", "confirmation_reads", "read_primary_A_epoch40.json")
