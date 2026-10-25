@@ -304,7 +304,6 @@ order, its serving candidate set or the load it was gated at. Fix that one and i
 - **Decode order:** revising its plan with its own score recovers 8.9 % of CD's refine gain.
 - **Load:** at arrivals ×2 slower, with every policy time constant scaled, the gap is +13.8 % (0/10).
 - **Out-of-batch blindness:** worth ~3.4 % (blind-CD vs CD, direction only).
-- **look for a lighter arrival rate at which reactive Knative is stable under option D** (`knative_stable_v1`: reactive s0 on the sealed 12 at 1/2, 1/4, 1/8, 1/16 and 1/32 of moderate stable on 0 / 0 / 0 / 6 / 10 of 12 topologies, 11 needed; the fair-share slowdown stays above 3× while drain ≈ 0 and queue share ≤ 0.1. The user ruled STOP: no payload fallback, no 1/64 rung)
 
 What the score cannot express is CD's load balancing: queue drain in seconds plus in-batch committed
 service.
@@ -411,3 +410,11 @@ Do not revive unless the lever is something the first level does not identify (a
 **Measurement:** `cdxapply` (GNN seed + α-expansion) ties `cd_expand` (hand `cd` seed + the same expansion), the best in-budget hand arm at k = 1, within 1 pp on every metric: −0.21 / −0.38 % whole-run, −0.25 / −0.99 % after 360 s, Holm 1.0. The twin-seed control (`ra_twin_eng_cdxapply`) matches `cdxapply` within 0.6 % (Holm 1.0), so message passing is not attributed (`MP-NOT-ATTRIBUTED`). The earlier −3.0 % "frontier win" was over `cd_ib0`, because `cd_expand` was not in the grid. Verdict: `NO-LEARNED-WIN-AT-ANY-k` / `SEARCH-WIN-NOT-GNN`.
 
 Scope: the capped seat only. `uncut_groups_s0_v1` serves whole groups, a different seat, and this entry does not cover it. Do not claim a learned seed win at k = 1 without comparing against `cd_expand`.
+
+## A lighter arrival rate at which reactive Knative is stable under option D (2026-10-25)
+
+**Direction:** find a rate below the moderate rung at which reactive Knative is stable under option D (TCP slow start, fair share, cellular 4 MB/s, cap200 payloads), so the static link-feature GNN can be compared with reactive there.
+
+**What closed it:** `knative_stable_v1` (STOP-NO-STABLE-RATE). Reactive s0 on the sealed 12 topologies, g0 + g1, at 1/2, 1/4, 1/8, 1/16 and 1/32 of moderate: 0 / 0 / 0 / 6 / 10 of 12 topologies stable, 11 needed. The failing clause is the fair-share slowdown above 3×; at the two lightest rates drain is about 0 and queue share is at most 0.1. The user ruled STOP: no payload fallback, no 1/64 rung.
+
+**Do not restart:** reactive under option D is link-bound down to 1/32 of moderate. Reopen only with a transfer or link-admission constraint, or a payload change, by a new registration.

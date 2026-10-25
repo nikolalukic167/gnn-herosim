@@ -1,6 +1,6 @@
 #!/bin/bash
-# knative_stable_v1 calibration cells: reactive s0 (kind reactive), pin 0ec7cdcb, option D flags as cells_react, the sealed 12 ids, windows g0+g1, rung tagged f<tag> (= the minted moderate-tag inputs of m<tag>, linked as wf1_f<tag>) at fraction <tag> of the moderate rate; one job per multiplier = 4 jobs, 24 cells each.
-# usage: kstab_cells.sh <tag: 0.5|0.25|0.125|0.0625> "<12 sealed ids>" <sha256>        requires the inputs of kstab_mint_<tag>.sh
+# knative_stable_v1 calibration cells: reactive s0 (kind reactive), pin 0ec7cdcb, option D flags as cells_react, the sealed 12 ids, windows g0+g1, rung tagged f<tag> (= the minted moderate-tag inputs of m<tag>, linked as wf1_f<tag>) at fraction <tag> of the moderate rate; one job per multiplier = 5 jobs (0.5, 0.25, 0.125, 0.0625, 0.03125), 24 cells each.
+# usage: kstab_cells.sh <tag: 0.5|0.25|0.125|0.0625|0.03125> "<12 sealed ids>" <sha256>        requires the inputs of kstab_mint_<tag>.sh
 set -euo pipefail
 TAG=$1; IDS=$2; WANT=$3; PIN=0ec7cdcb
 U=/share/nikola.lukic/uncut_groups; X=$U/llf_cd_conf/kstab_calib/m$TAG; SEL=$U/llf_conf/selected.json; WL=$HOME/gnn-herosim-wt/s5_llf_${PIN}
