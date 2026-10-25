@@ -350,32 +350,39 @@ PARTIAL_STATE_CONTRACT_V7 = "partial_state_v7"
 # (30-32): the exchange to ALL in-batch peers, each priced from each of its own candidate nodes at the CAPTURED link-sharing rate (the lookahead twin of E1-E3;
 # link_features.static_edge_columns). Prefix-free: identical for every committed set, so the graph is still encoded once per batch.
 PARTIAL_STATE_CONTRACT_V8 = "partial_state_v8"
+# partial_state_v9 (2026-10-25, the outbound link block): v8 byte for byte, plus LINK_OUT_DIM columns appended after the static block (33-36): the committed partners'
+# pulls FROM the candidate priced at the live link-sharing rate over the candidate's own uplink (R1-R3) and the candidate's uplink seconds for this task's outbound
+# flows (U1). Prefix-dependent like E1-E3 and read by the scorers only (the conv's edge attribute is v8's). link_features.out_edge_columns.
+PARTIAL_STATE_CONTRACT_V9 = "partial_state_v9"
 EXCHANGE_PUSH_DIM = 2
 LINK_PLATFORM_DIM = 3
 LINK_EDGE_DIM = 3
 LINK_STATIC_DIM = 3
+LINK_OUT_DIM = 4
 VALID_PARTIAL_STATE_CONTRACTS = frozenset(
     {PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
      PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6,
-     PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8}
+     PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9}
 )
 # Contracts whose columns 7-9 carry the peer block (and that therefore need a peer corpus).
 PEER_BLOCK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V2, PARTIAL_STATE_CONTRACT_V3,
                                   PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6,
-                                  PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8})
+                                  PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9})
 # Contracts that carry the three load columns (and need backlog_s / service_s).
 LOAD_SECONDS_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V4, PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6,
-                                    PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8})
+                                    PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9})
 # Contracts that price the exchange pull peer->candidate and add the push columns.
-BOTH_DIRECTION_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6, PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8})
+BOTH_DIRECTION_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6, PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9})
 # Contracts whose legacy task block and platform replica flags cover all four task types.
-FOUR_TYPE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6, PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8})
+FOUR_TYPE_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V5, PARTIAL_STATE_CONTRACT_V6, PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9})
 # Contracts whose platform block carries the in-flight columns (placement/inflight_features.py).
-INFLIGHT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V6, PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8})
+INFLIGHT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V6, PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9})
 # Contracts whose platform and partial-state blocks carry the link-sharing columns (placement/link_features.py).
-LINK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8})
+LINK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V7, PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9})
 # Contracts that add the static link block (S1-S3) after the link edge columns.
-STATIC_LINK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V8})
+STATIC_LINK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V8, PARTIAL_STATE_CONTRACT_V9})
+# Contracts that add the outbound link block (R1-R3, U1) after the static block.
+OUT_LINK_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V9})
 # Contracts whose krank block is the fixed-width one-hot; only these pad (and raise).
 KRANK_ONEHOT_CONTRACTS = frozenset({PARTIAL_STATE_CONTRACT_V1, PARTIAL_STATE_CONTRACT_V2})
 
@@ -393,6 +400,7 @@ def partial_state_feature_dim(contract: Optional[str] = None) -> int:
     extra += EXCHANGE_PUSH_DIM if c in BOTH_DIRECTION_CONTRACTS else 0
     extra += LINK_EDGE_DIM if c in LINK_CONTRACTS else 0
     extra += LINK_STATIC_DIM if c in STATIC_LINK_CONTRACTS else 0
+    extra += LINK_OUT_DIM if c in OUT_LINK_CONTRACTS else 0
     return PARTIAL_STATE_BASE_DIM + krank_feature_dim(contract) + LINKRANK_FEATURE_DIM + extra
 PARTIAL_STATE_PEER_MASS_ENV = "PARTIAL_STATE_PEER_MASS"
 PARTIAL_STATE_LOAD_SECONDS_ENV = "PARTIAL_STATE_LOAD_SECONDS"
@@ -888,6 +896,11 @@ def partial_state_columns(
 
                 _sb = load_base + LOAD_SECONDS_DIM + EXCHANGE_PUSH_DIM + LINK_EDGE_DIM
                 out[i, _sb:_sb + LINK_STATIC_DIM] = _lf.static_edge_columns(ctx.link_counts, ctx.link_routes, ctx.node_exchange, _static_partners, node)
+            if ctx.contract in OUT_LINK_CONTRACTS:
+                from src.placement import link_features as _lf
+
+                _ob = load_base + LOAD_SECONDS_DIM + EXCHANGE_PUSH_DIM + LINK_EDGE_DIM + LINK_STATIC_DIM
+                out[i, _ob:_ob + LINK_OUT_DIM] = _lf.out_edge_columns(link_counts, ctx.link_routes, ctx.node_exchange, _partners, node)
             if ctx.exchange_seconds:
                 out[i, 7] = _math.log1p(committed_x)
                 out[i, 8] = _math.log1p(mass)
