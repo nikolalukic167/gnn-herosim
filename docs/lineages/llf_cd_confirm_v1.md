@@ -4,7 +4,7 @@
 - **Question.** Under option D, do the epoch-40 static link-feature GNN checkpoints of `live_link_features_v1` beat (a) the CD bar `cd_ib0_inflightfull_k100` and (b) the parameter-matched wide MLP, on 24 topologies none of them has been read on?
 - **Parent.** `live_link_features_v1` (CLOSED TIE). Its primary file, read on the sealed 12, is the motivation. Those 12 ids are spent and are not reused here.
 - **No training.** The arms are the parent's filed checkpoints, served as they were.
-- **Seeds 1–6 (amendment A2, 2026-10-25, the user's POOL, filed before any primary cell is read).** The learned arms of the primary are the static e40 `-final.pt` gnn, wide MLP and same-input MLP at seeds 1–6. **Reader frozen** at `llf_confirm_read.py` blob `bab527b0`, `--mode cd`. The (b) re-encode checkpoint stays descriptive. Both are in the Record.
+- **Seeds 1–6 (amendment A2, 2026-10-25, the user's POOL, filed before any primary cell is read).** The learned arms of the primary are the static e40 `-final.pt` gnn, wide MLP and same-input MLP at seeds 1–6. **Reader frozen** at `llf_confirm_read.py` blob `e7cd3aae`, `--mode cd`. The (b) re-encode checkpoint stays descriptive. Both are in the Record.
 
 ## Motivation (parent primary file, `read_primary_A_epoch40.json` md5 `7f882e8cd0c6de1bd1bdba750739a1be`, whole run; checked by SCIENTIST)
 
@@ -30,7 +30,7 @@
 
 - **Checkpoints.** The files are in `/share/nikola.lukic/uncut_groups/xs/in_llf_conf_final/models/`, listed in `xs/llf_conf_models_final.md5` (md5 `a126f46b5f30dd88ba43795d91c20ab3`; SCIENTIST re-hashed all nine served `.pt`, and they match). `llf_cd_in.sh` links them into each new IN dir. The launch md5-checks every served `.pt` against that list before the first job.
 - **No twin.** This is the user's call: this study asks about the bar and the MLPs, not message passing. **No result here is a message-passing claim.**
-- **Decision charge.** Every cell carries the parent primary's charge for its (arm, rung). The bar is `HEROSIM_DECISION_COST_MS` 0.01098. Learned arms use `HEROSIM_DECISION_COST_MS_BY_BUCKET` (le10 / 11_50 / gt50, ms):
+- **Decision charge.** Every cell carries the parent primary's charge for its (arm, rung). The bar is `HEROSIM_DECISION_COST_MS` 0.0116 (moderate) / 0.01098 (heavy), its filed per-rung w in `decision_cost_w.json`. Learned arms use `HEROSIM_DECISION_COST_MS_BY_BUCKET` (le10 / 11_50 / gt50, ms):
 
   | arm | moderate | heavy |
   |---|---|---|
@@ -108,7 +108,7 @@
 
 ## Record
 
-- 2026-10-25 — **Amendment A2: the primary learned arms run at seeds 1–6, and the reader is frozen at blob `bab527b01d52b17735bad9908e81799699a468b0`** (the user's POOL decision, relayed by the expert; filed by SCIENTIST before any primary cell is read). It replaces the default "descriptive" for (a) in the 2026-10-24 additions entry. The family, readings, guard and labels are unchanged.
+- 2026-10-25 — **Amendment A2: the primary learned arms run at seeds 1–6, and the reader is frozen at blob `e7cd3aae6c29f35981cf5c7f85a0bb068de010de`** (the user's POOL decision, relayed by the expert; filed by SCIENTIST before any primary cell is read). It replaces the default "descriptive" for (a) in the 2026-10-24 additions entry. The family, readings, guard and labels are unchanged.
   - **Seeds 4–6.** These are the static e40 `-final.pt` gnn, wide MLP and same-input MLP. The served files are in `xs/in_llf_cd_s456/models/`, listed in `xs/llf_conf_models_final_s456.md5` (sha256 `ae613e9843b84aadf0f6f1deab79278662e21fa5abcfb5f5457ab2f5a1ab9b47`). SCIENTIST re-hashed all nine, and they match.
   - **Cells.** The cells are in `llf_cd_conf/d_cd_s456`. Its 864 summaries are all at `02668ecf`, clean, and serve from `in_llf_cd_s456` (checked from the summaries' provenance fields only).
   - **Seeds and runaways.** A learned cell is the mean over its six seeds, and the runaway arm median pools all six. Seed blocks s1–3 and s4–6 are reported alone, as descriptive rows.
@@ -118,7 +118,7 @@
     - takes the reactive cells from the flat admission directory via `--react-cells`, reading only `reactive_s0` cells of g0/g1, so the g2/g3 admission cells there are ignored;
     - writes `seeds` and `per_seed_block`;
     - with `--allow-missing`, accepts only named random-arm cells as absent and records them in `allowed_missing`. A named cell that exists, a non-random cell, or any other missing cell still fails loud. The random rows of an affected topology use its remaining window.
-    - The default mode is untouched. Rerun on the parent's 1,200 cells, it reproduces `read_primary_A_epoch40.json` in every key but `reader_sha256`. Tests: 31 passed, 1 skipped (that regression, run directly).
+    - The default mode is untouched. Rerun on the parent's 1,200 cells, it reproduces `read_primary_A_epoch40.json` in every key but `reader_sha256`. Tests: 32 passed, 1 skipped (that regression, run directly).
   - **Random, descriptive.** 94 of 96 cells exist. 30327 and 30344 g0 moderate are deterministic watchdog stalls: the 30327 rerun in `d_cd_rr` stalled at the same simulated instant, 5,359 of 9,354 arrivals.
   - **Invocation:** `--mode cd --cells llf_cd_conf/d_cd,llf_cd_conf/d_cd_s456 --react-cells llf_cd_conf/cells_react --allow-missing cc40s30327__g0moderate__random_s0,cc40s30344__g0moderate__random_s0 --ids 30327,…,30350 --ids-sha256 8d9d17a1b7e5c45ea4eb8fa99e11ddca46ff3f32248f7ce1e727d44424d1c563 --pin static=02668ecf,bar=0ec7cdcb`, with `live_link_features_v1/confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477`). It is read once.
 - 2026-10-24 — **Descriptive additions, filed before any fresh-24 cell is read** (the user's request, relayed by the expert; written by SCIENTIST). Neither changes the registered family or labels.
@@ -135,7 +135,7 @@
   - **Invocation:** `--mode cd --ids <the 24 filed ids> --ids-sha256 <as filed> --pin static=02668ecf,bar=0ec7cdcb`. The `bar` group holds bar, reactive and random, so the descriptive reactive g0/g1 cells must run at `0ec7cdcb`.
   - **Checks by SCIENTIST:**
     - **Default mode unchanged.** Rerun on the parent's 1,200 cells (`d_conf_primaryA`), it reproduces `read_primary_A_epoch40.json` in every key but `reader_sha256`.
-    - **Cells are checked against the registration.** cd mode checks the id sha256 and the per-group pins. It also checks each learned cell's `GNN_MODEL_PATH` basename against arm and seed, each learned cell's per-(arm, rung) charge against the Arms table, and the bar's 0.01098 ms.
+    - **Cells are checked against the registration.** cd mode checks the id sha256 and the per-group pins. It also checks each learned cell's `GNN_MODEL_PATH` basename against arm and seed, each learned cell's per-(arm, rung) charge against the Arms table, and the bar's per-rung charge (0.0116 / 0.01098 ms).
     - **The family and labels are as registered:** four tests, Holm over the 4 within each reading. The label reads without runaways, with the all-cells guard: CONFIRMED / DIRECTION / NOT-FASTER.
     - **Tests pass:** 28 passed, 1 skipped (the parent regression, which SCIENTIST ran directly above).
 - 2026-10-24 — **Amendment A1: n = 24 topologies, not 12** (the expert's decision; filed by SCIENTIST before any mint or cell). The 24 ids are the lowest free run of 24 ≥ 30304, under the same exclusions and the same mint and admission rule; replacements are made as before. The cells grow to 1,152 at g0 + g1. Everything else is as registered.
