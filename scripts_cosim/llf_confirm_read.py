@@ -13,7 +13,7 @@ Where the node text leaves a point open this reader does NOT choose: every such 
 without all of them. The points are listed in RULING_POINTS below.
 
   llf_confirm_read.py --cells <dir with the cell subdirs> --rulings rulings.json --pin <code.commit prefix | static=P,refs=P,bar=P> --out read.json
-  llf_confirm_read.py --mode cd --cells <root>[,<root>...] --react-cells <flat reactive dir> --ids <ids> --ids-sha256 <sha> --rulings rulings.json --pin static=P,bar=P --out read.json
+  llf_confirm_read.py --mode cd --cells <root>[,<root>...] --react-cells <flat reactive dir> [--allow-missing <random cells>] --ids <ids> --ids-sha256 <sha> --rulings rulings.json --pin static=P,bar=P --out read.json
     (llf_cd_confirm_v1: learned arms at seeds 1-6, amendment A2)
 
 The cell subdirectories (any names) hold cc40s<topology>__<window><rung>__<kind>_s<seed>.summary.json. A missing, duplicated, unexpected, dirty or wrong-pin cell fails loud.
@@ -80,7 +80,7 @@ def check_rulings(r):
 NAME = re.compile(r"^cc40s(\d+)__(g\d)(moderate|heavy)__(.+)_s(\d+)\.summary\.json$")
 
 
-def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None):
+def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None, allow_missing=()):
     """{(kind, seed, topology, window, rung): {'whole', 'a360'}}: exactly the expected grid, nothing else.
     pin: one code.commit prefix for every cell, or 'group=prefix,...' with the groups static (gnn, twin, mlp, wide), refs (the four fair-share-label arms) and bar: each cell must
     match its own group's prefix and every listed prefix must be used. Returns (cells, the commits seen, the commits seen per group).
@@ -126,7 +126,14 @@ def load(root, topos, pin, arms=None, check=None, seeds=SEEDS, flat=None):
         if s.get("averageElapsedTime") is None or a360 is None:
             raise SystemExit(f"FAIL LOUD: {f} has no averageElapsedTime / steady_state.after_360s.mean")
         V[key] = {"whole": float(s["averageElapsedTime"]), "a360": float(a360)}
-    miss = sorted(want - set(V))
+    allow = set(allow_missing)
+    bad = sorted(k for k in allow if k not in want or k[0] != "random")
+    if bad:
+        raise SystemExit(f"FAIL LOUD: --allow-missing names {bad}: only cells of the random arm in the grid may be allowed missing")
+    present = sorted(allow & set(V))
+    if present:
+        raise SystemExit(f"FAIL LOUD: --allow-missing names {present}, which exist; the list is stale")
+    miss = sorted(want - set(V) - allow)
     if miss:
         raise SystemExit(f"FAIL LOUD: {len(miss)} of {len(want)} cells missing, first {miss[:3]}")
     unused = sorted(p for p in set(want_pin.values()) if not any(c.startswith(p) for c in pins))
@@ -153,16 +160,21 @@ class Grid:
         key = (arm, None if pool == "all_seeds_pooled" else seed, rung, mstat)
         if key not in self.med:
             ss = self.seeds(arm) if pool == "all_seeds_pooled" else (seed,)
-            self.med[key] = st.median(self.raw(arm, s, t, w, rung, mstat) for s in ss for t in self.topos for w in WINDOWS)
+            self.med[key] = st.median(self.raw(arm, s, t, w, rung, mstat) for s in ss for t in self.topos for w in WINDOWS if self.has(arm, s, t, w, rung))
         return self.med[key]
 
     def seed_flagged(self, arm, seed, t, w, rung, stat):
         mstat = "whole" if self.rul["runaway_metric"] == "whole" else stat
         return self.raw(arm, seed, t, w, rung, mstat) > RUNAWAY_X * self.arm_median(arm, seed, rung, mstat)
 
+    def has(self, arm, seed, t, w, rung):
+        return (self.arms[arm], seed, t, w, rung) in self.V
+
     def cell(self, arm, t, w, rung, stat, reading, only_seed=None):
-        """(value, flagged): the seed-mean learned cell (or the single seed, or tuple of seeds, asked for)."""
+        """(value, flagged): the seed-mean learned cell (or the single seed, or tuple of seeds, asked for); (None, None) for an allowed-missing cell."""
         ss = self.seeds(arm) if only_seed is None else tuple(only_seed) if isinstance(only_seed, tuple) else (only_seed,)
+        if not all(self.has(arm, s, t, w, rung) for s in ss):
+            return None, None
         vals = [(self.raw(arm, s, t, w, rung, stat), self.seed_flagged(arm, s, t, w, rung, stat)) for s in ss]
         if reading == "all":
             return st.fmean(v for v, _ in vals), False
@@ -179,7 +191,7 @@ class Grid:
             for w in WINDOWS:
                 x, fx = self.cell(a, t, w, rung, stat, reading, seed if a not in S0_ARMS else None)
                 y, fy = self.cell(b, t, w, rung, stat, reading, seed if b not in S0_ARMS else None)
-                if not (fx or fy):
+                if x is not None and y is not None and not (fx or fy):
                     pcts.append(100.0 * (x / y - 1.0))
             per[t] = st.median(pcts) if pcts else None
         kept = [v for v in per.values() if v is not None]
@@ -195,7 +207,7 @@ class Grid:
                     for t in self.topos:
                         for w in WINDOWS:
                             for stat in STATS:
-                                if self.seed_flagged(a, s, t, w, rung, stat):
+                                if self.has(a, s, t, w, rung) and self.seed_flagged(a, s, t, w, rung, stat):
                                     out.append({"arm": a, "seed": s, "topology": t, "window": w, "rung": rung, "stat": stat, "value_s": self.raw(a, s, t, w, rung, stat),
                                                 "arm_median_s": self.arm_median(a, s, rung, "whole" if self.rul["runaway_metric"] == "whole" else stat)})
         return out
@@ -289,12 +301,12 @@ def cd_label(nr, al):
     return "DIRECTION"
 
 
-def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, flat=None):
+def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, flat=None, allow_missing=()):
     """llf_cd_confirm_v1: gnn vs bar and gnn vs wide x {moderate, heavy}; Holm over the 4 in each reading; the label reads without runaways with the all-cells sign guard."""
     rul = check_rulings_cd(rulings)
     if out_path and os.path.exists(out_path):
         raise SystemExit(f"FAIL LOUD: {out_path} exists (read once)")
-    V, pins, pins_by_group = load(root, topos, pin, CD_ARMS, check=cd_check, seeds=seeds, flat=flat)
+    V, pins, pins_by_group = load(root, topos, pin, CD_ARMS, check=cd_check, seeds=seeds, flat=flat, allow_missing=allow_missing)
     g = Grid(V, topos, rul, CD_ARMS, seeds=seeds)
     stat = rul["primary_metric"]
     primary = {}
@@ -316,7 +328,7 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
                     for r in RUNGS:
                         sec[f"{reading}|{st_}|{a}_vs_{b}|{r}"] = g.contrast(a, b, r, st_, reading)
     res = {"family": "llf_cd_confirm_v1 (read once)", "mode": "cd", "topologies": list(topos), "ids_sha256": ids_sha, "pins": pins, "pins_by_group": pins_by_group, "cells": len(V),
-           "rulings": rul, "primary_metric": stat, "labels": labels, "primary": primary, "seeds": list(seeds), "per_seed_median_pct": per_seed, "per_seed_block": per_block, "runaways": g.runaways(), "secondary": sec,
+           "rulings": rul, "allowed_missing": sorted(f"cc40s{t}__{w}{r}__{k}_s{s_}" for k, s_, t, w, r in allow_missing), "primary_metric": stat, "labels": labels, "primary": primary, "seeds": list(seeds), "per_seed_median_pct": per_seed, "per_seed_block": per_block, "runaways": g.runaways(), "secondary": sec,
            "reader_sha256": hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()}
     if out_path:
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
@@ -376,6 +388,7 @@ def main():
     ap.add_argument("--mode", choices=("confirm", "cd"), default="confirm")
     ap.add_argument("--ids", help="cd mode: comma-separated topology ids")
     ap.add_argument("--ids-sha256", help="cd mode: sha256 of the comma-joined id list, as filed")
+    ap.add_argument("--allow-missing", default="", help="cd mode: comma-separated random cells known not to exist (cc40s<t>__<w><rung>__random_s0); any other missing cell fails loud")
     ap.add_argument("--react-cells", help="cd mode: a flat directory holding the reactive_s0 cells (the admission screen); only WINDOWS are read")
     a = ap.parse_args()
     if a.mode == "cd":
@@ -386,7 +399,13 @@ def main():
         if sha != a.ids_sha256 or len(set(ids)) != len(ids):
             raise SystemExit("FAIL LOUD: the id list does not match the filed sha256 (or repeats an id)")
         flat = (a.react_cells, CD_ARMS["reactive"]) if a.react_cells else None
-        show_cd(run_cd(a.cells.split(","), json.load(open(a.rulings)), ids, a.pin, a.out, sha, flat=flat))
+        allow = []
+        for c in filter(None, a.allow_missing.split(",")):
+            m = NAME.match(c + ".summary.json")
+            if not m:
+                raise SystemExit(f"FAIL LOUD: --allow-missing entry {c!r} is not cc40s<t>__<w><rung>__<kind>_s<seed>")
+            allow.append((m.group(4), int(m.group(5)), int(m.group(1)), m.group(2), m.group(3)))
+        show_cd(run_cd(a.cells.split(","), json.load(open(a.rulings)), ids, a.pin, a.out, sha, flat=flat, allow_missing=allow))
         return
     sha = hashlib.sha256(",".join(map(str, IDS)).encode()).hexdigest()
     if sha != IDS_SHA256:
