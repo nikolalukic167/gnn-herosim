@@ -114,3 +114,72 @@ def test_the_v9_arm_set_needs_its_own_measured_charges(tmp_path):
 def test_the_default_registry_and_tables_are_untouched():
     assert R.CD_ARM_REGISTRY["gnn"] == "ra_gnn_eng_combfl_linkstatic_e40_nosplit_k100" and "v8" not in R.CD_ARM_REGISTRY
     assert R.CD_CKPT["gnn"] == "uncut-linkstatic-gnn-eng-e40-seed"
+
+
+def dev_env(arm, seed, rung):
+    if arm == "bar":
+        return {"HEROSIM_DECISION_COST_MS": str(R.CD_BAR_CHARGE[rung])}
+    return {"GNN_MODEL_PATH": f"/x/models/{R.V9DEV_CKPT[arm]}{seed}.pt", "HEROSIM_DECISION_COST_MS_BY_BUCKET": json.dumps(CHARGES[f"{arm}|{rung}"])}
+
+
+def dev_grid(tmp, env_of=dev_env):
+    tmp = tmp / "sub0"
+    tmp.mkdir()
+    for arm, kind in R.V9DEV_ARM_REGISTRY.items():
+        for s in ((0,) if arm in R.S0_ARMS else R.V9DEV_SEEDS):
+            for t in TOPOS:
+                for w in R.WINDOWS:
+                    for r in R.RUNGS:
+                        v = base(t, w, r) * RATIO[arm] * (1 + 0.01 * ((t * 7 + s) % 5 - 2))
+                        (tmp / f"cc40s{t}__{w}{r}__{kind}_s{s}.summary.json").write_text(json.dumps(
+                            {"averageElapsedTime": v, "steady_state": {"after_360s": {"mean": v * 0.9}}, "code": {"commit": PIN, "dirty": False}, "servers": 24, "env": env_of(arm, s, r)}))
+
+
+def test_v9dev_reads_the_bare_arms_at_seeds_1_to_3_with_no_v8_and_no_secondary(tmp_path):
+    dev_grid(tmp_path)
+    res = R.run_cd(str(tmp_path), RUL, TOPOS, PIN, None, "x", arm_set_name="v9dev", charges=CHARGES, seeds=R.V9DEV_SEEDS, tag="DEV", charges_sha256="ab")
+    assert len(res["primary"]["all"]) == 8 and "secondary_family" not in res and res["seeds"] == [1, 2, 3]
+    assert all(v.startswith("DEV-") for v in res["labels"].values()) and res["options"]["arm_set"] == "v9dev"
+    assert not any("v8" in k for k in res["labels"])
+    for kw, msg in (({"tag": None}, "development read"), ({"seeds": R.CD_SEEDS}, "development read")):
+        args = dict(arm_set_name="v9dev", charges=CHARGES, seeds=R.V9DEV_SEEDS, tag="DEV") | kw
+        with pytest.raises(SystemExit, match=msg):
+            R.run_cd(str(tmp_path), RUL, TOPOS, PIN, None, "x", **args)
+
+
+def test_v9dev_refuses_the_e40_stems(tmp_path):
+    dev_grid(tmp_path, env_of=lambda a, s, r: {**dev_env(a, s, r), **({"GNN_MODEL_PATH": f"/x/models/{R.V9_CKPT[a]}{s}.pt"} if a == "gnn" else {})})
+    with pytest.raises(SystemExit, match="served"):
+        R.run_cd(str(tmp_path), RUL, TOPOS, PIN, None, "x", arm_set_name="v9dev", charges=CHARGES, seeds=R.V9DEV_SEEDS, tag="DEV")
+
+
+@pytest.mark.parametrize("name", ["v9", "v9dev"])
+def test_the_group_form_of_pin_is_refused(tmp_path, name):
+    with pytest.raises(SystemExit, match="group form of --pin"):
+        R.run_cd(str(tmp_path), RUL, TOPOS, f"static={PIN},bar={PIN}", None, "x", arm_set_name=name, charges=CHARGES, tag="DEV", seeds=R.V9DEV_SEEDS if name == "v9dev" else R.CD_SEEDS)
+
+
+def test_a_charge_equal_to_a_v8_value_is_refused_and_the_file_sha_is_recorded(tmp_path):
+    grid(tmp_path)
+    bad = {**CHARGES, "twin|moderate": R.CD_CHARGE[("twin", "moderate")]}
+    with pytest.raises(SystemExit, match="equal a v8"):
+        R.run_cd(str(tmp_path), RUL, TOPOS, PIN, None, "x", arm_set_name="v9", charges=bad)
+    assert R.run_cd(str(tmp_path), RUL, TOPOS, PIN, None, "x", arm_set_name="v9", charges=CHARGES, charges_sha256="cafe")["charges_sha256"] == "cafe"
+
+
+def test_the_cli_records_the_charges_file_sha256(tmp_path, monkeypatch, capsys):
+    import hashlib
+
+    (tmp_path / "cells").mkdir()
+    grid(tmp_path / "cells")
+    cf = tmp_path / "charges.json"
+    cf.write_text(json.dumps(CHARGES))
+    rf = tmp_path / "rul.json"
+    rf.write_text(json.dumps(RUL))
+    ids = ",".join(map(str, TOPOS))
+    out = tmp_path / "read.json"
+    monkeypatch.setattr(sys, "argv", ["x", "--mode", "cd", "--cells", str(tmp_path / "cells"),
+                                      "--rulings", str(rf), "--pin", PIN, "--out", str(out), "--ids", ids, "--ids-sha256", hashlib.sha256(ids.encode()).hexdigest(),
+                                      "--arm-set", "v9", "--charges", str(cf)])
+    R.main()
+    assert json.load(open(out))["charges_sha256"] == hashlib.sha256(cf.read_bytes()).hexdigest()

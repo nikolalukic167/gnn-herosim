@@ -40,3 +40,19 @@ def test_no_w_entry_is_aliased_for_a_v9_kind():
             if "linkout" in k:
                 others = [vv for kk, vv in f[top].items() if "linkout" not in kk]
                 assert v not in others, f"{top}[{k}] equals another kind's entry: an alias"
+
+
+def test_the_gate_refuses_any_v9_kind_in_the_w_alias_table(tmp_path, monkeypatch):
+    import pytest
+
+    import fresh_topo_burst_v1_gate as G
+
+    f = json.load(open(G.DC_W_FILE))
+    assert not (G.OUT_W_KINDS & set(f.get("w_ms_per_plan_alias", {})))
+    for kind in KINDS + G.COMB_OUT_E40:
+        for sfx in ("", "_nosplit"):
+            bad = tmp_path / "w.json"
+            bad.write_text(json.dumps({**f, "w_ms_per_plan_alias": {**f["w_ms_per_plan_alias"], kind + sfx: "ra_gnn_eng_combfl_linkstatic_e40_nosplit"}}))
+            monkeypatch.setattr(G, "DC_W_FILE", str(bad))
+            with pytest.raises(SystemExit, match="never an alias"):
+                G.dc_cost_ms("ra_gnn_eng_combfl_linkstatic_e40_nosplit", 1.0, "moderate")
