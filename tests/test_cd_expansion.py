@@ -558,7 +558,7 @@ def test_harness_serves_the_twin_cdxapply_arm_with_the_twin_seed_and_cdxapplys_s
     # the checkpoint is <R1A_STEM>-twin-eng-seed<N>.pt for the twin base, sidechecked as ra_twin_eng
     assert 'stem = os.environ.get("R1A_STEM", "r1-attribution-v1") + "-" + base_kind[3:].replace("_", "-")' in src
     assert "ra_twin_eng".replace("_", "-")[3:] == "twin-eng"
-    assert 'f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS' in src
+    assert 'f"{stem}-seed{seed}{sfx}.pt" if base_kind in RA_KINDS' in src
     # the settings are chosen by the suffix alone, for both bases: no branch names a base kind
     branch = re.search(r'        if kind\.endswith\("_cdxapply"\):\n(.*)\n        if kind\.endswith\(\("_cdxib0"', src, re.S).group(1)
     assert branch.strip() == 'env.update(GNN_CD_REFINE="apply", HEROSIM_PG_CD_EXPANSION="1", GNN_SLATE_NO_SPLIT="1")'

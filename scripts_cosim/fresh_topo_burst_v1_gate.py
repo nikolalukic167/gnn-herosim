@@ -267,6 +267,11 @@ RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1", "ra_twin_eng_combfl", "ra_twin_eng_fslabel_combfl", "ra_twin_eng_combfl_dgu", "ra_twin_eng_combfl_link", "ra_twin_eng_combfl_linkstatic", "ra_twin_eng_combfl_link_gpu", "ra_twin_eng_combfl_link_e100", "ra_twin_eng_combfl_link_gpu_e100", "ra_twin_eng_combfl_linkstatic_e40", "ra_twin_eng_combfl_linkout", "ra_twin_eng_combfl_linkout_e40")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
 # to the learned plan, "_cdapply") run at the checkpoint seeds in R1A_SEEDS. CD<-random has no implementation in the tree.
+def ckpt_suffix(base_kind):
+    """R1A_CKPT_SUFFIX (e.g. "-final", the epoch-40 weights): loads <stem>-seed<N><suffix>.pt and its <suffix>.contract.json. Only the v9 linkout kinds take it."""
+    return os.environ.get("R1A_CKPT_SUFFIX", "") if base_kind in COMB_OUT + COMB_OUT_E40 else ""
+
+
 R1A_CLASSICAL = ("cd", "cd_declared", "locality", "batched", "selfpredict", "reactive")
 R1A_SEEDED_CD = ("ra_gnn_eng_cdapply", "ra_twin_eng_cdapply", "cd_random_seed")
 R1A_RANDOM = ("random",)  # plain random_network scheduler, descriptive and outside the families; run at the seeds in R1A_SEEDS
@@ -1278,8 +1283,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             stem = f"joint-burst-v2-{base_kind}"
         # checkpoints and the split file sit at the inputs root (r1a: one set for every rung); an older layout kept them in the rung directory
         mroot = inputs_root if os.path.isdir(os.path.join(inputs_root, "models")) else inputs
-        ck = os.path.join(mroot, "models", f"{stem}-seed{seed}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
+        sfx = ckpt_suffix(base_kind)
+        ck = os.path.join(mroot, "models", f"{stem}-seed{seed}{sfx}.pt" if base_kind in RA_KINDS else f"{stem}-lr2e3-seed{seed}.pt")
         side = ck[:-3] + ".contract.json"
+        if sfx and not os.path.isfile(side):
+            raise SystemExit(f"FAIL LOUD: R1A_CKPT_SUFFIX={sfx!r} but the sidecar {side} is missing")
         check_kind = COMB_CHECK[base_kind] if base_kind in COMB_CHECK else "gnnedge0" if base_kind == "cdimit" else {"sb1load": "xs1load", "sb1mpoff": "xs1mpoff", "so1load": "xs1load", "so1mpoff": "xs1mpoff", "so1lfgnn": "lf1gnn", "so1lfmlp": "lf1mlp"}.get(base_kind, base_kind[:-len("_arm1")] if base_kind in ARM1_KINDS else base_kind)
         split = (os.environ.get("R1A_SPLIT", "r1_attribution_v1_split.json") if base_kind in RA_KINDS else "small_batch_so_v1_split.json" if base_kind in SO1_KINDS else "small_batch_v1_split.json" if base_kind in SB1_KINDS + LF1_KINDS + AGG_KINDS + HET_KINDS + SO1_KINDS else "backlog_corpus_v1_split.json" if base_kind in BC1_KINDS
                  else "joint_burst_v2_split.json")

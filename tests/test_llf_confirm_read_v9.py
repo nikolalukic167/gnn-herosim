@@ -25,7 +25,7 @@ def env(arm, seed, rung, charges=CHARGES):
     if arm == "bar":
         return {"HEROSIM_DECISION_COST_MS": str(R.CD_BAR_CHARGE[rung])}
     charge = R.CD_CHARGE[("gnn", rung)] if arm == "v8" else charges[f"{arm}|{rung}"]
-    return {"GNN_MODEL_PATH": f"/x/models/{R.V9_CKPT[arm]}{seed}.pt", "HEROSIM_DECISION_COST_MS_BY_BUCKET": json.dumps(charge)}
+    return {"GNN_MODEL_PATH": f"/x/models/{R.V9_CKPT[arm]}{seed}{R.V9_CKPT_SUFFIX.get(arm, '')}.pt", "HEROSIM_DECISION_COST_MS_BY_BUCKET": json.dumps(charge)}
 
 
 def grid(tmp, env_of=env, skip=(), f=None):
@@ -183,3 +183,49 @@ def test_the_cli_records_the_charges_file_sha256(tmp_path, monkeypatch, capsys):
                                       "--arm-set", "v9", "--charges", str(cf)])
     R.main()
     assert json.load(open(out))["charges_sha256"] == hashlib.sha256(cf.read_bytes()).hexdigest()
+
+
+def test_v9_expects_the_final_basename_for_the_four_learned_arms_and_not_for_v8_or_v9dev(tmp_path):
+    assert set(R.V9_CKPT_SUFFIX) == {"gnn", "twin", "mlp", "wide"} and set(R.V9_CKPT_SUFFIX.values()) == {"-final"}
+    charge = {tuple(k.split("|")): v for k, v in CHARGES.items()} | {("v8", r): R.CD_CHARGE[("gnn", r)] for r in R.RUNGS}
+    kind = R.V9_ARM_REGISTRY["gnn"]
+    key = (kind, 1, 40001, "g0", "moderate")
+    ok = {"env": env("gnn", 1, "moderate")}
+    assert os.path.basename(ok["env"]["GNN_MODEL_PATH"]) == "uncut-linkout-gnn-eng-e40-seed1-final.pt"
+    R.make_cd_check(R.V9_ARM_REGISTRY, None, R.V9_CKPT, charge, R.V9_CKPT_SUFFIX)(key, ok, "f")
+    best_val = {"env": {**ok["env"], "GNN_MODEL_PATH": "/x/models/uncut-linkout-gnn-eng-e40-seed1.pt"}}
+    with pytest.raises(SystemExit, match="seed1-final.pt"):
+        R.make_cd_check(R.V9_ARM_REGISTRY, None, R.V9_CKPT, charge, R.V9_CKPT_SUFFIX)(key, best_val, "f")
+    v8 = {"env": env("v8", 1, "moderate")}
+    assert os.path.basename(v8["env"]["GNN_MODEL_PATH"]) == "uncut-linkstatic-gnn-eng-e40-seed1.pt"
+    R.make_cd_check(R.V9_ARM_REGISTRY, None, R.V9_CKPT, charge, R.V9_CKPT_SUFFIX)((R.V9_ARM_REGISTRY["v8"], 1, 40001, "g0", "moderate"), v8, "f")
+    assert R.V9DEV_CKPT["gnn"].endswith("-seed") and "final" not in "".join(R.V9DEV_CKPT.values())
+
+
+NR = {"median_pct": -5.0, "holm_p": 0.01, "n": 12}
+
+
+def test_both_holm_flips_confirmed_to_direction_when_the_all_cells_holm_is_not_below_05():
+    al_ok = {"median_pct": -4.0, "holm_p": 0.04}
+    al_bad = {"median_pct": -4.0, "holm_p": 0.065}
+    assert R.cd_label(NR, al_ok, both_holm=True) == "CONFIRMED"
+    assert R.cd_label(NR, al_bad, both_holm=True) == "DIRECTION"
+    assert R.cd_label(NR, {"median_pct": -4.0, "holm_p": None}, both_holm=True) == "DIRECTION"
+    assert R.cd_label(NR, al_bad) == "CONFIRMED"   # old reads and v9dev: the registered rule is unchanged
+    assert R.cd_label(NR, al_bad, both_holm=True, min_n=13) == "UNDERPOWERED"
+
+
+def test_v9_applies_both_holm(tmp_path, monkeypatch):
+    seen = {}
+    real = R.cd_label
+    monkeypatch.setattr(R, "cd_label", lambda *a, **k: seen.setdefault(k.get("both_holm"), 0) is not None and real(*a, **k))
+    grid(tmp_path)
+    read(tmp_path, min_n=8)
+    assert set(seen) == {True}
+
+
+def test_show_cd_prints_the_real_family_size(tmp_path, capsys):
+    grid(tmp_path)
+    R.show_cd(read(tmp_path, min_n=8))
+    out = capsys.readouterr().out
+    assert "holm(8)" in out and "holm(2)" in out and "holm(4)" not in out

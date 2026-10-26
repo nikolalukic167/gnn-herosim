@@ -53,6 +53,7 @@ V9_ARM_REGISTRY = {"gnn": "ra_gnn_eng_combfl_linkout_e40_nosplit_k100", "twin": 
                    "wide": "ra_mlp_wide_combfl_linkout_e40_nosplit_k100", "v8": ARMS["gnn"], "bar": BAR}
 V9_CKPT = {"gnn": "uncut-linkout-gnn-eng-e40-seed", "twin": "uncut-linkout-twin-e40-seed", "mlp": "uncut-linkout-mlp-same-e40-seed", "wide": "uncut-linkout-mlp-wide-e40-seed",
            "v8": "uncut-linkstatic-gnn-eng-e40-seed"}
+V9_CKPT_SUFFIX = {"gnn": "-final", "twin": "-final", "mlp": "-final", "wide": "-final"}   # --arm-set v9 serves the epoch-40 -final.pt of the four v9 learned arms; the v8 secondary keeps its e40 file
 V9_PRIMARY = (("gnn", "bar"), ("gnn", "twin"), ("gnn", "wide"), ("gnn", "mlp"))
 V9_SECONDARY = (("gnn", "v8"),)
 V9DEV_ARM_REGISTRY = {"gnn": "ra_gnn_eng_combfl_linkout_nosplit_k100", "twin": "ra_twin_eng_combfl_linkout_nosplit_k100", "mlp": "ra_mlp_same_combfl_linkout_nosplit_k100",
@@ -326,18 +327,18 @@ CHARGE_RATIO_REF24 = {("gnn", "moderate"): 1.45, ("gnn", "heavy"): 1.22, ("wide"
 CHARGE_LIMITED_X = 1.5
 
 
-def make_cd_check(arms=None, charge_rung=None, ckpt=None, charge=None):
+def make_cd_check(arms=None, charge_rung=None, ckpt=None, charge=None, ckpt_suffix=None):
     """cd_check over `arms`; charge_rung maps a cell's rung to the rung whose registered charge it must carry (knative_stable_v1: f<x> -> moderate)."""
     arms = CD_ARMS if arms is None else arms
     charge_rung = charge_rung or {}
 
     def check(key, s, f):
         kind, seed, t, w, rung = key
-        return cd_check(key, s, f, arms, charge_rung.get(rung, rung), ckpt, charge)
+        return cd_check(key, s, f, arms, charge_rung.get(rung, rung), ckpt, charge, ckpt_suffix)
     return check
 
 
-def cd_check(key, s, f, arms=None, crung=None, ckpt=None, charge=None):
+def cd_check(key, s, f, arms=None, crung=None, ckpt=None, charge=None, ckpt_suffix=None):
     """Fail loud when a cell's served checkpoint or decision charge is not the registered one."""
     kind, seed, _t, _w, rung = key
     arms = CD_ARMS if arms is None else arms
@@ -347,7 +348,7 @@ def cd_check(key, s, f, arms=None, crung=None, ckpt=None, charge=None):
     charge = CD_CHARGE if charge is None else charge
     arm = next(a for a, k in arms.items() if k == kind)
     if arm in ckpt:
-        want = f"{ckpt[arm]}{seed}.pt"
+        want = f"{ckpt[arm]}{seed}{(ckpt_suffix or {}).get(arm, '')}.pt"
         got = os.path.basename(str(env.get("GNN_MODEL_PATH", "")))
         if got != want:
             raise SystemExit(f"FAIL LOUD: {f} served {got!r}, not {want}")
@@ -364,12 +365,14 @@ def cd_check(key, s, f, arms=None, crung=None, ckpt=None, charge=None):
             raise SystemExit(f"FAIL LOUD: {f} {arm} decision charge {env.get('HEROSIM_DECISION_COST_MS')!r}, not {want}")
 
 
-def cd_label(nr, al, blocked=False, min_n=None):
+def cd_label(nr, al, blocked=False, min_n=None, both_holm=False):
     """CONFIRMED: without-runaways median < 0, Holm p < .05 and the all-cells median < 0; DIRECTION: median < 0 otherwise; NOT-FASTER: median >= 0 or no topology left.
+    both_holm (--arm-set v9, outbound_link_features_v1): CONFIRMED also needs the all-cells Holm p < .05.
     blocked (scale_d_v1 v3: a gnn cell failed at this rung): never CONFIRMED. min_n (scale_d_v1 v3): a test that is not CONFIRMED with n < min_n is UNDERPOWERED."""
     if nr["median_pct"] is None or nr["median_pct"] >= 0:
         lab = "NOT-FASTER"
-    elif not blocked and nr["holm_p"] is not None and nr["holm_p"] < 0.05 and al["median_pct"] is not None and al["median_pct"] < 0:
+    elif not blocked and nr["holm_p"] is not None and nr["holm_p"] < 0.05 and al["median_pct"] is not None and al["median_pct"] < 0 \
+            and not (both_holm and not (al["holm_p"] is not None and al["holm_p"] < 0.05)):
         return "CONFIRMED"
     else:
         lab = "DIRECTION"
@@ -462,7 +465,7 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
         raise SystemExit("FAIL LOUD: admission reads the reactive cells, but reactive is not an arm")
     want_extra = admit_reactive or charge_ratio
     extra = {} if want_extra else None
-    check = cd_check if (arms is None and not charge_rung and not v9) else make_cd_check(arm_set, charge_rung, v9_ckpt, v9_charge)
+    check = cd_check if (arms is None and not charge_rung and not v9) else make_cd_check(arm_set, charge_rung, v9_ckpt, v9_charge, V9_CKPT_SUFFIX if arm_set_name == "v9" else None)
     V, pins, pins_by_group = load(root, topos, pin, arm_set, check=check, seeds=seeds, flat=flat, allow_missing=allow_missing, rungs=rungs,
                                   servers=servers, clients=clients, failed_learned=failed_learned, extra=extra)
     excluded, admission = set(), None
@@ -481,7 +484,7 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
         rows = {f"{a}_vs_{b}|{r}": g.contrast(a, b, r, stat, reading) for a, b in pairs for r in rungs}
         hp = holm({k: v["p"] for k, v in rows.items()})
         primary[reading] = {k: {kk: vv for kk, vv in v.items() if kk != "per_topology"} | {"holm_p": hp[k]} for k, v in rows.items()}
-    labels = {k: cd_label(primary["no_runaway"][k], primary["all"][k], blocked=blocked[k.split("|")[1]], min_n=min_n) for k in primary["no_runaway"]}
+    labels = {k: cd_label(primary["no_runaway"][k], primary["all"][k], blocked=blocked[k.split("|")[1]], min_n=min_n, both_holm=arm_set_name == "v9") for k in primary["no_runaway"]}
     secondary_family = None
     if sec_pairs:
         secondary_family = {}
@@ -489,7 +492,7 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
             rows = {f"{a}_vs_{b}|{r}": g.contrast(a, b, r, stat, reading) for a, b in sec_pairs for r in rungs}
             hp = holm({k: v["p"] for k, v in rows.items()})
             secondary_family[reading] = {k: {kk: vv for kk, vv in v.items() if kk != "per_topology"} | {"holm_p": hp[k]} for k, v in rows.items()}
-        labels |= {f"secondary|{k}": cd_label(secondary_family["no_runaway"][k], secondary_family["all"][k], blocked=blocked[k.split("|")[1]], min_n=min_n) for k in secondary_family["no_runaway"]}
+        labels |= {f"secondary|{k}": cd_label(secondary_family["no_runaway"][k], secondary_family["all"][k], blocked=blocked[k.split("|")[1]], min_n=min_n, both_holm=arm_set_name == "v9") for k in secondary_family["no_runaway"]}
     if tag:
         labels = {k: f"{tag}-{v}" for k, v in labels.items()}
     per_seed = {f"{a}_vs_{b}|{r}|{rd}": {s_: g.contrast(a, b, r, stat, rd, seed=s_)["median_pct"] for s_ in seeds} for a, b in pairs for r in rungs for rd in ("all", "no_runaway")}
@@ -539,7 +542,7 @@ def show_cd(res):
         for reading in ("no_runaway", "all"):
             fam, key = (res["secondary_family"], k.split("|", 1)[1]) if k.startswith("secondary|") else (res["primary"], k)
             row = fam[reading][key]
-            print(f"      [{reading:10s}] median {fm(row['median_pct'])} % faster {row['faster']}/{row['n']} p {fm(row['p'])} holm(4) {fm(row['holm_p'])}")
+            print(f"      [{reading:10s}] median {fm(row['median_pct'])} % faster {row['faster']}/{row['n']} p {fm(row['p'])} holm({len(fam[reading])}) {fm(row['holm_p'])}")
     print(f"runaway cells: {len(res['runaways'])}")
 
 
