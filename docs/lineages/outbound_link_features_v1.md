@@ -85,3 +85,4 @@ The bar contrast is expected to confirm: the v8 gnn already beat the same bar by
     - The twin reads the new columns through the same scorer, so the new columns should help both arms. The gnn-vs-twin margin should stay near `mp_confirm_v1`'s, and heavy is runaway-dominated.
 
 - 2026-10-25 — **REGISTERED.** Contract and tests merged as `eaca0224`. The probe files are frozen by md5 above; the counted probe run follows the merge of this node. No v9 checkpoint, mint or cell exists.
+- 2026-10-26 — Counted label probe 907604: FAIL on the ratio clause (median 3.14, band [0.5, 2.0]); share 96.7 %, Δ_rtt +28.6 s, n 1,862, 40 topologies. Read: `outbound_link_features_v1/read.json` (md5 `1e70085083a8e8e10eb3cf3875d9f6fe`).
