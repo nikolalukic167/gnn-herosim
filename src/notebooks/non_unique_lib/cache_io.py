@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import pickle
 import random
 from collections import defaultdict
@@ -930,8 +931,11 @@ def build_capped_valid_combos_map_from_chunked_cache(
         },
         "bucket_totals": bucket_totals,
     }
-    with open(_capped_sidecar_meta_path(cache_dir, sidecar_name), "w") as f:
+    meta_path = _capped_sidecar_meta_path(cache_dir, sidecar_name)
+    meta_tmp = meta_path.with_name(f"{meta_path.name}.{os.getpid()}.tmp")
+    with open(meta_tmp, "w") as f:
         json.dump(meta, f, indent=2)
+    os.replace(meta_tmp, meta_path)
 
     print(
         f"[near RTT capped] Built capped sidecar for {len(capped_map)} datasets "
@@ -948,8 +952,11 @@ def save_capped_valid_combos_map(
     sidecar_name: str = "valid_combos_near_rtt_capped.pkl",
 ) -> Path:
     out_path = _capped_sidecar_path(cache_dir, sidecar_name)
-    with open(out_path, "wb") as f:
+    # Concurrent trainers share this sidecar: write beside it and rename, so a reader never sees a partial file.
+    tmp_path = out_path.with_name(f"{out_path.name}.{os.getpid()}.tmp")
+    with open(tmp_path, "wb") as f:
         pickle.dump(valid_combos_map, f, protocol=pickle.HIGHEST_PROTOCOL)
+    os.replace(tmp_path, out_path)
     total = sum(len(v) for v in valid_combos_map.values())
     print(f"[near RTT capped] Saved {out_path.name} ({total:,} entries) to {out_path}")
     return out_path
