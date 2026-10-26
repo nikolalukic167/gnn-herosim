@@ -1,0 +1,11 @@
+{
+ "rows": 2343,
+ "rows_used": 1862,
+ "topologies": 40,
+ "share_d_out_positive": 0.9672395273899034,
+ "median_ratio": 3.138426097480716,
+ "median_d_rtt": 28.629297133286784,
+ "median_d_out": 10.422859687485381,
+ "median_pred_out": 2.3518872425233104,
+ "PASS": false
+}
