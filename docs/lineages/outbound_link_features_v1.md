@@ -65,6 +65,7 @@ The bar contrast is expected to confirm: the v8 gnn already beat the same bar by
 
 ## Record
 
+- 2026-10-26 — **Cross-pin identity REPRODUCES** at the v9 serving pin `d7421382` (S7, jobs 907808 and 907809, clean, cc40s30327 g0 moderate, option D; outputs `flowcap/v9_identity/`; checked independently by SCIENTIST). The bar s0 cell matches its filed `0ec7cdcb` cell (averageElapsedTime 628.6594533664218), and the v8 gnn s1 cell matches its filed `02668ecf` cell (4.666787813514169, `uncut-linkstatic-gnn-eng-e40-seed1.pt`, the same charge). Every simulated field and endTime is identical, and the tasks, batch-size and lock `.npy` files are byte-identical. Only wall-time and host fields differ (decisionTiming, total_rtt_plus_inference, wallclock_s, host), plus one added zero-valued counter in the bar summary.
 - 2026-10-26 — **Reader frozen** (SCIENTIST, before any v9 cell): `scripts_cosim/llf_confirm_read.py` blob `5542904145e7f1647a9785ff0c81f658feeafc5e` (S7's `f4d5f582`, merged as `d7421382`), with `r1_attribution_v1_read.py` md5 `1cd0bfb6` and `confirm_rulings.json` md5 `b609acef`.
   - **Confirmation read:** `--mode cd --arm-set v9 --min-n 8 --charges <file> --pin <v9 serving pin>` plus `[--failed-learned <cells>]`, `--cells`, `--ids` and `--ids-sha256`. One pin for every arm; the group form is refused.
   - **Development read:** `--arm-set v9dev --tag DEV`, seeds 1–3, the 20-epoch checkpoints `uncut-linkout-*-seed<N>.pt`, direction only.
