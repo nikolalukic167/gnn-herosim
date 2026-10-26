@@ -137,11 +137,11 @@ Conditions on the arms:
     - This is what the checkpoint-metric finding predicts. It is not quoted as evidence for message passing.
   - **Secondary rows, primary file (whole run).**
     - **All cells:**
-      - moderate: gnn vs wide static −10.35 % (11/12), twin vs mlp static −1.80 % (8/12), gnn vs bar −15.67 % (9/12);
-      - heavy: gnn vs bar −42.80 % (9/12);
+      - moderate: gnn vs wide static −10.35 % (11/12), twin vs mlp static −1.80 % (8/12), gnn vs bar −15.67 % (9/12); this is vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
+      - heavy: gnn vs bar −42.80 % (9/12); this is vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
       - gnn vs the v6 fslabel gnn: −1.40 % moderate, +21.73 % heavy.
     - **Without runaways:**
-      - moderate: gnn vs wide static −10.35 % (12/12), gnn vs bar −15.67 % (10/12);
+      - moderate: gnn vs wide static −10.35 % (12/12), gnn vs bar −15.67 % (10/12); this is vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
       - gnn vs the fslabel gnn: −1.40 % moderate, −1.76 % heavy.
     - The after-360 rows have the same signs at moderate (gnn vs twin −6.88 %).
   - **What it rules out, and what it leaves.**

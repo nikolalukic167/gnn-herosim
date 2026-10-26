@@ -18,7 +18,7 @@
 
 | contrast | moderate, without runaways | moderate, all cells | heavy, without runaways | heavy, all cells |
 |---|---|---|---|---|
-| gnn vs bar | −15.67 % (10/12, p .034) | −15.67 % (9/12, p .20) | −22.89 % (9/12, p .34) | −42.80 % (9/12, p .38) |
+| gnn vs bar (vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.) | −15.67 % (10/12, p .034) | −15.67 % (9/12, p .20) | −22.89 % (9/12, p .34) | −42.80 % (9/12, p .38) |
 | gnn vs wide MLP | −10.35 % (12/12, p .0005) | −10.35 % (11/12, p .034) | −5.13 % (7/10, p .70) | −17.62 % (7/12, p .57) |
 | gnn vs same-input MLP | −9.68 % (11/12, p .034) | −9.68 % (10/12, p .23) | −4.20 % (5/9, p .91) | −22.48 % (8/12, p .11) |
 
@@ -120,14 +120,14 @@
 
   | test | without runaways (primary) | Holm (4) | all cells (guard) | seeds 1–3 / 4–6, without runaways |
   |---|---|---|---|---|
-  | gnn vs bar, moderate | −21.08 % (21/23, p .0031) | .0031 | −23.42 % (22/24, p .0022) | −20.3 % (24/24) / −19.2 % (21/23) |
-  | gnn vs bar, heavy | −26.11 % (18/20, p .0014) | .0029 | −56.58 % (20/24, p .025) | −31.9 % (20/23) / −28.9 % (20/21) |
+  | gnn vs bar, moderate (vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.) | −21.08 % (21/23, p .0031) | .0031 | −23.42 % (22/24, p .0022) | −20.3 % (24/24) / −19.2 % (21/23) |
+  | gnn vs bar, heavy (vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.) | −26.11 % (18/20, p .0014) | .0029 | −56.58 % (20/24, p .025) | −31.9 % (20/23) / −28.9 % (20/21) |
   | gnn vs wide, moderate | −9.27 % (22/23, p .00015) | .00049 | −9.47 % (20/24, p .065) | −8.4 % (23/24) / −10.7 % (22/23) |
   | gnn vs wide, heavy | −33.22 % (14/15, p .00012) | .00049 | −53.16 % (22/24, p .00085) | −25.9 % (16/19) / −27.2 % (15/18) |
 
   - **Per seed.** All six seeds are negative on all four tests in both readings. gnn vs wide spreads by seed: moderate −4.3 to −15.7 %; heavy without runaways −4.8 to −34.4 %.
   - **Runaways.** Distinct (topology, window) cells flagged at heavy: wide 31, mlp 27, bar 17, gnn 16. At moderate: bar 10, wide 5, gnn 4, mlp 1. Under the any-seed-flags-cell ruling, six seeds drop more pairs than three.
-  - **Descriptive, without runaways.** After 360 s, gnn vs bar −17.0 % (21/23) moderate and −18.0 % (17/19) heavy; gnn vs wide −9.5 % (21/22) and −44.1 % (11/11). gnn vs same-input MLP −7.3 % (22/23) moderate and −6.9 % (11/15) heavy. Wide vs bar −10.8 % (22/24) moderate and +17.9 % (7/16) heavy. MLP vs bar −15.0 % (21/23) moderate.
+  - **Descriptive, without runaways.** After 360 s, gnn vs bar −17.0 % (21/23) moderate and −18.0 % (17/19) heavy; gnn vs wide −9.5 % (21/22) and −44.1 % (11/11). gnn vs same-input MLP −7.3 % (22/23) moderate and −6.9 % (11/15) heavy. Wide vs bar −10.8 % (22/24) moderate and +17.9 % (7/16) heavy. MLP vs bar −15.0 % (21/23) moderate. This is vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
   - **Not quoted.** The reactive and random rows: see the head.
   - **What it settles, and what it does not.**
     - Settled: under option D the static link-feature gnn beats the CD bar and a parameter-matched pointwise model on fresh topologies.
