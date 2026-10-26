@@ -56,3 +56,17 @@ def test_the_gate_refuses_any_v9_kind_in_the_w_alias_table(tmp_path, monkeypatch
             monkeypatch.setattr(G, "DC_W_FILE", str(bad))
             with pytest.raises(SystemExit, match="never an alias"):
                 G.dc_cost_ms("ra_gnn_eng_combfl_linkstatic_e40_nosplit", 1.0, "moderate")
+
+
+def test_ckpt_suffix_applies_only_to_v9_kinds_and_the_gate_fails_loud_on_a_missing_sidecar(monkeypatch):
+    import fresh_topo_burst_v1_gate as G
+
+    monkeypatch.delenv("R1A_CKPT_SUFFIX", raising=False)
+    assert all(G.ckpt_suffix(k) == "" for k in KINDS + G.COMB_OUT_E40)
+    monkeypatch.setenv("R1A_CKPT_SUFFIX", "-final")
+    assert all(G.ckpt_suffix(k) == "-final" for k in KINDS + G.COMB_OUT_E40)
+    assert G.ckpt_suffix("ra_gnn_eng_combfl_linkstatic_e40") == ""
+    src = open(REPO_ROOT / "scripts_cosim" / "fresh_topo_burst_v1_gate.py").read()
+    assert 'f"{stem}-seed{seed}{sfx}.pt"' in src and "R1A_CKPT_SUFFIX={sfx!r} but the sidecar {side} is missing" in src
+    rd = open(REPO_ROOT / "scripts_cosim" / "llf_confirm_read.py").read()
+    assert "V9_CKPT_SUFFIX if arm_set_name == \"v9\" else None" in rd
