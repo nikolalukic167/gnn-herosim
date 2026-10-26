@@ -51,7 +51,7 @@ The parent's, with `confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477
 - **Primary family: 8 tests, Holm over the 8.** gnn v9 vs {bar, v9 twin, v9 wide MLP, v9 same-input MLP} × {moderate, heavy}. Primary reading without runaways; the all-cells reading is a guard (a test cannot be CONFIRMED while its all-cells median is ≥ 0).
 - **Labels per test.** CONFIRMED: median < 0, Holm p < .05, all-cells median < 0. DIRECTION: median < 0, not CONFIRMED. NOT-FASTER: median ≥ 0 or no topology left. A contrast is CONFIRMED when both rungs are.
 - **Secondary, Holm over its own pair:** v9 gnn vs v8 static gnn, moderate and heavy. Descriptive beside every test: the all-cells row, per-seed medians, the after-360 s row, the runaway list per arm. Heavy is runaway-dominated in this physics; quote it as a direction plus Holm, not a magnitude.
-- **Reader.** `llf_confirm_read.py`, mode `cd`, extended for the v9 arm names, the 8-test family, the secondary pair and the rules above; it checks the id-list sha256, every cell's pin per group, each learned cell's checkpoint basename and decision-charge string against the arm and seed table. Its default mode must stay byte for byte: a test reproduces the default read and the filed cd reads (`llf_cd_confirm_v1`, `mp_confirm_v1` `read_primary.json` md5 `b8c8b75f…`, `scale_d_v1` read A `12f5c485…` and read B `b818cd18…`) in every key except `reader_sha256`. SCIENTIST freezes the blob before the first cell is read; one read.
+- **Reader.** `llf_confirm_read.py`, mode `cd`, extended for the v9 arm names, the 8-test family, the secondary pair and the rules above; it checks the id-list sha256, every cell's pin per group, each learned cell's checkpoint basename and decision-charge string against the arm and seed table. Its default mode must stay byte for byte: a test reproduces the default read and the filed cd reads (`llf_cd_confirm_v1`, `mp_confirm_v1` `read_primary.json` md5 `b8c8b75f…`, `scale_d_v1` read A `12f5c485…` and read B `b818cd18…`) in every key except `reader_sha256`. SCIENTIST freezes the blob before the first cell is read; one read. **Frozen** at blob `55429041` (merged `d7421382`); see the Record.
 
 ## Cost (rule 6: the live gate is part of the plan)
 
@@ -65,6 +65,12 @@ The bar contrast is expected to confirm: the v8 gnn already beat the same bar by
 
 ## Record
 
+- 2026-10-26 — **Reader frozen** (SCIENTIST, before any v9 cell): `scripts_cosim/llf_confirm_read.py` blob `5542904145e7f1647a9785ff0c81f658feeafc5e` (S7's `f4d5f582`, merged as `d7421382`), with `r1_attribution_v1_read.py` md5 `1cd0bfb6` and `confirm_rulings.json` md5 `b609acef`.
+  - **Confirmation read:** `--mode cd --arm-set v9 --min-n 8 --charges <file> --pin <v9 serving pin>` plus `[--failed-learned <cells>]`, `--cells`, `--ids` and `--ids-sha256`. One pin for every arm; the group form is refused.
+  - **Development read:** `--arm-set v9dev --tag DEV`, seeds 1–3, the 20-epoch checkpoints `uncut-linkout-*-seed<N>.pt`, direction only.
+  - **Charges:** the `--charges` file is generated from the arm's own `decision_cost_w.json` entries (the dev `_linkout_nosplit` kinds for the development read, the `_linkout_e40_nosplit` kinds for the confirmation read), and its md5 is filed before that read. The reader records its sha256 and refuses a v8 value; the gate refuses an aliased v9 w.
+  - **Reproduced** with this blob, in every key except `reader_sha256`: `mp_confirm_v1` `read_primary.json` (`b8c8b75f`), `scale_d_v1` `read_A.json` (`12f5c485`) and `read_B.json` (`b818cd18`), `llf_cd_confirm_v1` `read_primary_cd.json` (`05d3cbe5`), and the default-mode `read_primary_A_epoch40.json` (`7f882e8c`).
+  - **Still before cells:** the identity rerun of a bar s0 cell and a v8 gnn s1 parent cell at the v9 serving pin.
 - 2026-10-26 — **Signed** (SCIENTIST, before any v9 checkpoint, mint or cell, and before the counted probe run).
   - **Amendments, applied by S7 in `ba792fa6`:**
     - the frozen probe files, with the md5 gate in the sbatch and the ≥ 20-row clause;
