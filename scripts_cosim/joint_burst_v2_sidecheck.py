@@ -50,19 +50,23 @@ COMB_V7_ARMS = {"ra_gnn_eng_v7": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v7": RA_ARM
                 "ra_gnn_eng_v7conv": RA_ARMS["ra_gnn_eng"]}  # variant (b): the same gnn with mp_link_edge_conv (E1-E3 in the conv, re-encoded per placement)
 # live_link_features_v1, the static link block: the same architectures on partial_state_v8 (v7 + S1-S3, width 33); the gnn alone carries mp_link_static_attr
 COMB_V8_ARMS = {"ra_gnn_eng_v8": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v8": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v8": RA_ARMS["ra_twin_eng"]}
+# outbound_link_features_v1: the same architectures on partial_state_v9 (v8 + R1-R3, U1, width 37); the gnn alone carries mp_link_static_attr (v8's conv attribute)
+COMB_V9_ARMS = {"ra_gnn_eng_v9": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v9": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v9": RA_ARMS["ra_twin_eng"]}
 ARM2_RANDOM_PREFIX_K = {"ra_gnn_eng_arm2k0": 0, "ra_twin_eng_arm2k0": 0}  # Arm 2-K0; every other Arm 2 arm is K = 2
 
 
 def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
-    kind, mp_off, raw, conv, phys = {**RA_ARMS, **ARM2_ARMS, **COMB_V6_ARMS, **COMB_V7_ARMS, **COMB_V8_ARMS}[arm]
+    kind, mp_off, raw, conv, phys = {**RA_ARMS, **ARM2_ARMS, **COMB_V6_ARMS, **COMB_V7_ARMS, **COMB_V8_ARMS, **COMB_V9_ARMS}[arm]
     graph_free = kind != "gnn"
     want = {
-        "arm_kind": kind, "disable_message_passing": mp_off, "partial_state_contract": "partial_state_v8" if arm in COMB_V8_ARMS else "partial_state_v7" if arm in COMB_V7_ARMS else "partial_state_v6" if arm in COMB_V6_ARMS else "partial_state_v5",
+        "arm_kind": kind, "disable_message_passing": mp_off, "partial_state_contract": "partial_state_v9" if arm in COMB_V9_ARMS else "partial_state_v8" if arm in COMB_V8_ARMS else "partial_state_v7" if arm in COMB_V7_ARMS else "partial_state_v6" if arm in COMB_V6_ARMS else "partial_state_v5",
         "load_seconds": True, "exchange_seconds": True, "full_context_ce_weight": 1.0, "dag_alpha_key": want_alpha,
         "mp_residual": False, "plan_raw": raw, "plan_raw_sum": False, "plan_raw_local": False,
         "mp_bipartite_edge_conv": conv, "mp_bipartite_edge_attr_zero": conv and not phys,
-        "mp_peer_edges": not graph_free, "partial_state_feature_dim": 2 if raw else 33 if arm in COMB_V8_ARMS else 30 if arm in COMB_V7_ARMS else 27,
+        "mp_peer_edges": not graph_free, "partial_state_feature_dim": 2 if raw else 37 if arm in COMB_V9_ARMS else 33 if arm in COMB_V8_ARMS else 30 if arm in COMB_V7_ARMS else 27,
     }
+    if arm in COMB_V9_ARMS:
+        want["mp_link_static_attr"] = arm == "ra_gnn_eng_v9"
     if arm in COMB_V8_ARMS:
         want["mp_link_static_attr"] = arm == "ra_gnn_eng_v8"  # the flag is weight-visible and sidecar-recorded; older sidecars carry no such key
     if arm in ARM2_ARMS:
@@ -101,7 +105,7 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
 def main() -> int:
     contract_path, arm, split, want_alpha = sys.argv[1:5]
     sc = json.load(open(contract_path))
-    if arm in RA_ARMS or arm in ARM2_ARMS or arm in COMB_V6_ARMS or arm in COMB_V7_ARMS or arm in COMB_V8_ARMS:
+    if arm in RA_ARMS or arm in ARM2_ARMS or arm in COMB_V6_ARMS or arm in COMB_V7_ARMS or arm in COMB_V8_ARMS or arm in COMB_V9_ARMS:
         return check_ra(sc, arm, split, want_alpha)
     aggr = "sum" if arm in AGG_BASE else "mean"
     arm = AGG_BASE.get(arm, arm)

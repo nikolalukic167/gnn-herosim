@@ -25,6 +25,10 @@ case "$BASE" in
   uncut_linkstatic_twin) WANT=uncut-linkstatic-twin; ARMCHK=ra_twin_eng_v8; VENUE=cpu;;
   uncut_linkstatic_mlp) WANT=uncut-linkstatic-mlp-same; ARMCHK=ra_mlp_same_v8; VENUE=cpu;;
   uncut_linkstatic_mlp_wide) WANT=uncut-linkstatic-mlp-wide; ARMCHK=ra_mlp_same_v8; VENUE=cpu;;
+  uncut_linkout_gnn) WANT=uncut-linkout-gnn-eng; ARMCHK=ra_gnn_eng_v9; VENUE=cpu;;
+  uncut_linkout_twin) WANT=uncut-linkout-twin; ARMCHK=ra_twin_eng_v9; VENUE=cpu;;
+  uncut_linkout_mlp) WANT=uncut-linkout-mlp-same; ARMCHK=ra_mlp_same_v9; VENUE=cpu;;
+  uncut_linkout_mlp_wide) WANT=uncut-linkout-mlp-wide; ARMCHK=ra_mlp_same_v9; VENUE=cpu;;
   uncut_linkconv_gnn) WANT=uncut-linkconv-gnn-eng; ARMCHK=ra_gnn_eng_v7conv; VENUE=gpu;;
   uncut_linkconv_gnn_rep) WANT=uncut-linkconv-gnn-eng-rep; ARMCHK=ra_gnn_eng_v7conv; VENUE=gpu;;
   uncut_linkconv_twin) WANT=uncut-link-twin-gpu; ARMCHK=ra_twin_eng_v7; VENUE=gpu;;
