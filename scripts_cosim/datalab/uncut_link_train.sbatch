@@ -35,7 +35,7 @@ case "$BASE" in
   *) echo "FAIL LOUD: CFGN $CFGN"; exit 1;;
 esac
 [[ $EP != 20 ]] && WANT=$WANT-e$EP
-[[ "$S" =~ ^[1-3]$ ]] || { echo "FAIL LOUD: seed $S"; exit 1; }
+[[ "$S" =~ ^[1-6]$ ]] || { echo "FAIL LOUD: seed $S"; exit 1; }
 cd "$WT"
 for v in $(compgen -e | grep -E '^(HEROSIM_|GNN_|COSIM_|LIVE_AUDIT_|GATE_|SIM_|QUEUE_FEATURE|MAX_PLACEMENT|NEAR_RTT_|PARTIAL_STATE|R1A_|TRAIN_INIT)'); do unset "$v"; done
 if ! command -v micromamba >/dev/null 2>&1; then source "${HOME}/.bashrc"; fi
