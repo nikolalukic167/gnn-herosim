@@ -21,6 +21,8 @@ KINDS = {"gnn": "ra_gnn_eng_combfl_link_nosplit", "twin": "ra_twin_eng_combfl_li
 # variant (b), re-encode per placement: --kinds conv freezes its one kind (series: H3pre, C_conv, H3end)
 KINDS_CONV = {"conv": "ra_gnn_eng_combfl_linkconv_nosplit"}
 KINDS_V8 = {"gnn": "ra_gnn_eng_combfl_linkstatic_nosplit", "twin": "ra_twin_eng_combfl_linkstatic_nosplit", "mlp": "ra_mlp_same_combfl_linkstatic_nosplit", "wide": "ra_mlp_wide_combfl_linkstatic_nosplit"}
+# outbound_link_features_v1: the partial_state_v9 kinds (--kinds v9; same recipe, same H3 control)
+KINDS_V9 = {"gnn": "ra_gnn_eng_combfl_linkout_nosplit", "twin": "ra_twin_eng_combfl_linkout_nosplit", "mlp": "ra_mlp_same_combfl_linkout_nosplit", "wide": "ra_mlp_wide_combfl_linkout_nosplit"}
 RUNGS = ("moderate", "heavy")
 LIMIT = U.DRIFT
 
@@ -56,7 +58,7 @@ def main(argv=None):
     ap.add_argument("--series", required=True)
     ap.add_argument("--filed-h3", required=True)
     ap.add_argument("--out")
-    ap.add_argument("--kinds", choices=("v7", "v8", "conv"), default="v7")
+    ap.add_argument("--kinds", choices=("v7", "v8", "v9", "conv"), default="v7")
     a = ap.parse_args(argv)
     pre, end = h3(os.path.join(a.series, "H3pre_B")), h3(os.path.join(a.series, "H3end_B"))
     fpre, fend = h3(os.path.join(a.filed_h3, "H3pre_B")), h3(os.path.join(a.filed_h3, "H3end_B"))
@@ -72,7 +74,7 @@ def main(argv=None):
         if a.out:
             json.dump(out, open(a.out, "w"), indent=1)
         return 1
-    out["kinds"] = {arm: kind_row(a.series, tag, arm) for tag, arm in {"v7": KINDS, "v8": KINDS_V8, "conv": KINDS_CONV}[a.kinds].items()}
+    out["kinds"] = {arm: kind_row(a.series, tag, arm) for tag, arm in {"v7": KINDS, "v8": KINDS_V8, "v9": KINDS_V9, "conv": KINDS_CONV}[a.kinds].items()}
     print(json.dumps(out, indent=1))
     if a.out:
         json.dump(out, open(a.out, "w"), indent=1)
