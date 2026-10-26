@@ -48,6 +48,14 @@ CD_PRIMARY = (("gnn", "bar"), ("gnn", "wide"))
 CD_ARM_REGISTRY = {**CD_ARMS, "twin": ARMS["twin"], "heft": "heft_k100"}   # --arms picks from these (knative_stable_v1, scale_d_v1: heft; mp_confirm_v1: twin)
 S0_ARMS = S0_ARMS + ("heft",)
 LABELS = ("MP-ATTRIBUTED", "MP-DIRECTION", "TIE", "TWIN-FASTER")
+# outbound_link_features_v1 (--arm-set v9): the four partial_state_v9 e40 arms, the v8 static e40 gnn as the secondary arm, and the bar. All served at one v9 serving pin.
+V9_ARM_REGISTRY = {"gnn": "ra_gnn_eng_combfl_linkout_e40_nosplit_k100", "twin": "ra_twin_eng_combfl_linkout_e40_nosplit_k100", "mlp": "ra_mlp_same_combfl_linkout_e40_nosplit_k100",
+                   "wide": "ra_mlp_wide_combfl_linkout_e40_nosplit_k100", "v8": ARMS["gnn"], "bar": BAR}
+V9_CKPT = {"gnn": "uncut-linkout-gnn-eng-e40-seed", "twin": "uncut-linkout-twin-e40-seed", "mlp": "uncut-linkout-mlp-same-e40-seed", "wide": "uncut-linkout-mlp-wide-e40-seed",
+           "v8": "uncut-linkstatic-gnn-eng-e40-seed"}
+V9_PRIMARY = (("gnn", "bar"), ("gnn", "twin"), ("gnn", "wide"), ("gnn", "mlp"))
+V9_SECONDARY = (("gnn", "v8"),)
+V9_CHARGED = ("gnn", "twin", "mlp", "wide")   # arms whose per-(arm, rung) decision charge comes from --charges (measured on the v9 code); the v8 arm keeps its llf_cd_confirm_v1 charge
 RUNAWAY_X = 10.0
 STATS = ("whole", "a360")
 
@@ -313,26 +321,28 @@ CHARGE_RATIO_REF24 = {("gnn", "moderate"): 1.45, ("gnn", "heavy"): 1.22, ("wide"
 CHARGE_LIMITED_X = 1.5
 
 
-def make_cd_check(arms=None, charge_rung=None):
+def make_cd_check(arms=None, charge_rung=None, ckpt=None, charge=None):
     """cd_check over `arms`; charge_rung maps a cell's rung to the rung whose registered charge it must carry (knative_stable_v1: f<x> -> moderate)."""
     arms = CD_ARMS if arms is None else arms
     charge_rung = charge_rung or {}
 
     def check(key, s, f):
         kind, seed, t, w, rung = key
-        return cd_check(key, s, f, arms, charge_rung.get(rung, rung))
+        return cd_check(key, s, f, arms, charge_rung.get(rung, rung), ckpt, charge)
     return check
 
 
-def cd_check(key, s, f, arms=None, crung=None):
+def cd_check(key, s, f, arms=None, crung=None, ckpt=None, charge=None):
     """Fail loud when a cell's served checkpoint or decision charge is not the registered one."""
     kind, seed, _t, _w, rung = key
     arms = CD_ARMS if arms is None else arms
     rung = rung if crung is None else crung
     env = s.get("env") or {}
+    ckpt = CD_CKPT if ckpt is None else ckpt
+    charge = CD_CHARGE if charge is None else charge
     arm = next(a for a, k in arms.items() if k == kind)
-    if arm in CD_CKPT:
-        want = f"{CD_CKPT[arm]}{seed}.pt"
+    if arm in ckpt:
+        want = f"{ckpt[arm]}{seed}.pt"
         got = os.path.basename(str(env.get("GNN_MODEL_PATH", "")))
         if got != want:
             raise SystemExit(f"FAIL LOUD: {f} served {got!r}, not {want}")
@@ -341,8 +351,8 @@ def cd_check(key, s, f, arms=None, crung=None):
             have = json.loads(raw)
         except (TypeError, ValueError):
             have = None
-        if have != CD_CHARGE[(arm, rung)]:
-            raise SystemExit(f"FAIL LOUD: {f} decision charge {raw!r}, not {CD_CHARGE[(arm, rung)]}")
+        if have != charge[(arm, rung)]:
+            raise SystemExit(f"FAIL LOUD: {f} decision charge {raw!r}, not {charge[(arm, rung)]}")
     elif arm in ("bar", "heft"):
         want = (CD_BAR_CHARGE if arm == "bar" else CD_HEFT_CHARGE)[rung]
         if float(env.get("HEROSIM_DECISION_COST_MS", "nan")) != want:
@@ -394,7 +404,7 @@ def charge_ratios(extra, arms, rungs):
 
 
 def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, flat=None, allow_missing=(), arms=None, primary_pairs=None, rungs=RUNGS,
-           servers=24, clients=None, failed_learned=(), admit_reactive=False, charge_rung=None, min_n=None, charge_ratio=False, tag=None):
+           servers=24, clients=None, failed_learned=(), admit_reactive=False, charge_rung=None, min_n=None, charge_ratio=False, tag=None, arm_set_name=None, charges=None, secondary_pairs=None):
     """llf_cd_confirm_v1: gnn vs bar and gnn vs wide x {moderate, heavy}; Holm over the 4 in each reading; the label reads without runaways with the all-cells sign guard.
     The keyword options extend it (every one off by default, so the filed llf_cd_confirm_v1 read is reproduced byte for byte):
       arms / primary_pairs / rungs   the arm set (names from CD_ARM_REGISTRY), the primary contrasts and the rungs; Holm over len(pairs) x len(rungs)
@@ -404,12 +414,33 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
       charge_rung                    {cell rung: rung whose registered charge it carries} (knative_stable_v1: the moderate copies)
       min_n                          UNDERPOWERED below this n_eff unless CONFIRMED (scale_d_v1 v3)
       charge_ratio                   report the measured/charged decision-time ratios and the gnn charge-limited flag (scale_d_v1 v3)
-      tag                            prefix every label (mp_confirm_v1: INTERIM for the seeds 1-3 read)"""
+      tag                            prefix every label (mp_confirm_v1: INTERIM for the seeds 1-3 read)
+      arm_set_name="v9"              outbound_link_features_v1: the V9_ARM_REGISTRY arms (default all six), V9_PRIMARY (4 contrasts) and the secondary family V9_SECONDARY with its own Holm;
+                                     charges is the parsed --charges file {"<arm>|<rung>": {bucket: ms}} for the four v9 learned arms (measured on the v9 code; required)
+      secondary_pairs                a second family (descriptive in the filed reads, here labelled): Holm over len(pairs) x len(rungs) on its own, the same label rule and blocks"""
     rul = check_rulings_cd(rulings)
     if out_path and os.path.exists(out_path):
         raise SystemExit(f"FAIL LOUD: {out_path} exists (read once)")
-    arm_set = CD_ARMS if arms is None else {a: CD_ARM_REGISTRY[a] for a in arms}
-    pairs = CD_PRIMARY if primary_pairs is None else tuple(primary_pairs)
+    if arm_set_name not in (None, "v9"):
+        raise SystemExit(f"FAIL LOUD: unknown arm set {arm_set_name!r}")
+    v9 = arm_set_name == "v9"
+    registry = V9_ARM_REGISTRY if v9 else CD_ARM_REGISTRY
+    arm_set = (V9_ARM_REGISTRY if v9 else CD_ARMS) if arms is None else {a: registry[a] for a in arms}
+    pairs = (V9_PRIMARY if v9 else CD_PRIMARY) if primary_pairs is None else tuple(primary_pairs)
+    sec_pairs = (V9_SECONDARY if v9 else ()) if secondary_pairs is None else tuple(secondary_pairs)
+    v9_charge = None
+    if v9:
+        if charges is None:
+            raise SystemExit("FAIL LOUD: the v9 arm set needs --charges (each v9 arm's own measured decision charge, never a v8 value)")
+        v9_charge = {(a, r): charges[f"{a}|{r}"] for a in V9_CHARGED if a in arm_set for r in rungs if f"{a}|{r}" in charges}
+        miss_c = sorted(f"{a}|{r}" for a in V9_CHARGED if a in arm_set for r in rungs if (a, r) not in v9_charge)
+        if miss_c:
+            raise SystemExit(f"FAIL LOUD: --charges lacks {miss_c}")
+        if "v8" in arm_set:
+            v9_charge.update({("v8", r): CD_CHARGE[("gnn", r)] for r in rungs})
+    for a, b in sec_pairs:
+        if a not in arm_set or b not in arm_set:
+            raise SystemExit(f"FAIL LOUD: secondary pair {a} vs {b} names an arm outside {sorted(arm_set)}")
     for a, b in pairs:
         if a not in arm_set or b not in arm_set:
             raise SystemExit(f"FAIL LOUD: primary pair {a} vs {b} names an arm outside {sorted(arm_set)}")
@@ -417,7 +448,7 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
         raise SystemExit("FAIL LOUD: admission reads the reactive cells, but reactive is not an arm")
     want_extra = admit_reactive or charge_ratio
     extra = {} if want_extra else None
-    check = cd_check if (arms is None and not charge_rung) else make_cd_check(arm_set, charge_rung)
+    check = cd_check if (arms is None and not charge_rung and not v9) else make_cd_check(arm_set, charge_rung, V9_CKPT if v9 else None, v9_charge)
     V, pins, pins_by_group = load(root, topos, pin, arm_set, check=check, seeds=seeds, flat=flat, allow_missing=allow_missing, rungs=rungs,
                                   servers=servers, clients=clients, failed_learned=failed_learned, extra=extra)
     excluded, admission = set(), None
@@ -437,6 +468,14 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
         hp = holm({k: v["p"] for k, v in rows.items()})
         primary[reading] = {k: {kk: vv for kk, vv in v.items() if kk != "per_topology"} | {"holm_p": hp[k]} for k, v in rows.items()}
     labels = {k: cd_label(primary["no_runaway"][k], primary["all"][k], blocked=blocked[k.split("|")[1]], min_n=min_n) for k in primary["no_runaway"]}
+    secondary_family = None
+    if sec_pairs:
+        secondary_family = {}
+        for reading in ("all", "no_runaway"):
+            rows = {f"{a}_vs_{b}|{r}": g.contrast(a, b, r, stat, reading) for a, b in sec_pairs for r in rungs}
+            hp = holm({k: v["p"] for k, v in rows.items()})
+            secondary_family[reading] = {k: {kk: vv for kk, vv in v.items() if kk != "per_topology"} | {"holm_p": hp[k]} for k, v in rows.items()}
+        labels |= {f"secondary|{k}": cd_label(secondary_family["no_runaway"][k], secondary_family["all"][k], blocked=blocked[k.split("|")[1]], min_n=min_n) for k in secondary_family["no_runaway"]}
     if tag:
         labels = {k: f"{tag}-{v}" for k, v in labels.items()}
     per_seed = {f"{a}_vs_{b}|{r}|{rd}": {s_: g.contrast(a, b, r, stat, rd, seed=s_)["median_pct"] for s_ in seeds} for a, b in pairs for r in rungs for rd in ("all", "no_runaway")}
@@ -454,7 +493,11 @@ def run_cd(root, rulings, topos, pin, out_path, ids_sha=None, seeds=CD_SEEDS, fl
     res = {"family": "llf_cd_confirm_v1 (read once)", "mode": "cd", "topologies": list(topos), "ids_sha256": ids_sha, "pins": pins, "pins_by_group": pins_by_group, "cells": len(V),
            "rulings": rul, "allowed_missing": sorted(f"cc40s{t}__{w}{r}__{k}_s{s_}" for k, s_, t, w, r in allow_missing), "primary_metric": stat, "labels": labels, "primary": primary, "seeds": list(seeds), "per_seed_median_pct": per_seed, "per_seed_block": per_block, "runaways": g.runaways(), "secondary": sec,
            "reader_sha256": hashlib.sha256(open(os.path.abspath(__file__), "rb").read()).hexdigest()}
-    opts = {"arms": arms, "primary_pairs": None if primary_pairs is None else [list(p_) for p_ in pairs], "rungs": None if tuple(rungs) == RUNGS else list(rungs),
+    if secondary_family is not None:
+        res["secondary_family"] = secondary_family
+    if v9:
+        res["charges"] = {f"{a}|{r}": c for (a, r), c in sorted(v9_charge.items())}
+    opts = {"arm_set": arm_set_name, "secondary_pairs": None if secondary_pairs is None else [list(p_) for p_ in sec_pairs], "arms": arms, "primary_pairs": None if primary_pairs is None else [list(p_) for p_ in pairs], "rungs": None if tuple(rungs) == RUNGS else list(rungs),
             "servers": None if servers == 24 else servers, "clients": clients, "failed_learned": sorted(f"cc40s{t}__{w}{r}__{k}_s{s_}" for k, s_, t, w, r in failed_learned) or None,
             "admit_reactive": admit_reactive or None, "charge_rung": charge_rung or None, "min_n": min_n, "charge_ratio": charge_ratio or None, "tag": tag}
     opts = {k: v for k, v in opts.items() if v is not None}
@@ -537,6 +580,9 @@ def main():
     ap.add_argument("--min-n", type=int, help="cd mode: UNDERPOWERED below this n_eff unless CONFIRMED (scale_d_v1 v3: 8)")
     ap.add_argument("--charge-ratio", action="store_true", help="cd mode: report measured/charged decision-time ratios (scale_d_v1 v3)")
     ap.add_argument("--tag", help="cd mode: prefix every label (mp_confirm_v1: INTERIM)")
+    ap.add_argument("--arm-set", choices=("v9",), help="cd mode: outbound_link_features_v1 arms (v9 gnn/twin/wide/mlp, the v8 gnn as secondary, the bar)")
+    ap.add_argument("--charges", help="cd mode, --arm-set v9: JSON {\"<arm>|<rung>\": {bucket: ms}} of each v9 arm's measured decision charge; its sha256 is recorded")
+    ap.add_argument("--secondary", help="cd mode: comma-separated A:B pairs of a second family with its own Holm (v9 default gnn:v8)")
     a = ap.parse_args()
     if a.mode == "cd":
         if not a.ids or not a.ids_sha256:
@@ -556,11 +602,21 @@ def main():
                 out.append((m.group(4), int(m.group(5)), int(m.group(1)), m.group(2), m.group(3)))
             return out
         kw = {}
+        if a.arm_set:
+            kw["arm_set_name"] = a.arm_set
+            if not a.charges:
+                raise SystemExit("FAIL LOUD: --arm-set v9 needs --charges")
+            kw["charges"] = json.load(open(a.charges))
+        elif a.charges:
+            raise SystemExit("FAIL LOUD: --charges is only read with --arm-set v9")
+        if a.secondary:
+            kw["secondary_pairs"] = [tuple(x.split(":")) for x in a.secondary.split(",")]
         if a.arms:
             kw["arms"] = a.arms.split(",")
-            bad = [x for x in kw["arms"] if x not in CD_ARM_REGISTRY]
+            registry = V9_ARM_REGISTRY if a.arm_set else CD_ARM_REGISTRY
+            bad = [x for x in kw["arms"] if x not in registry]
             if bad:
-                raise SystemExit(f"FAIL LOUD: --arms {bad} not in {sorted(CD_ARM_REGISTRY)}")
+                raise SystemExit(f"FAIL LOUD: --arms {bad} not in {sorted(registry)}")
         if a.primary:
             kw["primary_pairs"] = [tuple(x.split(":")) for x in a.primary.split(",")]
         if a.rungs:
