@@ -65,6 +65,14 @@ The bar contrast is expected to confirm: the v8 gnn already beat the same bar by
 
 ## Record
 
+- 2026-10-26 — **DEV read** (descriptive, direction only; every label DEV-UNDERPOWERED, n = 6). Run once by SCIENTIST: `outbound_link_features_v1/reads/read_dev.json` (sha256 `84dc666bb8fb8dcd2467b0742c22e91617b466e26ebd0552b4dfeed37cc4f9b8`), with the frozen blob `55429041`, `--arm-set v9dev --tag DEV --min-n 8 --charge-ratio`, `--charges scripts_cosim/v9_charges.json` (md5 `b58396dc`), one `--pin 1a1bb8fb`, ids 30176–30181, 312 cells. gnn vs X, paired median over topologies, without runaways / all cells:
+  - bar: moderate −21.2 % / −22.7 % (6/6), heavy −24.5 % / −53.2 % (6/6). vs the registered bar (0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
+  - twin: moderate −7.3 % / −7.3 % (5/6), heavy −4.8 % (4/6) / +52.4 % (2/6).
+  - same-input MLP: moderate −9.5 % / −9.5 % (5/6), heavy −20.7 % (5/5) / −54.6 % (5/6).
+  - wide MLP: moderate −15.6 % (5/6) / −17.2 % (5/6), heavy −93.8 % (5/5) / −93.0 % (6/6).
+  - No row is charge-limited. The collapse check (s1 gnn and twin) passes.
+  - Seed instability: the gnn's 7 heavy runaway cells are at seeds 2–3 (cc40s30181 g0 heavy s2 357 s and s3 104 s, plus 30177, 30178 and 30179 at s3). Per-seed gnn vs twin heavy (all cells): s1 −8.4 %, s2 +1.0 %, s3 +276 %.
+  - No recipe change (the expert's ruling).
 - 2026-10-26 — **Dev w filed and dev cells launched.** S6 measured the dev w on the seed-1 20-epoch checkpoints (job 907967, series `series_v9_d7421382_dev_r3`, H3 drift 0.10 / 0.31 %), merged as 1a1bb8fb; `scripts_cosim/v9_charges.json` md5 b58396dc (k = 1.0). w ms per plan, moderate / heavy: gnn 3.994 / 4.325, twin 3.438 / 3.991, mlp 3.457 / 8.503, wide 4.633 / 6.417. The 312 dev cells (jobs 908004–908019) run at serving pin 1a1bb8fb for every arm, bar included.
 - 2026-10-26 — **Dev w note and e40 calibration rule** (SCIENTIST; filed before any dev cell is read and before the e40 calibration).
   - The MLP's heavy dev w (8.50 ms per plan, job 907967) was measured on a calibration cell that ran away: cc40s19461 g0 heavy, 881 s per task against 3.1–7.8 s for the other kinds, link capture 102 s against 5–7 s. The dev w stands as filed, so gnn vs mlp heavy in the dev read is slightly flattered (under 1 % of a heavy latency at first order).
