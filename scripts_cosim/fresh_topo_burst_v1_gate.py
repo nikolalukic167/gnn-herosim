@@ -263,6 +263,7 @@ COMB_STEMS.update({f"{k}_e40": COMB_STEMS[k] + "-e40" for k in COMB_OUT})
 COMB_CHECK.update({"ra_gnn_eng_combfl_linkout": "ra_gnn_eng_v9", "ra_twin_eng_combfl_linkout": "ra_twin_eng_v9", "ra_mlp_same_combfl_linkout": "ra_mlp_same_v9", "ra_mlp_wide_combfl_linkout": "ra_mlp_same_v9"})
 COMB_CHECK.update({f"{k}_e40": COMB_CHECK[k] for k in COMB_OUT})
 OUT_W_KINDS = frozenset(k + sfx for k in COMB_OUT + COMB_OUT_E40 for sfx in ("", "_nosplit", "_nosplit_k100"))   # the v9 kinds as a w lookup can name them
+E40_W_FROM_DEV = {f"{k}_e40_nosplit": f"{k}_nosplit" for k in ("ra_gnn_eng_combfl_linkout", "ra_twin_eng_combfl_linkout", "ra_mlp_wide_combfl_linkout")}  # the only v9 aliases: an e40 kind is charged its dev kind's filed w (user ruling 2026-10-26: no exclusive e40 calibration; same v9 code and architectures, weights differ)
 RA_KINDS = tuple(f"ra_{a}" for a in RA_ARMS) + ARM2_KINDS + ARM2K0_KINDS + ARM1_KINDS + COMB_KINDS + COMB_FAST + COMB_FLREG + COMB_TWIN + COMB_PHYSMP + COMB_FSLABEL + COMB_WIDE + COMB_WIDEFS + COMB_DGU + COMB_LINK + COMB_STATIC + COMB_STATIC_E40 + COMB_OUT + COMB_OUT_E40 + COMB_LINKX
 RA_MP_OFF = ("ra_twin_eng", "ra_twin_raw", "ra_twin_eng_arm2", "ra_twin_eng_arm2k0", "ra_twin_eng_arm1", "ra_twin_eng_combfl", "ra_twin_eng_fslabel_combfl", "ra_twin_eng_combfl_dgu", "ra_twin_eng_combfl_link", "ra_twin_eng_combfl_linkstatic", "ra_twin_eng_combfl_link_gpu", "ra_twin_eng_combfl_link_e100", "ra_twin_eng_combfl_link_gpu_e100", "ra_twin_eng_combfl_linkstatic_e40", "ra_twin_eng_combfl_linkout", "ra_twin_eng_combfl_linkout_e40")  # GNN_DISABLE_MESSAGE_PASSING=1; the graph-free arms have no such switch
 # phase r1a (the r1_attribution_v1 live gate): classical arms run once (seed 0); learned arms and the seeded-CD arms (CD refine applied
@@ -457,9 +458,10 @@ def dc_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[Tuple[str, 
     if k is None:
         return None
     f = json.load(open(DC_W_FILE))
-    aliased_out = sorted(OUT_W_KINDS & set(f.get("w_ms_per_plan_alias", {})))
+    al = f.get("w_ms_per_plan_alias", {})
+    aliased_out = sorted(k for k in OUT_W_KINDS & set(al) if E40_W_FROM_DEV.get(k) != al[k])
     if aliased_out:
-        raise SystemExit(f"FAIL LOUD: {DC_W_FILE} w_ms_per_plan_alias names the v9 kinds {aliased_out}; each v9 kind carries its own measured w, never an alias")
+        raise SystemExit(f"FAIL LOUD: {DC_W_FILE} w_ms_per_plan_alias names the v9 kinds {aliased_out}; each v9 kind carries its own measured w, never an alias (except {sorted(E40_W_FROM_DEV)} -> their own dev kind)")
     kind = f.get("w_ms_per_plan_alias", {}).get(kind, kind)  # an aliased kind is charged the named kind's frozen w (the alias's source is in the file)
     byb = f.get("w_ms_per_plan_by_bucket", {}).get(kind, {})
     if rung in byb:
