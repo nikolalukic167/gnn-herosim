@@ -48,7 +48,8 @@ def test_the_gate_refuses_any_v9_kind_in_the_w_alias_table(tmp_path, monkeypatch
     import fresh_topo_burst_v1_gate as G
 
     f = json.load(open(G.DC_W_FILE))
-    assert not (G.OUT_W_KINDS & set(f.get("w_ms_per_plan_alias", {})))
+    al = f.get("w_ms_per_plan_alias", {})
+    assert {k: al[k] for k in G.OUT_W_KINDS & set(al)} == G.E40_W_FROM_DEV  # the only aliased v9 entries
     for kind in KINDS + G.COMB_OUT_E40:
         for sfx in ("", "_nosplit"):
             bad = tmp_path / "w.json"
@@ -70,3 +71,34 @@ def test_ckpt_suffix_applies_only_to_v9_kinds_and_the_gate_fails_loud_on_a_missi
     assert 'f"{stem}-seed{seed}{sfx}.pt"' in src and "R1A_CKPT_SUFFIX={sfx!r} but the sidecar {side} is missing" in src
     rd = open(REPO_ROOT / "scripts_cosim" / "llf_confirm_read.py").read()
     assert "V9_CKPT_SUFFIX if arm_set_name == \"v9\" else None" in rd
+
+
+def test_only_the_three_e40_kinds_alias_and_each_to_its_own_dev_kind(tmp_path, monkeypatch):
+    import pytest
+
+    import fresh_topo_burst_v1_gate as G
+
+    f = json.load(open(G.DC_W_FILE))
+    assert set(G.E40_W_FROM_DEV) == {f"{k}_e40_nosplit" for k in ("ra_gnn_eng_combfl_linkout", "ra_twin_eng_combfl_linkout", "ra_mlp_wide_combfl_linkout")}
+    for e, d in G.E40_W_FROM_DEV.items():
+        assert d == e.replace("_e40", "") and d in f["w_ms_per_plan"]
+        assert G.dc_cost_ms(e, 1.0, "heavy") == G.dc_cost_ms(d, 1.0, "heavy")
+    for e, d in G.E40_W_FROM_DEV.items():  # a re-pointed alias, or one for any other v9 kind, is refused
+        for key, val in ((e, "ra_gnn_eng_combfl_linkstatic_e40_nosplit"), ("ra_mlp_same_combfl_linkout_e40_nosplit", d), ("ra_gnn_eng_combfl_linkout_nosplit", d)):
+            bad = tmp_path / "w.json"
+            bad.write_text(json.dumps({**f, "w_ms_per_plan_alias": {**f["w_ms_per_plan_alias"], key: val}}))
+            monkeypatch.setattr(G, "DC_W_FILE", str(bad))
+            with pytest.raises(SystemExit, match="never an alias"):
+                G.dc_cost_ms("ra_gnn_eng_combfl_linkstatic_e40_nosplit", 1.0, "moderate")
+
+
+def test_mlp_e40_entry_is_the_dev_moderate_w_at_both_rungs():
+    import fresh_topo_burst_v1_gate as G
+
+    f = json.load(open(G.DC_W_FILE))
+    e, d = "ra_mlp_same_combfl_linkout_e40_nosplit", "ra_mlp_same_combfl_linkout_nosplit"
+    assert e not in f["w_ms_per_plan_alias"]
+    assert f["w_ms_per_plan"][e] == {"moderate": f["w_ms_per_plan"][d]["moderate"], "heavy": f["w_ms_per_plan"][d]["moderate"]}
+    assert f["w_ms_per_plan_by_bucket"][e]["heavy"] == f["w_ms_per_plan_by_bucket"][d]["moderate"] == f["w_ms_per_plan_by_bucket"][e]["moderate"]
+    assert f["w_ms_per_plan"][d]["heavy"] > 2 * f["w_ms_per_plan"][d]["moderate"]  # the runaway dev cell's w is not used
+    assert "_source_" + e in f
