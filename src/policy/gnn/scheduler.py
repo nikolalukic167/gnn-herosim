@@ -268,6 +268,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self._cd_refiner = None
         self.prefix_self_refine_batches = 0
         self.prefix_self_refine_moves = 0
+        self.prefix_self_refine_evals = 0
         self.arm2_batches = 0
         self.arm2_encodes = 0
         self.arm2_extra_evals = 0
@@ -988,6 +989,10 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         if hasattr(graph, "_self_refine_moves"):
             self.prefix_self_refine_batches += 1
             self.prefix_self_refine_moves += int(graph._self_refine_moves)
+            from src.placement.decision_cost import meter
+
+            self.prefix_self_refine_evals += int(graph._self_refine_evals)
+            meter(self, int(graph._self_refine_evals))  # each refine pass re-scores every task: one plan-equivalent per task per pass run
         trace_path = os.environ.get("GNN_PREFIX_TRACE_PATH", "").strip()
         # serving_gap_v1: GNN_PREFIX_TRACE_EVERY=N traces only every Nth served batch, so a
         # production run can hand back ~500 graph-carrying records instead of 45,375 (a full

@@ -482,7 +482,20 @@ R1A_NOSPLIT = ("ra_gnn_eng_nosplit", "ra_gnn_eng_physmp_nosplit", "ra_twin_eng_n
 R1A_SELFSEARCH = ("ra_gnn_eng_selfsearch", "ra_gnn_eng_physmp_selfsearch", "ra_twin_eng_selfsearch")  # gnn_selfsearch arms, checkpoint seeds; name them in R1A_ARMS
 R1A_CDX = ("ra_gnn_eng_cdxapply", "ra_gnn_eng_physmp_cdxapply", "ra_gnn_eng_cdxexg", "ra_gnn_eng_cdxpra", "ra_gnn_eng_cdxprb", "ra_twin_eng_cdxpra", "ra_gnn_eng_cdxib0", "ra_gnn_eng_cdxhib0", "ra_twin_eng_cdxib0", "ra_twin_eng_cdxapply",
             *ARM2_ALL, *(f"{k}_nosplit" for k in ARM2_ALL))  # cdxapply diagnostics; Arm 2 (bare kinds are never run, the _nosplit ones are the gate arms), checkpoint seeds; name them in R1A_ARMS
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX
+# refine_pilot: "<v8 e40 kind>_nosplit_sr<N>" serves the same checkpoint with N self-refine passes (GNN_PREFIX_SELF_REFINE=N); the passes are metered into
+# the decision-cost charge (one plan-equivalent per task scored per pass run), so "<kind>_sr<N>_k100" pays for them at the base kind's w.
+SR_PASSES = {"_sr1": 1, "_sr2": 2}
+SR_KINDS = tuple(f"{k}_nosplit{sr}" for k in COMB_STATIC_E40 for sr in SR_PASSES)
+
+
+def split_sr(kind: str) -> Tuple[str, int]:
+    for sfx, n in SR_PASSES.items():
+        if kind.endswith(sfx) and kind[:-len(sfx)] in R1A_NOSPLIT:
+            return kind[:-len(sfx)], n
+    return kind, 0
+
+
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS
 # slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
 # submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
 def r1a_slate() -> str:
@@ -1167,6 +1180,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     kind, dc_k = split_dc(kind)
+    kind, sr_passes = split_sr(kind)
     dc_ms = dc_cost_ms(kind, dc_k, window[2:])
     dc_s = dc_s_cost_ms(kind, dc_k, window[2:])
     if R1A_ON:
@@ -1349,6 +1363,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["GNN_PREFIX_SELF_REFINE"] = "3"
         if kind.endswith("_selfrefkw"):
             env.update(KEEPWARM_ENV)
+        if sr_passes:
+            env["GNN_PREFIX_SELF_REFINE"] = str(sr_passes)
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
