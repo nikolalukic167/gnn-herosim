@@ -122,3 +122,9 @@ def test_sp_and_order_wiring_in_source():
 def test_new_env_vars_are_in_the_provenance_whitelist():
     src = (REPO_ROOT / "src" / "executesimulation.py").read_text()
     assert '"HEROSIM_PG_SELFPREDICT_BATCH",' in src and '"HEROSIM_PG_BATCH_ORDER",' in src
+
+
+def test_new_counters_reach_the_summary():
+    src = (REPO_ROOT / "src" / "placement" / "orchestrator.py").read_text()
+    for name in ("pg_sp_batches", "pg_sp_provisional_used", "pg_order_batches"):
+        assert f'"{name}"' in src
