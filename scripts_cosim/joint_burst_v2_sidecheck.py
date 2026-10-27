@@ -51,7 +51,9 @@ COMB_V7_ARMS = {"ra_gnn_eng_v7": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v7": RA_ARM
 # live_link_features_v1, the static link block: the same architectures on partial_state_v8 (v7 + S1-S3, width 33); the gnn alone carries mp_link_static_attr
 COMB_V8_ARMS = {"ra_gnn_eng_v8": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v8": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v8": RA_ARMS["ra_twin_eng"]}
 # outbound_link_features_v1: the same architectures on partial_state_v9 (v8 + R1-R3, U1, width 37); the gnn alone carries mp_link_static_attr (v8's conv attribute)
-COMB_V9_ARMS = {"ra_gnn_eng_v9": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v9": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v9": RA_ARMS["ra_twin_eng"]}
+COMB_V9_ARMS = {"ra_gnn_eng_v9": RA_ARMS["ra_gnn_eng"], "ra_mlp_same_v9": RA_ARMS["ra_mlp_same"], "ra_twin_eng_v9": RA_ARMS["ra_twin_eng"],
+                "ra_gnn_eng_v9outconv": RA_ARMS["ra_gnn_eng"], "ra_gnn_eng_v9prenorm": RA_ARMS["ra_gnn_eng"]}  # lever 2: R1-R3/U1 in the conv (A5/A5b blocks), and its control without them
+LEVER2_ARMS = ("ra_gnn_eng_v9outconv", "ra_gnn_eng_v9prenorm")
 ARM2_RANDOM_PREFIX_K = {"ra_gnn_eng_arm2k0": 0, "ra_twin_eng_arm2k0": 0}  # Arm 2-K0; every other Arm 2 arm is K = 2
 
 
@@ -66,7 +68,12 @@ def check_ra(sc: dict, arm: str, split: str, want_alpha: str) -> int:
         "mp_peer_edges": not graph_free, "partial_state_feature_dim": 2 if raw else 37 if arm in COMB_V9_ARMS else 33 if arm in COMB_V8_ARMS else 30 if arm in COMB_V7_ARMS else 27,
     }
     if arm in COMB_V9_ARMS:
-        want["mp_link_static_attr"] = arm == "ra_gnn_eng_v9"
+        want["mp_link_static_attr"] = arm.startswith("ra_gnn_eng_v9")
+        lever2 = arm in LEVER2_ARMS
+        got = (bool(sc.get("mp_link_out_conv", False)), bool(sc.get("mp_conv_prenorm_residual", False)), bool(sc.get("mp_conv_prenorm_final_norm", False)))
+        if got != (arm == "ra_gnn_eng_v9outconv", lever2, lever2):
+            print(f"FAIL LOUD: sidecar (mp_link_out_conv, mp_conv_prenorm_residual, mp_conv_prenorm_final_norm)={got}, arm {arm} expects {(arm == 'ra_gnn_eng_v9outconv', lever2, lever2)}", file=sys.stderr)
+            return 1
     if arm in COMB_V8_ARMS:
         want["mp_link_static_attr"] = arm == "ra_gnn_eng_v8"  # the flag is weight-visible and sidecar-recorded; older sidecars carry no such key
     if arm in ARM2_ARMS:

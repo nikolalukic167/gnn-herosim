@@ -642,6 +642,7 @@ def checkpoint_mp_config(model_path: Path) -> dict:
             # live_link_features_v1: the extra conv edge columns (weight-visible; on the whitelist so a serving default can never mask them)
             "mp_link_edge_conv",
             "mp_link_static_attr",
+            "mp_link_out_conv",
             "mp_conv_prenorm_residual",
             "mp_conv_prenorm_final_norm",
             "partial_state_edge_features",
@@ -1022,6 +1023,7 @@ def load_gnn_model(model_path: Path, space_config: Optional[Dict[str, Any]] = No
             mp_bipartite_edge_attr_zero=bool(mp_cfg.get("mp_bipartite_edge_attr_zero", False)),
             mp_link_edge_conv=bool(mp_cfg.get("mp_link_edge_conv", False)),
             mp_link_static_attr=bool(mp_cfg.get("mp_link_static_attr", False)),
+            mp_link_out_conv=bool(mp_cfg.get("mp_link_out_conv", False)),
             mp_conv_prenorm_residual=bool(mp_cfg.get("mp_conv_prenorm_residual", False)),
             mp_conv_prenorm_final_norm=bool(mp_cfg.get("mp_conv_prenorm_final_norm", False)),
             mp_bipartite_aggr=str(mp_cfg.get("mp_bipartite_aggr") or "mean"),

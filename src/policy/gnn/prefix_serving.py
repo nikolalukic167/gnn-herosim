@@ -353,6 +353,7 @@ def load_prefix_conditioned_gnn(
             mp_bipartite_edge_attr_zero=bool(sidecar.get("mp_bipartite_edge_attr_zero", False)),
             mp_link_edge_conv=bool(sidecar.get("mp_link_edge_conv", False)),
             mp_link_static_attr=bool(sidecar.get("mp_link_static_attr", False)),
+            mp_link_out_conv=bool(sidecar.get("mp_link_out_conv", False)),
             mp_conv_prenorm_residual=bool(sidecar.get("mp_conv_prenorm_residual", False)),
             mp_conv_prenorm_final_norm=bool(sidecar.get("mp_conv_prenorm_final_norm", False)),
             # bipartite_aggr_v1. Absent means "mean", which is what every bipartite_edge_v1

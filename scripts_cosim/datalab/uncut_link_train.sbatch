@@ -29,6 +29,8 @@ case "$BASE" in
   uncut_linkout_twin) WANT=uncut-linkout-twin; ARMCHK=ra_twin_eng_v9; VENUE=cpu;;
   uncut_linkout_mlp) WANT=uncut-linkout-mlp-same; ARMCHK=ra_mlp_same_v9; VENUE=cpu;;
   uncut_linkout_mlp_wide) WANT=uncut-linkout-mlp-wide; ARMCHK=ra_mlp_same_v9; VENUE=cpu;;
+  uncut_linkout_gnn_outconv) WANT=uncut-linkout-gnn-eng-outconv; ARMCHK=ra_gnn_eng_v9outconv; VENUE=gpu;;  # lever 2 (R1-R3/U1 in the conv) and its control
+  uncut_linkout_gnn_prenorm) WANT=uncut-linkout-gnn-eng-prenorm; ARMCHK=ra_gnn_eng_v9prenorm; VENUE=gpu;;
   uncut_linkconv_gnn) WANT=uncut-linkconv-gnn-eng; ARMCHK=ra_gnn_eng_v7conv; VENUE=gpu;;
   uncut_linkconv_gnn_rep) WANT=uncut-linkconv-gnn-eng-rep; ARMCHK=ra_gnn_eng_v7conv; VENUE=gpu;;
   uncut_linkconv_twin) WANT=uncut-link-twin-gpu; ARMCHK=ra_twin_eng_v7; VENUE=gpu;;

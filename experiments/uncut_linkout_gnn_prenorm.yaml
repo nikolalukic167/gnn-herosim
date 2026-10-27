@@ -1,0 +1,58 @@
+# Lever 2 kill test CONTROL (S7, 2026-10-27): experiments/uncut_linkout_gnn_outconv.yaml with mp_link_out_conv OFF -- the same A5/A5b pre-norm residual conv and final LayerNorm on the
+# v9 gnn recipe, so the lever arm differs from it by the four outbound conv columns alone. GPU, like the lever arm.
+trainer: gnn
+lineage: uncut_groups_s0_v1
+cache_dir: /share/nikola.lukic/uncut_groups/flowcap/link_corpus/cache_v9/cache
+unset_env:
+- TRAIN_INIT_CHECKPOINT
+- NEAR_RTT_LABEL_OVERRIDE_JSON
+env:
+  NEAR_RTT_SAVE_FINAL: '1'
+  NEAR_RTT_TOP_K: '1'
+  NEAR_RTT_BATCHED_TF: '1'
+  NEAR_RTT_TASK_TYPE_ONEHOT: '1'
+  NEAR_RTT_PARTIAL_STATE_EDGES: '1'
+  NEAR_RTT_DAG_ALPHA_KEY: inf
+  NEAR_RTT_TIED_MAX_PLANS: '0'
+  NEAR_RTT_TRAIN_OBJECTIVE: ce_only
+  NEAR_RTT_VAL_EXACT_REGRET: '0'
+  NEAR_RTT_DECODE_REPLICA_REUSE: '1'
+  NEAR_RTT_DECODE_RELAX: '1'
+  PARTIAL_STATE_CONTRACT: partial_state_v9
+  PARTIAL_STATE_LOAD_SECONDS: '1'
+  PARTIAL_STATE_PEER_MASS: '1'
+  NEAR_RTT_FULL_CONTEXT_CE_WEIGHT: '1.0'
+  PARTIAL_STATE_EXCHANGE_SECONDS: '1'
+  NEAR_RTT_SKIP_FINAL_TEST: '1'
+  NEAR_RTT_SPLIT_ARTIFACT: experiments/uncut_link_split.json
+  NEAR_RTT_LABEL_OVERRIDE_JSON: /share/nikola.lukic/uncut_groups/llf_corpus/label_override_union_flows.json
+  NEAR_RTT_MP_PEER_EDGES: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_CONV: '1'
+  NEAR_RTT_MP_BIPARTITE_EDGE_ATTR_ZERO: '1'
+  NEAR_RTT_MP_LINK_STATIC_ATTR: '1'
+  NEAR_RTT_MP_CONV_PRENORM_RESIDUAL: '1'
+  NEAR_RTT_MP_CONV_PRENORM_FINAL_NORM: '1'
+args:
+  regret-loss-weight: 0
+  ce-loss-weight: 1
+  epochs: 20
+  patience: 20
+  min-epochs: 20
+  learning-rate: 0.001
+  embedding-dim: 128
+  hidden-dim: 128
+  torch-threads: 6
+  num-dataloader-workers: 0
+wandb:
+  project: gnn-uncut-arm1
+  run_name: uncut-linkout-gnn-eng-prenorm
+  tags:
+  - uncut-comb
+  - linkout
+  - partial-state-v9
+  - batched-tf
+  - ils-r010
+  - opening30
+  - gnn-eng
+  - lever2
+  - prenorm-control

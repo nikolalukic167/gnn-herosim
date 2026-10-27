@@ -28,6 +28,7 @@ from src.policy.gnn.partial_state_edges import candidate_edge_rows, refresh_part
 from src.policy.tabular import reduced_features as rf
 
 ATTR = "link_edge_conv_attr"
+OUT_ATTR = "link_out_conv_attr"
 MIB = 1024 ** 2
 _MEMO = "_link_conv_static"
 # a chunk of states is processed in tensors of at most this many elements per intermediate
@@ -43,6 +44,7 @@ class LinkStatic:
         if any(ctx.parents.get(t) for t in ctx.parents):
             raise ValueError("FAIL LOUD: the link conv block supports peer corpora without DAG parents (commit order = ascending task index)")
         S = self.S = _Static(data, ctx)
+        self.contract = ctx.contract
         self.n, self.R = S.n, S.R
         n, R = S.n, S.R
         deg = (S.Pm > 0).sum(1)
@@ -107,15 +109,14 @@ def static_of(data: Any, ctx: Any) -> LinkStatic:
     return memo
 
 
-def link_rows(LS: LinkStatic, Cm: Tensor, ND: Tensor) -> Tensor:
-    """E1-E3 of every candidate row under each of Sc committed sets -> [Sc, R, 3] float64. Cm [Sc, n] 0/1 float64, ND [Sc, n] long (any valid node index for an uncommitted task)."""
+def _state_counts(LS: LinkStatic, Cm: Tensor, ND: Tensor) -> Tensor:
+    """[Sc, n, L]: the active flows per link plus the pending flows of each state's committed set, with the flows of the row task's own placement left out."""
     dev = Cm.device
     T = LS.on(dev)
     Sc, n = Cm.shape
-    R, D, H, L = LS.R, LS.D, LS.H, LS.L
+    L = LS.L
     u, v = T["pu"], T["pv"]
     K = int(u.numel())
-    sidx = torch.arange(Sc, device=dev)
     if K:
         nu, nv = ND[:, u], ND[:, v]
         act = Cm[:, u] * Cm[:, v] * (nu != nv).to(Cm.dtype)  # [Sc, K]: both ends committed, on different nodes -> one flow v -> u
@@ -127,9 +128,18 @@ def link_rows(LS: LinkStatic, Cm: Tensor, ND: Tensor) -> Tensor:
         corr = torch.zeros(Sc, n * L, dtype=Cm.dtype, device=dev)  # the flows a task's OWN placement adds are not in its prefix
         for end in (u, v):
             corr.scatter_add_(1, (end[None, :, None] * L + idx).reshape(Sc, -1), w.reshape(Sc, -1))
-        counts_t = T["base"][None, None, :] + pend[:, None, :] - corr.view(Sc, n, L)  # [Sc, n, L]
-    else:
-        counts_t = T["base"][None, None, :].expand(Sc, n, L)
+        return T["base"][None, None, :] + pend[:, None, :] - corr.view(Sc, n, L)
+    return T["base"][None, None, :].expand(Sc, n, L)
+
+
+def link_rows(LS: LinkStatic, Cm: Tensor, ND: Tensor) -> Tensor:
+    """E1-E3 of every candidate row under each of Sc committed sets -> [Sc, R, 3] float64. Cm [Sc, n] 0/1 float64, ND [Sc, n] long (any valid node index for an uncommitted task)."""
+    dev = Cm.device
+    T = LS.on(dev)
+    Sc, n = Cm.shape
+    sidx = torch.arange(Sc, device=dev)
+    R, D = LS.R, LS.D
+    counts_t = _state_counts(LS, Cm, ND)
     pj, pb, pm, rn, rt = T["pj"], T["pb"], T["pm"], T["rn"], T["rt"]
     ndj = ND[:, pj]  # [Sc, R, D]
     use = (Cm[:, pj] > 0) & pm[None] & (ndj != rn[None, :, None])
@@ -160,32 +170,99 @@ def link_rows(LS: LinkStatic, Cm: Tensor, ND: Tensor) -> Tensor:
     return torch.stack([e1, e2, e3], dim=-1)
 
 
+def out_rows(LS: LinkStatic, Cm: Tensor, ND: Tensor) -> Tensor:
+    """R1-R3 and U1 (placement/link_features.out_edge_columns) of every candidate row under each of Sc committed sets -> [Sc, R, 4] float64: link_rows with the route
+    reversed (this row's node -> partner j's node, the pull the partner makes over the candidate's uplink), plus U1 over the row's remote committed partners."""
+    if LS.contract not in rf.OUT_LINK_CONTRACTS:
+        raise ValueError(f"FAIL LOUD: the outbound conv block (R1-R3, U1) is defined for {sorted(rf.OUT_LINK_CONTRACTS)}, not {LS.contract!r}")
+    dev = Cm.device
+    T = LS.on(dev)
+    Sc, n = Cm.shape
+    sidx = torch.arange(Sc, device=dev)
+    D = LS.D
+    counts_t = _state_counts(LS, Cm, ND)
+    pj, pb, pm, rn, rt = T["pj"], T["pb"], T["pm"], T["rn"], T["rt"]
+    ndj = ND[:, pj]  # [Sc, R, D]
+    use = (Cm[:, pj] > 0) & pm[None] & (ndj != rn[None, :, None])
+    hl2 = T["hopl"][rn[None, :, None], ndj]  # [Sc, R, D, H]: the route this row's node -> partner j's node
+    valid = hl2 >= 0
+    cnt = counts_t[sidx[:, None, None, None], rt[None, :, None, None], hl2.clamp(min=0)]
+    act_h = torch.where(valid, cnt, torch.zeros((), dtype=cnt.dtype, device=dev))
+    anyact = (act_h > 0).any(-1)
+    bw = T["hopbw"][rn[None, :, None], ndj]
+    inf = torch.full((), float("inf"), dtype=cnt.dtype, device=dev)
+    rate = torch.where(valid, bw * MIB / (act_h + 1.0), inf).amin(-1)
+    pbj = T["PB"][rn[None, :, None], ndj]
+    lat = T["LATE"][rn[None, :, None], ndj]
+    b = pb[None]
+    solo_j = b * pbj + lat
+    shared_j = torch.where(anyact, b / rate + lat, solo_j)
+    zero = torch.zeros((), dtype=cnt.dtype, device=dev)
+    shared = torch.zeros(Sc, LS.R, dtype=cnt.dtype, device=dev)
+    solo = torch.zeros_like(shared)
+    total = torch.zeros_like(shared)
+    k = torch.zeros_like(shared)
+    c = torch.zeros_like(shared)
+    bwu = torch.zeros_like(shared)
+    bb = b.expand_as(shared_j)
+    for d in range(D):  # ascending partner index, sequential: the definition's float order; c and bwu are the last used partner's, as the definition
+        ud = use[..., d]
+        shared = shared + torch.where(ud, shared_j[..., d], zero)
+        solo = solo + torch.where(ud, solo_j[..., d], zero)
+        total = total + torch.where(ud, bb[..., d], zero)
+        k = k + ud.to(cnt.dtype)
+        c = torch.where(ud, act_h[..., d, 0], c)
+        bwu = torch.where(ud, bw[..., d, 0], bwu)
+    busiest = torch.where(use[..., None], act_h, zero).amax(dim=(-1, -2))
+    r1 = torch.log1p(shared)
+    ratio = torch.where(solo > 0, shared / torch.where(solo > 0, solo, torch.ones_like(solo)), torch.ones_like(solo))
+    r2 = torch.where((solo > 0) & (shared > solo), torch.log(ratio), zero)
+    r3 = torch.log1p(busiest)
+    has = k > 0
+    u1 = torch.where(has, torch.log1p(total * (c + k) / (torch.where(has, bwu, torch.ones_like(bwu)) * MIB)), zero)
+    return torch.stack([r1, r2, r3, u1], dim=-1)
+
+
+# the per-prefix conv blocks: (model flag, graph attribute, rows function); the order is gnn_model.conv_edge_extras'
+PER_PREFIX = (("mp_link_edge_conv", ATTR, link_rows), ("mp_link_out_conv", OUT_ATTR, out_rows))
+
+
+def per_prefix_blocks(model: Any) -> List[Tuple[str, Any]]:
+    """[(graph attribute, rows function)] of the per-prefix conv blocks the model reads; empty for a prefix-free encode."""
+    return [(a, f) for flag, a, f in PER_PREFIX if getattr(model, flag, False)]
+
+
+def is_per_prefix(model: Any) -> bool:
+    return bool(per_prefix_blocks(model))
+
+
 def rows_to_edges(LS: LinkStatic, rows: Tensor) -> Tensor:
-    """[Sc, R, 3] candidate rows -> [Sc, E, 3] float32 edge rows: forward rows get the block, reverse rows copy it."""
+    """[Sc, R, w] candidate rows -> [Sc, E, w] float32 edge rows: forward rows get the block, reverse rows copy it."""
     T = LS.on(rows.device)
-    out = torch.zeros(rows.shape[0], LS.n_edges, LINK_EDGE_DIM, dtype=torch.float32, device=rows.device)
+    out = torch.zeros(rows.shape[0], LS.n_edges, int(rows.shape[-1]), dtype=torch.float32, device=rows.device)
     r32 = rows.to(torch.float32)
     out[:, T["fwd"]] = r32
     out[:, T["rev"]] = r32
     return out
 
 
-def link_edge_block(data: Any, ctx: Any, committed: Mapping[int, Any], device: Optional[torch.device] = None) -> Tensor:
-    """The conv block [E, 3] float32 of one committed set."""
+def link_edge_block(data: Any, ctx: Any, committed: Mapping[int, Any], device: Optional[torch.device] = None, rows_fn: Any = None) -> Tensor:
+    """The conv block [E, w] float32 of one committed set (E1-E3 by default; `rows_fn=out_rows` gives R1-R3, U1)."""
     LS = static_of(data, ctx)
     dev = device or data.edge_index.device
     cm, nd = LS.placement_arrays(committed)
     with torch.no_grad():
-        rows = link_rows(LS, torch.from_numpy(cm)[None].to(dev), torch.from_numpy(nd)[None].to(dev))
+        rows = (rows_fn or link_rows)(LS, torch.from_numpy(cm)[None].to(dev), torch.from_numpy(nd)[None].to(dev))
         return rows_to_edges(LS, rows)[0]
 
 
 def make_link_conv_score_fn(model: Any, data: Any, ctx: Any, task_rows_only: bool = False):
     """`(task_idx, committed) -> logits[task_idx]`: the conv block of the committed set, one encode per DISTINCT committed set, the scorer columns from `partial_state_columns` for the scored task."""
-    if not getattr(model, "mp_link_edge_conv", False):
-        raise ValueError("make_link_conv_score_fn: the model was not built with mp_link_edge_conv")
+    blocks = per_prefix_blocks(model)
+    if not blocks:
+        raise ValueError("make_link_conv_score_fn: the model was not built with mp_link_edge_conv or mp_link_out_conv")
     if getattr(model, "plan_raw", False) or getattr(model, "committed_inputs", False) or getattr(model, "group_anchor", False):
-        raise ValueError("FAIL LOUD: mp_link_edge_conv does not combine with plan_raw / the Arm 2 re-encode / the group anchor")
+        raise ValueError("FAIL LOUD: the per-prefix conv blocks do not combine with plan_raw / the Arm 2 re-encode / the group anchor")
     expected = rf.partial_state_feature_dim(getattr(ctx, "contract", None))
     if int(getattr(model, "partial_state_edge_dim", 0)) != expected:
         raise ValueError(f"make_link_conv_score_fn: model.partial_state_edge_dim={int(getattr(model, 'partial_state_edge_dim', 0))}, contract {ctx.contract!r} emits {expected}")
@@ -198,7 +275,8 @@ def make_link_conv_score_fn(model: Any, data: Any, ctx: Any, task_rows_only: boo
         key = tuple(sorted((int(j), tuple(int(v) for v in p)) for j, p in committed.items()))
         emb = enc.get(key)
         if emb is None:
-            setattr(data, ATTR, link_edge_block(data, ctx, committed, dev))
+            for attr, fn in blocks:
+                setattr(data, attr, link_edge_block(data, ctx, committed, dev, fn))
             emb = enc[key] = model._encode(data)
         task_emb, platform_emb = emb
         refresh_partial_state_edge_attr(data, ctx, task_idx, committed)
@@ -213,9 +291,9 @@ def make_link_conv_score_fn(model: Any, data: Any, ctx: Any, task_rows_only: boo
 
 # ---------------------------------------------------------------------------------------------------------------------------- training: one big graph of S disjoint copies
 
-def replicate_graph(data: Any, copies: int, conv_attr: Tensor) -> Data:
+def replicate_graph(data: Any, copies: int, conv_attr: Any, static_extras: Sequence[str] = ()) -> Data:
     """`copies` disjoint copies of the graph as ONE graph whose task block is [copy0 tasks ... copyS-1 tasks] and platform block [copy0 platforms ...], so `model._encode` runs unchanged.
-    `conv_attr` [copies, E, 3] becomes the big graph's link_edge_conv_attr."""
+    `conv_attr` is {graph attribute: [copies, E, w]} of the per-prefix blocks (a bare tensor means link_edge_conv_attr); `static_extras` are prefix-free conv attributes of `data`, repeated per copy."""
     n_t, n_p = int(data.n_tasks), int(data.n_platforms)
     S = int(copies)
     dev = data.edge_index.device
@@ -236,7 +314,11 @@ def replicate_graph(data: Any, copies: int, conv_attr: Tensor) -> Data:
         big.task_type_onehot4 = onehot.repeat(S, 1)
     big.edge_index = remap(data.edge_index)
     big.edge_attr = data.edge_attr.repeat(S, 1)
-    setattr(big, ATTR, conv_attr.reshape(S * conv_attr.shape[1], LINK_EDGE_DIM))
+    blocks = conv_attr if isinstance(conv_attr, Mapping) else {ATTR: conv_attr}
+    for name, blk in blocks.items():
+        setattr(big, name, blk.reshape(S * blk.shape[1], blk.shape[2]))
+    for name in static_extras:
+        setattr(big, name, getattr(data, name).to(dev).repeat(S, 1))
     pei = getattr(data, "peer_edge_index", None)
     if pei is not None and pei.numel() > 0:
         s = torch.arange(S, device=dev).repeat_interleave(pei.size(1))
@@ -296,22 +378,25 @@ def state_log_softmax_per_state(b: BatchedTeacherForced, model: Any, data: Any, 
     return F.log_softmax(pad, dim=-1)
 
 
-def _encode_copies(model: Any, data: Any, attr: Tensor, edge_budget: int) -> Tuple[Tensor, Tensor]:
+def _encode_copies(model: Any, data: Any, attr: Any, edge_budget: int) -> Tuple[Tensor, Tensor]:
     """The task and platform embeddings of every copy, [S * n_tasks, d] and [S * n_platforms, d] in copy order. Copies are encoded in chunks of at most `edge_budget` edges (the copies are disjoint, so a chunk
     encodes exactly what the whole would), and under autograd each chunk runs inside torch.utils.checkpoint: only the chunk's inputs and outputs are kept, its activations are recomputed in the backward pass
     (the RNG state is restored, so a dropout mask is the one the forward drew). That bounds the memory by one chunk instead of all 2T states of the largest group."""
     from torch.utils.checkpoint import checkpoint
 
-    S = int(attr.shape[0])
+    blocks = attr if isinstance(attr, Mapping) else {ATTR: attr}
+    per_prefix = set(blocks)
+    static_extras = [name for name, _w in getattr(model, "conv_edge_extras", ()) if name not in per_prefix]
+    S = int(next(iter(blocks.values())).shape[0])
     per_copy = int(data.edge_index.size(1)) + int(getattr(data, "peer_edge_index", torch.empty(2, 0)).size(1)) + int(getattr(data, "node_edge_index", torch.empty(2, 0)).size(1))
     step = max(1, min(S, int(edge_budget // max(per_copy, 1))))
     tes: List[Tensor] = []
     pes: List[Tensor] = []
     for a in range(0, S, step):
-        chunk = attr[a:a + step]
+        chunk = {k: v[a:a + step] for k, v in blocks.items()}
 
         def run(chunk=chunk):
-            return model._encode(replicate_graph(data, int(chunk.shape[0]), chunk))
+            return model._encode(replicate_graph(data, int(next(iter(chunk.values())).shape[0]), chunk, static_extras))
 
         if torch.is_grad_enabled():
             te, pe = checkpoint(run, use_reentrant=False)
@@ -361,18 +446,22 @@ def link_conv_loss(model: Any, data: Any, ctx: Any, plans: Sequence[Sequence[int
     from src.policy.gnn.batched_tf import _unsupported
 
     _unsupported(model, ctx)
-    if not getattr(model, "mp_link_edge_conv", False):
-        raise ValueError("link_conv_loss: the model was not built with mp_link_edge_conv")
+    blocks = per_prefix_blocks(model)
+    if not blocks:
+        raise ValueError("link_conv_loss: the model was not built with mp_link_edge_conv or mp_link_out_conv")
     b = BatchedTeacherForced(data, ctx, plans, order, with_full=full_context_weight > 0.0)
     LS = static_of(data, ctx)
     Cm, ND = state_arrays(b)
     n_states = Cm.shape[0]
-    rows = []
     step = max(1, int(_CHUNK_ELEMS // max(LS.R * LS.D * LS.H, 1)))
+    attr = {}
     with torch.no_grad():
-        for a in range(0, n_states, step):
-            rows.append(link_rows(LS, torch.from_numpy(Cm[a:a + step]).to(device), torch.from_numpy(ND[a:a + step]).to(device)))
-        attr = _debug_transform_e(LS, data, ctx, rows_to_edges(LS, torch.cat(rows, 0)))
+        for name, fn in blocks:
+            rows = []
+            for a in range(0, n_states, step):
+                rows.append(fn(LS, torch.from_numpy(Cm[a:a + step]).to(device), torch.from_numpy(ND[a:a + step]).to(device)))
+            blk = rows_to_edges(LS, torch.cat(rows, 0))
+            attr[name] = _debug_transform_e(LS, data, ctx, blk) if name == ATTR else blk
     task_emb, platform_emb = _encode_copies(model, data, attr, edge_budget)
     lp = state_log_softmax_per_state(b, model, data, task_emb, platform_emb)
     loss = -torch.logsumexp(b.step_logps(lp, "prefix").sum(dim=1), dim=0)
