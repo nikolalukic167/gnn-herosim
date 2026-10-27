@@ -1562,9 +1562,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("keep-warm guard not armed")
     if not kind.endswith("_selfrefkw") and int(c.get("keepwarm_armed") or 0):
         problems.append("keep-warm guard armed on an unguarded arm")
-    if kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0) == 0:
+    refined = kind.endswith(("_selfref", "_selfrefkw")) or bool(sr_passes)
+    if refined and int(c.get("prefix_self_refine_batches") or 0) == 0:
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
-    if not kind.endswith(("_selfref", "_selfrefkw")) and int(c.get("prefix_self_refine_batches") or 0):
+    if not refined and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
     if kind.endswith(("_cdshadow", "_cdapply", "_cdxapply", "_cdxexg", "_cdxpra", "_cdxprb")) and int(c.get("cdr_batches") or 0) == 0:
         problems.append("cd-refine instrument off: cdr_batches == 0")
