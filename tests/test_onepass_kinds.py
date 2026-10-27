@@ -117,3 +117,8 @@ def test_sp_and_order_wiring_in_source():
     src = (REPO_ROOT / "src/policy/peer_greedy_network/scheduler.py").read_text()
     assert "finally:\n            self._pg_prov = {}" in src and "-sum(float(b)" in src
     assert "planned[tid] = node.node_name" in src and "self._pg_prov[" not in src.split("def _pg_provisional")[1].split("def _pg_remote_edges")[0]
+
+
+def test_new_env_vars_are_in_the_provenance_whitelist():
+    src = (REPO_ROOT / "src" / "executesimulation.py").read_text()
+    assert '"HEROSIM_PG_SELFPREDICT_BATCH",' in src and '"HEROSIM_PG_BATCH_ORDER",' in src
