@@ -64,7 +64,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
     "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds",
-    "pg_exchange_sym_evals",
+    "pg_exchange_sym_evals", "pg_sp_batches", "pg_sp_provisional_used", "pg_order_batches",
     "pg_fsaware_decisions", "pg_fsaware_decisions_nonzero",
     "pg_ext_batches", "pg_ext_charged", "pg_ext_seconds",
     "pg_declared_batches", "pg_declared_pruned", "pg_declared_sub_batched", "pg_declared_groups",
@@ -100,6 +100,8 @@ PG_INFLIGHT_FULL_ENV = "HEROSIM_PG_INFLIGHT_FULL"
 # pulls from the candidate over the candidate's uplink (cellular: out 4 / in 75 MB/s). 1 adds, per known remote partner, the reverse transfer n -> partner (the partner's
 # `_payload_transfer_time` from n plus its `peer_link_latency`), the evaluations are counted (pg_exchange_sym_evals) but not metered: like the inbound loop they sit inside the candidate's one plan eval. Default 0 = the registered rule, byte-identical.
 PG_EXCHANGE_SYMMETRIC_ENV = "HEROSIM_PG_EXCHANGE_SYMMETRIC"
+PG_SELFPREDICT_BATCH_ENV = "HEROSIM_PG_SELFPREDICT_BATCH"
+PG_BATCH_ORDER_ENV = "HEROSIM_PG_BATCH_ORDER"
 # accel pull-hold control (cd_pull): price the wait an image pull holding the candidate node's local storage adds at the
 # task's output write, max(0, hold - time to that write); needs the pull ledger (HEROSIM_PULL_LEDGER=1)
 PG_PULL_HOLD_ENV = "HEROSIM_PG_PULL_HOLD"
@@ -383,6 +385,19 @@ class _PeerGreedyCore:
             raise ValueError(f"FAIL LOUD: {PG_EXCHANGE_SYMMETRIC_ENV} must be 0 or 1, got {raw_sym!r}")
         self.pg_exchange_sym = raw_sym == "1"
         self.pg_exchange_sym_evals = 0
+        # one-pass kinds: provisional nodes for unplaced partners (standalone-best, read-only) and the bytes order; defined for peer_greedy_network_batch with no refine only
+        raw_sp = os.environ.get(PG_SELFPREDICT_BATCH_ENV, "0").strip() or "0"
+        raw_ord = os.environ.get(PG_BATCH_ORDER_ENV, "").strip()
+        if raw_sp not in ("0", "1") or raw_ord not in ("", "bytes"):
+            raise ValueError(f"FAIL LOUD: {PG_SELFPREDICT_BATCH_ENV} must be 0 or 1 and {PG_BATCH_ORDER_ENV} unset or bytes, got {raw_sp!r} / {raw_ord!r}")
+        self.pg_selfpredict_batch = raw_sp == "1"
+        self.pg_order_bytes = raw_ord == "bytes"
+        if (self.pg_selfpredict_batch or self.pg_order_bytes) and self._policy_label != "peer_greedy_network_batch":
+            raise RuntimeError(f"FAIL LOUD: {PG_SELFPREDICT_BATCH_ENV}/{PG_BATCH_ORDER_ENV} are defined for peer_greedy_network_batch only; {self._policy_label}")
+        self.pg_sp_batches = 0
+        self.pg_sp_provisional_used = 0
+        self.pg_order_batches = 0
+        self._pg_prov: Dict[int, str] = {}
         self._pg_node_by_name: Dict[str, Any] = {}
         fairshare_aware.forget_switch()  # the cached switch is re-read when a scheduler is built
         self.pg_fsaware = fairshare_aware_enabled()
@@ -577,6 +592,10 @@ class _PeerGreedyCore:
                 node_name = self._obs.predict_node(task, orch, int(peer_id))
                 if node_name is not None:
                     self._obs.counts["obs_partner_predicted"] += 1
+            if node_name is None and self._pg_prov:
+                node_name = self._pg_prov.get(int(peer_id))  # one-pass self-predict: read-only, never in `planned`
+                if node_name is not None:
+                    self.pg_sp_provisional_used += 1
             if node_name is None:
                 self.pg_partners_unknown += 1
                 continue
@@ -1075,6 +1094,10 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         from the backlog it sat on. Returns the number of tasks that moved."""
         moved = 0
         order = sorted(range(len(batch_tasks)), key=lambda i: int(batch_tasks[i].id))
+        if self.pg_order_bytes:
+            table = getattr(orch, "peer_exchange", None) or {}
+            order = sorted(range(len(batch_tasks)), key=lambda i: (-sum(float(b) for b in (table.get(int(batch_tasks[i].id)) or {}).values()), int(batch_tasks[i].id)))
+            self.pg_order_batches += 1
         for idx in order:
             task = batch_tasks[idx]
             tid = int(task.id)
@@ -1109,6 +1132,20 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             placements[idx] = (node.id, platform.id)
             service_of[tid] = (key, service)
         return moved
+
+    def _pg_provisional(self, batch_tasks: List["Task"], system_state: SystemState, orch, memo: Dict[str, float]) -> Dict[int, str]:
+        """One-pass self-predict: each task's standalone-best node (drain + cold + exec + latency, no partner, nothing committed; ties by node, platform id), used only to price
+        UNPLACED partners while a task is chosen. Metered like any scored candidate; never written to `planned` or the books."""
+        nodes = self.nodes.items
+        prov: Dict[int, str] = {}
+        for task in batch_tasks:
+            valid = self._pg_restrict(task, self._get_valid_replicas(system_state.replicas.get(task.type["name"], set()), task))
+            if not valid:
+                continue
+            cands = [r for r in valid if r[1].initialized.triggered] or valid
+            best = min(cands, key=lambda c: (self._pg_standalone(task, c[0], c[1], orch, memo, nodes), int(c[0].id), int(c[1].id)))
+            prov[int(task.id)] = best[0].node_name
+        return prov
 
     def _pg_remote_edges(self, batch_tasks: List["Task"], orch, planned: Dict[int, str], skip: Optional[int] = None) -> List[Tuple[str, str]]:
         """(partner node, task node) for every remote exchange the batch's tasks will run, given the nodes in `planned` (and the placed partners
@@ -1195,10 +1232,16 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         if self.pg_ext_rate is not None:
             self._pg_ext_lambda = self._pg_ext_lambdas(batch_tasks, system_state)
             self.pg_ext_batches += 1
-        self._pg_batch_pass(
-            batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
-            planned=planned, placements=placements, service_of=service_of, refine=False,
-        )
+        if self.pg_selfpredict_batch:
+            self._pg_prov = self._pg_provisional(batch_tasks, system_state, orch, memo)
+            self.pg_sp_batches += 1
+        try:
+            self._pg_batch_pass(
+                batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
+                planned=planned, placements=placements, service_of=service_of, refine=False,
+            )
+        finally:
+            self._pg_prov = {}
         self._pg_refine(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
         self.pg_batches += 1
         if fairshare_aware.herd_enabled():

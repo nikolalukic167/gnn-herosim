@@ -17,7 +17,7 @@ os.environ.setdefault("WF1_RUNGS", "moderate,heavy")
 import fresh_topo_burst_v1_gate as G  # noqa: E402
 
 PRINTED = ("HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_INFLIGHT_FULL", "HEROSIM_PG_EXCHANGE_SYMMETRIC", "HEROSIM_PG_FAIRSHARE_AWARE", "HEROSIM_PG_FAIRSHARE_AWARE_DRAIN",
-           "HEROSIM_PG_FAIRSHARE_AWARE_COMMIT", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "GNN_BATCH_BY_PEER_GROUP", "GNN_DECODE_MODE")
+           "HEROSIM_PG_FAIRSHARE_AWARE_COMMIT", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_SELFPREDICT_BATCH", "HEROSIM_PG_BATCH_ORDER", "GNN_BATCH_BY_PEER_GROUP", "GNN_DECODE_MODE")
 
 
 class _Stop(Exception):
@@ -45,7 +45,8 @@ def served_env(kind, monkeypatch, tmp_path):
 
 
 def test_dispatch_and_aliases():
-    assert G.ONEPASS_KINDS == ("batched_sym", "batched_fsc")
+    assert G.ONEPASS_BASE == ("batched_sym", "batched_fsc")
+    assert G.ONEPASS_KINDS == ("batched_sym", "batched_fsc", "batched_sym_sp", "batched_fsc_sp", "batched_sym_sp_order", "batched_fsc_sp_order")
     for k in G.ONEPASS_KINDS:
         assert G.RULE_POLICY[k] == "peer_greedy_network_batch" and G.check_alias(k) == "batched" and k in G.R1A_DIAG and k in G.R1A_ARMS
         assert G.ib0_alpha(k) == {"HEROSIM_PG_BATCH_ALPHA": "0"} and G.split_dc(k + "_k100") == (k, 1.0)
@@ -62,6 +63,10 @@ def test_new_kinds_env_and_existing_unchanged(monkeypatch, tmp_path):
         "batched_fsc": dict(HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_EXCHANGE_SYMMETRIC="1", HEROSIM_PG_FAIRSHARE_AWARE="1", HEROSIM_PG_FAIRSHARE_AWARE_DRAIN="0"),
         "cd_ib0_inflightfull_sym": dict(HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_EXCHANGE_SYMMETRIC="1"),
         "cd_ib0_inflightfull_fsawarec": dict(HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_FAIRSHARE_AWARE="1", HEROSIM_PG_FAIRSHARE_AWARE_DRAIN="0"),
+        "batched_sym_sp": dict(HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_EXCHANGE_SYMMETRIC="1", HEROSIM_PG_SELFPREDICT_BATCH="1"),
+        "batched_fsc_sp": dict(HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_EXCHANGE_SYMMETRIC="1", HEROSIM_PG_FAIRSHARE_AWARE="1", HEROSIM_PG_FAIRSHARE_AWARE_DRAIN="0", HEROSIM_PG_SELFPREDICT_BATCH="1"),
+        "batched_sym_sp_order": dict(HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_EXCHANGE_SYMMETRIC="1", HEROSIM_PG_SELFPREDICT_BATCH="1", HEROSIM_PG_BATCH_ORDER="bytes"),
+        "batched_fsc_sp_order": dict(HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_EXCHANGE_SYMMETRIC="1", HEROSIM_PG_FAIRSHARE_AWARE="1", HEROSIM_PG_FAIRSHARE_AWARE_DRAIN="0", HEROSIM_PG_SELFPREDICT_BATCH="1", HEROSIM_PG_BATCH_ORDER="bytes"),
         "batched": dict(),
         "cd": dict(),
     }
@@ -87,4 +92,28 @@ def test_instrument_checks_are_wired():
     src = (REPO_ROOT / "scripts_cosim" / "fresh_topo_burst_v1_gate.py").read_text()
     assert 'orig_kind in (SYM_KIND, *ONEPASS_KINDS) and (out["env"].get("HEROSIM_PG_EXCHANGE_SYMMETRIC") != "1"' in src
     assert 'if orig_kind in ONEPASS_KINDS:\n        if int(c.get("pg_cd_passes") or 0) != 0:' in src
-    assert 'if orig_kind in (*FSAWARE_KINDS, "batched_fsc"):' in src
+    assert 'if orig_kind in (*FSAWARE_KINDS, *ONEPASS_FSC):' in src
+
+
+def test_provisional_partner_node_is_read_only():
+    from types import SimpleNamespace
+    from src.policy.peer_greedy_network.scheduler import PeerGreedyNetworkBatchScheduler as B
+
+    sch = B.__new__(B)
+    sch._obs = None; sch.pg_batch_blind = False; sch._pg_batch_ids = frozenset({1, 2})
+    sch.pg_partners_known = sch.pg_partners_unknown = sch.pg_sp_provisional_used = sch.pg_partners_blinded = 0
+    orch = SimpleNamespace(peer_exchange={1: {2: 5.0}}, task_by_id={})
+    planned = {}
+    sch._pg_prov = {}
+    assert sch._pg_peer_nodes(SimpleNamespace(id=1), orch, planned) == [] and sch.pg_partners_unknown == 1
+    sch._pg_prov = {2: "nodeB"}
+    assert sch._pg_peer_nodes(SimpleNamespace(id=1), orch, planned) == [("nodeB", 5.0)]
+    assert sch.pg_sp_provisional_used == 1 and planned == {}
+    planned[2] = "nodeC"  # a placed partner always wins over the provisional node
+    assert sch._pg_peer_nodes(SimpleNamespace(id=1), orch, planned) == [("nodeC", 5.0)] and sch.pg_sp_provisional_used == 1
+
+
+def test_sp_and_order_wiring_in_source():
+    src = (REPO_ROOT / "src/policy/peer_greedy_network/scheduler.py").read_text()
+    assert "finally:\n            self._pg_prov = {}" in src and "-sum(float(b)" in src
+    assert "planned[tid] = node.node_name" in src and "self._pg_prov[" not in src.split("def _pg_provisional")[1].split("def _pg_remote_edges")[0]

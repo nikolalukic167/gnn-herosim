@@ -60,7 +60,13 @@ FSAWARE_VARIANT_ENV = {"cd_ib0_inflightfull_fsawarec": {"HEROSIM_PG_FAIRSHARE_AW
 FSAWARE_KINDS = (FSAWARE_BASE, *FSAWARE_VARIANT_ENV)
 # one-pass strong hand rules (descriptive, scratchpad-only): the CD kinds' score with NO refine -- peer_greedy_network_batch, id order, place once, never revisit.
 # Env exactly as the CD kinds get it: BATCH_ALPHA=0, INFLIGHT_FULL=1, EXCHANGE_SYMMETRIC=1; batched_fsc adds FAIRSHARE_AWARE=1 + FAIRSHARE_AWARE_DRAIN=0 (the symfsawarec env).
-ONEPASS_KINDS = ("batched_sym", "batched_fsc")
+# _sp: before the pass each task's standalone-best node is a read-only provisional node for its UNPLACED partners (HEROSIM_PG_SELFPREDICT_BATCH=1, never committed);
+# _order: tasks visited by decreasing summed partner bytes instead of id (HEROSIM_PG_BATCH_ORDER=bytes). Registered with the one-pass kinds, descriptive.
+ONEPASS_BASE = ("batched_sym", "batched_fsc")
+ONEPASS_SP = ("batched_sym_sp", "batched_fsc_sp")
+ONEPASS_SP_ORDER = ("batched_sym_sp_order", "batched_fsc_sp_order")
+ONEPASS_KINDS = (*ONEPASS_BASE, *ONEPASS_SP, *ONEPASS_SP_ORDER)
+ONEPASS_FSC = tuple(k for k in ONEPASS_KINDS if k.startswith("batched_fsc"))
 SYM_KIND = "cd_ib0_inflightfull_sym"  # the bar with HEROSIM_PG_EXCHANGE_SYMMETRIC=1: the exchange term also charges each remote partner's pull from the candidate (descriptive)
 RULE_POLICY = {
     "reactive": "knative_network",
@@ -1208,7 +1214,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
               "PARTIAL_STATE_LOAD_SECONDS", "PARTIAL_STATE_PEER_MASS", "HEROSIM_INFLIGHT_CAPTURE",
-              "HEROSIM_PG_INFLIGHT", "HEROSIM_PG_INFLIGHT_FULL", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_FAIRSHARE_AWARE", "HEROSIM_PG_FAIRSHARE_AWARE_DRAIN", "HEROSIM_PG_FAIRSHARE_AWARE_COMMIT", "HEROSIM_PG_HERD", "HEROSIM_PG_EXCHANGE_SYMMETRIC", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
+              "HEROSIM_PG_INFLIGHT", "HEROSIM_PG_INFLIGHT_FULL", "HEROSIM_KEEP_ALIVE", "HEROSIM_PG_FAIRSHARE_AWARE", "HEROSIM_PG_FAIRSHARE_AWARE_DRAIN", "HEROSIM_PG_FAIRSHARE_AWARE_COMMIT", "HEROSIM_PG_HERD", "HEROSIM_PG_EXCHANGE_SYMMETRIC", "HEROSIM_PG_SELFPREDICT_BATCH", "HEROSIM_PG_BATCH_ORDER", "HEROSIM_PG_EXT_RATE", "HEROSIM_PROGRESS_FILE", "HEROSIM_CD_RANDOM_SEED",
               "HEROSIM_PG_PULL_HOLD", "HEROSIM_PULL_LEDGER", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_CD_EXACT_GNN", "HEROSIM_PG_CD_EXACT_PRUNE", "HEROSIM_PG_SHARED_LINK", "HEROSIM_PG_INPUT_LINK", "GNN_SLATE_NO_SPLIT", "GNN_SELF_SEARCH", *KEEPWARM_ENV, *ORACLE_ENV):
         env.pop(k, None)
     for k in OBS_ENV:
@@ -1376,7 +1382,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_INFLIGHT_FULL"] = "1"
         if kind == SYM_KIND or kind in ONEPASS_KINDS:
             env["HEROSIM_PG_EXCHANGE_SYMMETRIC"] = "1"
-        if kind == "batched_fsc":
+        if kind in (*ONEPASS_SP, *ONEPASS_SP_ORDER):
+            env["HEROSIM_PG_SELFPREDICT_BATCH"] = "1"
+        if kind in ONEPASS_SP_ORDER:
+            env["HEROSIM_PG_BATCH_ORDER"] = "bytes"
+        if kind in ONEPASS_FSC:
             env.update(HEROSIM_PG_FAIRSHARE_AWARE="1", HEROSIM_PG_FAIRSHARE_AWARE_DRAIN="0")
         if kind in FSAWARE_KINDS:
             env["HEROSIM_PG_FAIRSHARE_AWARE"] = "1"
@@ -1730,7 +1740,12 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if out["env"].get("HEROSIM_PG_BATCH_ALPHA") != "0":
             problems.append("one-pass rule served without HEROSIM_PG_BATCH_ALPHA=0")
     fsa = out.get("pgFairshareAware")
-    if orig_kind in (*FSAWARE_KINDS, "batched_fsc"):
+    sp_on = orig_kind in (*ONEPASS_SP, *ONEPASS_SP_ORDER)
+    if (out["env"].get("HEROSIM_PG_SELFPREDICT_BATCH") == "1") != sp_on or sp_on and int(c.get("pg_sp_provisional_used") or 0) == 0 or not sp_on and int(c.get("pg_sp_batches") or 0):
+        problems.append("self-predict instrument mismatch: HEROSIM_PG_SELFPREDICT_BATCH served / pg_sp_provisional_used / pg_sp_batches disagree with the kind")
+    if (out["env"].get("HEROSIM_PG_BATCH_ORDER") == "bytes") != (orig_kind in ONEPASS_SP_ORDER) or (orig_kind in ONEPASS_SP_ORDER) != bool(int(c.get("pg_order_batches") or 0)):
+        problems.append("batch-order instrument mismatch: HEROSIM_PG_BATCH_ORDER served / pg_order_batches disagree with the kind")
+    if orig_kind in (*FSAWARE_KINDS, *ONEPASS_FSC):
         off = [w for w, bad in (("HEROSIM_PG_FAIRSHARE_AWARE not served", out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") != "1"),
                                 ("no peerExchangeFairshare block (HEROSIM_EXCHANGE_FAIRSHARE off)", out.get("peerExchangeFairshare") is None),
                                 ("no pgFairshareAware block", fsa is None),
