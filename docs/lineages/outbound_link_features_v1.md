@@ -9,6 +9,7 @@
   - **v9 is NOT-FASTER than v8** (secondary): +2.1 % moderate (8/24 faster), +1.3 % heavy. The outbound columns add nothing measurable over the v8 static gnn on these ids.
   - **Heavy is runaway-dominated.** Topologies with a whole-run runaway cell: bar 19/24, wide 19, mlp 15, twin 14, v8 12, gnn 9. The all-cells heavy medians (−55 % vs bar, −55 % vs wide, −35 % vs mlp) are runaway counts, not magnitudes.
   - Full table and provenance: Record, 2026-10-27.
+  - **Follow-up (2026-10-28):** feeding the outbound columns into the link conv (`mp_link_out_conv`, default off) FAILED its one-seed offline screen: 11.59 cellular MB per state against 9.99 for v9, 5 % slower. See the Record.
 - **Question.** Under option D (fair share plus TCP), do the `partial_state_v9` GNN and its separately trained MP-OFF twin, which add the outbound direction of the peer exchange to `partial_state_v8`, beat (a) the registered bar, (b) the v9 MP-OFF twin, (c) the parameter-matched wide MLP and (d) the same-input MLP, on fresh topologies?
 - **Caveat on the bar (quote with every bar number).** vs the registered bar (`0ec7cdcb`), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule.
 - **Why.** `llf_cd_confirm_v1` confirmed the static link-feature gnn against the bar and the wide MLP; `mp_confirm_v1` confirmed it against its MP-OFF twin (the parent's TIE in `live_link_features_v1` is superseded). Every link column of v7/v8 prices the partner → candidate direction. The pair table is symmetric, so each remote partner also pulls from the candidate over the candidate's own access uplink (cellular out 4 / in 75 MB/s). v5+ already carries the push direction at the solo rate (columns 25–26); no column prices it at the live fair-share rate, and none counts the candidate's own outbound flows sharing its uplink.
@@ -72,6 +73,21 @@ The parent's, with `confirm_rulings.json` (md5 `b609acef33b10e7369a0f5aa58b42477
 The bar contrast is expected to confirm: the v8 gnn already beat the same bar by −21 % / −26 % and the bar prices the outbound side wrongly. The informative contrasts are the twin and the v8 secondary. P(gnn v9 CONFIRMED vs v8 at either rung) about 0.3. P(gnn v9 CONFIRMED vs the v9 twin, both rungs) about 0.5, given `mp_confirm_v1`.
 
 ## Record
+
+- 2026-10-28 — **Follow-up probe: the outbound-attribute conv lever FAILS its screen** (S7, one seed, offline, not registered as a live gate; not trained further). The question was whether feeding R1–R3/U1 (the committed partners' pull over the candidate's own uplink) into the link conv cuts the v9 gnn's cellular traffic.
+  - **Code.** Flag `mp_link_out_conv`, default off, merged into main (old `d6564f0d`, new `9f4360d3`). With the flag off, the v9 gnn and twin decodes stay bit-identical; `tests/test_link_out_conv.py` covers it.
+  - **Arms.** Two 20-epoch seed-1 retrains on the v9 corpus: the lever (out-conv + conv prenorm/final norm) and a control (prenorm/final norm only, out-conv off). W&B: lever `9mayidgr`, control `lgszui34`.
+  - **Screen.** 200 lvs states, decoded by `-final`, scored by option D replay (2,200 rows, 0 errors). The pass rule was set before training: ≤ 7 cellular MB per state, RTT ≤ 1.02 × v9 gnn s1 (geometric mean), and fewer cellular MB than the control.
+
+    | checkpoint | cellular MB/state | RTT / v9 gnn s1 |
+    |---|---|---|
+    | label | 2.66 | — |
+    | lever `-final` | 11.59 | 1.052 |
+    | control `-final` | 13.68 | 0.973 |
+    | v9 gnn s1 | 9.99 | 1.000 |
+    | v9 twin s1 | 8.56 | 0.973 |
+
+  - **Verdict: FAIL** on 2 of 3 conditions. The lever beats only the control, and the control's 13.68 MB comes from prenorm alone. Against v9 the lever adds cellular traffic and is 5 % slower. Decoding is about 6× slower (85 s against 14 s per 200 states), from the per-prefix re-encode. This is one seed. The lineage stays `CLOSED`.
 
 - 2026-10-27 — **Confirmation read: CONFIRMED (6/8 tests)** (SCIENTIST, read once). `outbound_link_features_v1/reads/read_conf.json` (md5 `f5f89590c051b8cac10fdc683ff13904`), rc 0.
   - **Command.** The frozen reader at `381d6f98` (blob `81dd23b0`, `r1_attribution_v1_read.py` md5 `1cd0bfb6`, `confirm_rulings.json` md5 `b609acef`): `--mode cd --arm-set v9 --min-n 8 --charges scripts_cosim/v9_charges_e40.json` (md5 `7310dfb5`) `--pin 381d6f98`, ids 30572–30595 (sha256 `e74eec8f…`), `--cells v9_conf/cells,v9_conf_bar381`. 2,976 cells at one pin.

@@ -20,39 +20,21 @@ an assumption to write from.
 Routes 1–3 to a positive answer — better co-sim data, a changed environment, a changed objective — are all answered;
 lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `docs/lineages/throughline.md` → "Routes 1–3".
 
-**Where the research question stands (rewritten 2026-10-22).**
+**Where the research question stands (rewritten 2026-10-28).**
 
-**A replay-trained learned scorer beats the strongest hand rule at moderate load. The gain is the labels, not message passing.**
-Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups (≤ 226 tasks in the gate), with decision time charged as simulated time. The bar is
-`cd_ib0_inflightfull_k100`, coordinate descent over the full in-flight work at k = 1. The learned arm is the FL GNN `ra_gnn_eng_combfl_nosplit_k100`.
-- **Registered labels:** WIN-ARM-ONLY on the 12 development topologies. NOT-CONFIRMED on fresh sets A and B, at 64 servers and at 128 servers,
-  each time on a heavy-load clause. Moderate load passes every pooled test.
-- **24 servers, moderate load, ahead on every set and seed** (whole run / after 360 s):
-  - 12 development topologies 19537–19548, where design choices were made: −6.4 / −7.7 %.
-  - Fresh set A 19707–19730, seeds 1–2: −5.7 / −6.9 %.
-  - Fresh set B 19953–19976, seeds 3–6: −6.5 / −6.3 %.
-  - Never pool A and B.
-- **Heavy load:** direction only. −2 to −4 % over the whole run; the size varies with seed (−0.1 to −5.3 %); set B after 360 s is not significant.
-- **Size:**
-  - 64 servers 30129–30140: NOT-CONFIRMED. −21.5 % moderate whole; heavy direction only (seed 1 heavy whole −0.66 / +0.02 %).
-  - 128 servers 30241–30252: NOT-CONFIRMED. −19.0 % moderate whole (12/12), but heavy whole +4.7 % (0/12; seed 1 +12.3 %).
-  - Both sizes were chosen after exploratory pilots.
-- **Attribution:** the MP-off twin ties the GNN, and the same-input MLP recovers most of the gain (GNN ahead by 0.9–2.0 points on set A,
-  MODEL-CLASS-DIRECTION). The margin comes from simulator-replay labels plus in-flight features. **No result in this program is a message-passing win.**
-- **Distribution:** the gain is in the mean and the tail. On sets A / B the request mean is −12.9 / −12.8 % (moderate) and −6.6 / −4.3 % (heavy), the request p99 is faster, and the task median is 6.5–9 % higher.
-- **Boundary conditions** (TCP, autoscaler target and exact search measured on the development set):
-  - The gain needs large peer payloads. It is gone at ×0.1 and with Azure blob-trace sizes.
-  - A per-transfer TCP charge removes 26–33 % of it.
-  - Links are modelled uncontended, and some slow uplinks are offered more than they carry.
-  - Lowering the autoscaler target cuts the hand rule's latency by 34 % (0.7 → 0.294), more than our gain at the default target. At the lower targets the GNN stays ahead of the hand rule at the same target (−5.4 % at 0.45, Holm .004; −2.6 % at 0.294, not significant).
-  - Exact search on the bar's cost (groups ≤ 8) is +17.5 % slower at heavy load (0/12). Subtracting its charge leaves most of the gap; that is arithmetic, not a run.
-- **Open:**
-  - The own-state (one DAgger round) GNN-vs-twin pilot, registered 31e0cf30, direction-only.
-  - Its full confirmation, registered 6d6e1e54 and c810a270: union corpus, from scratch, 6 seeds, fresh ids 20508–20531.
-  - ILS-live was withdrawn by the user before any cell ran.
-- **Paper:** the CCGrid 2027 draft is local only and never committed. Paper framing is not the record; quote the record.
+**Under option D (fair-share links plus TCP), the link-feature GNN beats its separately trained MP-OFF twin and the MLPs on fresh topologies. No result in the program is a win over a sound hand rule.**
+Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups, with decision time charged as simulated time.
+- **vs the MP-OFF twin:** CONFIRMED in `mp_confirm_v1`: −4.25 % moderate (21/24, Holm .004), heavy a direction. In `outbound_link_features_v1` (v9) it is −2.2 % moderate, resting on seeds 1–3.
+- **vs the MLPs:** the same-input MLP loses at both rungs (v9: −5.2 % moderate, −14.7 % heavy). The parameter-matched wide MLP loses in `llf_cd_confirm_v1` (−9 / −33 %) and at 64 servers in `scale_d_v1` (−22.6 % moderate). Capacity alone does not explain the lead, but no parameter-matched twin was trained, so no result is "message passing alone".
+- **vs hand rules:** every registered bar in this program prices peer exchange inbound only, so it under-prices servers with a slow (cellular) uplink. The bar wins in `llf_cd_confirm_v1`, `outbound_link_features_v1` and the pre-D `uncut_groups_s0_v1` reads are not comparisons with a sound hand rule. Quote every bar number with that caveat.
+- **Heavy load is runaway-dominated:** quote a direction plus Holm, never a magnitude.
+- **The outbound columns add nothing** over v8 (NOT-FASTER), and the outbound conv lever failed its screen (`outbound_link_features_v1`, Record 2026-10-28).
+- **Knative:** reactive is not stable under option D at any rate (`knative_stable_v1`); it is never the bar.
+- **Still open (old physics):** the own-state (one DAgger round) confirmation in `uncut_groups_s0_v1` (registered 6d6e1e54 + c810a270, retest ids 20508–20531 sealed, no outcome read). It stays out of option D and the paper.
+- **Paper:** the CCGrid 2027 draft is local only and never committed, scoped "among single-pass learned decoders". Paper framing is not the record; quote the record.
 
 **Earlier settings, still true** (details in their nodes):
+- Before option D, the replay-trained FL GNN beat `cd_ib0_inflightfull_k100` at moderate load on every fresh set, with heavy NOT-CONFIRMED; the twin tied, so the gain was the labels plus in-flight features (`uncut_groups_s0_v1`; the same inbound-only bar).
 - With decisions free, `cd_exactS_ib0` is the bar (`ib0_confirm_v1`).
 - Charging decision time takes the exact arms off the frontier: no learned win at any k; the search wins, not the GNN (`decision_cost_s0_v1`).
 - With one origin per group, no learned arm beats CD (`small_batch_so_v1`).
