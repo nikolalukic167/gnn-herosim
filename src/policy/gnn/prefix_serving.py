@@ -842,6 +842,13 @@ def decode_prefix_conditioned(
                 "GNN_PREFIX_SELF_REFINE needs an unmasked decode (uncapped, replica reuse on, no "
                 "platform cap or queue guard): the revision takes the plain argmax"
             )
-        combo, moves = _self_refine(score_fn, tl, combo, passes)
+        n_scored = [0]
+
+        def counted(t, committed):
+            n_scored[0] += 1
+            return score_fn(t, committed)
+
+        combo, moves = _self_refine(counted, tl, combo, passes)
         graph._self_refine_moves = int(moves)
+        graph._self_refine_evals = n_scored[0]
     return tuple((int(a), int(b)) for a, b in combo)
