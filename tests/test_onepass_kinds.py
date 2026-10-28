@@ -32,6 +32,8 @@ def served_env(kind, monkeypatch, tmp_path):
         raise _Stop
 
     monkeypatch.setattr(G, "run_logged", fake)
+    # G is shared across test modules; another module can import it with a different WF1_RUNGS and leave the ladder empty.
+    monkeypatch.setattr(G, "WF1_LADDER", {"g0moderate": ("a", "wf1_moderate")})
     window = next(iter(G.WF1_LADDER))
     inputs = tmp_path / "in"
     sub = G.WF1_LADDER[window][1]
