@@ -22,11 +22,11 @@ lineage nodes cite them as "CLAUDE.md option 1/2/3". Their text and status: `doc
 
 **Where the research question stands (rewritten 2026-10-28).**
 
-**Under option D (fair-share links plus TCP), the link-feature GNN beats its separately trained MP-OFF twin and the MLPs on fresh topologies. No result in the program is a win over a sound hand rule.**
+**Under option D (fair-share links plus TCP), the link-feature GNN beats its separately trained MP-OFF twin and the MLPs on fresh topologies, all decoding in a single greedy pass. No result in the program is a win over a sound hand rule.**
 Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups, with decision time charged as simulated time.
 - **vs the MP-OFF twin:** CONFIRMED in `mp_confirm_v1`: −4.25 % moderate (21/24, Holm .004), heavy a direction. In `outbound_link_features_v1` (v9) it is −2.2 % moderate, resting on seeds 1–3.
-- **vs the MLPs:** the same-input MLP loses at both rungs (v9: −5.2 % moderate, −14.7 % heavy). The parameter-matched wide MLP loses in `llf_cd_confirm_v1` (−9 / −33 %) and at 64 servers in `scale_d_v1` (−22.6 % moderate). Capacity alone does not explain the lead, but no parameter-matched twin was trained, so no result is "message passing alone".
-- **vs hand rules:** every registered bar in this program prices peer exchange inbound only, so it under-prices servers with a slow (cellular) uplink. The bar wins in `llf_cd_confirm_v1`, `outbound_link_features_v1` and the pre-D `uncut_groups_s0_v1` reads are not comparisons with a sound hand rule. Quote every bar number with that caveat.
+- **vs the MLPs:** the same-input MLP loses at both rungs (v9: −5.2 % moderate, heavy a direction). The parameter-matched wide MLP (≈506k, the gnn's size) also loses: −9.3 % moderate in `llf_cd_confirm_v1` (heavy a direction, Holm .0005) and −22.6 % moderate at 64 servers in `scale_d_v1` (gnn rows charge-limited). So model size alone does not explain the gnn's lead over the MLPs. The twin has half the gnn's parameters, so the twin result measures message passing together with the capacity it adds.
+- **vs hand rules:** every bar win in this program (`llf_cd_confirm_v1`, `outbound_link_features_v1`, the pre-D `uncut_groups_s0_v1` reads) is vs the registered bar (02bd79a4, pre-rewrite 0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule. Quote every bar number with that line.
 - **Heavy load is runaway-dominated:** quote a direction plus Holm, never a magnitude.
 - **The outbound columns add nothing** over v8 (NOT-FASTER), and the outbound conv lever failed its screen (`outbound_link_features_v1`, Record 2026-10-28).
 - **Knative:** reactive is not stable under option D at any rate (`knative_stable_v1`); it is never the bar.
@@ -34,7 +34,7 @@ Program `uncut_groups_s0_v1`: whole, uncut Alibaba peer groups, with decision ti
 - **Paper:** the CCGrid 2027 draft is local only and never committed, scoped "among single-pass learned decoders". Paper framing is not the record; quote the record.
 
 **Earlier settings, still true** (details in their nodes):
-- Before option D, the replay-trained FL GNN beat `cd_ib0_inflightfull_k100` at moderate load on every fresh set, with heavy NOT-CONFIRMED; the twin tied, so the gain was the labels plus in-flight features (`uncut_groups_s0_v1`; the same inbound-only bar).
+- Before option D, the replay-trained FL GNN beat `cd_ib0_inflightfull_k100` at moderate load on every fresh set, with heavy NOT-CONFIRMED; the twin tied, so the gain was the labels plus in-flight features (`uncut_groups_s0_v1`; vs the registered bar (02bd79a4, pre-rewrite 0ec7cdcb), which prices peer exchange inbound only and so under-prices servers with a slow (cellular) uplink; not a comparison with a sound hand rule).
 - With decisions free, `cd_exactS_ib0` is the bar (`ib0_confirm_v1`).
 - Charging decision time takes the exact arms off the frontier: no learned win at any k; the search wins, not the GNN (`decision_cost_s0_v1`).
 - With one origin per group, no learned arm beats CD (`small_batch_so_v1`).
