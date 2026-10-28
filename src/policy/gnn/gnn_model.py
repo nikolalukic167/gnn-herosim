@@ -447,6 +447,7 @@ class TaskPlacementGNN(nn.Module):
         group_anchor: Optional[bool] = None,
         mp_link_edge_conv: Optional[bool] = None,
         mp_link_static_attr: Optional[bool] = None,
+        mp_link_out_conv: Optional[bool] = None,
         mp_conv_prenorm_residual: Optional[bool] = None,
         mp_conv_prenorm_final_norm: Optional[bool] = None,
     ) -> None:
@@ -694,15 +695,19 @@ class TaskPlacementGNN(nn.Module):
         # live_link_features_v1: extra conv edge columns beyond the 5-column edge_attr, as an ordered list of (graph attribute, width). Each is weight-VISIBLE (the conv's
         # message MLP widens) and a sidecar key. `mp_link_edge_conv` (S4): E1-E3 of the committed prefix on every bipartite row, forward and reverse, recomputed per committed
         # set, so the encode is per prefix (src/policy/gnn/link_conv.py). `mp_link_static_attr` (S6): the prefix-free S1-S3 lookahead block, written once per graph.
-        from src.placement.link_features import LINK_EDGE_DIM
+        # `mp_link_out_conv` (lever 2, S7): R1-R3/U1, the committed partners' pull over the candidate's own uplink, per committed set like E1-E3 (link_conv.out_rows).
+        from src.placement.link_features import LINK_EDGE_DIM, LINK_OUT_DIM
 
         self.mp_link_edge_conv = _env_flag("GNN_MP_LINK_EDGE_CONV") if mp_link_edge_conv is None else bool(mp_link_edge_conv)
         self.mp_link_static_attr = _env_flag("GNN_MP_LINK_STATIC_ATTR") if mp_link_static_attr is None else bool(mp_link_static_attr)
+        self.mp_link_out_conv = _env_flag("GNN_MP_LINK_OUT_CONV") if mp_link_out_conv is None else bool(mp_link_out_conv)
         self.conv_edge_extras: List[Tuple[str, int]] = []
         if self.mp_link_edge_conv:
             self.conv_edge_extras.append(("link_edge_conv_attr", LINK_EDGE_DIM))
         if self.mp_link_static_attr:
             self.conv_edge_extras.append(("link_static_attr", LINK_EDGE_DIM))
+        if self.mp_link_out_conv:
+            self.conv_edge_extras.append(("link_out_conv_attr", LINK_OUT_DIM))
         self._conv_extras_dim = sum(w for _n, w in self.conv_edge_extras)
         # live_link_features_v1 amendment A5: each bipartite conv layer as a pre-norm residual block, h <- h + Conv(LayerNorm(h)), one stateless per-row LayerNorm per layer shared by task and platform rows. Weight-visible
         # (bip_norms.*) and a sidecar key; off by default, so every existing arm is unchanged.

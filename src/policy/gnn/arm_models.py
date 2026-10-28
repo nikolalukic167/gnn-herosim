@@ -53,7 +53,7 @@ DEFAULT_SET_INDUCING = 8
 # sidecar flags that describe graph operations; any of them true on a graph-free arm is a defect, not an option
 GRAPH_FLAGS = (
     "mp_residual", "mp_node_edges", "mp_network_entities", "mp_dag_edges", "mp_peer_edges",
-    "mp_bipartite_edge_conv", "mp_bipartite_edge_attr_zero", "mp_bipartite_hetero", "mp_link_edge_conv", "mp_link_static_attr", "mp_conv_prenorm_residual", "mp_conv_prenorm_final_norm",
+    "mp_bipartite_edge_conv", "mp_bipartite_edge_attr_zero", "mp_bipartite_hetero", "mp_link_edge_conv", "mp_link_static_attr", "mp_link_out_conv", "mp_conv_prenorm_residual", "mp_conv_prenorm_final_norm",
     "plan_raw", "plan_raw_sum", "plan_raw_local", "disable_message_passing",
 )
 
