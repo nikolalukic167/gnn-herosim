@@ -109,6 +109,8 @@ lineage closes, which is when the drift enters. **Session handovers are ephemera
 committed** — write them to the scratchpad; promote anything still true a week later into a
 node, `docs/lessons.md`, or `docs/gates/gate-tools.md`.
 
+**Commit hashes cited before 2026-10-28 are pre-rewrite hashes** — translate them with `docs/notes/commit_hash_map_2026-10-28.tsv` (see `docs/notes/history_rewrite_2026-10-28.md`).
+
 **`archive/` is retired code. Ignore it** unless the user names a lineage. Do not search
 it, import from it, or treat it as current practice. Moved with `git mv` (so
 `git log --follow` works); restore point is tag `pre-cleanup-2026-08`.
