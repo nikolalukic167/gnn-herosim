@@ -12,5 +12,8 @@ with `commit_hash_map_2026-10-28.tsv` (full 40-char old → new; prefix-match a 
 grep -i "^381d6f98" docs/notes/commit_hash_map_2026-10-28.tsv
 ```
 
+Eight commits that existed only in the datalab clone were replayed onto the new history
+afterwards; their rows are at the end of the map.
+
 Two old commits can share one new hash: copies that differed only in a placeholder author
 email became identical. Trees are unchanged — the rewrite touched metadata only.
