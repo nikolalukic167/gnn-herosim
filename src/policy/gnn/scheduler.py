@@ -1149,6 +1149,56 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             placements = self._self_search(batch_tasks, system_state, queue_snapshot, temporal_state, sl, placements)
         return placements
 
+    def _bok_select(self, batch_tasks, system_state, graph):
+        """S5 best-of-K: the plan of graph._bok_combos with the lowest rule whole-plan price (_pg_plan_cost over the batch; ties to the lowest k),
+        and the charge: the batch costs HEROSIM_BOK_CHARGE_RATIO[bucket] times the served decode's plan-equivalents (n + its refine evals); the
+        K price calls meter themselves, so the extra is reduced by K."""
+        import json as _json
+
+        from src.placement.decision_cost import meter
+
+        combos = graph._bok_combos
+        K, n = len(combos), len(batch_tasks)
+        idx = 0
+        if K > 1:
+            if not hasattr(self, "_pg_plan_cost"):
+                raise RuntimeError("FAIL LOUD: best-of-K price selection needs the rule's _pg_plan_cost (run it under the hybrid scheduler)")
+            orch, nodes = self._pg_orchestrator(), self.nodes.items
+            saved = getattr(self, "_pg_batch_ids", frozenset())
+            self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
+            try:
+                S = []
+                for c in combos:
+                    plan = self._pg_plan_objects(batch_tasks, system_state, {i: c[i] for i in range(n)})[3]
+                    S.append(float(self._pg_plan_cost(batch_tasks, plan, orch, {}, nodes)[0]))
+            finally:
+                self._pg_batch_ids = saved
+            idx = min(range(K), key=lambda i: (S[i], i))
+            raw = os.environ.get("HEROSIM_BOK_CHARGE_RATIO", "").strip()
+            if not raw:
+                raise RuntimeError("FAIL LOUD: HEROSIM_BOK_K > 1 needs HEROSIM_BOK_CHARGE_RATIO (the measured best-of-K / greedy time ratio by bucket)")
+            ratio = float(_json.loads(raw)["le10" if n <= 10 else "11_50" if n <= 50 else "gt50"])
+            base = n + int(graph._bok_refine_evals[idx])
+            extra = max(0, int(round((ratio - 1.0) * base)) - K)
+            meter(self, extra)
+            self.bok_price_evals = getattr(self, "bok_price_evals", 0) + K
+            self.bok_extra_evals = getattr(self, "bok_extra_evals", 0) + extra
+            self.bok_pick_nonzero = getattr(self, "bok_pick_nonzero", 0) + int(idx > 0)
+        self.bok_batches = getattr(self, "bok_batches", 0) + 1
+        if hasattr(graph, "_self_refine_evals"):
+            graph._self_refine_evals = int(graph._bok_refine_evals[idx])
+            graph._self_refine_moves = int(graph._bok_refine_moves[idx])
+            raw1 = os.environ.get("HEROSIM_BOK_CHARGE_RATIO", "").strip()
+            if K == 1 and raw1:
+                ratio1 = float(_json.loads(raw1)["le10" if n <= 10 else "11_50" if n <= 50 else "gt50"])
+                ev = int(graph._bok_refine_evals[idx])
+                target = int(round(ratio1 * (n + ev)))
+                if target < n:
+                    raise RuntimeError(f"FAIL LOUD: K=1 charge ratio {ratio1} would meter below the n={n} plan-equivalents already metered")
+                graph._self_refine_evals = target - n
+                self.bok_k1_scaled = getattr(self, "bok_k1_scaled", 0) + 1
+        return combos[idx]
+
     def _prefix_inference_core(
         self,
         batch_tasks: List[Task],
@@ -1204,11 +1254,15 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         lk_k = self._lk_override if getattr(self, "_lk_override", None) is not None else _s7_lk_k()
         lk_sink: Optional[Dict[int, List[float]]] = {} if lk_k else None
         with (torch.inference_mode() if serve_fast.build_on() else torch.no_grad()):
+            if int(os.environ.get("HEROSIM_BOK_K", "0") or 0) > 0:
+                graph._bok_seed = [int(os.environ.get("HEROSIM_BOK_SEED", "0")), min(int(t.id) for t in batch_tasks), len(batch_tasks)]
             combo = decode_prefix_conditioned(
                 self.gnn_model, graph, self._prefix_options, stats=self.decode_stats,
                 seed_combo=None if seed is None else tuple(seed[k] for k in range(len(batch_tasks))),
                 score_sink=lk_sink, passes_override=getattr(self, "_bud_passes", None),
             )
+            if hasattr(graph, "_bok_combos"):
+                combo = self._bok_select(batch_tasks, system_state, graph)
         if lk_k:
             combo = self._s7_lk_plan(batch_tasks, system_state, task_logit_to_placement, lk_sink, lk_k)
         self.last_prefix_graph = graph  # parity checks read the served graph

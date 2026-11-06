@@ -53,6 +53,14 @@ export WF1_RUNGS=${RUNGS_IN:-light,moderate,heavy}
 # cellular uplink sensitivity: R1A_ACCESS_CELLULAR_OUT_MBPS survives the wipe as HEROSIM_ACCESS_CELLULAR_OUT_MBPS (unset = 4.0 MB/s)
 [[ -z "${R1A_ACCESS_CELLULAR_OUT_MBPS:-}" ]] || export HEROSIM_ACCESS_CELLULAR_OUT_MBPS="$R1A_ACCESS_CELLULAR_OUT_MBPS"
 [[ -z "${R1A_ACCESS_CELLULAR_IN_MBPS:-}" ]] || export HEROSIM_ACCESS_CELLULAR_IN_MBPS="$R1A_ACCESS_CELLULAR_IN_MBPS"
+# S5 best-of-K (scratch): R1A_BOK_K / _TAU / _NOISE / _SEED / _CHARGE_RATIO survive the wipe as HEROSIM_BOK_*
+[[ -z "${R1A_BOK_K:-}" ]] || export HEROSIM_BOK_K="$R1A_BOK_K"
+[[ -z "${R1A_BOK_TAU:-}" ]] || export HEROSIM_BOK_TAU="$R1A_BOK_TAU"
+[[ -z "${R1A_BOK_NOISE:-}" ]] || export HEROSIM_BOK_NOISE="$R1A_BOK_NOISE"
+[[ -z "${R1A_BOK_SEED:-}" ]] || export HEROSIM_BOK_SEED="$R1A_BOK_SEED"
+[[ -z "${R1A_BOK_CHARGE_RATIO:-}" ]] || export HEROSIM_BOK_CHARGE_RATIO="$R1A_BOK_CHARGE_RATIO"
+[[ -z "${R1A_BOK_BATCHED:-}" ]] || export HEROSIM_BOK_BATCHED="$R1A_BOK_BATCHED"
+[[ -z "${R1A_PS_STATIC_MEMO:-}" ]] || export HEROSIM_PS_STATIC_MEMO="$R1A_PS_STATIC_MEMO"
 [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]] || export R1A_SHARD="${SLURM_ARRAY_TASK_ID}/${SLURM_ARRAY_TASK_COUNT}"
 python3 scripts_cosim/fresh_topo_burst_v1_gate.py r1a --inputs "$IN" --out "$OUT" --selection "$SELECT" --parallel "${PAR:-60}" --mem "${CELL_MEM:-8G}" \
   --timeout "${LIMIT:-8100}" --no-scope | grep -v "^\[skip"

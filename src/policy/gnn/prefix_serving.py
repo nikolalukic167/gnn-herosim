@@ -776,6 +776,141 @@ def _self_refine(score_fn: Any, tl: Mapping[int, Sequence[Tuple[int, int]]],
     return tuple(plan[t] for t in sorted(plan)), total
 
 
+def _bok_decode_batched(model, graph, tl, n_tasks, ctx, stats, options, K, encode_count, score_fn):
+    """Batched best-of-K: the same plans as _bok_decode for the same seeds (asserted offline), computed with one encode and one edge-scorer call per
+    decode / refine step for all K samples. Defined only for the served unmasked config (no caps, replica reuse on, no platform cap / queue guard /
+    concurrency penalty), where the masked_topo step is the argmax over the task's candidates (ties: lowest placement)."""
+    import numpy as np
+    import torch.nn.functional as F
+    from src.policy.gnn.partial_state_edges import candidate_edge_rows, partial_state_columns
+    from src.policy.gnn.seq_decode import topological_task_order
+
+    if encode_count is not None:
+        raise PrefixServingError("HEROSIM_BOK_BATCHED is not defined for a re-encoding (Arm 2) scorer")
+    if options.concurrency_penalty > 0.0 or options.platform_cap > 0 or options.queue_guard_k > 0.0 or not options.allow_replica_reuse \
+            or any(v != math.inf for v in (ctx.node_caps or {}).values()):
+        raise PrefixServingError("HEROSIM_BOK_BATCHED needs the served unmasked decode (uncapped, replica reuse, no platform cap, guard or penalty)")
+    if int(getattr(model, "partial_state_edge_dim", 0) or 0) <= 0:
+        raise PrefixServingError("HEROSIM_BOK_BATCHED needs the prefix-conditioned scorer")
+    tau = float(os.environ["HEROSIM_BOK_TAU"])
+    noise = os.environ.get("HEROSIM_BOK_NOISE", "1") == "1"
+    base = [int(x) for x in graph._bok_seed]
+    passes = _self_refine_passes()
+    from src.policy.gnn.gnn_model import gather_scorable_edges
+    from src.policy.gnn.partial_state_edges import refresh_partial_state_edge_attr
+
+    task_emb, platform_emb = model._encode(graph)
+    pre = {t: (None, [(int(c[0]), int(c[1])) for c in tl[t]]) for t in range(n_tasks)}
+    sc = model.edge_scorer
+    state = {}
+
+    def score(t, committeds):
+        attrs = []
+        for c in committeds:
+            refresh_partial_state_edge_attr(graph, ctx, int(t), c)
+            ti, pj, e_attr = gather_scorable_edges(graph, model.partial_state_edge_dim)
+            attrs.append(e_attr.to(task_emb.device, dtype=task_emb.dtype))
+        if "x0" not in state:
+            state["x0"] = torch.cat([task_emb[ti], platform_emb[pj]], dim=-1)
+            state["idx"] = [torch.nonzero(ti == q, as_tuple=True)[0] for q in range(int(graph.n_tasks))]
+            state["E"] = int(ti.numel())
+        E = state["E"]
+        x = torch.cat([state["x0"].repeat(len(committeds), 1), torch.cat(attrs, dim=0)], dim=-1)
+        y = sc.fc2(sc.dropout(F.relu(sc.fc1(x)))).squeeze(-1)
+        idx = state["idx"][int(t)]
+        return [y[k * E:(k + 1) * E][idx] for k in range(len(committeds))]
+
+    order = topological_task_order(n_tasks, graph.dag_parents)
+    rngs = [np.random.default_rng(base + [k]) for k in range(K)] if noise else None
+    plans = [dict() for _ in range(K)]
+    for t in order:
+        S = score(t, [dict(p) for p in plans])
+        cands = pre[t][1]
+        for k in range(K):
+            if noise:
+                g = rngs[k].gumbel(size=len(cands))
+                vals = [float(v) / tau + float(x) for v, x in zip(S[k], g)]
+            else:
+                vals = [float(v) for v in S[k]]
+            plans[k][t] = min((-vals[i], cands[i]) for i in range(len(cands)))[1]
+        if stats is not None:
+            stats.masked_topo_rescored_steps += K
+    evals, moves = [0] * K, [0] * K
+    active = list(range(K))
+    for _ in range(passes):
+        if not active:
+            break
+        moved = {k: 0 for k in active}
+        for t in sorted(range(n_tasks)):
+            S = score(t, [{j: p for j, p in plans[k].items() if j != t} for k in active])
+            cands = pre[t][1]
+            for a, k in enumerate(active):
+                evals[k] += 1
+                best = min((-float(S[a][i]), cands[i]) for i in range(len(cands)))[1]
+                if best != plans[k][t]:
+                    plans[k][t] = best
+                    moved[k] += 1
+        for k in active:
+            moves[k] += moved[k]
+        active = [k for k in active if moved[k] > 0]
+    combos = [tuple(plans[k][t] for t in range(n_tasks)) for k in range(K)]
+    graph._bok_combos, graph._bok_refine_evals, graph._bok_refine_moves = combos, evals, moves
+    if passes:
+        graph._self_refine_moves, graph._self_refine_evals = moves[0], evals[0]
+    return combos[0]
+
+
+def _bok_decode(graph, tl, n_tasks, ctx, demands, score_fn, stats, options, queue_of, K, encode_count):
+    """S5 best-of-K (HEROSIM_BOK_K=K): K masked_topo decodes sharing this graph's one score_fn (one cached encode). Decode k draws every step's
+    choice from softmax(score / HEROSIM_BOK_TAU) by the Gumbel-max trick, seeded by graph._bok_seed + [k]; HEROSIM_BOK_NOISE=0 decodes with the
+    clean score (K=1 then equals the served decode bit for bit). Each decode is then refined exactly as served. The plans go to graph._bok_combos;
+    the scheduler picks one by the rule's price."""
+    import numpy as np
+
+    if encode_count is not None:
+        raise PrefixServingError("HEROSIM_BOK_K is not defined for a re-encoding (Arm 2) scorer")
+    tau = float(os.environ["HEROSIM_BOK_TAU"])
+    noise = os.environ.get("HEROSIM_BOK_NOISE", "1") == "1"
+    base = [int(x) for x in graph._bok_seed]
+    passes = _self_refine_passes()
+    if passes and (options.platform_cap > 0 or options.queue_guard_k > 0.0 or not options.allow_replica_reuse
+                   or any(v != math.inf for v in (ctx.node_caps or {}).values())):
+        raise PrefixServingError("GNN_PREFIX_SELF_REFINE needs an unmasked decode (uncapped, replica reuse on, no platform cap or queue guard)")
+    combos, evals, moves = [], [], []
+    for k in range(K):
+        if noise:
+            rng = np.random.default_rng(base + [k])
+
+            def sf(t, committed, _rng=rng):
+                lg = score_fn(t, committed)
+                g = _rng.gumbel(size=len(lg))
+                return [float(v) / tau + float(x) for v, x in zip(lg, g)]
+        else:
+            sf = score_fn
+        combo = decode_masked_topo_placement(
+            [None] * n_tasks, tl, n_tasks, dag_parents=graph.dag_parents, node_caps=ctx.node_caps, demands=demands, score_fn=sf, stats=stats,
+            allow_replica_reuse=options.allow_replica_reuse, relax_on_stuck=options.relax_on_stuck, initial_load=ctx.base_load or None,
+            platform_cap=options.platform_cap, queue_of=queue_of or None, queue_guard_k=options.queue_guard_k)
+        if combo is None:
+            raise PrefixServingError("best-of-K: a masked_topo decode found no cap-feasible plan")
+        mv, ev = 0, 0
+        if passes:
+            n_scored = [0]
+
+            def counted(t, committed):
+                n_scored[0] += 1
+                return score_fn(t, committed)
+
+            combo, mv = _self_refine(counted, tl, combo, passes)
+            ev = n_scored[0]
+        combos.append(tuple((int(a), int(b)) for a, b in combo))
+        evals.append(int(ev)); moves.append(int(mv))
+    graph._bok_combos, graph._bok_refine_evals, graph._bok_refine_moves = combos, evals, moves
+    if passes:
+        graph._self_refine_moves, graph._self_refine_evals = moves[0], evals[0]
+    return combos[0]
+
+
 def decode_prefix_conditioned(
     model: TaskPlacementGNN,
     graph: Any,
@@ -794,6 +929,8 @@ def decode_prefix_conditioned(
             "no cap rung: the sidecar has no dag_alpha_key and GNN_PREFIX_ALPHA_KEY is unset"
         )
     ctx = build_partial_state_context_from_graph(graph)
+    if os.environ.get("HEROSIM_PS_STATIC_MEMO", "0") == "1" or (int(os.environ.get("HEROSIM_BOK_K", "0") or 0) > 0 and os.environ.get("HEROSIM_BOK_BATCHED", "0") == "1"):
+        ctx._s5_static_memo = {}
     caps_by_alpha = graph.partial_state_ctx["node_caps_by_alpha"]
     if options.alpha_key not in caps_by_alpha:
         raise PrefixServingError(f"alpha_key {options.alpha_key!r} not in node_caps_by_alpha")
@@ -840,6 +977,11 @@ def decode_prefix_conditioned(
             if c not in {(int(x[0]), int(x[1])) for x in tl[t]}:
                 raise PrefixServingError(f"seeded plan places task {t} on {c}, which is not one of its graph candidates")
     else:
+        bok_k = int(os.environ.get("HEROSIM_BOK_K", "0") or 0)
+        if bok_k > 0:
+            if os.environ.get("HEROSIM_BOK_BATCHED", "0") == "1":
+                return _bok_decode_batched(model, graph, tl, n_tasks, ctx, stats, options, bok_k, encode_count, score_fn)
+            return _bok_decode(graph, tl, n_tasks, ctx, demands, score_fn, stats, options, queue_of, bok_k, encode_count)
         combo = decode_masked_topo_placement(
             [None] * n_tasks,
             tl,

@@ -203,6 +203,19 @@ def make_partial_state_score_fn(
             task_emb, platform_emb = model._encode(data)
         if task_rows_only:
             return _score_task_rows(model, task_emb, platform_emb, data, int(task_idx), rows_state)
+        import os as _os
+        if _os.environ.get("HEROSIM_PS_FAST_SPLIT", "0") == "1" or (int(_os.environ.get("HEROSIM_BOK_K", "0") or 0) > 0 and _os.environ.get("HEROSIM_BOK_BATCHED", "0") == "1"):
+            from src.policy.gnn.gnn_model import gather_scorable_edges
+            edges = gather_scorable_edges(data, model.partial_state_edge_dim)
+            if edges is None:
+                return model._score(task_emb, platform_emb, data)[int(task_idx)]
+            ti, pj, e_attr = edges
+            if "split_idx" not in rows_state:
+                n_t = int(data.n_tasks)
+                rows_state["split_idx"] = [torch.nonzero(ti == t, as_tuple=True)[0] for t in range(n_t)]
+            e_attr = None if e_attr is None else e_attr.to(task_emb.device, dtype=task_emb.dtype)
+            es = model.edge_scorer(task_emb[ti], platform_emb[pj], e_attr)
+            return es[rows_state["split_idx"][int(task_idx)]]
         return model._score(task_emb, platform_emb, data)[int(task_idx)]
 
     return score

@@ -905,7 +905,14 @@ def partial_state_columns(
                 from src.placement import link_features as _lf
 
                 _sb = load_base + LOAD_SECONDS_DIM + EXCHANGE_PUSH_DIM + LINK_EDGE_DIM
-                out[i, _sb:_sb + LINK_STATIC_DIM] = _lf.static_edge_columns(ctx.link_counts, ctx.link_routes, ctx.node_exchange, _static_partners, node)
+                _memo = getattr(ctx, "_s5_static_memo", None)
+                if _memo is None:
+                    out[i, _sb:_sb + LINK_STATIC_DIM] = _lf.static_edge_columns(ctx.link_counts, ctx.link_routes, ctx.node_exchange, _static_partners, node)
+                else:
+                    _key = (int(task_id), node)
+                    if _key not in _memo:
+                        _memo[_key] = _lf.static_edge_columns(ctx.link_counts, ctx.link_routes, ctx.node_exchange, _static_partners, node)
+                    out[i, _sb:_sb + LINK_STATIC_DIM] = _memo[_key]
             if ctx.contract in OUT_LINK_CONTRACTS:
                 from src.placement import link_features as _lf
 
