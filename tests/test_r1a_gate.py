@@ -57,7 +57,8 @@ def test_watchdog_leaves_a_fast_cell_alone(tmp_path):
     assert proc.wait(timeout=10) == 0 and dog.verdict is None
 
 
-def test_pause_line(tmp_path):
+def test_pause_line(tmp_path, monkeypatch):
+    monkeypatch.setattr(pw, "PAUSE_SHARE", 0.05)  # the production line; the scratch runs serve it disabled (1.0)
     for i in range(40):  # 39 done, none hung: not paused
         (tmp_path / f"cc40s{9000 + i}__g0heavy__cd_s0.summary.json").write_text("{}")
     assert not pw.paused(pw.rung_state(str(tmp_path), "heavy"))

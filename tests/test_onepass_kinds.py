@@ -48,7 +48,7 @@ def served_env(kind, monkeypatch, tmp_path):
 
 def test_dispatch_and_aliases():
     assert G.ONEPASS_BASE == ("batched_sym", "batched_fsc")
-    assert G.ONEPASS_KINDS == ("batched_sym", "batched_fsc", "batched_sym_sp", "batched_fsc_sp", "batched_sym_sp_order", "batched_fsc_sp_order")
+    assert G.ONEPASS_KINDS == ("batched_sym", "batched_fsc", "batched_sym_sp", "batched_fsc_sp", "batched_sym_sp_order", "batched_fsc_sp_order", "batched_h1")
     for k in G.ONEPASS_KINDS:
         assert G.RULE_POLICY[k] == "peer_greedy_network_batch" and G.check_alias(k) == "batched" and k in G.R1A_DIAG and k in G.R1A_ARMS
         assert G.ib0_alpha(k) == {"HEROSIM_PG_BATCH_ALPHA": "0"} and G.split_dc(k + "_k100") == (k, 1.0)
@@ -92,9 +92,9 @@ def test_scheduler_has_no_refine_passes():
 
 def test_instrument_checks_are_wired():
     src = (REPO_ROOT / "scripts_cosim" / "fresh_topo_burst_v1_gate.py").read_text()
-    assert 'orig_kind in (SYM_KIND, *ONEPASS_KINDS) and (out["env"].get("HEROSIM_PG_EXCHANGE_SYMMETRIC") != "1"' in src
+    assert '*ONEPASS_KINDS, *S7_KINDS) or gref) and (out["env"].get("HEROSIM_PG_EXCHANGE_SYMMETRIC") != "1"' in src
     assert 'if orig_kind in ONEPASS_KINDS:\n        if int(c.get("pg_cd_passes") or 0) != 0:' in src
-    assert 'if orig_kind in (*FSAWARE_KINDS, *ONEPASS_FSC):' in src
+    assert 'if orig_kind in (*FSAWARE_KINDS, *ONEPASS_FSC) or gref:' in src
 
 
 def test_provisional_partner_node_is_read_only():

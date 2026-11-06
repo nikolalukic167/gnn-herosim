@@ -99,8 +99,8 @@ def test_a_colocated_or_absent_partner_adds_nothing():
 
 
 @pytest.mark.parametrize("env", [{}, {"HEROSIM_PG_BATCH_ALPHA": "1"}, {"HEROSIM_PG_BATCH_ALPHA": "0", "HEROSIM_PG_CD_EXPANSION": "1"},
-                                 {"HEROSIM_PG_BATCH_ALPHA": "0", "HEROSIM_PG_CD_EXACT": "1"}, {"HEROSIM_PG_BATCH_ALPHA": "0", "HEROSIM_PG_ILS_PER": "200"},
-                                 {"HEROSIM_PG_BATCH_ALPHA": "0", "HEROSIM_PG_ORACLE": "1"}])
+                                 {"HEROSIM_PG_BATCH_ALPHA": "0", "HEROSIM_PG_CD_EXACT": "1"},
+                                 {"HEROSIM_PG_BATCH_ALPHA": "0", "HEROSIM_PG_ORACLE": "1"}])  # the ILS search is a search phase now (the fsaware_sym_ils arms)
 def test_the_flag_fails_loud_outside_ib0_without_search(monkeypatch, env):
     for k in ("HEROSIM_PG_BATCH_ALPHA", "HEROSIM_PG_CD_EXPANSION", "HEROSIM_PG_CD_EXACT", "HEROSIM_PG_ILS_PER", "HEROSIM_PG_ORACLE"):
         monkeypatch.delenv(k, raising=False)

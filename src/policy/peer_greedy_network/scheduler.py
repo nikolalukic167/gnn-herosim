@@ -62,7 +62,8 @@ if TYPE_CHECKING:
 
 PEER_GREEDY_COUNTERS = (
     "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
-    "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
+    "pg_moved_by_exchange", "pg_h1_decisions", "pg_h1_moved", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
+    "pg_cd_calls", "pg_cd_cap_hits", "pg_cd_used_1", "pg_cd_used_2", "pg_cd_used_3", "pg_cd_used_4", "pg_cd_used_5", "pg_cd_used_6", "pg_cd_used_7", "pg_cd_used_8", "pg_cd_used_9", "pg_cd_used_10",
     "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds",
     "pg_exchange_sym_evals", "pg_sp_batches", "pg_sp_provisional_used", "pg_order_batches",
     "pg_fsaware_decisions", "pg_fsaware_decisions_nonzero",
@@ -151,10 +152,27 @@ PG_EXPAND_COUNTERS = ("pg_expand_batches", "pg_expand_sweeps", "pg_expand_moves"
 # No wall-clock stop and no replay: the search is a function of the batch state and HEROSIM_PG_ILS_SEED alone.
 PG_ILS_PER_ENV = "HEROSIM_PG_ILS_PER"   # the label engine's own value is 200 (uncut_ils.default_budget); seed 0
 PG_ILS_SEED_ENV = "HEROSIM_PG_ILS_SEED"
+# S7 hand-placer arms (scratch, user-only): HEROSIM_S7_MODE = portfolio | partition ("" = the plain rule); HEROSIM_S7_POLISH_SECONDS = the ILS polish
+# budget per group in seconds of simulated decision time (the plan count is that over the ILS-phase per-plan charge). Unset: byte-identical.
+S7_MODE_ENV = "HEROSIM_S7_MODE"
+S7_POLISH_ENV = "HEROSIM_S7_POLISH_SECONDS"
+S7_POLISH_PER_TASK_ENV = "HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET"  # deadline search: budget seconds of a group = n x this bucket's ms per task / 1000 (the refined GNN's charge)
+# HEROSIM_S7_CHARGE_SCALE = JSON {"le10": a, "11_50": b, "gt50": c}: each group of 2+ functions is charged its metered evaluations x the bucket factor (measured wall / metered charge of the unscaled placer)
+S7_SCALE_ENV = "HEROSIM_S7_CHARGE_SCALE"
+# HEROSIM_S7_HK=k: the partition placer sees only the k servers the heaviest member's standalone price ranks best (S6's top-k rule), plus a best-priced
+# server for any member left without one. HEROSIM_S7_RESTRICT_DIAG=1 also runs the unrestricted placer on the same state and books how often its picks lie inside the kept set.
+S7_HK_ENV = "HEROSIM_S7_HK"
+S7_RS_DIAG_ENV = "HEROSIM_S7_RESTRICT_DIAG"
+S7_RS_COUNTERS = ("s7_rs_batches", "s7_rs_fallback_members", "s7_rs_nodes_kept", "s7_rs_nodes_all", "s7_rs_diag_members", "s7_rs_diag_inside",
+                  "s7_rs_diag_batches", "s7_rs_diag_all_inside")
+S7_COUNTERS = (*S7_RS_COUNTERS, "s7_batches", "s7_pick_cd3", "s7_pick_nolte", "s7_pick_h1", "s7_polish_batches", "s7_polish_improved", "s7_polish_evals",
+               "s7_polish_budget_plans", "s7_polish_gain_seconds", "s7_polish_skipped", "s7_part_batches", "s7_part_pick_p1", "s7_part_pick_p2",
+               "s7_part_pick_p4", "s7_part_pick_p8", "s7_part_pick_pn", "s7_part_fallback_tasks", "s7_part_assignments", "s7_scale_extra_evals")
 PG_ILS_COUNTERS = ("pg_ils_batches", "pg_ils_evals", "pg_ils_improved", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget",
                    "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
                    "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50")
-ILS_MIN_TASKS = 11    # the labels were made on groups > 10 (uncut_ils.BUCKETS); a smaller batch is served by the bar's plan
+PG_ILS_MAX_TASKS_ENV = "HEROSIM_PG_ILS_MAX_TASKS"  # H3 gate (scratch): batches with more tasks than this keep the CD plan (no ILS); unset or 0 = no gate, byte-identical
+ILS_MIN_TASKS = 2    # the labels were made on groups > 10 (uncut_ils.BUCKETS); a smaller batch is served by the bar's plan
 # cd_exactS_ib0 "live" (registered 2026-10-20): HEROSIM_PG_EXACT_G = the size cap G; a batch of more than G tasks keeps the bar's plan (no exact search, no
 # expansion fallback). Needs HEROSIM_PG_CD_EXACT=1 and peer_greedy_network_cd.
 PG_EXACT_G_ENV = "HEROSIM_PG_EXACT_G"
@@ -326,13 +344,43 @@ class _PeerGreedyCore:
     _pg_batch_ids: Set[int] = frozenset()
     # cd_declared: {task id -> {(node_id, platform_id)}} while a declared-pruning group is being decided, else None (inert)
     _pg_allowed: Optional[Dict[int, Set[Tuple[int, int]]]] = None
+    _s7_on: bool = False
+    _s7_inner: bool = False
+    _s7_nolte: bool = False
+    _s7_h1: bool = False
+    _s7_norefine: bool = False
+    _pg_last_score: float = 0.0
+
+    def _pg_nolte(self, task, valid):
+        """HEROSIM_PG_NOLTE=1 (private diagnostic): servers behind a cellular uplink are dropped from the candidate set; a task with no
+        non-cellular candidate keeps the full set (counted per task)."""
+        if (os.environ.get("HEROSIM_PG_NOLTE") != "1" and not self._s7_nolte) or not valid:
+            return valid
+        fabric = getattr(valid[0][0], "fabric", None)
+        classes = getattr(fabric, "access_classes", None) or {}
+        if not classes:
+            raise RuntimeError("FAIL LOUD: HEROSIM_PG_NOLTE needs a topology with access classes")
+        keep = [r for r in valid if classes.get(r[0].node_name) != "cellular"]
+        tid = int(task.id)
+        seen = self.__dict__.setdefault("_nl_seen", set())
+        fb = self.__dict__.setdefault("_nl_fb", set())
+        seen.add(tid)
+        self.nolte_calls = getattr(self, "nolte_calls", 0) + 1
+        self.nolte_tasks = len(seen)
+        if not keep:
+            fb.add(tid)
+            self.nolte_fallback_calls = getattr(self, "nolte_fallback_calls", 0) + 1
+            self.nolte_fallback_tasks = len(fb)
+            return valid
+        self.nolte_dropped_candidates = getattr(self, "nolte_dropped_candidates", 0) + (len(valid) - len(keep))
+        return keep
 
     def _pg_restrict(self, task, valid):
-        """The declared slate's top-5 for this task, or `valid` unchanged when no slate is being applied."""
-        if self._pg_allowed is None:
-            return valid
-        allowed = self._pg_allowed[int(task.id)]
-        return [r for r in valid if (r[0].id, r[1].id) in allowed]
+        """The declared slate's top-5 for this task, or `valid` unchanged when no slate is being applied (then the no-LTE filter, if on)."""
+        if self._pg_allowed is not None:
+            allowed = self._pg_allowed[int(task.id)]
+            valid = [r for r in valid if (r[0].id, r[1].id) in allowed]
+        return self._pg_nolte(task, valid)
 
     def _pg_init(self) -> None:
         self.pg_declared_batches = 0
@@ -344,9 +392,23 @@ class _PeerGreedyCore:
         self.pg_partners_unknown = 0
         self.pg_joined_partner = 0
         self.pg_moved_by_exchange = 0
+        self.pg_h1_decisions = 0
+        self.pg_h1_moved = 0
         self.pg_batches = 0
         self.pg_cd_passes = 0
         self.pg_cd_moves = 0
+        self.pg_cd_calls = 0
+        self.pg_cd_cap_hits = 0
+        self.pg_cd_used_1 = 0
+        self.pg_cd_used_2 = 0
+        self.pg_cd_used_3 = 0
+        self.pg_cd_used_4 = 0
+        self.pg_cd_used_5 = 0
+        self.pg_cd_used_6 = 0
+        self.pg_cd_used_7 = 0
+        self.pg_cd_used_8 = 0
+        self.pg_cd_used_9 = 0
+        self.pg_cd_used_10 = 0
         self.pg_exchange_scale = _pg_exchange_scale()
         self.pg_exec_oracle = _pg_exec_oracle()
         # forced_placements: {task_id -> (node_id, platform_id)} injected by the orchestrator from
@@ -439,6 +501,10 @@ class _PeerGreedyCore:
         if self.pg_ils_per < 0:
             raise ValueError(f"FAIL LOUD: {PG_ILS_PER_ENV} must be >= 0, got {self.pg_ils_per}")
         self.pg_ils_seed = int(os.environ.get(PG_ILS_SEED_ENV, "0").strip() or "0")
+        raw_gate = os.environ.get(PG_ILS_MAX_TASKS_ENV, "").strip()
+        self.pg_ils_max_tasks = int(raw_gate) if raw_gate else 0
+        if self.pg_ils_max_tasks < 0:
+            raise ValueError(f"FAIL LOUD: {PG_ILS_MAX_TASKS_ENV} must be >= 0, got {raw_gate!r}")
         raw_g = os.environ.get(PG_EXACT_G_ENV, "").strip()
         try:
             self.pg_exact_g = int(raw_g) if raw_g else 0
@@ -447,6 +513,42 @@ class _PeerGreedyCore:
         if raw_g and self.pg_exact_g < 1:
             raise ValueError(f"FAIL LOUD: {PG_EXACT_G_ENV} must be >= 1, got {raw_g!r}")
         self.pg_exact_g_skipped = 0
+        raw_s7 = os.environ.get(S7_MODE_ENV, "").strip()
+        if raw_s7 not in ("", "portfolio", "partition"):
+            raise ValueError(f"FAIL LOUD: {S7_MODE_ENV}={raw_s7!r}; expected portfolio or partition")
+        raw_pol = os.environ.get(S7_POLISH_ENV, "").strip()
+        self.s7_mode = raw_s7
+        self.s7_polish_s = float(raw_pol) if raw_pol else None
+        if self.s7_polish_s is not None and not self.s7_polish_s >= 0:
+            raise ValueError(f"FAIL LOUD: {S7_POLISH_ENV} must be >= 0, got {raw_pol!r}")
+        raw_pt = os.environ.get(S7_POLISH_PER_TASK_ENV, "").strip()
+        self.s7_polish_per_task = None
+        if raw_pt:
+            pt = json.loads(raw_pt)
+            if sorted(pt) != ["11_50", "gt50", "le10"] or any(type(v) not in (int, float) or v < 0 for v in pt.values()) or self.s7_polish_s is None:
+                raise ValueError(f"FAIL LOUD: {S7_POLISH_PER_TASK_ENV} must be a JSON object keyed le10, 11_50, gt50 with ms >= 0, served with {S7_POLISH_ENV}; got {raw_pt!r}")
+            self.s7_polish_per_task = {k: float(v) for k, v in pt.items()}
+        raw_scale = os.environ.get(S7_SCALE_ENV, "").strip()
+        self.s7_scale = None
+        if raw_scale:
+            sc = json.loads(raw_scale)
+            if sorted(sc) != ["11_50", "gt50", "le10"] or any(type(v) not in (int, float) or v < 1.0 for v in sc.values()):
+                raise ValueError(f"FAIL LOUD: {S7_SCALE_ENV} must be a JSON object keyed le10, 11_50, gt50 with factors >= 1, got {raw_scale!r}")
+            self.s7_scale = {k: float(v) for k, v in sc.items()}
+        self._s7_on = bool(raw_s7) or self.s7_polish_s is not None
+        if self._s7_on and self._policy_label != "peer_greedy_network_cd":
+            raise RuntimeError(f"FAIL LOUD: {S7_MODE_ENV}/{S7_POLISH_ENV} are defined for peer_greedy_network_cd; {self._policy_label}")
+        for name in S7_COUNTERS:
+            setattr(self, name, 0.0 if name == "s7_polish_gain_seconds" else 0)
+        raw_hk = os.environ.get(S7_HK_ENV, "").strip()
+        self.s7_hk = int(raw_hk) if raw_hk else 0
+        if self.s7_hk < 0:
+            raise ValueError(f"FAIL LOUD: {S7_HK_ENV} must be >= 1 when set, got {raw_hk!r}")
+        self.s7_rs_diag = _pg_flag(S7_RS_DIAG_ENV)
+        self.s7_node_set = None      # lk: the node ids the learned ranking kept, set by the caller for one partition call
+        self.s7_fallback_pick = None  # lk: member index -> the couple the learned score ranks best among its candidates
+        if self.s7_hk and (self._policy_label != "peer_greedy_network_cd" or raw_s7 != "partition"):
+            raise RuntimeError(f"FAIL LOUD: {S7_HK_ENV} needs the partition placer on peer_greedy_network_cd; {self._policy_label}, {S7_MODE_ENV}={raw_s7!r}")
         self.sched_plan_evals_s = 0
         for name in PG_ILS_COUNTERS:
             setattr(self, name, 0.0 if name == "pg_ils_gain_seconds" else 0)
@@ -625,7 +727,7 @@ class _PeerGreedyCore:
         raw_b = os.environ.get(PG_BATCH_ALPHA_ENV, "").strip()
         if not raw_b or float(raw_b) != 0.0:
             raise RuntimeError(f"FAIL LOUD: {PG_EXCHANGE_SYMMETRIC_ENV}=1 needs {PG_BATCH_ALPHA_ENV}=0, got {raw_b!r}")
-        for name in (PG_CD_EXPANSION_ENV, PG_CD_EXACT_ENV, PG_ILS_PER_ENV, PG_ORACLE_ENV):
+        for name in (PG_CD_EXPANSION_ENV, PG_CD_EXACT_ENV, PG_ORACLE_ENV):  # H3 (exploratory): the ILS is allowed under sym at alpha 0; its accepted plans rewrite the books with a service that includes the reverse seconds
             if os.environ.get(name, "").strip() not in ("", "0"):
                 raise RuntimeError(f"FAIL LOUD: {PG_EXCHANGE_SYMMETRIC_ENV}=1 is not defined with {name}")
 
@@ -717,7 +819,18 @@ class _PeerGreedyCore:
                 feats.append([int(node.id), int(platform.id), node.node_name, str(platform.id),
                               float(drain), float(cold), float(exec_s), float(lat), float(exch)])
             scored.append((base + self.pg_exchange_scale * exch + ext, base, exch, exec_s + comm, node, platform, ext))
-        best = min(scored, key=lambda s: (s[0], s[4].id, s[5].id))
+        if os.environ.get("HEROSIM_PG_H1") == "1" or self._s7_h1:  # S6 scratch (exploratory, uncommitted): co-locate with already-placed partners, else avoid a cellular uplink for a member that has partners; cost breaks ties
+            _fab = getattr(next(iter(self.nodes.items)), "fabric", None)
+            _cls = getattr(_fab, "access_classes", None) or {}
+            _sends = bool((getattr(orch, "peer_exchange", None) or {}).get(int(task.id)))
+            _pn = {n for n, _b in peer_nodes}
+            self.pg_h1_decisions += 1
+            best = min(scored, key=lambda s: (0 if s[4].node_name in _pn else 1, 1 if (_sends and _cls.get(s[4].node_name) == "cellular") else 0, s[0], s[4].id, s[5].id))
+            _cb = min(scored, key=lambda s: (s[0], s[4].id, s[5].id))
+            self.pg_h1_moved += int((_cb[4].id, _cb[5].id) != (best[4].id, best[5].id))
+        else:
+            best = min(scored, key=lambda s: (s[0], s[4].id, s[5].id))
+        self._pg_last_score = best[0]
         if best[6] > 0.0:
             self.pg_ext_charged += 1
             self.pg_ext_seconds += best[6]
@@ -751,7 +864,7 @@ class PeerGreedyNetworkScheduler(_PeerGreedyCore, KnativeNetworkScheduler):
         if False:
             yield
         replicas = system_state.replicas[task.type["name"]]
-        valid = self._get_valid_replicas(replicas, task)
+        valid = self._pg_nolte(task, self._get_valid_replicas(replicas, task))
         if not valid:
             raise ValueError(f"No valid replicas for task {task.id}")
         initialized = [r for r in valid if r[1].initialized.triggered]
@@ -1221,6 +1334,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         return placements
 
     def _pg_decide(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[int, Tuple[int, int]]:
+        if self._s7_on and not self._s7_inner:
+            return self._s7_decide(batch_tasks, system_state)
         orch = self._pg_orchestrator()
         memo: Dict[str, float] = {}
         committed_service: Dict[str, float] = {}
@@ -1256,6 +1371,15 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         outside = sum(1 for i in ids for j in (table.get(i) or {}) if j not in ids)
         self.prefix_pairs_in_batch += pairs_in
         self.prefix_peers_outside_batch += outside
+        if os.environ.get("HEROSIM_PG_NOLTE") == "1":
+            classes = getattr(next(iter(self.nodes.items)).fabric, "access_classes", None) or {}
+            fb = self.__dict__.get("_nl_fb", set())
+            for t in batch_tasks:
+                nm = planned.get(int(t.id))
+                if nm is not None and classes.get(nm) == "cellular":
+                    self.nolte_placed_cellular = getattr(self, "nolte_placed_cellular", 0) + 1
+                    if int(t.id) not in fb:
+                        self.nolte_placed_cellular_nonfallback = getattr(self, "nolte_placed_cellular_nonfallback", 0) + 1
         return placements
 
     def _pg_candidates(self, task: "Task", system_state: SystemState) -> List[Tuple["Node", "Platform"]]:
@@ -1617,6 +1741,8 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         if n < ILS_MIN_TASKS:
             self.pg_ils_small_batches += 1
             return 0
+        if self.pg_ils_max_tasks and n > self.pg_ils_max_tasks:
+            return 0
         nodes = self.nodes.items
         _cands, couple, keys, plan, _pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
         ident = lambda pair: (int(pair[0].id), int(pair[1].id))
@@ -1652,6 +1778,369 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         self.sched_plan_evals_s += self.sched_plan_evals - metered_before
         self.sched_plan_evals = metered_before
         return moved
+
+    # ---- S7 hand-placer arms (scratch, user-only). Every sub-rule runs the same code as cd3 and meters through `_meter`, so whatever a
+    # ---- portfolio, a polish or a partition computes is charged at the cell's decision rate; nothing is metered twice or hidden.
+    def _s7_decide(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[int, Tuple[int, int]]:
+        orch = self._pg_orchestrator()
+        if self.pg_ils_per or self.pg_cd_expansion or self.pg_cd_exact or self.pg_ils_max_tasks:
+            raise RuntimeError("FAIL LOUD: the S7 arms replace the ILS/expansion/exact phases; they are not run with them")
+        self.s7_batches += 1
+        self._s7_inner = True
+        log_path = os.environ.get("HEROSIM_S7_TIMELOG")
+        evals_before_scale = getattr(self, "sched_plan_evals", 0)
+        if log_path:
+            from src.placement import decision_cost
+            evals0, evals_s0, wall0 = getattr(self, "sched_plan_evals", 0), getattr(self, "sched_plan_evals_s", 0), default_timer()
+            budget0 = self.s7_polish_budget_plans
+        try:
+            if self.s7_mode == "portfolio":
+                placements = self._s7_portfolio(batch_tasks, system_state, orch)
+            elif self.s7_mode == "partition":
+                placements = self._s7_partition(batch_tasks, system_state, orch)
+            else:
+                placements = self._pg_decide(batch_tasks, system_state)
+            if self.s7_polish_s is not None:
+                placements = self._s7_polish(batch_tasks, system_state, orch, placements)
+        finally:
+            self._s7_inner = False
+        if self.s7_scale is not None and len(batch_tasks) >= 2:
+            from src.placement import decision_cost as _dc
+            extra = int(round((self.s7_scale[_dc.bucket_of(len(batch_tasks))] - 1.0) * (getattr(self, "sched_plan_evals", 0) - evals_before_scale)))
+            self.sched_plan_evals += extra
+            self.s7_scale_extra_evals += extra
+        if log_path:
+            n = len(batch_tasks)
+            charged = (decision_cost.rate_ms(n) * (getattr(self, "sched_plan_evals", 0) - evals0) + decision_cost.s_rate_ms(n) * (getattr(self, "sched_plan_evals_s", 0) - evals_s0)) * 1e-3
+            with open(log_path, "a") as fh:
+                fh.write(json.dumps({"n": n, "plan_md5": __import__("hashlib").md5(repr(sorted((int(i), tuple(map(int, v))) for i, v in placements.items())).encode()).hexdigest()[:12], "wall_s": default_timer() - wall0, "charged_s": charged, "evals": getattr(self, "sched_plan_evals", 0) - evals0,
+                                     "search_s": decision_cost.s_rate_ms(n) * (getattr(self, "sched_plan_evals_s", 0) - evals_s0) * 1e-3,
+                                     "budget_s": decision_cost.s_rate_ms(n) * (self.s7_polish_budget_plans - budget0) * 1e-3}) + "\n")
+        return placements
+
+    def _s7_run(self, batch_tasks, system_state, *, nolte=False, h1=False, norefine=False) -> Dict[int, Tuple[int, int]]:
+        self._s7_nolte, self._s7_h1, self._s7_norefine = nolte, h1, norefine
+        try:
+            return self._pg_decide(batch_tasks, system_state)
+        finally:
+            self._s7_nolte = self._s7_h1 = self._s7_norefine = False
+
+    def _s7_plan_of(self, batch_tasks, system_state, placements):
+        _cands, couple, _keys, plan, _pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        return couple, plan
+
+    def _s7_portfolio(self, batch_tasks, system_state, orch) -> Dict[int, Tuple[int, int]]:
+        """Best of cd3, cd3 without cellular candidates, and the H1 co-locate rule (one pass, no refine), each scored by the rule's own whole-plan S."""
+        book_names = ("pg_batches", "prefix_pairs_in_batch", "prefix_peers_outside_batch", "pg_fsaware_decisions", "pg_fsaware_decisions_nonzero")
+        rules = (("cd3", {}), ("nolte", {"nolte": True}), ("h1", {"h1": True, "norefine": True}))
+        plans = []
+        kept = None
+        for name, kw in rules:
+            plans.append((name, self._s7_run(batch_tasks, system_state, **kw)))
+            if kept is None:
+                kept = {b: getattr(self, b) for b in book_names}
+        for b, v in kept.items():
+            setattr(self, b, v)    # the decision books count one batch; the sub-rules' plan evaluations stay metered
+        memo: Dict[str, float] = {}
+        nodes = self.nodes.items
+        best = None
+        for name, placements in plans:
+            _couple, plan = self._s7_plan_of(batch_tasks, system_state, placements)
+            cost = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)[0]
+            if best is None or cost < best[0] - 1e-12:
+                best = (cost, name, placements)
+        setattr(self, f"s7_pick_{best[1]}", getattr(self, f"s7_pick_{best[1]}") + 1)
+        return best[2]
+
+    def _s7_polish(self, batch_tasks, system_state, orch, placements) -> Dict[int, Tuple[int, int]]:
+        """The ILS (seed HEROSIM_PG_ILS_SEED) from the current plan, under a budget of S7_POLISH seconds of ILS-phase decision time per group:
+        plans = seconds / the ILS-phase per-plan charge of this group's size bucket. Stops early when converged, so it charges what it ran."""
+        from src.policy.peer_greedy_network.ils import ils
+        from src.placement import decision_cost
+
+        n = len(batch_tasks)
+        rate_ms = decision_cost.s_rate_ms(n)
+        if not rate_ms > 0:
+            raise RuntimeError(f"FAIL LOUD: {S7_POLISH_ENV} needs the ILS-phase charge (HEROSIM_DECISION_COST_MS_S_BY_BUCKET) to turn seconds into plans")
+        seconds = self.s7_polish_s
+        if self.s7_polish_per_task is not None:
+            seconds = n * self.s7_polish_per_task[decision_cost.bucket_of(n)] * 1e-3
+        budget = int(seconds / (rate_ms * 1e-3))
+        self.s7_polish_budget_plans += budget
+        if n < 2 or budget < 2:
+            self.s7_polish_skipped += 1
+            return placements
+        nodes = self.nodes.items
+        _cands, couple, keys, plan, _pinned = self._pg_plan_objects(batch_tasks, system_state, placements)
+        ident = lambda pair: (int(pair[0].id), int(pair[1].id))
+        start = tuple(ident(p) for p in plan)
+        cand_keys = [sorted(k) for k in keys]
+        memo: Dict[str, float] = {}
+        metered_before = self.sched_plan_evals
+
+        def score(pl) -> float:
+            return self._pg_plan_cost(batch_tasks, [couple[k] for k in pl], orch, memo, nodes)[0]
+
+        res = ils(cand_keys, start, score, seed=self.pg_ils_seed, max_evals=budget, cap=n)
+        self.s7_polish_batches += 1
+        self.s7_polish_evals += res["n_evals"]
+        gain = res["start_S"] - res["best_S"]
+        out = placements
+        if res["best"] is not None and gain > 1e-9:
+            self.s7_polish_improved += 1
+            self.s7_polish_gain_seconds += gain
+            out = {i: (int(couple[tuple(k)][0].id), int(couple[tuple(k)][1].id)) for i, k in enumerate(res["best"])}
+        self.sched_plan_evals_s += self.sched_plan_evals - metered_before
+        self.sched_plan_evals = metered_before
+        return out
+
+    @staticmethod
+    def _s7_bisect(idx: List[int], w: Dict[Tuple[int, int], float], p: int) -> List[List[int]]:
+        """p parts by repeated Kernighan-Lin bisection of the largest part on the byte-weighted exchange graph. Deterministic: ids ascending,
+        ties to the lowest id, no sets iterated."""
+        adj: Dict[int, Dict[int, float]] = {}
+        for (a, b), x in w.items():
+            adj.setdefault(a, {})[b] = x
+            adj.setdefault(b, {})[a] = x
+
+        def split(m: List[int]):
+            h = (len(m) + 1) // 2
+            A, B = list(m[:h]), list(m[h:])
+            if not B:
+                return A, B
+            for _pass in range(6):
+                side = {v: 0 for v in A}
+                side.update({v: 1 for v in B})
+                D = {}
+                for v in m:
+                    ext = sum(x for u, x in adj.get(v, {}).items() if u in side and side[u] != side[v])
+                    inn = sum(x for u, x in adj.get(v, {}).items() if u in side and side[u] == side[v])
+                    D[v] = ext - inn
+                lockedA, lockedB = set(), set()
+                gains, pairs = [], []
+                for _ in range(min(len(A), len(B))):
+                    ua = [v for v in A if v not in lockedA]
+                    ub = [v for v in B if v not in lockedB]
+                    if not ua or not ub:
+                        break
+                    a = max(ua, key=lambda v: (D[v], -v))
+                    b = max(ub, key=lambda v: (D[v] - 2.0 * adj.get(a, {}).get(v, 0.0), -v))
+                    g = D[a] + D[b] - 2.0 * adj.get(a, {}).get(b, 0.0)
+                    gains.append(g)
+                    pairs.append((a, b))
+                    lockedA.add(a)
+                    lockedB.add(b)
+                    for v in ua:
+                        if v != a:
+                            D[v] += 2.0 * adj.get(v, {}).get(a, 0.0) - 2.0 * adj.get(v, {}).get(b, 0.0)
+                    for v in ub:
+                        if v != b:
+                            D[v] += 2.0 * adj.get(v, {}).get(b, 0.0) - 2.0 * adj.get(v, {}).get(a, 0.0)
+                best_k, best_sum, run = -1, 0.0, 0.0
+                for k, g in enumerate(gains):
+                    run += g
+                    if run > best_sum + 1e-9:
+                        best_sum, best_k = run, k
+                if best_k < 0:
+                    break
+                for a, b in pairs[:best_k + 1]:
+                    A[A.index(a)] = b
+                    B[B.index(b)] = a
+                A.sort()
+                B.sort()
+            return sorted(A), sorted(B)
+
+        parts = [sorted(idx)]
+        while len(parts) < p:
+            k = max(range(len(parts)), key=lambda q: (len(parts[q]), -q))
+            if len(parts[k]) < 2:
+                break
+            a, b = split(parts[k])
+            parts[k:k + 1] = [a, b]
+        return parts
+
+    def _s7_assign(self, parts, batch_tasks, system_state, orch, w, cands_of) -> Dict[int, Tuple[int, int]]:
+        """Parts onto servers by the rule's own price. Parts go in order of the bytes they touch, heaviest first. For a part, every server that
+        can host at least two of its members is tried: those members are placed there with their part-mates assumed on it, the others are placed one
+        by one at their best server, and the option's summed S is kept; placing every member individually is the last option. The cheapest
+        option is committed."""
+        n = len(batch_tasks)
+        nodes = self.nodes.items
+        memo: Dict[str, float] = {}
+        committed: Dict[str, float] = {}
+        planned: Dict[int, str] = {}
+        placements: Dict[int, Tuple[int, int]] = {}
+        touch = [0.0] * n
+        for (a, b), x in w.items():
+            touch[a] += x
+            touch[b] += x
+        order = sorted(range(len(parts)), key=lambda k: (-sum(touch[i] for i in parts[k]), parts[k][0]))
+        tid = lambda i: int(batch_tasks[i].id)
+
+        def place(members, node_id, planned_try, committed_try):
+            """members placed in id order; those with node_id restricted to it, the rest free. Returns (summed S, picks)."""
+            total, picks = 0.0, []
+            for i in members:
+                cs = cands_of[i]
+                if node_id is not None:
+                    on = [(nd, pl) for nd, pl in cs if int(nd.id) == node_id]
+                    cs = on if on else cs
+                nd, pl, svc = self._pg_choose(batch_tasks[i], cs, orch, memo=memo, committed_service=committed_try, planned=planned_try, nodes=nodes)
+                total += self._pg_last_score
+                key = f"{nd.node_name}:{pl.id}"
+                committed_try[key] = committed_try.get(key, 0.0) + svc
+                planned_try[tid(i)] = nd.node_name
+                picks.append((i, nd, pl, svc, key, node_id is not None and int(nd.id) == node_id))
+            return total, picks
+
+        for k in order:
+            members = sorted(parts[k], key=tid)
+            best = None
+            options = [None]
+            if len(members) > 1:
+                hosts = {}
+                for i in members:
+                    for nd, _pl in cands_of[i]:
+                        hosts.setdefault(int(nd.id), nd.node_name)
+                for nid in sorted(hosts):
+                    if sum(1 for i in members if any(int(nd.id) == nid for nd, _pl in cands_of[i])) >= 2:
+                        options.append(nid)
+            for nid in options:
+                planned_try = dict(planned)
+                if nid is not None:
+                    for i in members:
+                        if any(int(nd.id) == nid for nd, _pl in cands_of[i]):
+                            planned_try[tid(i)] = hosts[nid]
+                total, picks = place(members, nid, planned_try, dict(committed))
+                if best is None or total < best[0] - 1e-12:
+                    best = (total, picks)
+            self.s7_part_assignments += 1
+            for i, nd, pl, svc, key, on_host in best[1]:
+                committed[key] = committed.get(key, 0.0) + svc
+                planned[tid(i)] = nd.node_name
+                placements[i] = (int(nd.id), int(pl.id))
+            self.s7_part_fallback_tasks += sum(1 for pk in best[1] if not pk[5])
+        return placements
+
+    def _s7_partition(self, batch_tasks, system_state, orch) -> Dict[int, Tuple[int, int]]:
+        """Min-cut the group's exchange graph (bytes) into p parts for p in 1, 2, 4, 8, n, place each by `_s7_assign`, keep the plan of lowest whole-plan S."""
+        if fairshare_aware.commit_enabled():
+            raise RuntimeError("FAIL LOUD: the partition placer is not defined with HEROSIM_PG_FAIRSHARE_AWARE_COMMIT")
+        n = len(batch_tasks)
+        nodes = self.nodes.items
+        self.s7_part_batches += 1
+        self._pg_batch_ids = frozenset(int(t.id) for t in batch_tasks)
+        fsaware_nonzero_before = FSAWARE_STATS["nonzero"]
+        pos = {int(batch_tasks[i].id): i for i in range(n)}
+        table = getattr(orch, "peer_exchange", None) or {}
+        w: Dict[Tuple[int, int], float] = {}
+        for i in range(n):
+            peers = table.get(int(batch_tasks[i].id)) or {}
+            for pid in sorted(peers):
+                j = pos.get(int(pid))
+                if j is not None and j != i:
+                    key = (min(i, j), max(i, j))
+                    w[key] = w.get(key, 0.0) + float(peers[pid])
+        cands_of = {i: self._pg_candidates(batch_tasks[i], system_state) for i in range(n)}
+        full_cands = cands_of
+        allowed_nodes = None
+        if (self.s7_hk or self.s7_node_set is not None) and not getattr(self, "_s7_in_diag", False):
+            cands_of, allowed_nodes = self._s7_restrict(batch_tasks, system_state, orch, cands_of, w)
+        order = sorted(range(n), key=lambda i: int(batch_tasks[i].id))
+        memo: Dict[str, float] = {}
+        seen = set()
+        best = None
+        for p in sorted({q for q in (1, 2, 4, 8, n) if 1 <= q <= n}):
+            parts = self._s7_bisect(order, w, p)
+            sig = tuple(tuple(x) for x in sorted(parts))
+            if sig in seen:
+                continue
+            seen.add(sig)
+            placements = self._s7_assign(parts, batch_tasks, system_state, orch, w, cands_of)
+            _couple, plan = self._s7_plan_of(batch_tasks, system_state, placements)
+            cost = self._pg_plan_cost(batch_tasks, plan, orch, memo, nodes)[0]
+            if best is None or cost < best[0] - 1e-12:
+                best = (cost, p, placements)
+        tag = "n" if best[1] == n and n not in (1, 2, 4, 8) else str(best[1])
+        name = f"s7_part_pick_p{tag}"
+        setattr(self, name, getattr(self, name) + 1)
+        self.pg_batches += 1
+        if self.pg_fsaware:
+            self.pg_fsaware_decisions += 1
+            self.pg_fsaware_decisions_nonzero += int(FSAWARE_STATS["nonzero"] > fsaware_nonzero_before)
+        if allowed_nodes is not None and self.s7_rs_diag:
+            self._s7_restrict_diag(batch_tasks, system_state, orch, allowed_nodes)
+        return best[2]
+
+    def _s7_restrict(self, batch_tasks, system_state, orch, cands_of, w):
+        """Each member's couples cut to the kept servers. hk: the k servers the heaviest member (most exchange bytes touched, ties to the lowest id) prices best
+        standalone (min over a server's platforms; ties to the lower node id). lk: the node set the caller passed. A member with no couple on a kept server gets
+        its own best couple (hk: the lowest standalone price; lk: the learned score's best) added, never its full list. Pricing evaluations are not charged."""
+        n = len(batch_tasks)
+        nodes = self.nodes.items
+        tgt = getattr(self, "_host", self)
+        evals_before = getattr(tgt, "sched_plan_evals", 0)
+        memo: Dict[str, float] = {}
+        standalone = lambda i, c: self._pg_standalone(batch_tasks[i], c[0], c[1], orch, memo, nodes)
+        all_nodes = sorted({int(c[0].id) for i in range(n) for c in cands_of[i]})
+        if self.s7_node_set is not None:
+            allowed = set(self.s7_node_set)
+        else:
+            touch = [0.0] * n
+            for i in range(n):
+                peers = (getattr(orch, "peer_exchange", None) or {}).get(int(batch_tasks[i].id)) or {}
+                touch[i] = sum(float(b) for b in peers.values())
+            heavy = min(range(n), key=lambda i: (-touch[i], int(batch_tasks[i].id)))
+            score: Dict[int, float] = {}
+            for c in cands_of[heavy]:
+                v = standalone(heavy, c)
+                nid = int(c[0].id)
+                if nid not in score or v < score[nid]:
+                    score[nid] = v
+            ranked = sorted(score, key=lambda nid: (score[nid], nid)) + [nid for nid in all_nodes if nid not in score]  # servers the heaviest member cannot use rank last
+            allowed = set(ranked[:self.s7_hk])
+        out = {}
+        for i in range(n):
+            kept = [c for c in cands_of[i] if int(c[0].id) in allowed]
+            if not kept:
+                if self.s7_fallback_pick is not None:
+                    pick = self.s7_fallback_pick(i, cands_of[i])
+                else:
+                    pick = min(cands_of[i], key=lambda c: (standalone(i, c), int(c[0].id), int(c[1].id)))
+                kept = [pick]
+                self.s7_rs_fallback_members += 1
+            out[i] = kept
+        tgt.sched_plan_evals = evals_before
+        self.s7_rs_batches += 1
+        self.s7_rs_nodes_kept += len(allowed & set(all_nodes))
+        self.s7_rs_nodes_all += len(all_nodes)
+        return out, allowed
+
+    def _s7_restrict_diag(self, batch_tasks, system_state, orch, allowed_nodes):
+        """Diagnostic: the unrestricted placer on the same state, its picks against the kept set. Every counter, the host's evaluation books and the
+        fair-share stats are put back afterwards, so nothing here is charged or counted as a decision."""
+        tgt = getattr(self, "_host", self)
+        snap = {k: v for k, v in self.__dict__.items() if type(v) in (int, float)}
+        host_snap = (getattr(tgt, "sched_plan_evals", 0), getattr(tgt, "sched_plan_evals_s", 0))
+        fs_snap = dict(FSAWARE_STATS)
+        books = (self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded)
+        hk, ns = self.s7_hk, self.s7_node_set
+        self.s7_hk, self.s7_node_set, self._s7_in_diag = 0, None, True
+        try:
+            full = self._s7_partition(batch_tasks, system_state, orch)
+        finally:
+            self.s7_hk, self.s7_node_set, self._s7_in_diag = hk, ns, False
+            for k, v in snap.items():
+                setattr(self, k, v)
+            tgt.sched_plan_evals, tgt.sched_plan_evals_s = host_snap
+            FSAWARE_STATS.clear()
+            FSAWARE_STATS.update(fs_snap)
+            self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
+        inside = sum(1 for i in full if int(full[i][0]) in allowed_nodes)
+        self.s7_rs_diag_batches += 1
+        self.s7_rs_diag_members += len(full)
+        self.s7_rs_diag_inside += inside
+        self.s7_rs_diag_all_inside += int(inside == len(full))
 
     def _pg_write_books(self, batch_tasks: List["Task"], plan: Sequence[Tuple["Node", "Platform"]], orch, memo: Dict[str, float],
                         committed_service: Dict[str, float], planned: Dict[int, str], placements: Dict[int, Tuple[int, int]],
@@ -2112,6 +2601,8 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
 
     def _pg_refine(self, batch_tasks, system_state, orch, memo, committed_service, planned,
                    placements, service_of) -> None:
+        if self._s7_norefine:
+            return
         raw = os.environ.get("HEROSIM_PG_CD_PASSES", "3").strip() or "3"
         passes = int(raw)
         if passes < 1:
@@ -2136,15 +2627,60 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
 
     def _pg_cd_passes(self, passes, batch_tasks, system_state, orch, memo, committed_service, planned,
                       placements, service_of) -> None:
+        used = 0
+        stopped = False
         for _ in range(passes):
             moved = self._pg_batch_pass(
                 batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
                 planned=planned, placements=placements, service_of=service_of, refine=True,
             )
             self.pg_cd_passes += 1
+            used += 1
             self.pg_cd_moves += moved
             if moved == 0:
+                stopped = True
                 break
+        self.pg_cd_calls += 1
+        if not stopped:
+            self.pg_cd_cap_hits += 1
+        if 1 <= used <= 10:
+            setattr(self, f"pg_cd_used_{used}", getattr(self, f"pg_cd_used_{used}") + 1)
+
+
+HYB_G_ENV = "HEROSIM_HYB_G"  # hybrid (scratch): batches of at most G tasks are decided by the CD rule (+ the gated ILS), larger ones by the GNN
+HYB_COUNTERS = ("hyb_small_batches", "hyb_large_batches", "hyb_small_tasks", "hyb_large_tasks")
+
+
+class HybridGnnCdScheduler(PeerGreedyNetworkCDScheduler):
+    """Per batch of n tasks: n <= G the CD rule's plan (its passes, then the ILS under HEROSIM_PG_ILS_*), n > G the served GNN's plan (decode, and
+    its self-refine under GNN_PREFIX_SELF_REFINE). One scheduler, two decision paths; the charge buckets are set by the driver per path. The CD-refine
+    hook of the GNN path is off for small batches, so a CD plan is never refined twice."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        raw = os.environ.get(HYB_G_ENV, "").strip()
+        if not raw.isdigit():
+            raise ValueError(f"FAIL LOUD: {HYB_G_ENV} must be a non-negative integer, got {raw!r}")
+        self.hyb_g = int(raw)
+        for name in HYB_COUNTERS:
+            setattr(self, name, 0)
+
+    def set_models(self, models: dict):
+        return GNNScheduler.set_models(self, models)
+
+    def _prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state):
+        if len(batch_tasks) <= self.hyb_g:
+            self.hyb_small_batches += 1
+            self.hyb_small_tasks += len(batch_tasks)
+            return self._pg_decide(batch_tasks, system_state)  # the CD rule on the full candidate set, as the hand arm runs it (not the learned arms' declared slate)
+        self.hyb_large_batches += 1
+        self.hyb_large_tasks += len(batch_tasks)
+        return GNNScheduler._prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state)
+
+    def _cd_refine(self, tasks, placements, system_state, mode):
+        if len(tasks) <= self.hyb_g:
+            return placements
+        return GNNScheduler._cd_refine(self, tasks, placements, system_state, mode)
 
 
 class PeerGreedyNetworkCDRandomSeedScheduler(PeerGreedyNetworkBatchScheduler):
@@ -2332,6 +2868,48 @@ class GnnCdRefiner(_PeerGreedyCore):
             if seed_load[tuple(before)] >= 2 and new_load.get(tuple(after), 0) < seed_load[tuple(before)]:
                 info["unstack"] += 1
         return placements, info
+
+
+class S7PartSeeder(GnnCdRefiner):
+    """S7 (scratch, user-only): the partition placer run on the GNN scheduler's own state, for the plan the GNN's self-refine starts from.
+    Its plan evaluations are metered on the host as S plans (`sched_plan_evals_s`, charged at the cd3 rate) with the same per-bin scale
+    the fully charged partition arm applies, so the model's refine calls stay on the host's ordinary rate."""
+
+    _policy_label = "peer_greedy_network_cd"
+    _s7_partition = PeerGreedyNetworkBatchScheduler._s7_partition
+    _s7_assign = PeerGreedyNetworkBatchScheduler._s7_assign
+    _s7_bisect = PeerGreedyNetworkBatchScheduler.__dict__["_s7_bisect"]
+    _s7_plan_of = PeerGreedyNetworkBatchScheduler._s7_plan_of
+    _s7_restrict = PeerGreedyNetworkBatchScheduler._s7_restrict
+    _s7_restrict_diag = PeerGreedyNetworkBatchScheduler._s7_restrict_diag
+
+    def seed(self, batch_tasks, system_state, node_set=None, fallback_pick=None, hk=0) -> Dict[int, Tuple[int, int]]:
+        from src.placement import decision_cost as _dc
+
+        self.s7_node_set, self.s7_fallback_pick, self.s7_hk = node_set, fallback_pick, hk
+        host = self._host
+        before = getattr(host, "sched_plan_evals", 0)
+        self.s7_batches += 1
+        try:
+            placements = self._s7_partition(batch_tasks, system_state, self._pg_orchestrator())
+        finally:
+            self.s7_node_set, self.s7_fallback_pick, self.s7_hk = None, None, 0
+        spent = getattr(host, "sched_plan_evals", 0) - before
+        if self.s7_scale is not None and len(batch_tasks) >= 2:
+            extra = int(round((self.s7_scale[_dc.bucket_of(len(batch_tasks))] - 1.0) * spent))
+            spent += extra
+            self.s7_scale_extra_evals += extra
+        host.sched_plan_evals = before
+        host.sched_plan_evals_s = getattr(host, "sched_plan_evals_s", 0) + spent
+        for name in (*PEER_GREEDY_COUNTERS, *S7_COUNTERS):
+            if hasattr(self, name) and not name.startswith("sched_"):
+                setattr(host, name, getattr(self, name))
+        log_path = os.environ.get("HEROSIM_S7_TIMELOG")
+        if log_path:
+            with open(log_path, "a") as fh:
+                fh.write(json.dumps({"n": len(batch_tasks), "plan_md5": __import__("hashlib").md5(repr(sorted((int(i), tuple(map(int, v))) for i, v in placements.items())).encode()).hexdigest()[:12],
+                                     "evals_s": spent}) + "\n")
+        return {i: tuple(v) for i, v in placements.items()}
 
 
 class PeerGreedyLearnedNetworkBatchScheduler(PeerGreedyNetworkBatchScheduler):

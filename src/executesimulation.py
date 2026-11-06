@@ -84,8 +84,12 @@ def setup_logging(output_dir: Path) -> logging.Logger:
     return logger
 
 
+TASK_TYPES_MD5: Optional[str] = None  # md5 of the task-types.json the run loaded, written to run_provenance
+
+
 def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
     """Load all required simulation input files."""
+    global TASK_TYPES_MD5
     sim_inputs = {}
 
     missing_files = []
@@ -100,6 +104,9 @@ def load_simulation_inputs(sim_input_path: Path) -> Dict[str, Any]:
 
     for filename in REQUIRED_SIM_FILES:
         file_path = sim_input_path / filename
+        if filename == 'task-types.json':
+            import hashlib
+            TASK_TYPES_MD5 = hashlib.md5(file_path.read_bytes()).hexdigest()
         with open(file_path, 'r') as f:
             key = filename.replace('.json', '').replace('-', '_')
             sim_inputs[key] = json.load(f)
@@ -1230,6 +1237,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "HEROSIM_GNN_DEVICE",
             "HEROSIM_PEER_EXCHANGE",
             "HEROSIM_ACCESS_CELLULAR_OUT_MBPS",
+            "HEROSIM_ACCESS_CELLULAR_IN_MBPS",
             # peer_affinity_v1 stage 3: what the prefix-conditioned arm was served with
             "GNN_BATCH_BY_PEER_GROUP",
             "GNN_PREFIX_ALPHA_KEY",
@@ -1267,6 +1275,17 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
             "HEROSIM_PG_FAIRSHARE_AWARE_COMMIT",
             "HEROSIM_PG_HERD",
             "HEROSIM_PG_ILS_PER",
+            "HEROSIM_PG_H1",
+            "HEROSIM_PG_NOLTE",
+            "HEROSIM_S7_MODE",
+            "HEROSIM_S7_GREF",
+            "HEROSIM_S7_LK",
+            "HEROSIM_S7_BUDGET",
+            "HEROSIM_S7_HK",
+            "HEROSIM_S7_RESTRICT_DIAG",
+            "HEROSIM_S7_POLISH_SECONDS",
+            "HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET",
+            "HEROSIM_S7_CHARGE_SCALE",
             "HEROSIM_PG_ILS_SEED",
             "HEROSIM_PG_EXACT_G",
             "HEROSIM_DECISION_COST_MS_S_BY_BUCKET",
@@ -1338,6 +1357,7 @@ def build_run_provenance(space_config: Dict[str, Any], policy: str) -> Dict[str,
     python_env = describe_python_env()
     provenance["python_env"] = python_env
     provenance["env_fingerprint"] = env_fingerprint(python_env)
+    provenance["task_types_md5"] = TASK_TYPES_MD5
     print(format_code_banner(provenance["code"]), flush=True)
     print(format_env_banner(python_env), flush=True)
 

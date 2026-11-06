@@ -168,6 +168,43 @@ def _read_batch_by_peer_group() -> bool:
     return on
 
 
+S7_BUDGET_MODES = ("full", "k8", "k4", "gnn")
+
+
+def _s7_budget() -> str:
+    """S7 budget rule (HEROSIM_S7_BUDGET=l|h, scratch): how much search a group gets from the decision queue at the moment its decision starts. l ranks the kept
+    servers by the GNN, h by the price rule. Unset: off."""
+    raw = os.environ.get("HEROSIM_S7_BUDGET", "").strip()
+    if raw not in ("", "l", "h"):
+        raise ValueError(f"FAIL LOUD: HEROSIM_S7_BUDGET must be unset, l or h, got {raw!r}")
+    return raw
+
+
+def _s7_budget_mode(q: int) -> str:
+    return "full" if q == 0 else "k8" if q <= 3 else "k4" if q <= 10 else "gnn"
+
+
+def _s7_lk_k() -> int:
+    """S7 learned top-k (HEROSIM_S7_LK=k, scratch): the decode pass's scores pick the k servers the partition placer may use. 0/unset: off."""
+    raw = os.environ.get("HEROSIM_S7_LK", "").strip()
+    if not raw:
+        return 0
+    try:
+        k = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"FAIL LOUD: HEROSIM_S7_LK must be an integer, got {raw!r}") from exc
+    if k < 0:
+        raise ValueError(f"FAIL LOUD: HEROSIM_S7_LK must be >= 0, got {k}")
+    return k
+
+
+def _s7_gref_on() -> bool:
+    raw = os.environ.get("HEROSIM_S7_GREF", "").strip()
+    if raw not in ("", "0", "1"):
+        raise ValueError(f"FAIL LOUD: HEROSIM_S7_GREF must be unset, 0 or 1, got {raw!r}")
+    return raw == "1"
+
+
 def _cd_refine_mode() -> str:
     raw = os.environ.get("GNN_CD_REFINE", "").strip()
     if raw not in ("", "shadow", "apply"):
@@ -867,6 +904,58 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         self.v4_backlog_nonzero += sum(1 for v in out.values() if v > 0.0)
         return out
 
+    def _s7_gref_seed(self, batch_tasks: List[Task], system_state: SystemState) -> Dict[int, Tuple[int, int]]:
+        """S7 (scratch, user-only, HEROSIM_S7_GREF=1): the partition placer's plan for the whole batch, the plan the self-refine starts from in place of the decode."""
+        if getattr(self, "_s7_seeder", None) is None:
+            from src.policy.peer_greedy_network.scheduler import S7PartSeeder
+
+            self._s7_seeder = S7PartSeeder(self)
+        return self._s7_seeder.seed(batch_tasks, system_state)
+
+    def _s7_lk_plan(self, batch_tasks, system_state, tl, sink, k) -> Tuple[Tuple[int, int], ...]:
+        """S7 learned top-k: servers ranked by the summed log-softmax of the members' decode scores (per member, over its scored candidates; a server
+        a member has no scored candidate on counts that member's lowest log-probability; a server's score for a member is its best platform), the top k
+        kept, and the partition placer run over only those servers. A member left without a kept server gets its best-scored couple. The decode pass is
+        the only model call and it is already metered by the caller; the partition's plans go to the S channel."""
+        import math as _m
+
+        if getattr(self, "_s7_seeder", None) is None:
+            from src.policy.peer_greedy_network.scheduler import S7PartSeeder
+
+            self._s7_seeder = S7PartSeeder(self)
+        n = len(batch_tasks)
+        per_member: List[Dict[Tuple[int, int], float]] = []
+        for t in range(n):
+            cands = [(int(c[0]), int(c[1])) for c in tl[t]]
+            sc = sink.get(t)
+            if sc is None or len(sc) != len(cands):
+                raise RuntimeError(f"FAIL LOUD: S7 learned top-k: task {t} has no decode scores for its {len(cands)} candidates")
+            mx = max(sc)
+            lse = mx + _m.log(sum(_m.exp(x - mx) for x in sc))
+            per_member.append({c: x - lse for c, x in zip(cands, sc)})
+        all_nodes = sorted({c[0] for m in per_member for c in m})
+        total = {nid: 0.0 for nid in all_nodes}
+        for m in per_member:
+            floor = min(m.values())
+            best_on: Dict[int, float] = {}
+            for (nid, _pid), v in m.items():
+                if nid not in best_on or v > best_on[nid]:
+                    best_on[nid] = v
+            for nid in all_nodes:
+                total[nid] += best_on.get(nid, floor)
+        ranked = sorted(all_nodes, key=lambda nid: (-total[nid], nid))
+        keep = set(ranked[:k])
+
+        def fallback(i, cands):
+            scored = [(per_member[i].get((int(c[0].id), int(c[1].id))), c) for c in cands]
+            scored = [x for x in scored if x[0] is not None]
+            if not scored:
+                return min(cands, key=lambda c: (int(c[0].id), int(c[1].id)))
+            return max(scored, key=lambda x: (x[0], -int(x[1][0].id), -int(x[1][1].id)))[1]
+
+        placements = self._s7_seeder.seed(batch_tasks, system_state, node_set=keep, fallback_pick=fallback)
+        return tuple(tuple(placements[i]) for i in range(n))
+
     def _prefix_inference(
         self,
         batch_tasks: List[Task],
@@ -880,10 +969,38 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         from src.placement import declared_slate
         from src.placement.decision_cost import meter
 
-        meter(self, len(batch_tasks))
+        seed = None
+        self._lk_override = None
+        self._bud_passes = None
+        bud = _s7_budget()
+        if bud:
+            q = int(getattr(self, "_bud_q", 0))
+            mode = _s7_budget_mode(q)
+            for pre, v in (("groups", 1), ("funcs", len(batch_tasks))):
+                name = f"s7_bud_{pre}_{mode}"
+                setattr(self, name, getattr(self, name, 0) + v)
+            self.s7_bud_q_sum = getattr(self, "s7_bud_q_sum", 0) + q
+            k = {"k8": 8, "k4": 4}.get(mode, 0)
+            if mode == "gnn":
+                meter(self, len(batch_tasks))  # the refine passes are metered where they run
+            elif bud == "h" or mode == "full":
+                if getattr(self, "_s7_seeder", None) is None:
+                    from src.policy.peer_greedy_network.scheduler import S7PartSeeder
+
+                    self._s7_seeder = S7PartSeeder(self)
+                seed = self._s7_seeder.seed(batch_tasks, system_state, hk=k)
+                self._bud_passes = 0
+            else:
+                meter(self, len(batch_tasks))
+                self._lk_override = k
+                self._bud_passes = 0
+        elif _s7_gref_on():
+            seed = self._s7_gref_seed(batch_tasks, system_state)
+        else:
+            meter(self, len(batch_tasks))
 
         if declared_slate.serving_slate() is None:
-            return self._prefix_inference_core(batch_tasks, system_state, queue_snapshot, temporal_state)
+            return self._prefix_inference_core(batch_tasks, system_state, queue_snapshot, temporal_state, seed=seed)
         if _corpus_slate_on():
             raise RuntimeError(f"FAIL LOUD: {declared_slate.ENV} and GNN_SERVE_CORPUS_SLATE=1 are two different slates; pick one")
         from src.placement.live_audit import _candidate_payload
@@ -914,7 +1031,12 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         for group in groups:
             sub_tasks = [batch_tasks[i] for i in group]
             allowed = {k: {(int(c["node_id"]), int(c["platform_id"])) for c in sl.kept[i]} for k, i in enumerate(group)}
-            sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed)
+            sub_seed = None
+            if seed is not None:
+                sub_seed = {k: tuple(seed[i]) for k, i in enumerate(group)}
+                for k in sub_seed:
+                    allowed[k].add(sub_seed[k])
+            sub = self._prefix_inference_core(sub_tasks, system_state, queue_snapshot, temporal_state, allowed, seed=sub_seed)
             for k, i in enumerate(group):
                 placements[i] = sub[k]
         if _self_search_on():
@@ -928,6 +1050,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         queue_snapshot: Dict[str, int],
         temporal_state: Optional[Dict[str, Dict[str, float]]],
         task_candidate_filter: Optional[Dict[int, Any]] = None,
+        seed: Optional[Dict[int, Tuple[int, int]]] = None,
     ) -> Dict[int, Tuple[int, int]]:
         """Build the live graph, attach the prefix block, run the registered decoder.
 
@@ -971,10 +1094,16 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         graph = move_graph_tensors_(graph, self.device)
         from src.placement import serve_fast
 
+        lk_k = self._lk_override if getattr(self, "_lk_override", None) is not None else _s7_lk_k()
+        lk_sink: Optional[Dict[int, List[float]]] = {} if lk_k else None
         with (torch.inference_mode() if serve_fast.build_on() else torch.no_grad()):
             combo = decode_prefix_conditioned(
-                self.gnn_model, graph, self._prefix_options, stats=self.decode_stats
+                self.gnn_model, graph, self._prefix_options, stats=self.decode_stats,
+                seed_combo=None if seed is None else tuple(seed[k] for k in range(len(batch_tasks))),
+                score_sink=lk_sink, passes_override=getattr(self, "_bud_passes", None),
             )
+        if lk_k:
+            combo = self._s7_lk_plan(batch_tasks, system_state, task_logit_to_placement, lk_sink, lk_k)
         self.last_prefix_graph = graph  # parity checks read the served graph
         if hasattr(graph, "_arm2_encodes"):
             # uncut_groups_s0_v1 Arm 2: each encode after the first costs n_tasks plan-equivalents on top of the n
@@ -1366,6 +1495,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             server_req = server.request()
             queued_at = self.env.now
             yield server_req
+            self._bud_q = len(server.queue)  # S7 budget rule: groups still waiting for the scheduler when this decision starts, this one excluded
             decision_cost.book(self, "sched_queue_wait_seconds", self.env.now - queued_at)
             decision_cost.book(self, "sched_queue_wait_max", self.env.now - queued_at, mx=True)
         evals_before = getattr(self, "sched_plan_evals", 0)

@@ -246,8 +246,8 @@ def test_the_herd_record_is_the_share_of_a_batchs_remote_transfers_on_its_busies
 
 def test_the_gate_carries_the_diagnostic_variants():
     import fresh_topo_burst_v1_gate as G
-    assert G.FSAWARE_KINDS[0] == KIND and len(G.FSAWARE_KINDS) == 3
-    for k in G.FSAWARE_KINDS:
+    assert G.FSAWARE_KINDS[0] == KIND and len(G.FSAWARE_KINDS) >= 3
+    for k in ("cd_ib0_inflightfull_fsaware", "cd_ib0_inflightfull_fsawarec", "cd_ib0_inflightfull_fsaware2"):  # the diagnostic variants; the sym kinds carry their own measured w
         assert G.RULE_POLICY[k] == "peer_greedy_network_cd" and G.check_alias(k) == "cd" and k in G.R1A_DIAG and G.split_dc(k + "_k100") == (k, 1.0)
         assert G.dc_cost_ms(k + "_k100"[:0], 1.0, "moderate") == G.dc_cost_ms("cd_ib0_inflightfull", 1.0, "moderate")
     assert G.FSAWARE_VARIANT_ENV["cd_ib0_inflightfull_fsawarec"] == {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}

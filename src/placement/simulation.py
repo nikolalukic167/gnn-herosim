@@ -102,6 +102,7 @@ from src.policy.peer_greedy_network.scheduler import (
     PeerGreedyNetworkBatchScheduler,
     PeerGreedyNetworkCDRandomSeedScheduler,
     PeerGreedyNetworkCDScheduler,
+    HybridGnnCdScheduler,
     PeerGreedyNetworkScheduler,
 )
 from src.policy.decima_wfair.scheduler import DecimaWeightedFairBatchScheduler
@@ -766,6 +767,8 @@ def start_simulation(
     orchestrator_type, autoscaler_type, scheduler_type = policies[
         simulation_policy.scheduling
     ]
+    if os.environ.get("HEROSIM_HYB_G", "").strip() and simulation_policy.scheduling == "gnn_gnn":
+        scheduler_type = HybridGnnCdScheduler
     # kpa_scaleout_v1 A4: under kpa every arm runs the GNN-family autoscaler (starved-type eviction and
     # rendezvous release), so arms differ only in their scheduler. Legacy keeps the historical pairing.
     from src.placement.scaleout import shared_autoscaler

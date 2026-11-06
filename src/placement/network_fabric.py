@@ -105,6 +105,24 @@ def access_cellular_out_override() -> Optional[float]:
     return rate
 
 
+# HEROSIM_ACCESS_CELLULAR_IN_MBPS (default unset = the 75.0 above): the same sensitivity on the cellular downlink rate (`in`) only.
+ACCESS_CELLULAR_IN_ENV = "HEROSIM_ACCESS_CELLULAR_IN_MBPS"
+
+
+def access_cellular_in_override() -> Optional[float]:
+    """The cellular downlink rate under HEROSIM_ACCESS_CELLULAR_IN_MBPS, or None when unset; a non-positive or non-numeric value raises."""
+    raw = os.environ.get(ACCESS_CELLULAR_IN_ENV)
+    if raw is None or raw == "":
+        return None
+    try:
+        rate = float(raw)
+    except ValueError:
+        raise ValueError(f"{ACCESS_CELLULAR_IN_ENV}={raw!r}; expected a positive number of MB/s") from None
+    if not rate > 0 or rate != rate or rate == float("inf"):
+        raise ValueError(f"{ACCESS_CELLULAR_IN_ENV}={raw!r}; expected a positive finite number of MB/s")
+    return rate
+
+
 # HEROSIM_EXCHANGE_TCP=1 (default off): a disclosed sensitivity on the peer-exchange charge (uncut_groups_s0_v1 Record,
 # 2026-10-20 "Simulator component check" and the TCP-transfer sensitivity line). Real TCP over the simulator's own rates and
 # latencies costs MTU framing, a handshake and slow start; the plain charge size / bottleneck has none of them. Under the switch each
@@ -299,6 +317,7 @@ def draw_access_classes(
         raise ValueError(f"access_classes.mix must be non-negative and sum to 1, got {mix} (sum {total})")
     names = [name for name in ACCESS_CLASSES if mix.get(name, 0.0) > 0]
     cellular_out = access_cellular_out_override()
+    cellular_in = access_cellular_in_override()
     rng = random.Random(f"{seed}:access_classes_v1")
     drawn: Dict[str, Dict[str, Any]] = {}
     for node_name in node_names:
@@ -318,6 +337,8 @@ def draw_access_classes(
             out_mbps, in_mbps = spec["out"], spec["in"]
             if chosen == "cellular" and cellular_out is not None:
                 out_mbps = cellular_out
+            if chosen == "cellular" and cellular_in is not None:
+                in_mbps = cellular_in
         drawn[node_name] = {"class": chosen, "out_mbps": out_mbps, "in_mbps": in_mbps}
     return drawn
 

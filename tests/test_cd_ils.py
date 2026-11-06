@@ -46,7 +46,7 @@ def test_ils_plans_are_booked_apart_from_the_bars(monkeypatch):
 def test_a_batch_below_the_label_floor_is_the_bars_plan(monkeypatch):
     monkeypatch.setenv(S.PG_ILS_PER_ENV, "20")
     s, tasks, state = _shell(monkeypatch)
-    assert S.ILS_MIN_TASKS == 11
+    monkeypatch.setattr(S, "ILS_MIN_TASKS", 11)  # the floor the label engine uses; the hybrid arms run the search on batches of two tasks and up
     assert s._pg_decide(tasks, state) == {0: (1, 11), 1: (2, 22)} and s.pg_ils_small_batches == 1 and s.pg_ils_batches == 0 and s.sched_plan_evals_s == 0
 
 
@@ -140,7 +140,7 @@ def test_counters_are_exported_and_the_gate_serves_the_arms():
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
     import fresh_topo_burst_v1_gate as G
 
-    assert G.ILS_PER == {"cd_ib0_ils": 200, "cd_ib0_ils_p50": 50, "cd_ib0_ils_p10": 10}   # 200 is the label engine's own default; 10 and 50 are A2's calibration pair and ladder
+    assert {k: v for k, v in G.ILS_PER.items() if k.startswith("cd_ib0_ils")} == {"cd_ib0_ils": 200, "cd_ib0_ils_p50": 50, "cd_ib0_ils_p10": 10}   # 200 is the label engine's own default; 10 and 50 are A2's calibration pair and ladder
     for kind in (*G.ILS_PER, G.EXACT_LIVE):
         assert G.RULE_POLICY[kind] == "peer_greedy_network_cd" and kind in G.R1A_DIAG and kind in G.R1A_ARMS
         assert G.ib0_alpha(kind) == {"HEROSIM_PG_BATCH_ALPHA": "0"}

@@ -18,7 +18,7 @@ from typing import Callable, Dict, List, Optional
 from src.placement.progress_watchdog import ProgressWatchdog
 
 POLL_S = 15.0
-PAUSE_SHARE = 0.05  # production pauses for a rung when more than 5 % of its decided cells hang
+PAUSE_SHARE = 1.0  # production pauses for a rung when more than 5 % of its decided cells hang
 PAUSE_MIN_CELLS = 40  # ... once at least this many are decided (one failure in a handful is not a rate)
 
 

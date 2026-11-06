@@ -21,6 +21,7 @@ import bisect
 import json
 import math
 import os
+import re
 import shutil
 import shlex
 import subprocess
@@ -56,7 +57,52 @@ EXACT_LIVE = "cd_exactS_ib0_live"
 # fairshare_aware kinds (2026-10-22): _fsaware is the first version (live rate on the candidate exchange and the drain walk; fell into a feedback loop on 30176 g0 moderate, 127.5 s vs the bar's 7.3 s);
 # _fsaware2 (reference) also counts the flows the batch's other committed tasks will create; _fsawarec prices only the candidate exchange at the live rate, the drain walk stays at the solo price
 FSAWARE_BASE = "cd_ib0_inflightfull_fsaware"
-FSAWARE_VARIANT_ENV = {"cd_ib0_inflightfull_fsawarec": {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}, "cd_ib0_inflightfull_fsaware2": {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}}
+FSSYM_KIND = "cd_ib0_inflightfull_fsaware_sym"  # scratch (S6, exploratory, uncommitted): batched_fsc's pricing (sym + fair-share + drain 0) in the multi-pass CD
+FSSYM10_KIND = "cd_ib0_inflightfull_fsaware_sym10"  # scratch (S5, exploratory, uncommitted): FSSYM_KIND with HEROSIM_PG_CD_PASSES=10; charged FSSYM_KIND's w per plan
+FSSYM1_KIND, FSSYM5_KIND = "cd_ib0_inflightfull_fsaware_sym1", "cd_ib0_inflightfull_fsaware_sym5"  # scratch (S5): HEROSIM_PG_CD_PASSES=1 / 5
+FSAWARE_VARIANT_ENV = {FSSYM1_KIND: {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0", "HEROSIM_PG_EXCHANGE_SYMMETRIC": "1", "HEROSIM_PG_CD_PASSES": "1"}, FSSYM5_KIND: {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0", "HEROSIM_PG_EXCHANGE_SYMMETRIC": "1", "HEROSIM_PG_CD_PASSES": "5"}, FSSYM10_KIND: {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0", "HEROSIM_PG_EXCHANGE_SYMMETRIC": "1", "HEROSIM_PG_CD_PASSES": "10"}, "cd_ib0_inflightfull_fsawarec": {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0"}, FSSYM_KIND: {"HEROSIM_PG_FAIRSHARE_AWARE_DRAIN": "0", "HEROSIM_PG_EXCHANGE_SYMMETRIC": "1"}, "cd_ib0_inflightfull_fsaware2": {"HEROSIM_PG_FAIRSHARE_AWARE_COMMIT": "1"}}
+# H3 (exploratory, scratch): the ILS (local search on the rule's whole-plan surrogate S, from the CD plan) under cd3's pricing (sym + fair-share + drain 0); budget 10 distinct plans per (task x mean candidates).
+FSILS_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10"
+ILS_PER[FSILS_KIND] = 10
+FSAWARE_VARIANT_ENV[FSILS_KIND] = dict(FSAWARE_VARIANT_ENV[FSSYM_KIND])
+FSILSO_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10own"  # H3: same search, charged at the ILS phase own measured wall rate
+ILS_PER[FSILSO_KIND] = 10
+FSAWARE_VARIANT_ENV[FSILSO_KIND] = dict(FSAWARE_VARIANT_ENV[FSSYM_KIND])
+FSILSG_KINDS = {"cd_ib0_inflightfull_fsaware_sym_ils10szw_g0": "0", "cd_ib0_inflightfull_fsaware_sym_ils10szw_g10": "10", "cd_ib0_inflightfull_fsaware_sym_ils10szw_g20": "20"}  # H3 gated arms (scratch)
+FSILSZ_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10szw"  # H3: same search, ILS-phase plans charged at the measured size-dependent wall rate per plan
+ILS_PER[FSILSZ_KIND] = 10
+FSAWARE_VARIANT_ENV[FSILSZ_KIND] = dict(FSAWARE_VARIANT_ENV[FSSYM_KIND])
+for _gk, _gv in FSILSG_KINDS.items():
+    ILS_PER[_gk] = 10
+    FSAWARE_VARIANT_ENV[_gk] = {**FSAWARE_VARIANT_ENV[FSSYM_KIND], "HEROSIM_PG_ILS_MAX_TASKS": _gv}
+# S7 hand-placer arms (scratch, user-only; cd3's pricing and charge path): kind -> (HEROSIM_S7_MODE, polish budget as a fraction of the cell's mean gap between group arrivals)
+S7_KINDS = {"s7_port": ("portfolio", None), "s7_part": ("partition", None), "s7_part_fc": ("partition", None), "s7_part_free": ("partition", None), "s7_part_hk4": ("partition", None), "s7_part_hk8": ("partition", None), "s7_part_hkall": ("partition", None), "s7_pol25": ("portfolio", 0.25), "s7_pol10": ("portfolio", 0.10),
+            "s7_polc25": ("", 0.25), "s7_polc10": ("", 0.10), "s7_dl": ("", 0.0), "s7_dl0": ("", 0.0)}
+S7_DL = {"s7_dl": 1.0, "s7_dl0": 0.0}  # deadline search: budget = the refined GNN's charge for the group (the plan-equivalents per task it is measured to charge in the cell, by bucket, at its bucket rate) x this factor
+S7_DL_GNNR = "ra_gnn_eng_combfl_linkstatic_e40_nosplit"
+S7_POLISH = {k: v[1] for k, v in S7_KINDS.items() if v[1] is not None}
+for _k, (_m, _f) in S7_KINDS.items():
+    FSAWARE_VARIANT_ENV[_k] = {**FSAWARE_VARIANT_ENV[FSSYM_KIND], **({"HEROSIM_S7_MODE": _m} if _m else {})}
+S7_HK = {"s7_part_hk4": 4, "s7_part_hk8": 8, "s7_part_hkall": 1000}  # hand-pruned top-k servers (S6's standalone-price rule); hkall keeps every server
+for _k in ("s7_part_fc", "s7_part_free", *S7_HK):
+    FSAWARE_VARIANT_ENV[_k]["HEROSIM_S7_CHARGE_SCALE"] = json.dumps({"le10": 1.02, "11_50": 1.27, "gt50": 1.30}, sort_keys=True)
+for _k, _v in S7_HK.items():
+    FSAWARE_VARIANT_ENV[_k].update(HEROSIM_S7_HK=str(_v), HEROSIM_S7_RESTRICT_DIAG="1")
+
+
+def s7_mean_group_gap_s(workload_path: str) -> float:
+    """Mean time between group arrivals in the cell's workload: (last group's first arrival - first group's first arrival) / (groups - 1)."""
+    ev = json.load(open(workload_path))["events"]
+    first: Dict[object, float] = {}
+    for e in ev:
+        g = e["peer_group"]
+        first[g] = min(first.get(g, float("inf")), float(e["timestamp"]))
+    ts = sorted(first.values())
+    if len(ts) < 2:
+        raise SystemExit(f"FAIL LOUD: {workload_path} has fewer than two groups")
+    return (ts[-1] - ts[0]) / (len(ts) - 1)
+
+
 FSAWARE_KINDS = (FSAWARE_BASE, *FSAWARE_VARIANT_ENV)
 # one-pass strong hand rules (descriptive, scratchpad-only): the CD kinds' score with NO refine -- peer_greedy_network_batch, id order, place once, never revisit.
 # Env exactly as the CD kinds get it: BATCH_ALPHA=0, INFLIGHT_FULL=1, EXCHANGE_SYMMETRIC=1; batched_fsc adds FAIRSHARE_AWARE=1 + FAIRSHARE_AWARE_DRAIN=0 (the symfsawarec env).
@@ -65,7 +111,8 @@ FSAWARE_KINDS = (FSAWARE_BASE, *FSAWARE_VARIANT_ENV)
 ONEPASS_BASE = ("batched_sym", "batched_fsc")
 ONEPASS_SP = ("batched_sym_sp", "batched_fsc_sp")
 ONEPASS_SP_ORDER = ("batched_sym_sp_order", "batched_fsc_sp_order")
-ONEPASS_KINDS = (*ONEPASS_BASE, *ONEPASS_SP, *ONEPASS_SP_ORDER)
+ONEPASS_H1 = ("batched_h1",)
+ONEPASS_KINDS = (*ONEPASS_BASE, *ONEPASS_SP, *ONEPASS_SP_ORDER, *ONEPASS_H1)
 ONEPASS_FSC = tuple(k for k in ONEPASS_KINDS if k.startswith("batched_fsc"))
 SYM_KIND = "cd_ib0_inflightfull_sym"  # the bar with HEROSIM_PG_EXCHANGE_SYMMETRIC=1: the exchange term also charges each remote partner's pull from the candidate (descriptive)
 RULE_POLICY = {
@@ -313,7 +360,7 @@ def ib0_alpha(kind: str) -> dict:
 
 
 W3_TELEMETRY_KEYS = ("peerExchangeByAccessClass", "peerExchangeOverlap", "accessClasses", "peerExchangeTcp", "peerExchangeFairshare",
-                     "accessCellularOutMbps", "pgFairshareAware", "pgHerd")
+                     "accessCellularOutMbps", "accessCellularInMbps", "pgFairshareAware", "pgHerd")
 
 
 def exchange_tcp_problems(out, driver_value):
@@ -369,7 +416,7 @@ def check_alias(kind: str) -> str:
 # decision_cost_s0_v1 (Amendment 3): a cell kind "<arm>_k<centi>" serves <arm> with the scheduler's decision time charged as simulated time, arm-calibrated:
 # t_batch = k * w[arm][rung] ms * plans_evaluated, so HEROSIM_DECISION_COST_MS = k * w (src/placement/decision_cost.py). w is the measured wall ms per plan,
 # fixed in scripts_cosim/decision_cost_w.json before any cell counts. The file name keeps the suffix; every arm check runs on the base arm.
-DC_K = {"k025": 0.25, "k050": 0.5, "k100": 1.0, "k200": 2.0}
+DC_K = {"k010": 0.1, "k025": 0.25, "k050": 0.5, "k100": 1.0, "k200": 2.0}
 DC_W_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "decision_cost_w.json")
 
 
@@ -444,6 +491,7 @@ def split_dc(kind: str) -> Tuple[str, Optional[float]]:
 
 DC_ENV, DC_BUCKET_ENV = "HEROSIM_DECISION_COST_MS", "HEROSIM_DECISION_COST_MS_BY_BUCKET"
 DC_S_ENV = "HEROSIM_DECISION_COST_MS_S_BY_BUCKET"
+DC_BIG_ENV = "HEROSIM_DECISION_COST_MS_BIG_BY_BUCKET"
 
 
 def exact_live_g() -> int:
@@ -455,7 +503,7 @@ def exact_live_g() -> int:
 
 def dc_s_cost_ms(kind: str, k: Optional[float], rung: str) -> Optional[str]:
     """ILS-live: k x w_S by size bucket (a JSON object), the rate the ILS phase's plans are charged; None for every other arm."""
-    if k is None or kind not in ILS_PER:
+    if k is None or (kind not in ILS_PER and kind not in S7_POLISH):
         return None
     byb = json.load(open(DC_W_FILE)).get("w_S_ms_per_plan_by_bucket", {}).get(kind, {})
     if rung not in byb or byb[rung] is None:
@@ -507,7 +555,95 @@ def split_sr(kind: str) -> Tuple[str, int]:
     return kind, 0
 
 
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS
+# S7 (scratch, user-only): "<v8 e40 kind>_nosplit_sr2_gref" starts the 2 self-refine passes from the partition placer's plan (HEROSIM_S7_GREF=1) in place of the decode;
+# "<kind>_nosplit_gref0" is the same arm with the passes off (it must serve the partition arm's plan). The partition part is charged as S plans at the cd3 rate with the
+# partition arm's per-bin scale; the refine calls stay on the base kind's w.
+GREF_SFX = "_gref"
+GREF_KINDS = tuple(f"{k}_nosplit_sr2{GREF_SFX}" for k in COMB_STATIC_E40) + tuple(f"{k}_nosplit{GREF_SFX}0" for k in COMB_STATIC_E40)
+GREF_SCALE = {"le10": 1.02, "11_50": 1.27, "gt50": 1.30}
+# S7 learned top-k: "<v8 e40 kind>_nosplit_lk<k>" runs the GNN's one decode pass (charged at the base kind's w), keeps the k servers its scores rank best, and runs the
+# partition placer over only those servers (charged as S plans like gref). lkall keeps every server.
+LK_SFX = {"_lk4": 4, "_lk8": 8, "_lkall": 1000}
+LK_KINDS = tuple(f"{k}_nosplit{sfx}" for k in COMB_STATIC_E40 for sfx in LK_SFX)
+
+
+# S7 budget rule: "<v8 e40 kind>_nosplit_sr2_bl" / "_bh" give each group the search its decision-queue length allows (HEROSIM_S7_BUDGET=l|h): q = 0 the full partition placer,
+# 1-3 top-8 servers, 4-10 top-4 servers, more than 10 the refined GNN as served. bl ranks the kept servers by the GNN, bh by the price rule.
+BUD_SFX = {"_bl": "l", "_bh": "h"}
+BUD_KINDS = tuple(f"{k}_nosplit_sr2{sfx}" for k in COMB_STATIC_E40 for sfx in BUD_SFX)
+
+
+def split_bud(kind: str) -> Tuple[str, Optional[str]]:
+    for sfx, m in BUD_SFX.items():
+        if kind.endswith(sfx) and kind[:-len(sfx)] in tuple(f"{b}_nosplit_sr2" for b in COMB_STATIC_E40):
+            return kind[:-len(sfx)], m
+    return kind, None
+
+
+def split_lk(kind: str) -> Tuple[str, Optional[int]]:
+    for sfx, k in LK_SFX.items():
+        if kind.endswith(sfx) and kind[:-len(sfx)] in tuple(f"{b}_nosplit" for b in COMB_STATIC_E40):
+            return kind[:-len(sfx)], k
+    return kind, None
+
+
+def split_gref(kind: str) -> Tuple[str, bool]:
+    for sfx in (GREF_SFX, GREF_SFX + "0"):
+        if kind.endswith(sfx) and f"{kind[:-len(sfx)]}" in R1A_NOSPLIT + SR_KINDS:
+            return kind[:-len(sfx)], True
+    return kind, False
+
+
+def gref_s_cost_ms(k: Optional[float], rung: str) -> Optional[str]:
+    """The partition part of a gref cell: k x the cd3 rule's w (flat over the size buckets) as the S rate."""
+    if k is None:
+        return None
+    w = json.load(open(DC_W_FILE))["w_ms_per_plan"][FSSYM_KIND][rung]
+    return json.dumps({b: k * float(w) for b in ("le10", "11_50", "gt50")}, sort_keys=True)
+
+
+# hybrid (scratch): "<nosplit kind>[_sr2]_hyb<G>" serves the GNN arm with its batches of at most G tasks decided by the cd3 rule + ILS(10, szw) instead
+HYB_BASES = tuple(f"{k}_nosplit{s}" for k in COMB_STATIC_E40 for s in ("", "_sr2"))
+HYB_G_ALLOWED = (0, 10, 50, 1000)  # 1000 = every batch searched; the charge buckets break at 10 and 50
+HYB_KINDS = tuple(f"{b}_hyb{g}" for b in HYB_BASES for g in HYB_G_ALLOWED)
+HYBSS_PCT = (10, 100)  # search-only charge scale of the G=10 hybrid, in percent: "<base>_hyb10ss<pct>" charges the small side's search (ordinary bucket rate and S rate) at pct/100 of its calibrated rate, the GNN side unchanged; 100 is the identity check
+HYBSS_KINDS = tuple(f"{b}_hyb10ss{p}" for b in HYB_BASES for p in HYBSS_PCT)
+HYBG_ALLOWED = (3, 5, 10, 20)  # size-aware threshold arms: "<base>_hybg<G>" charges batches of at most G at the small side rate and larger ones at the GNN rate, whatever the bucket breaks
+HYBG_KINDS = tuple(f"{b}_hybg{g}" for b in HYB_BASES for g in HYBG_ALLOWED)
+HYBR_KINDS = tuple(f"{b}_hybr{g}" for b in HYB_BASES for g in (0, 10, 1000))  # hybrid-rule: the same split, the small side is the cd3 plan with the search phase off
+HYB_SMALL_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10szw_g10"  # the gated ILS arm whose small-batch charge the hybrid copies
+
+
+def split_hyb(kind: str) -> Tuple[str, Optional[int]]:
+    m = re.search(r"_hyb(\d+)$", kind)
+    if m is None or kind not in HYB_KINDS:
+        return kind, None
+    return kind[:m.start()], int(m.group(1))
+
+
+def hyb_costs(kind: str, k: Optional[float], rung: str, g: int, rule_only: bool = False, ss: Optional[float] = None, sized: bool = False):
+    """(ordinary charge env pair, S charge JSON or None) of a hybrid cell: bucket b is charged the cd3 rule's rate when its batches are all <= g, else the GNN's."""
+    if k is None:
+        raise SystemExit("FAIL LOUD: a hybrid arm is served charged (_k<N> suffix)")
+    def per_bucket(dc):
+        var, val = dc
+        return json.loads(val) if var == DC_BUCKET_ENV else {b: float(val) for b in ("le10", "11_50", "gt50")}
+    small, big = per_bucket(dc_cost_ms(HYB_SMALL_KIND, k, rung)), per_bucket(dc_cost_ms(kind, k, rung))
+    hi = {"le10": 10, "11_50": 50, "gt50": None}
+    if sized:
+        lo = {"le10": 0, "11_50": 10, "gt50": 50}
+        out = {b: (small[b] if lo[b] < g else big[b]) for b in small}
+        return (DC_BUCKET_ENV, json.dumps(out, sort_keys=True)), (dc_s_cost_ms(HYB_SMALL_KIND, k, rung) if g > 0 else None), json.dumps(big, sort_keys=True)
+    out = {b: (small[b] if (g >= 1000 or (hi[b] is not None and hi[b] <= g)) else big[b]) for b in small}
+    s_json = dc_s_cost_ms(HYB_SMALL_KIND, k, rung) if g > 0 and not rule_only else None
+    if ss is not None:
+        out = {b: (v * ss if (g >= 1000 or (hi[b] is not None and hi[b] <= g)) else v) for b, v in out.items()}
+        s_json = json.dumps({b: float(v) * ss for b, v in json.loads(s_json).items()}, sort_keys=True) if s_json is not None else None
+    return (DC_BUCKET_ENV, json.dumps(out, sort_keys=True)), s_json
+
+
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + GREF_KINDS + LK_KINDS + BUD_KINDS
+R1A_SCRATCH = GREF_KINDS + LK_KINDS + BUD_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS  # user-only scratch arms: named explicitly through R1A_ARMS, never part of the default list
 # slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
 # submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
 def r1a_slate() -> str:
@@ -863,7 +999,7 @@ def r1a_tasks(selection: Optional[dict]) -> List[Dict[str, object]]:
         raise SystemExit(f"FAIL LOUD: r1a runs on R1.1 (want {need}); got {bad}; WF1_RUNGS={WF1_TAGS}")
     topos = [int(x) for x in os.environ.get("R1A_TOPOS", "").split(",") if x] or list(selection["topologies"])
     wins = [w for w in os.environ.get("R1A_WINDOWS", "g0,g1,g2,g3").split(",") if w]
-    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX)).split(",") if k]
+    arms = [k for k in os.environ.get("R1A_ARMS", ",".join(k for k in R1A_ARMS if k not in R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + R1A_SCRATCH)).split(",") if k]
     seeds = [int(x) for x in os.environ.get("R1A_SEEDS", "1,2").split(",") if x]
     unknown = [k for k in arms if split_dc(k)[0] not in R1A_ARMS]
     if unknown:
@@ -1192,9 +1328,35 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     kind, dc_k = split_dc(kind)
+    kind, bud = split_bud(kind)
+    kind, lk = split_lk(kind)
+    kind, gref = split_gref(kind)
+    gref = gref or lk is not None or bud is not None
+    hyb_ss = None
+    m_ss = re.search(r"_hyb10ss(\d+)$", kind)
+    if m_ss is not None and kind in HYBSS_KINDS:
+        hyb_ss = int(m_ss.group(1)) / 100.0
+        kind = kind[:m_ss.start()] + "_hyb10"
+    hybr = kind in HYBR_KINDS
+    if hybr:
+        kind = kind.replace("_hybr", "_hyb")
+    hyb_sized, hyb_big = False, None
+    m_g = re.search(r"_hybg(\d+)$", kind)
+    if m_g is not None and kind in HYBG_KINDS:
+        hyb_sized = True
+        g_sized = int(m_g.group(1))
+        kind = kind[:m_g.start()] + "_hyb10"
+    kind, hyb_g = split_hyb(kind)
+    if hyb_sized:
+        hyb_g = g_sized
     kind, sr_passes = split_sr(kind)
     dc_ms = dc_cost_ms(kind, dc_k, window[2:])
-    dc_s = dc_s_cost_ms(kind, dc_k, window[2:])
+    dc_s = gref_s_cost_ms(dc_k, window[2:]) if gref else dc_s_cost_ms(kind, dc_k, window[2:])
+    if hyb_g is not None:
+        if hyb_sized:
+            dc_ms, dc_s, hyb_big = hyb_costs(kind, dc_k, window[2:], hyb_g, hybr, hyb_ss, sized=True)
+        else:
+            dc_ms, dc_s = hyb_costs(kind, dc_k, window[2:], hyb_g, hybr, hyb_ss)
     if R1A_ON:
         state = pw.rung_state(out_dir, window[2:])
         if pw.paused(state):
@@ -1223,7 +1385,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     for k in ("GNN_MODEL_PATH", "GNN_DISABLE_MESSAGE_PASSING", "GNN_MP_PLATFORM_EDGES_OFF", "GNN_BATCH_TIMEOUT",
               "GNN_BATCH_SIZE", "GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "GNN_PREFIX_ALPHA_KEY",
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
-              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_DECIMA_ALPHA", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
+              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_S7_MODE", "HEROSIM_S7_GREF", "HEROSIM_S7_LK", "HEROSIM_S7_BUDGET", "HEROSIM_S7_HK", "HEROSIM_S7_RESTRICT_DIAG", "HEROSIM_S7_POLISH_SECONDS", "HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET", "HEROSIM_S7_CHARGE_SCALE", "HEROSIM_S7_TIMELOG", "HEROSIM_PG_H1", "HEROSIM_PG_NOLTE", "HEROSIM_DECIMA_ALPHA", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
@@ -1236,6 +1398,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     env.pop(DC_ENV, None)
     env.pop(DC_BUCKET_ENV, None)
     env.pop(DC_S_ENV, None)
+    env.pop(DC_BIG_ENV, None)
+    if hyb_big is not None:
+        env[DC_BIG_ENV] = hyb_big
     if dc_ms is not None:
         env[dc_ms[0]] = dc_ms[1]
     if dc_s is not None:
@@ -1377,6 +1542,22 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(KEEPWARM_ENV)
         if sr_passes:
             env["GNN_PREFIX_SELF_REFINE"] = str(sr_passes)
+        if gref:
+            env.update(FSAWARE_VARIANT_ENV["s7_part_fc"], HEROSIM_S7_GREF="1", HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_FAIRSHARE_AWARE="1", HEROSIM_PG_BATCH_ALPHA="0")
+            if lk is not None:
+                env.update(HEROSIM_S7_GREF="0", HEROSIM_S7_LK=str(lk), HEROSIM_S7_RESTRICT_DIAG="1")
+            if bud is not None:
+                env.update(HEROSIM_S7_GREF="0", HEROSIM_S7_BUDGET=bud)
+            if os.environ.get("R1A_S7_TIMELOG"):
+                env["HEROSIM_S7_TIMELOG"] = os.path.join(out_dir, name + ".timelog.jsonl")
+        if hyb_g is not None:
+            env.update(FSAWARE_VARIANT_ENV[HYB_SMALL_KIND])
+            env.update(HEROSIM_HYB_G=str(hyb_g), HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_FAIRSHARE_AWARE="1", **ib0_alpha(HYB_SMALL_KIND))
+            if not hybr:
+                env.update(HEROSIM_PG_ILS_PER=str(ILS_PER[HYB_SMALL_KIND]), HEROSIM_PG_ILS_SEED="0", HEROSIM_PG_ILS_MAX_TASKS=str(hyb_g) if hyb_g < 1000 else "0")
+            else:
+                for v in ("HEROSIM_PG_ILS_PER", "HEROSIM_PG_ILS_SEED", "HEROSIM_PG_ILS_MAX_TASKS"):
+                    env.pop(v, None)
         policy = "gnn"
     else:
         policy = RULE_POLICY[kind]
@@ -1398,6 +1579,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env["HEROSIM_PG_INFLIGHT_FULL"] = "1"
         if kind == SYM_KIND or kind in ONEPASS_KINDS:
             env["HEROSIM_PG_EXCHANGE_SYMMETRIC"] = "1"
+        if kind == "batched_h1":
+            env["HEROSIM_PG_H1"] = "1"
         if kind in (*ONEPASS_SP, *ONEPASS_SP_ORDER):
             env["HEROSIM_PG_SELFPREDICT_BATCH"] = "1"
         if kind in ONEPASS_SP_ORDER:
@@ -1409,6 +1592,19 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(FSAWARE_VARIANT_ENV.get(kind, {}))
         if os.environ.get("R1A_PG_HERD") == "1" and RULE_POLICY.get(kind, "").startswith("peer_greedy_network"):
             env["HEROSIM_PG_HERD"] = "1"  # diagnostic: pgHerd block in the summary
+        if os.environ.get("R1A_S7_TIMELOG") and (kind in S7_KINDS or gref):
+            env["HEROSIM_S7_TIMELOG"] = os.path.join(out_dir, name + ".timelog.jsonl")
+        if kind in S7_POLISH:
+            gap_s = s7_mean_group_gap_s(wl)
+            env["HEROSIM_S7_POLISH_SECONDS"] = repr(S7_POLISH[kind] * gap_s)
+            env["HEROSIM_PG_ILS_SEED"] = "0"
+            if kind in S7_DL:
+                wg = json.load(open(DC_W_FILE))["w_ms_per_plan_by_bucket"][S7_DL_GNNR][window[2:]]
+                mkey = f"{os.environ.get('R1A_S7_DL_PAY', '')}|{window[2:]}"
+                mg = json.load(open(os.path.join(os.path.dirname(DC_W_FILE), "s7_dl_gnnr_evals_per_task.json"))).get(mkey)
+                if mg is None:
+                    raise SystemExit(f"FAIL LOUD: no gnnr plan-equivalents per task for {mkey!r} in s7_dl_gnnr_evals_per_task.json")
+                env["HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET"] = json.dumps({b: S7_DL[kind] * mg[b] * float(v) * (dc_k or 0.0) for b, v in wg.items()}, sort_keys=True)
         if kind in ILS_PER:
             env.update(HEROSIM_PG_ILS_PER=str(ILS_PER[kind]), HEROSIM_PG_ILS_SEED="0")
         if kind == EXACT_LIVE:
@@ -1526,6 +1722,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     out["python_env"] = (doc.get("run_provenance") or {}).get("python_env")  # the raw JSON is deleted at job exit; PARITY.md reads the interpreter from here
     out["env_fingerprint"] = (doc.get("run_provenance") or {}).get("env_fingerprint")
+    out["task_types_md5"] = (doc.get("run_provenance") or {}).get("task_types_md5")
     if R1A_ON:
         out["host"] = host_block()
         check_host(out["host"])
@@ -1581,7 +1778,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if not kind.endswith("_selfrefkw") and int(c.get("keepwarm_armed") or 0):
         problems.append("keep-warm guard armed on an unguarded arm")
     refined = kind.endswith(("_selfref", "_selfrefkw")) or bool(sr_passes)
-    if refined and int(c.get("prefix_self_refine_batches") or 0) == 0:
+    if refined and bud is None and int(c.get("prefix_self_refine_batches") or 0) == 0:
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
     if not refined and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
@@ -1631,7 +1828,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if not obs_want.get("HEROSIM_OBS_INFLIGHT") and used["obs_inflight_degraded"]:
             problems.append("in-flight degraded on an arm that does not degrade it")
     for var in ("HEROSIM_PG_DRAIN_ALPHA", "HEROSIM_PG_BATCH_ALPHA"):
-        want = EXACT_ALPHA.get(kind, ib0_alpha(orig_kind)).get(var)
+        want = ({"HEROSIM_PG_BATCH_ALPHA": "0"} if gref else EXACT_ALPHA.get(kind, ib0_alpha(HYB_SMALL_KIND if hyb_g is not None else orig_kind))).get(var)
         if out["env"].get(var) != want:
             problems.append(f"{var} served {out['env'].get(var)!r}, want {want!r} for {kind}")
     # decision_cost_s0_v1: the cost served is the cost named, the plan counter always runs, the scheduler server's books exist exactly when c > 0
@@ -1644,7 +1841,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     want_s = dc_s
     if (json.loads(served_s) if served_s else None) != (json.loads(want_s) if want_s else None):
         problems.append(f"{DC_S_ENV} served {served_s!r}, want {want_s!r}")
-    if int(c.get("sched_plan_evals") or 0) == 0 and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
+    if int(c.get("sched_plan_evals") or 0) == 0 and not (gref and not sr_passes) and bud is None and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
         problems.append("plan-evaluation meter off: sched_plan_evals == 0")
     charged = int(c.get("sched_batches_charged") or 0)
     if dc_ms and (charged == 0 or float(c.get("sched_busy_seconds") or 0) <= 0):
@@ -1730,8 +1927,59 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("ILS arm ran the expansion or the exact search")
         if int(c.get("sched_plan_evals_s") or 0) == 0:
             problems.append("ILS arm charged no S plans: sched_plan_evals_s == 0")
-    elif out["env"].get("HEROSIM_PG_ILS_PER") or int(c.get("pg_ils_batches") or 0) or int(c.get("sched_plan_evals_s") or 0):
+    elif hyb_g is None and (out["env"].get("HEROSIM_PG_ILS_PER") or int(c.get("pg_ils_batches") or 0) or (int(c.get("sched_plan_evals_s") or 0) and orig_kind not in S7_POLISH and not gref)):
         problems.append("a non-ILS arm ran the ILS")
+    if orig_kind in S7_KINDS:
+        mode = S7_KINDS[orig_kind][0]
+        if out["env"].get("HEROSIM_S7_MODE", "") != mode:
+            problems.append(f"S7 mode not served: HEROSIM_S7_MODE={out['env'].get('HEROSIM_S7_MODE')!r}, want {mode!r}")
+        if int(c.get("s7_batches") or 0) == 0:
+            problems.append("S7 instrument off: s7_batches == 0")
+        if mode == "portfolio" and sum(int(c.get(f"s7_pick_{r}") or 0) for r in ("cd3", "nolte", "h1")) != int(c.get("s7_batches") or 0):
+            problems.append("portfolio picks do not sum to the batches")
+        if mode == "partition" and int(c.get("s7_part_batches") or 0) != int(c.get("s7_batches") or 0):
+            problems.append("partition instrument off: s7_part_batches != s7_batches")
+        if orig_kind in S7_HK and (int(out["env"].get("HEROSIM_S7_HK") or 0) != S7_HK[orig_kind] or int(c.get("s7_rs_batches") or 0) != int(c.get("s7_batches") or 0)
+                                    or int(c.get("s7_rs_diag_batches") or 0) != int(c.get("s7_rs_batches") or 0)):
+            problems.append("top-k restriction not served on every batch: HEROSIM_S7_HK, s7_rs_batches or s7_rs_diag_batches off")
+        if orig_kind not in S7_HK and (out["env"].get("HEROSIM_S7_HK") or int(c.get("s7_rs_batches") or 0)):
+            problems.append("a non-hk S7 arm served the top-k restriction")
+        if orig_kind in S7_POLISH:
+            if orig_kind == "s7_dl0":
+                if int(c.get("s7_polish_budget_plans") or 0) or int(c.get("sched_plan_evals_s") or 0) or not out["env"].get("HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET"):
+                    problems.append("deadline search with a zero budget charged search plans")
+            elif orig_kind == "s7_dl":
+                if not out["env"].get("HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET") or int(c.get("s7_polish_budget_plans") or 0) == 0 or int(c.get("sched_plan_evals_s") or 0) == 0:
+                    problems.append("deadline search instrument off: no budget served or no search plans charged")
+            elif not float(out["env"].get("HEROSIM_S7_POLISH_SECONDS") or 0) > 0 or int(c.get("s7_polish_budget_plans") or 0) == 0 or int(c.get("sched_plan_evals_s") or 0) == 0:
+                problems.append("polish instrument off: no budget served or no ILS-phase plans charged")
+        elif out["env"].get("HEROSIM_S7_POLISH_SECONDS") or int(c.get("s7_polish_budget_plans") or 0):
+            problems.append("a non-polish S7 arm served a polish budget")
+        if (orig_kind in ("s7_part_fc", "s7_part_free", *S7_HK)) != bool(out["env"].get("HEROSIM_S7_CHARGE_SCALE")):
+            problems.append("charge scale served exactly on s7_part_fc")
+        if orig_kind == "s7_part_free":
+            if out["env"].get("HEROSIM_DECISION_COST_MS") or out["env"].get("HEROSIM_DECISION_COST_MS_BY_BUCKET") or float(c.get("sched_busy_seconds") or 0) != 0:
+                problems.append("the free arm served a decision charge")
+        elif not (out["env"].get("HEROSIM_DECISION_COST_MS") or out["env"].get("HEROSIM_DECISION_COST_MS_BY_BUCKET")):
+            problems.append("S7 arm served without a decision charge")
+    elif gref:
+        if out["env"].get("HEROSIM_S7_GREF") != ("0" if (lk is not None or bud is not None) else "1") or out["env"].get("HEROSIM_S7_MODE") != "partition":
+            problems.append(f"gref seed not served: HEROSIM_S7_GREF={out['env'].get('HEROSIM_S7_GREF')!r}, HEROSIM_S7_MODE={out['env'].get('HEROSIM_S7_MODE')!r}")
+        if int(c.get("s7_batches") or 0) == 0 or int(c.get("s7_part_batches") or 0) != int(c.get("s7_batches") or 0):
+            problems.append("gref partition instrument off: s7_batches == 0 or s7_part_batches != s7_batches")
+        if int(c.get("sched_plan_evals_s") or 0) == 0:
+            problems.append("gref charged no partition plans: sched_plan_evals_s == 0")
+        if json.loads(out["env"].get("HEROSIM_S7_CHARGE_SCALE") or "null") != GREF_SCALE:
+            problems.append("gref served without the partition arm's per-bin scale")
+        if out["env"].get("HEROSIM_S7_POLISH_SECONDS"):
+            problems.append("gref served a polish budget")
+        if bud is not None and (out["env"].get("HEROSIM_S7_BUDGET") != bud or sum(int(c.get(f"s7_bud_groups_{m}") or 0) for m in ("full", "k8", "k4", "gnn")) == 0):
+            problems.append("budget rule not served: HEROSIM_S7_BUDGET off or no group was assigned a mode")
+        if lk is not None and (int(out["env"].get("HEROSIM_S7_LK") or 0) != lk or int(c.get("s7_rs_batches") or 0) != int(c.get("s7_batches") or 0)
+                               or int(c.get("s7_rs_diag_batches") or 0) != int(c.get("s7_rs_batches") or 0) or int(c.get("sched_plan_evals") or 0) == 0):
+            problems.append("learned top-k not served on every batch: HEROSIM_S7_LK, s7_rs_batches, s7_rs_diag_batches or the decode pass's plan evaluations off")
+    elif out["env"].get("HEROSIM_S7_MODE") or out["env"].get("HEROSIM_S7_GREF") or out["env"].get("HEROSIM_S7_POLISH_SECONDS") or int(c.get("s7_batches") or 0):
+        problems.append("a non-S7 arm ran the S7 code")
     if orig_kind == EXACT_LIVE:
         if out["env"].get("HEROSIM_PG_EXACT_G") != str(exact_live_g()) or int(c.get("pg_exact_batches") or 0) == 0:
             problems.append(f"exact-live instrument off: HEROSIM_PG_EXACT_G {out['env'].get('HEROSIM_PG_EXACT_G')!r}, pg_exact_batches {c.get('pg_exact_batches')}")
@@ -1743,26 +1991,28 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         problems.append("CD ran blind")
     if kind == "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") != "1" or int(c.get("pg_inflight_charged") or 0) == 0):
         problems.append("inflight instrument off: HEROSIM_PG_INFLIGHT not served or pg_inflight_charged == 0")
-    if orig_kind in ("cd_ib0_inflightfull", SYM_KIND, *ONEPASS_KINDS, *FSAWARE_KINDS, *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") != "1" or int(c.get("pg_inflight_full_charged") or 0) == 0):
+    if (orig_kind in ("cd_ib0_inflightfull", SYM_KIND, *ONEPASS_KINDS, *FSAWARE_KINDS, *ILS_PER, EXACT_LIVE) or gref) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") != "1" or int(c.get("pg_inflight_full_charged") or 0) == 0):
         problems.append("full in-flight instrument off: HEROSIM_PG_INFLIGHT_FULL not served or pg_inflight_full_charged == 0")
-    if orig_kind not in ("cd_ib0_inflightfull", SYM_KIND, *ONEPASS_KINDS, *FSAWARE_KINDS, *ILS_PER, EXACT_LIVE) and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") or int(c.get("pg_inflight_full_charged") or 0)):
+    if hyb_g is None and orig_kind not in ("cd_ib0_inflightfull", SYM_KIND, *ONEPASS_KINDS, *FSAWARE_KINDS, *ILS_PER, EXACT_LIVE) and not gref and (out["env"].get("HEROSIM_PG_INFLIGHT_FULL") or int(c.get("pg_inflight_full_charged") or 0)):
         problems.append("a non-full arm charged the full in-flight drain")
-    if orig_kind in (SYM_KIND, *ONEPASS_KINDS) and (out["env"].get("HEROSIM_PG_EXCHANGE_SYMMETRIC") != "1" or int(c.get("pg_exchange_sym_evals") or 0) == 0):
+    if (orig_kind in (SYM_KIND, FSSYM_KIND, FSSYM10_KIND, FSSYM1_KIND, FSSYM5_KIND, FSILS_KIND, FSILSO_KIND, FSILSZ_KIND, *FSILSG_KINDS, *ONEPASS_KINDS, *S7_KINDS) or gref) and (out["env"].get("HEROSIM_PG_EXCHANGE_SYMMETRIC") != "1" or int(c.get("pg_exchange_sym_evals") or 0) == 0):
         problems.append("symmetric-exchange instrument off: HEROSIM_PG_EXCHANGE_SYMMETRIC not served or pg_exchange_sym_evals == 0")
-    if orig_kind not in (SYM_KIND, *ONEPASS_KINDS) and (out["env"].get("HEROSIM_PG_EXCHANGE_SYMMETRIC") or int(c.get("pg_exchange_sym_evals") or 0)):
+    if hyb_g is None and orig_kind not in (SYM_KIND, FSSYM_KIND, FSSYM10_KIND, FSSYM1_KIND, FSSYM5_KIND, FSILS_KIND, FSILSO_KIND, FSILSZ_KIND, *FSILSG_KINDS, *ONEPASS_KINDS, *S7_KINDS) and not gref and (out["env"].get("HEROSIM_PG_EXCHANGE_SYMMETRIC") or int(c.get("pg_exchange_sym_evals") or 0)):
         problems.append("a non-symmetric arm charged the reverse exchange")
     if orig_kind in ONEPASS_KINDS:
         if int(c.get("pg_cd_passes") or 0) != 0:
             problems.append(f"one-pass rule ran CD refine passes: pg_cd_passes == {c.get('pg_cd_passes')}")
         if out["env"].get("HEROSIM_PG_BATCH_ALPHA") != "0":
             problems.append("one-pass rule served without HEROSIM_PG_BATCH_ALPHA=0")
+    if (orig_kind == "batched_h1" or S7_KINDS.get(orig_kind, ("",))[0] == "portfolio") != (int(c.get("pg_h1_decisions") or 0) > 0):
+        problems.append("H1 instrument mismatch: pg_h1_decisions > 0 must hold exactly on batched_h1")
     fsa = out.get("pgFairshareAware")
     sp_on = orig_kind in (*ONEPASS_SP, *ONEPASS_SP_ORDER)
     if (out["env"].get("HEROSIM_PG_SELFPREDICT_BATCH") == "1") != sp_on or sp_on and int(c.get("pg_sp_provisional_used") or 0) == 0 or not sp_on and int(c.get("pg_sp_batches") or 0):
         problems.append("self-predict instrument mismatch: HEROSIM_PG_SELFPREDICT_BATCH served / pg_sp_provisional_used / pg_sp_batches disagree with the kind")
     if (out["env"].get("HEROSIM_PG_BATCH_ORDER") == "bytes") != (orig_kind in ONEPASS_SP_ORDER) or (orig_kind in ONEPASS_SP_ORDER) != bool(int(c.get("pg_order_batches") or 0)):
         problems.append("batch-order instrument mismatch: HEROSIM_PG_BATCH_ORDER served / pg_order_batches disagree with the kind")
-    if orig_kind in (*FSAWARE_KINDS, *ONEPASS_FSC):
+    if orig_kind in (*FSAWARE_KINDS, *ONEPASS_FSC) or gref:
         off = [w for w, bad in (("HEROSIM_PG_FAIRSHARE_AWARE not served", out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") != "1"),
                                 ("no peerExchangeFairshare block (HEROSIM_EXCHANGE_FAIRSHARE off)", out.get("peerExchangeFairshare") is None),
                                 ("no pgFairshareAware block", fsa is None),
@@ -1770,8 +2020,13 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                                 ("pg_fsaware_decisions == 0", int(c.get("pg_fsaware_decisions") or 0) == 0)) if bad]
         if off:
             problems.append("fair-share-aware instrument off: " + "; ".join(off))
-    elif out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") or fsa is not None or int(c.get("pg_fsaware_decisions") or 0):
+    elif hyb_g is None and (out["env"].get("HEROSIM_PG_FAIRSHARE_AWARE") or fsa is not None or int(c.get("pg_fsaware_decisions") or 0)):
         problems.append("a non-fsaware arm priced exchanges at the live fair-share rate")
+    if hyb_g is not None:
+        hs, hl = int(c.get("hyb_small_batches") or 0), int(c.get("hyb_large_batches") or 0)
+        ils_b = int(c.get("pg_ils_batches") or 0)
+        if hs + hl == 0 or (hyb_g == 0 and (hs or ils_b)) or (hyb_g >= 1000 and hl) or (0 < hyb_g < 1000 and (hs == 0 or hl == 0 or (ils_b > 0 if hybr else ils_b == 0))) or (hybr and (ils_b or int(c.get("sched_plan_evals_s") or 0))):
+            problems.append(f"hybrid instrument off: want G={hyb_g}, small {hs} large {hl} batches, ILS batches {ils_b}")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
         problems.append("a non-inflight arm charged the in-flight task")
     if kind == "cd_pull" and (out["env"].get("HEROSIM_PG_PULL_HOLD") != "1" or out["env"].get("HEROSIM_PULL_LEDGER") != "1"

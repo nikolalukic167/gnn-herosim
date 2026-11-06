@@ -20,6 +20,7 @@ from src.placement.decision_timing import SIZE_BUCKETS
 ENV = "HEROSIM_DECISION_COST_MS"
 BUCKET_ENV = "HEROSIM_DECISION_COST_MS_BY_BUCKET"
 S_BUCKET_ENV = "HEROSIM_DECISION_COST_MS_S_BY_BUCKET"
+BIG_BUCKET_ENV = "HEROSIM_DECISION_COST_MS_BIG_BY_BUCKET"  # hybrid threshold arms: the rate of batches of more than HEROSIM_HYB_G tasks, by bucket; BUCKET_ENV then serves batches of at most G
 COUNTERS = ("sched_plan_evals", "sched_plan_evals_s", "sched_busy_seconds", "sched_felt_task_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max")
 
@@ -91,7 +92,20 @@ def enabled() -> bool:
 def rate_ms(n_tasks: int) -> float:
     """ms per plan for a batch of n_tasks decided: the bucket's rate when the bucket rule serves, else the one c."""
     rates = bucket_rates()
-    return rates[bucket_of(n_tasks)] if rates is not None else cost_ms()
+    if rates is None:
+        return cost_ms()
+    raw = os.environ.get(BIG_BUCKET_ENV, "").strip()
+    if raw:
+        g = os.environ.get("HEROSIM_HYB_G", "").strip()
+        if not g.isdigit():
+            raise ValueError(f"FAIL LOUD: {BIG_BUCKET_ENV} needs HEROSIM_HYB_G, got {g!r}")
+        if n_tasks > int(g):
+            big = json.loads(raw)
+            tags = [tag for _hi, tag in SIZE_BUCKETS]
+            if sorted(big) != sorted(tags):
+                raise ValueError(f"FAIL LOUD: {BIG_BUCKET_ENV} must be keyed exactly {tags}, got {raw!r}")
+            return float(big[bucket_of(n_tasks)])
+    return rates[bucket_of(n_tasks)]
 
 
 def meter(obj: Any, k: int) -> None:

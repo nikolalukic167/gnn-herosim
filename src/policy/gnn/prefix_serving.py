@@ -768,6 +768,9 @@ def decode_prefix_conditioned(
     options: PrefixServingOptions,
     *,
     stats: Optional[GnnDecodeRunStats] = None,
+    seed_combo: Optional[Sequence[Tuple[int, int]]] = None,
+    score_sink: Optional[Dict[int, List[float]]] = None,
+    passes_override: Optional[int] = None,
 ) -> Tuple[Tuple[int, int], ...]:
     """The registered decoder on a graph carrying the prefix block. A failed decode is an
     error here, never a fallback: a live gate that silently served shortest-queue for a
@@ -792,6 +795,13 @@ def decode_prefix_conditioned(
     arm2_close = getattr(score_fn, "close", None)
     if options.concurrency_penalty > 0.0:
         score_fn = _with_concurrency_penalty(score_fn, graph, options.concurrency_penalty)
+    if score_sink is not None:  # S7 learned top-k: the per-candidate scores each task's one decode forward produced
+        _inner_score_fn = score_fn
+
+        def score_fn(t, committed, _f=_inner_score_fn):
+            logits = _f(t, committed)
+            score_sink[t] = [float(x) for x in logits]
+            return logits
     # serving_stability_v1 S3: per-candidate queue depth, read from the same snapshot the
     # features were built from. Absent keys stay absent rather than defaulting to 0 -- a
     # missing depth read as "empty queue" would make the guardrail mask the wrong replicas.
@@ -810,22 +820,28 @@ def decode_prefix_conditioned(
                 "GNN_QUEUE_GUARD_K is set but no candidate queue depth could be resolved "
                 "from the graph's queue_snapshot -- the guardrail would silently be a no-op"
             )
-    combo = decode_masked_topo_placement(
-        [None] * n_tasks,
-        tl,
-        n_tasks,
-        dag_parents=graph.dag_parents,
-        node_caps=ctx.node_caps,
-        demands=demands,
-        score_fn=score_fn,
-        stats=stats,
-        allow_replica_reuse=options.allow_replica_reuse,
-        relax_on_stuck=options.relax_on_stuck,
-        initial_load=ctx.base_load or None,
-        platform_cap=options.platform_cap,
-        queue_of=queue_of or None,
-        queue_guard_k=options.queue_guard_k,
-    )
+    if seed_combo is not None:
+        combo = tuple((int(c[0]), int(c[1])) for c in seed_combo)
+        for t, c in enumerate(combo):
+            if c not in {(int(x[0]), int(x[1])) for x in tl[t]}:
+                raise PrefixServingError(f"seeded plan places task {t} on {c}, which is not one of its graph candidates")
+    else:
+        combo = decode_masked_topo_placement(
+            [None] * n_tasks,
+            tl,
+            n_tasks,
+            dag_parents=graph.dag_parents,
+            node_caps=ctx.node_caps,
+            demands=demands,
+            score_fn=score_fn,
+            stats=stats,
+            allow_replica_reuse=options.allow_replica_reuse,
+            relax_on_stuck=options.relax_on_stuck,
+            initial_load=ctx.base_load or None,
+            platform_cap=options.platform_cap,
+            queue_of=queue_of or None,
+            queue_guard_k=options.queue_guard_k,
+        )
     if combo is None:
         raise PrefixServingError(
             "masked_topo decode found no cap-feasible plan and relaxation is "
@@ -835,7 +851,7 @@ def decode_prefix_conditioned(
         graph._arm2_encodes = int(encode_count())  # the scheduler meters the re-encodes (decision_cost)
     if arm2_close is not None:
         arm2_close()
-    passes = _self_refine_passes()
+    passes = _self_refine_passes() if passes_override is None else int(passes_override)
     if passes:
         if options.platform_cap > 0 or options.queue_guard_k > 0.0 or not options.allow_replica_reuse \
                 or any(v != math.inf for v in (ctx.node_caps or {}).values()):

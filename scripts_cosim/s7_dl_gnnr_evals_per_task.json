@@ -1,0 +1,23 @@
+{
+ "_source": "refined GNN (gnnr_s4, _k100) plan-equivalents charged per task by size bucket = decisionTiming.by_bucket.plan_evals / tasks in the bucket (tasks_bsz col 3), pooled over topologies 70324-70331, g0, seed 4; filed final_run/out/rand_{pay}__sr2_s4",
+ "rand_s20_p48c50|moderate": {
+  "le10": 2.14874932844547,
+  "11_50": 2.3156732036276257,
+  "gt50": 2.413902126099707
+ },
+ "rand_s20_p48c50|heavy": {
+  "le10": 2.1208758651202477,
+  "11_50": 2.269097356794047,
+  "gt50": 2.3362811583577714
+ },
+ "rand_s20_p120c50|moderate": {
+  "le10": 2.1235383813165627,
+  "11_50": 2.274029145027517,
+  "gt50": 2.3187774926686218
+ },
+ "rand_s20_p120c50|heavy": {
+  "le10": 2.100037923079354,
+  "11_50": 2.217299046585536,
+  "gt50": 2.2751328812316713
+ }
+}

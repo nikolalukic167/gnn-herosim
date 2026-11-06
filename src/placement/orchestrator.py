@@ -233,7 +233,9 @@ class Orchestrator:
             "qr_dim7_over_corpus_batches", "residence_unstamped",
             # peer_greedy_live_v1: the hand rule's books (src/policy/peer_greedy_network)
             "pg_decisions", "pg_partners_known", "pg_partners_unknown", "pg_joined_partner",
-            "pg_moved_by_exchange", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
+            "hyb_small_batches", "hyb_large_batches", "hyb_small_tasks", "hyb_large_tasks",
+            "pg_moved_by_exchange", "pg_h1_decisions", "pg_h1_moved", "pg_batches", "pg_cd_passes", "pg_cd_moves", "pg_forced",
+            "pg_cd_calls", "pg_cd_cap_hits", "pg_cd_used_1", "pg_cd_used_2", "pg_cd_used_3", "pg_cd_used_4", "pg_cd_used_5", "pg_cd_used_6", "pg_cd_used_7", "pg_cd_used_8", "pg_cd_used_9", "pg_cd_used_10",
             "pg_partners_blinded", "pg_inflight_charged", "pg_inflight_seconds", "pg_inflight_full_charged", "pg_inflight_full_seconds", "pg_exchange_sym_evals",
             "pg_sp_batches", "pg_sp_provisional_used", "pg_order_batches",
             "pg_fsaware_decisions", "pg_fsaware_decisions_nonzero",
@@ -268,6 +270,8 @@ class Orchestrator:
             "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_exact_g_skipped", "sched_plan_evals_s",
             # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
             "sched_plan_evals", "sched_busy_seconds", "sched_felt_task_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
+            # S7 hand-placer arms (scratch)
+            "s7_bud_groups_full", "s7_bud_groups_k8", "s7_bud_groups_k4", "s7_bud_groups_gnn", "s7_bud_funcs_full", "s7_bud_funcs_k8", "s7_bud_funcs_k4", "s7_bud_funcs_gnn", "s7_bud_q_sum", "s7_rs_batches", "s7_rs_fallback_members", "s7_rs_nodes_kept", "s7_rs_nodes_all", "s7_rs_diag_members", "s7_rs_diag_inside", "s7_rs_diag_batches", "s7_rs_diag_all_inside", "s7_batches", "s7_pick_cd3", "s7_pick_nolte", "s7_pick_h1", "s7_polish_batches", "s7_polish_improved", "s7_polish_evals", "s7_polish_budget_plans", "s7_polish_gain_seconds", "s7_polish_skipped", "s7_part_batches", "s7_part_pick_p1", "s7_part_pick_p2", "s7_part_pick_p4", "s7_part_pick_p8", "s7_part_pick_pn", "s7_part_fallback_tasks", "s7_part_assignments", "s7_scale_extra_evals", "nolte_calls", "nolte_tasks", "nolte_fallback_tasks", "nolte_placed_cellular", "nolte_placed_cellular_nonfallback",
             "sched_mutex_blocked_lb_s", "sched_mutex_waiters_max",
         )
         out: Dict[str, Any] = {}
@@ -543,6 +547,10 @@ class Orchestrator:
                 cellular_out = access_cellular_out_override()
                 if cellular_out is not None:
                     fields["accessCellularOutMbps"] = cellular_out
+                from src.placement.network_fabric import access_cellular_in_override
+                cellular_in = access_cellular_in_override()
+                if cellular_in is not None:
+                    fields["accessCellularInMbps"] = cellular_in
                 return fields
         return {}
 
