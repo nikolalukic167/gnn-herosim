@@ -81,3 +81,22 @@ def test_the_gate_knows_the_pinned_ladder_kind():
     G = importlib.import_module("scripts_cosim.fresh_topo_burst_v1_gate")
     k = "ra_gnn_eng_combfl_linkstatic_e40_nosplit_sr2_hybg5_lad9999_9999"
     assert (4, 9999) in G.LAD_ALLOWED and k in G.LAD_KINDS and k in G.R1A_ARMS and G.split_dc(k + "_k100")[0] == k
+
+
+def test_the_refined_gnn_rung_is_served_without_best_of_k_and_the_env_is_restored(monkeypatch):
+    seen = []
+    s, calls = _sched(monkeypatch, q=5, thresholds=(4, 9999))
+    monkeypatch.setattr(GNNScheduler, "_prefix_inference", lambda self, b, st, qs, ts: seen.append(__import__("os").environ.get("HEROSIM_BOK_K")) or "gnn-plan")
+    monkeypatch.setenv("HEROSIM_BOK_K", "4")
+    assert s._prefix_inference([object()] * 8, None, None, None) == "gnn-plan"
+    assert seen == ["0"] and __import__("os").environ["HEROSIM_BOK_K"] == "4"
+    s._bud_q = 1   # low rung: the hybrid as it is, best-of-K left on for its GNN half
+    s._prefix_inference([object()] * 8, None, None, None)
+    assert seen == ["0", "4"]
+
+
+def test_the_high_rung_identity_arm_is_registered():
+    import importlib
+    G = importlib.import_module("scripts_cosim.fresh_topo_burst_v1_gate")
+    k = "ra_gnn_eng_combfl_linkstatic_e40_nosplit_sr2_hybg5_lad0_9999"
+    assert k in G.LAD_KINDS and k in G.R1A_ARMS and k in G.R1A_SCRATCH

@@ -2711,10 +2711,15 @@ class HybridGnnCdScheduler(PeerGreedyNetworkCDScheduler):
                 self.lad_med_tasks += n
             self._ladder_big = True
             self._ladder_nopass = high
+            bok = os.environ.get("HEROSIM_BOK_K")  # the best-of-K sampling belongs to the low rung's GNN half; the refined GNN alone is served greedy
+            if bok is not None:
+                os.environ["HEROSIM_BOK_K"] = "0"
             try:
                 return GNNScheduler._prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state)
             finally:
                 self._ladder_nopass = False
+                if bok is not None:
+                    os.environ["HEROSIM_BOK_K"] = bok
         self.lad_low_groups += 1
         self.lad_low_tasks += n
         self._ladder_big = n > self.hyb_g

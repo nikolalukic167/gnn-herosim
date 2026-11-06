@@ -624,7 +624,7 @@ HYBSS_PCT = (10, 100)  # search-only charge scale of the G=10 hybrid, in percent
 HYBSS_KINDS = tuple(f"{b}_hyb10ss{p}" for b in HYB_BASES for p in HYBSS_PCT)
 HYBG_ALLOWED = (3, 5, 10, 20)  # size-aware threshold arms: "<base>_hybg<G>" charges batches of at most G at the small side rate and larger ones at the GNN rate, whatever the bucket breaks
 HYBG_KINDS = tuple(f"{b}_hybg{g}" for b in HYB_BASES for g in HYBG_ALLOWED)
-LAD_ALLOWED = ((9999, 9999), (4, 9999))  # backlog ladder (scratch, user-only): "<base>_hybg5_lad<t1>_<t2>" = HEROSIM_LADDER t1,t2 (groups waiting at decision start); 9999_9999 never leaves the Huddle rung (the identity arm); (4, 9999) = Huddle below 4 waiting groups, the refined GNN alone from 4 (threshold fixed from the charged search-half share before any ladder run: ladder/THRESHOLDS.txt)
+LAD_ALLOWED = ((9999, 9999), (4, 9999), (0, 9999))  # backlog ladder (scratch, user-only): "<base>_hybg5_lad<t1>_<t2>" = HEROSIM_LADDER t1,t2 (groups waiting at decision start); 0_9999 is always the refined GNN alone (the high-rung identity arm); 9999_9999 never leaves the Huddle rung (the identity arm); (4, 9999) = Huddle below 4 waiting groups, the refined GNN alone from 4 (threshold fixed from the charged search-half share before any ladder run: ladder/THRESHOLDS.txt)
 LAD_KINDS = tuple(f"{b}_hybg5_lad{t1}_{t2}" for b in HYB_BASES for t1, t2 in LAD_ALLOWED)
 HYBR_KINDS = tuple(f"{b}_hybr{g}" for b in HYB_BASES for g in (0, 10, 1000))  # hybrid-rule: the same split, the small side is the cd3 plan with the search phase off
 HYB_SMALL_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10szw_g10"  # the gated ILS arm whose small-batch charge the hybrid copies
@@ -2083,7 +2083,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         ils_b = int(c.get("pg_ils_batches") or 0)
         if lad is not None:
             lg = [int(c.get(f"lad_{x}_groups") or 0) for x in ("low", "med", "high")]
-            if sum(lg) == 0 or (lad == (9999, 9999) and (lg[1] or lg[2])):
+            if sum(lg) == 0 or (lad == (9999, 9999) and (lg[1] or lg[2])) or (lad == (0, 9999) and (lg[0] or lg[2])):
                 problems.append(f"ladder instrument off: want {lad}, groups low/med/high {lg}")
         elif hs + hl == 0 or (hyb_g == 0 and (hs or ils_b)) or (hyb_g >= 1000 and hl) or (0 < hyb_g < 1000 and (hs == 0 or hl == 0 or (ils_b > 0 if hybr else ils_b == 0))) or (hybr and (ils_b or int(c.get("sched_plan_evals_s") or 0))):
             problems.append(f"hybrid instrument off: want G={hyb_g}, small {hs} large {hl} batches, ILS batches {ils_b}")
