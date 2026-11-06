@@ -89,8 +89,9 @@ def enabled() -> bool:
     return any(v > 0 for v in rates.values()) if rates is not None else cost_ms() > 0.0
 
 
-def rate_ms(n_tasks: int) -> float:
-    """ms per plan for a batch of n_tasks decided: the bucket's rate when the bucket rule serves, else the one c."""
+def rate_ms(n_tasks: int, big: "bool | None" = None) -> float:
+    """ms per plan for a batch of n_tasks decided: the bucket's rate when the bucket rule serves, else the one c. `big` (the backlog ladder) names the path:
+    True the BIG table, False the ordinary one, whatever the batch size; None the size rule (batches of more than HEROSIM_HYB_G tasks are BIG)."""
     rates = bucket_rates()
     if rates is None:
         return cost_ms()
@@ -99,7 +100,7 @@ def rate_ms(n_tasks: int) -> float:
         g = os.environ.get("HEROSIM_HYB_G", "").strip()
         if not g.isdigit():
             raise ValueError(f"FAIL LOUD: {BIG_BUCKET_ENV} needs HEROSIM_HYB_G, got {g!r}")
-        if n_tasks > int(g):
+        if (n_tasks > int(g)) if big is None else big:
             big = json.loads(raw)
             tags = [tag for _hi, tag in SIZE_BUCKETS]
             if sorted(big) != sorted(tags):

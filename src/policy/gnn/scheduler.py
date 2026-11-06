@@ -180,6 +180,24 @@ def _s7_budget() -> str:
     return raw
 
 
+LADDER_ENV = "HEROSIM_LADDER"
+
+
+def ladder_thresholds() -> "tuple | None":
+    """Backlog ladder (HEROSIM_LADDER=t1,t2, scratch): (t1, t2) in groups waiting when a decision starts; below t1 the hybrid serves as it always does, from t1 the refined GNN
+    alone, from t2 (9999 = off) the GNN alone without its refine passes. Unset: off."""
+    raw = os.environ.get(LADDER_ENV, "").strip()
+    if not raw:
+        return None
+    try:
+        t1, t2 = (int(x) for x in raw.split(","))
+    except ValueError as exc:
+        raise ValueError(f"FAIL LOUD: {LADDER_ENV} must be 't1,t2' (integers), got {raw!r}") from exc
+    if not 0 <= t1 <= t2:
+        raise ValueError(f"FAIL LOUD: {LADDER_ENV} needs 0 <= t1 <= t2, got {raw!r}")
+    return t1, t2
+
+
 def _s7_budget_mode(q: int) -> str:
     return "full" if q == 0 else "k8" if q <= 3 else "k4" if q <= 10 else "gnn"
 
@@ -872,6 +890,21 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                     out[int(j)] = name
         return out
 
+    def _s7_backlog_groups(self, batch_tasks) -> int:
+        """S7 budget rule's q: peer groups that have arrived and wait in the scheduler's task queue when this group's decision starts, this one excluded.
+        The scheduler loop takes one batch at a time, so the backlog is the task queue, not the decision server's Resource (always empty)."""
+        own = set()
+        for t in batch_tasks:
+            own |= self._peer_group(t)
+        groups = 0
+        seen = set()
+        for t in self.tasks.items:
+            if int(t.id) in own or int(t.id) in seen:
+                continue
+            seen |= self._peer_group(t)
+            groups += 1
+        return groups
+
     def _peer_group(self, task: Task) -> Set[int]:
         """Transitive closure of the peer table from `task` (global task ids, incl. its own)."""
         table = getattr(self._orchestrator(), "peer_exchange", None) or {}
@@ -991,7 +1024,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
 
         seed = None
         self._lk_override = None
-        self._bud_passes = None
+        self._bud_passes = 0 if getattr(self, "_ladder_nopass", False) else None
         bud = _s7_budget()
         if bud:
             q = int(getattr(self, "_bud_q", 0))
@@ -1517,7 +1550,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             server_req = server.request()
             queued_at = self.env.now
             yield server_req
-            self._bud_q = len(server.queue)  # S7 budget rule: groups still waiting for the scheduler when this decision starts, this one excluded
+            self._bud_q = self._s7_backlog_groups(batch_tasks) if (_s7_budget() or ladder_thresholds() is not None) else 0
             decision_cost.book(self, "sched_queue_wait_seconds", self.env.now - queued_at)
             decision_cost.book(self, "sched_queue_wait_max", self.env.now - queued_at, mx=True)
         evals_before = getattr(self, "sched_plan_evals", 0)
@@ -1586,7 +1619,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                           int(getattr(self, "sched_plan_evals", 0)) - int(evals_before),
                           None if fallbacks_before is None else self.pg_exact_fallbacks > fallbacks_before)
         if cost_on:
-            charge = decision_cost.rate_ms(len(decodable)) * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
+            charge = decision_cost.rate_ms(len(decodable), getattr(self, "_ladder_big", None)) * 1e-3 * (getattr(self, "sched_plan_evals", 0) - evals_before)
             charge += decision_cost.s_rate_ms(len(decodable)) * 1e-3 * (getattr(self, "sched_plan_evals_s", 0) - evals_s_before)
             if charge > 0.0:
                 waiting = len(self.mutex.get_queue)

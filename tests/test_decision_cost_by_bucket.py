@@ -100,4 +100,4 @@ def test_the_scheduler_charges_the_rate_of_the_decided_batch():
     from src.policy.gnn import scheduler
 
     src = inspect.getsource(scheduler)
-    assert "decision_cost.rate_ms(len(decodable)) * 1e-3 *" in src and "decision_cost.cost_ms()" not in src
+    assert "decision_cost.rate_ms(len(decodable), getattr(self, \"_ladder_big\", None)) * 1e-3 *" in src and "decision_cost.cost_ms()" not in src

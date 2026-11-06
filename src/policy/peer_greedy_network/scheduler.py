@@ -52,7 +52,7 @@ from src.placement.model import SystemState
 from src.placement.scheduling_cost import incoming_cold_start_time, network_latency_between
 
 _UNSET = object()
-from src.policy.gnn.scheduler import GNNScheduler, PREFIX_DECODE_MODE
+from src.policy.gnn.scheduler import GNNScheduler, PREFIX_DECODE_MODE, ladder_thresholds
 from src.policy.peer_greedy_network.observation import OBS_COUNTERS, Observation
 from src.policy.knative_network.scheduler import KnativeScheduler as KnativeNetworkScheduler
 
@@ -2649,6 +2649,7 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
 
 HYB_G_ENV = "HEROSIM_HYB_G"  # hybrid (scratch): batches of at most G tasks are decided by the CD rule (+ the gated ILS), larger ones by the GNN
 HYB_COUNTERS = ("hyb_small_batches", "hyb_large_batches", "hyb_small_tasks", "hyb_large_tasks")
+LAD_COUNTERS = ("lad_low_groups", "lad_med_groups", "lad_high_groups", "lad_low_tasks", "lad_med_tasks", "lad_high_tasks", "lad_q_sum")
 
 
 class HybridGnnCdScheduler(PeerGreedyNetworkCDScheduler):
@@ -2664,11 +2665,18 @@ class HybridGnnCdScheduler(PeerGreedyNetworkCDScheduler):
         self.hyb_g = int(raw)
         for name in HYB_COUNTERS:
             setattr(self, name, 0)
+        self._ladder = ladder_thresholds()
+        self._ladder_big = None
+        self._ladder_nopass = False
+        for name in LAD_COUNTERS:
+            setattr(self, name, 0)
 
     def set_models(self, models: dict):
         return GNNScheduler.set_models(self, models)
 
     def _prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state):
+        if self._ladder is not None:
+            return self._ladder_inference(batch_tasks, system_state, queue_snapshot, temporal_state)
         if len(batch_tasks) <= self.hyb_g:
             self.hyb_small_batches += 1
             self.hyb_small_tasks += len(batch_tasks)
@@ -2676,6 +2684,38 @@ class HybridGnnCdScheduler(PeerGreedyNetworkCDScheduler):
         self.hyb_large_batches += 1
         self.hyb_large_tasks += len(batch_tasks)
         return GNNScheduler._prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state)
+
+    def _ladder_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state):
+        """Backlog ladder: q = groups waiting when this decision starts. low (q < t1): the hybrid as it is (Huddle G); medium (t1 <= q < t2): the refined GNN alone,
+        whatever the batch size, with its refine passes; high (q >= t2, off at 9999): the GNN alone without its refine passes. `_ladder_big` names the charge table of
+        the path for the decision-cost charge."""
+        t1, t2 = self._ladder
+        q = int(getattr(self, "_bud_q", 0))
+        n = len(batch_tasks)
+        self.lad_q_sum += q
+        self._ladder_nopass = False
+        if q >= t1:
+            high = q >= t2
+            if high:
+                self.lad_high_groups += 1
+                self.lad_high_tasks += n
+            else:
+                self.lad_med_groups += 1
+                self.lad_med_tasks += n
+            self._ladder_big = True
+            self._ladder_nopass = high
+            try:
+                return GNNScheduler._prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state)
+            finally:
+                self._ladder_nopass = False
+        self.lad_low_groups += 1
+        self.lad_low_tasks += n
+        self._ladder_big = n > self.hyb_g
+        self._ladder = None
+        try:
+            return self._prefix_inference(batch_tasks, system_state, queue_snapshot, temporal_state)
+        finally:
+            self._ladder = (t1, t2)
 
     def _cd_refine(self, tasks, placements, system_state, mode):
         if len(tasks) <= self.hyb_g:

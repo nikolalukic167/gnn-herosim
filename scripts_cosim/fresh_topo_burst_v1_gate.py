@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import hashlib
 import json
 import math
 import os
@@ -610,6 +611,8 @@ HYBSS_PCT = (10, 100)  # search-only charge scale of the G=10 hybrid, in percent
 HYBSS_KINDS = tuple(f"{b}_hyb10ss{p}" for b in HYB_BASES for p in HYBSS_PCT)
 HYBG_ALLOWED = (3, 5, 10, 20)  # size-aware threshold arms: "<base>_hybg<G>" charges batches of at most G at the small side rate and larger ones at the GNN rate, whatever the bucket breaks
 HYBG_KINDS = tuple(f"{b}_hybg{g}" for b in HYB_BASES for g in HYBG_ALLOWED)
+LAD_ALLOWED = ((9999, 9999), (4, 9999))  # backlog ladder (scratch, user-only): "<base>_hybg5_lad<t1>_<t2>" = HEROSIM_LADDER t1,t2 (groups waiting at decision start); 9999_9999 never leaves the Huddle rung (the identity arm); (4, 9999) = Huddle below 4 waiting groups, the refined GNN alone from 4 (threshold fixed from the charged search-half share before any ladder run: ladder/THRESHOLDS.txt)
+LAD_KINDS = tuple(f"{b}_hybg5_lad{t1}_{t2}" for b in HYB_BASES for t1, t2 in LAD_ALLOWED)
 HYBR_KINDS = tuple(f"{b}_hybr{g}" for b in HYB_BASES for g in (0, 10, 1000))  # hybrid-rule: the same split, the small side is the cd3 plan with the search phase off
 HYB_SMALL_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10szw_g10"  # the gated ILS arm whose small-batch charge the hybrid copies
 
@@ -642,8 +645,8 @@ def hyb_costs(kind: str, k: Optional[float], rung: str, g: int, rule_only: bool 
     return (DC_BUCKET_ENV, json.dumps(out, sort_keys=True)), s_json
 
 
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + GREF_KINDS + LK_KINDS + BUD_KINDS
-R1A_SCRATCH = GREF_KINDS + LK_KINDS + BUD_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS  # user-only scratch arms: named explicitly through R1A_ARMS, never part of the default list
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + GREF_KINDS + LK_KINDS + BUD_KINDS
+R1A_SCRATCH = GREF_KINDS + LK_KINDS + BUD_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS  # user-only scratch arms: named explicitly through R1A_ARMS, never part of the default list
 # slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
 # submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
 def r1a_slate() -> str:
@@ -1340,6 +1343,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     hybr = kind in HYBR_KINDS
     if hybr:
         kind = kind.replace("_hybr", "_hyb")
+    lad = None
+    m_l = re.search(r"_lad(\d+)_(\d+)$", kind)
+    if m_l is not None and kind in LAD_KINDS:
+        lad = (int(m_l.group(1)), int(m_l.group(2)))
+        kind = kind[:m_l.start()]
     hyb_sized, hyb_big = False, None
     m_g = re.search(r"_hybg(\d+)$", kind)
     if m_g is not None and kind in HYBG_KINDS:
@@ -1350,13 +1358,14 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if hyb_sized:
         hyb_g = g_sized
     kind, sr_passes = split_sr(kind)
-    dc_ms = dc_cost_ms(kind, dc_k, window[2:])
-    dc_s = gref_s_cost_ms(dc_k, window[2:]) if gref else dc_s_cost_ms(kind, dc_k, window[2:])
+    rung_w = "heavy" if window[2:].startswith("heavy") else window[2:]  # the load-sweep rungs heavy15 / heavy20 are charged at the heavy-calibrated rate
+    dc_ms = dc_cost_ms(kind, dc_k, rung_w)
+    dc_s = gref_s_cost_ms(dc_k, rung_w) if gref else dc_s_cost_ms(kind, dc_k, rung_w)
     if hyb_g is not None:
         if hyb_sized:
-            dc_ms, dc_s, hyb_big = hyb_costs(kind, dc_k, window[2:], hyb_g, hybr, hyb_ss, sized=True)
+            dc_ms, dc_s, hyb_big = hyb_costs(kind, dc_k, rung_w, 1000 if lad is not None else hyb_g, hybr, hyb_ss, sized=True)  # ladder: both tables whole (the path, not the size, picks one)
         else:
-            dc_ms, dc_s = hyb_costs(kind, dc_k, window[2:], hyb_g, hybr, hyb_ss)
+            dc_ms, dc_s = hyb_costs(kind, dc_k, rung_w, hyb_g, hybr, hyb_ss)
     if R1A_ON:
         state = pw.rung_state(out_dir, window[2:])
         if pw.paused(state):
@@ -1553,6 +1562,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         if hyb_g is not None:
             env.update(FSAWARE_VARIANT_ENV[HYB_SMALL_KIND])
             env.update(HEROSIM_HYB_G=str(hyb_g), HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_FAIRSHARE_AWARE="1", **ib0_alpha(HYB_SMALL_KIND))
+            if lad is not None:
+                env.update(HEROSIM_LADDER=f"{lad[0]},{lad[1]}")
             if not hybr:
                 env.update(HEROSIM_PG_ILS_PER=str(ILS_PER[HYB_SMALL_KIND]), HEROSIM_PG_ILS_SEED="0", HEROSIM_PG_ILS_MAX_TASKS=str(hyb_g) if hyb_g < 1000 else "0")
             else:
@@ -1719,6 +1730,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                arm_kind=arm_kind, checkpoint_seed=seed, policy_name=policy, wallclock_s=wall)
     out["env"] = {k: v for k, v in (doc.get("run_provenance") or {}).get("env", {}).items() if v}
     out["queue_drift"] = drift
+    _ttp = os.path.join(REPO, "data/nofs-ids/task-types.json")
+    out["task_types_md5"] = hashlib.md5(open(_ttp, "rb").read()).hexdigest()
+    out["task_types_path"] = os.path.realpath(_ttp)
     out["code"] = (doc.get("run_provenance") or {}).get("code")
     out["python_env"] = (doc.get("run_provenance") or {}).get("python_env")  # the raw JSON is deleted at job exit; PARITY.md reads the interpreter from here
     out["env_fingerprint"] = (doc.get("run_provenance") or {}).get("env_fingerprint")
@@ -2025,7 +2039,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if hyb_g is not None:
         hs, hl = int(c.get("hyb_small_batches") or 0), int(c.get("hyb_large_batches") or 0)
         ils_b = int(c.get("pg_ils_batches") or 0)
-        if hs + hl == 0 or (hyb_g == 0 and (hs or ils_b)) or (hyb_g >= 1000 and hl) or (0 < hyb_g < 1000 and (hs == 0 or hl == 0 or (ils_b > 0 if hybr else ils_b == 0))) or (hybr and (ils_b or int(c.get("sched_plan_evals_s") or 0))):
+        if lad is not None:
+            lg = [int(c.get(f"lad_{x}_groups") or 0) for x in ("low", "med", "high")]
+            if sum(lg) == 0 or (lad == (9999, 9999) and (lg[1] or lg[2])):
+                problems.append(f"ladder instrument off: want {lad}, groups low/med/high {lg}")
+        elif hs + hl == 0 or (hyb_g == 0 and (hs or ils_b)) or (hyb_g >= 1000 and hl) or (0 < hyb_g < 1000 and (hs == 0 or hl == 0 or (ils_b > 0 if hybr else ils_b == 0))) or (hybr and (ils_b or int(c.get("sched_plan_evals_s") or 0))):
             problems.append(f"hybrid instrument off: want G={hyb_g}, small {hs} large {hl} batches, ILS batches {ils_b}")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
         problems.append("a non-inflight arm charged the in-flight task")
