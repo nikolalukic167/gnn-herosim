@@ -190,6 +190,8 @@ class _Static:
                     raise ValueError(f"NEAR_RTT_BATCHED_TF: no backlog for candidate {c!r}")
                 self.row_backlog[i] = float(ctx.backlog_s[c])
         self.ctx_load_seconds = bool(ctx.load_seconds)
+        if ctx.contract in rf.SHARE_LINK_CONTRACTS and getattr(ctx, "outside_partners", None):
+            raise ValueError("NEAR_RTT_BATCHED_TF: the link-sharing block of a context with outside partners is not vectorised (the cache builds none)")
         self.link = _link_tables(ctx, self.nodes, nidx, self.Pm) if ctx.contract in rf.LINK_CONTRACTS else None
         if self.link is not None and ctx.contract in rf.OUT_LINK_CONTRACTS:
             first = self.link["HOPL"][:, :, 0]
@@ -296,6 +298,45 @@ def _link_out_block(S: "_Static", nd_plan: np.ndarray, M: np.ndarray, Mr: np.nda
     return np.stack([r1, r2, r3, u1], axis=1)
 
 
+def _link_share_block(S: "_Static", nd_plan: np.ndarray, M: np.ndarray, Mr: np.ndarray, PBl: np.ndarray, LEl: np.ndarray) -> np.ndarray:
+    """SH1-SH4 of every row (the vectorised twin of link_features.share_edge_columns): the pulls partner j's node -> the row's node of every committed partner, priced as they
+    share each hop with one another (the row's own pulls per link, `own`) and with the active plus pending flows. Sums over the partners in ascending task index, math.log / math.log1p."""
+    LK, n, R = S.link, S.n, S.R
+    rt, rn = S.rt, S.row_node
+    counts = _link_counts(S, nd_plan, M)
+    hl = LK["HOPL"][nd_plan[None, :], rn[:, None]]  # [R, n, H]
+    bw = LK["HOPBW"][nd_plan[None, :], rn[:, None]]
+    valid = hl >= 0
+    hl0 = np.where(valid, hl, 0)
+    act = np.where(valid, counts[rt[:, None, None], hl0], 0.0)
+    use = (Mr * S.rPr * (nd_plan[None, :] != rn[:, None])) > 0.0
+    inc = LK["HINC"][nd_plan[None, :], rn[:, None]]  # [R, n, L]: the links of the pull from j
+    mine = (inc * use[:, :, None]).sum(1)  # [R, L]: the row's own pulls per link
+    own = np.where(valid, np.take_along_axis(mine[:, None, :].repeat(n, axis=1), hl0, axis=2), 0.0)
+    anyact = (act > 0.0).any(-1)
+    shared_hop = anyact | (own > 1.0).any(-1)
+    mib = 1024 ** 2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rate_e = np.where(valid, bw * mib / (act + 1.0), np.inf).min(-1)
+        rate_s = np.where(valid, bw * mib / (act + own), np.inf).min(-1)
+        solo_j = S.rBr * PBl + LEl
+        alone_j = np.where(anyact, S.rBr / rate_e + LEl, solo_j)
+        t_j = np.where(shared_hop, S.rBr / rate_s + LEl, solo_j)
+    total = np.zeros(R)
+    alone = np.zeros(R)
+    longest = np.zeros(R)
+    for j in range(n):
+        total = total + np.where(use[:, j], t_j[:, j], 0.0)
+        alone = alone + np.where(use[:, j], alone_j[:, j], 0.0)
+        longest = np.where(use[:, j], np.maximum(longest, t_j[:, j]), longest)
+    busiest = np.maximum(np.where(use[:, :, None], own, 0.0).max(axis=(1, 2)), 1.0)
+    sh1 = np.array([math.log1p(x) for x in total])
+    sh2 = np.array([math.log1p(x) for x in longest])
+    sh3 = np.array([math.log(a / b) if b > 0.0 and a > b else 0.0 for a, b in zip(total, alone)])
+    sh4 = np.array([math.log(float(x)) for x in busiest])
+    return np.stack([sh1, sh2, sh3, sh4], axis=1)
+
+
 def _link_block(S: "_Static", nd_plan: np.ndarray, M: np.ndarray, Mr: np.ndarray, PBl: np.ndarray, LEl: np.ndarray) -> np.ndarray:
     """E1-E3 of every row, each task's rows under its own state M[t] (the vectorised twin of link_features.edge_columns plus pending_counts).
     The sums over a row's partners run in ascending task index, which is the commit order of a corpus without DAG parents (what this loss supports), so the floats are the
@@ -393,6 +434,9 @@ def _blocks(S: _Static, ctx: Any, data: Any, plan: Sequence[int], M: np.ndarray)
         if ctx.contract in rf.OUT_LINK_CONTRACTS:
             ob = S.link_base + rf.LINK_EDGE_DIM + rf.LINK_STATIC_DIM
             out[:, ob:ob + rf.LINK_OUT_DIM] = _link_out_block(S, nd_plan, M, Mr, PBu, LEu)
+        if ctx.contract in rf.SHARE_LINK_CONTRACTS:
+            hb = S.link_base + rf.LINK_EDGE_DIM + rf.LINK_STATIC_DIM + rf.LINK_OUT_DIM
+            out[:, hb:hb + rf.LINK_SHARE_DIM] = _link_share_block(S, nd_plan, M, Mr, PBl, LEl)
     elif ctx.contract in rf.LINK_CONTRACTS:
         raise ValueError("NEAR_RTT_BATCHED_TF: a link contract reached _blocks without link tables")
     return out.astype(np.float32)

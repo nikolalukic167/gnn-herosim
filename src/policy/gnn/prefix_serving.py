@@ -62,6 +62,7 @@ from src.policy.tabular.reduced_features import (
     krank_node_order,
     LINK_CONTRACTS,
     STATIC_LINK_CONTRACTS,
+    SHARE_LINK_CONTRACTS,
     load_seconds_enabled,
     peer_mass_enabled,
     require_matching_partial_state_contract,
@@ -438,6 +439,7 @@ def attach_live_prefix_block(
     peer_table: Mapping[int, Mapping[int, float]],
     options: PrefixServingOptions,
     backlog_seconds: Optional[Mapping[Tuple[int, int], float]] = None,
+    outside_nodes: Optional[Mapping[int, str]] = None,
 ) -> Dict[str, Any]:
     """Attach the peer_affinity_v1 block to a live inference graph, in place.
 
@@ -658,6 +660,17 @@ def attach_live_prefix_block(
             "link_routes": link_features.routes_between(fabric.link_topology, {nid: name_by_node_id[nid] for nid in cand_node_ids}),
         }
 
+    # partial_state_v10: peers outside the batch that are already placed (task id -> node name) enter the link-sharing columns as extra pulls of the task
+    outside_partners: Dict[int, List[Tuple[int, float]]] = {}
+    if outside_nodes and resolve_partial_state_contract() in SHARE_LINK_CONTRACTS:
+        cand_id_by_name = {name_by_node_id[nid]: nid for nid in cand_node_ids}
+        for t, task in enumerate(batch_tasks):
+            for j_id, b in (peer_table.get(int(task.id)) or {}).items():
+                if int(j_id) in idx_by_id:
+                    continue
+                nname = outside_nodes.get(int(j_id))
+                if nname is not None and nname in cand_id_by_name:
+                    outside_partners.setdefault(t, []).append((cand_id_by_name[nname], float(b)))
     graph.peer_edge_index = peer_edge_index
     graph.peer_edge_attr = peer_edge_attr
     graph.dag_edge_index = torch.empty((2, 0), dtype=torch.long)
@@ -686,6 +699,7 @@ def attach_live_prefix_block(
         "queue_depth_by_node": queue_depth_by_node,
         **load_block,
         **link_block,
+        **({"outside_partners": outside_partners} if outside_partners else {}),
     }
     if resolve_partial_state_contract() in STATIC_LINK_CONTRACTS:
         from src.policy.gnn.link_static import attach_link_static

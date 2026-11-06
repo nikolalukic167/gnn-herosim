@@ -852,6 +852,26 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
                 return orch
         raise RuntimeError("GNN scheduler: no node carries an orchestrator_ref yet")
 
+    def _outside_nodes(self, batch_tasks: List[Task]) -> Optional[Dict[int, str]]:
+        """partial_state_v10 only: task id -> node name for the already-placed peers of the batch that sit outside it (None under every other contract)."""
+        from src.policy.tabular.reduced_features import SHARE_LINK_CONTRACTS, resolve_partial_state_contract
+
+        if resolve_partial_state_contract() not in SHARE_LINK_CONTRACTS:
+            return None
+        orch = self._orchestrator()
+        ids = {int(t.id) for t in batch_tasks}
+        out: Dict[int, str] = {}
+        for task in batch_tasks:
+            for j in (getattr(orch, "peer_exchange", None) or {}).get(int(task.id)) or {}:
+                if int(j) in ids or int(j) in out:
+                    continue
+                peer = orch.task_by_id.get(int(j))
+                plat = getattr(peer, "platform", None) if peer is not None else None
+                name = plat.node.node_name if plat is not None else getattr(peer, "planned_node_name", None)
+                if name is not None:
+                    out[int(j)] = name
+        return out
+
     def _peer_group(self, task: Task) -> Set[int]:
         """Transitive closure of the peer table from `task` (global task ids, incl. its own)."""
         table = getattr(self._orchestrator(), "peer_exchange", None) or {}
@@ -1084,6 +1104,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
             batch_tasks,
             nodes=list(self.nodes.items),
             peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
+            outside_nodes=self._outside_nodes(batch_tasks),
             options=self._prefix_options,
             backlog_seconds=self._v4_backlog_seconds(task_logit_to_placement, system_state),
         )
@@ -1212,6 +1233,7 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         graph._task_logit_to_placement = tl
         attach_live_prefix_block(graph, batch_tasks, nodes=list(self.nodes.items),
                                  peer_table=getattr(self._orchestrator(), "peer_exchange", None) or {},
+                                 outside_nodes=self._outside_nodes(batch_tasks),
                                  options=self._prefix_options, backlog_seconds=self._v4_backlog_seconds(tl, system_state))
         graph = move_graph_tensors_(graph, self.device)
         ctx = build_partial_state_context_from_graph(graph)

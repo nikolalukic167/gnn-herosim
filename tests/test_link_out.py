@@ -43,7 +43,7 @@ def test_v9_is_37_wide_and_extends_v8_in_every_family():
     for fam in (RF.VALID_PARTIAL_STATE_CONTRACTS, RF.PEER_BLOCK_CONTRACTS, RF.LOAD_SECONDS_CONTRACTS, RF.BOTH_DIRECTION_CONTRACTS, RF.FOUR_TYPE_CONTRACTS,
                 RF.INFLIGHT_CONTRACTS, RF.LINK_CONTRACTS, RF.STATIC_LINK_CONTRACTS):
         assert V9 in fam and V8 in fam
-    assert RF.OUT_LINK_CONTRACTS == frozenset({V9})
+    assert RF.OUT_LINK_CONTRACTS == frozenset({V9, RF.PARTIAL_STATE_CONTRACT_V10})
 
 
 def test_out_columns_against_hand_computed_values(fabric_env):

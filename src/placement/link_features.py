@@ -44,6 +44,7 @@ LINK_PLATFORM_DIM = 3
 LINK_EDGE_DIM = 3
 LINK_STATIC_DIM = 3
 LINK_OUT_DIM = 4
+LINK_SHARE_DIM = 4
 MIB = 1024 ** 2
 
 Hop = Tuple[str, float]
@@ -207,6 +208,59 @@ def out_edge_columns(
     r2 = math.log(shared / solo) if solo > 0.0 and shared > solo else 0.0
     u1 = math.log1p(total * (c + k) / (bw_up * MIB)) if k else 0.0
     return math.log1p(shared), r2, math.log1p(float(busiest)), u1
+
+
+def share_edge_columns(
+    counts: Mapping[str, int],
+    routes: Mapping[Tuple[Any, Any], Sequence[Hop]],
+    node_exchange: Mapping[Tuple[Any, Any], Tuple[float, float]],
+    partners: Iterable[Tuple[Any, float]],
+    node: Any,
+    outside: Iterable[Tuple[Any, float]] = (),
+) -> Tuple[float, float, float, float]:
+    """partial_state_v10 SH1-SH4 of one candidate `node`: the task's own pulls priced AS THEY SHARE each hop with one another and with the flows already there.
+
+    The flows are the pulls partner node -> `node` of the committed `partners` = (partner node, payload bytes) followed by the placed `outside` partners (partners
+    outside the batch whose node is known; same shape), remote ones only. `counts` are the active flows plus the pending flows of the committed prefix, as for E1-E3.
+    The bytes are the pair sizes the caller passes. E1-E3 price each pull as the one new flow on its route; here the k pulls of the
+    task are new flows together: on a hop that m of them cross and c flows already hold, each gets bw * MiB / (c + m), so a pull is priced b / min over its hops of that
+    rate plus the route latency (the solo price, b * seconds-per-byte, when no hop is loaded and no other pull of the task crosses it).
+
+        SH1  log1p(sum_f t_f)        t_f the shared price of pull f
+        SH2  log1p(max_f t_f)        the slowest pull: the input stage of a task that pulls from its partners concurrently waits for it
+        SH3  log(sum t_f / sum e_f)  e_f the E1 price of the same pull alone (the one new flow); 0 when the sums are equal (the ratio is >= 1): what sharing among the
+                                     task's own pulls adds
+        SH4  log(max over hops of m) the largest number of the task's own pulls on one hop; 0 for a single pull or none
+    """
+    flows = [(nj, b) for nj, b in list(partners) + list(outside) if nj != node]
+    if not flows:
+        return 0.0, 0.0, 0.0, 0.0
+    mine: Dict[str, int] = {}
+    for nj, _b in flows:
+        for key, _bw in routes[(nj, node)]:
+            mine[key] = mine.get(key, 0) + 1
+    total = alone = longest = 0.0
+    busiest = 1
+    for nj, b in flows:
+        pb, lat = node_exchange[(nj, node)]
+        lat = lat if pb > 0.0 else 0.0
+        solo_s = b * pb + lat
+        hops = routes[(nj, node)]
+        active = [counts.get(key, 0) for key, _bw in hops]
+        own = [mine[key] for key, _bw in hops]
+        if any(active):
+            alone += b / min(bw * MIB / (n + 1) for (_k, bw), n in zip(hops, active)) + lat
+        else:
+            alone += solo_s
+        if any(active) or any(m > 1 for m in own):
+            t_f = b / min(bw * MIB / (n + m) for (_k, bw), n, m in zip(hops, active, own)) + lat
+        else:
+            t_f = solo_s
+        total += t_f
+        longest = max(longest, t_f)
+        busiest = max(busiest, max(own))
+    sh3 = math.log(total / alone) if alone > 0.0 and total > alone else 0.0
+    return math.log1p(total), math.log1p(longest), sh3, math.log(float(busiest))
 
 
 def static_edge_columns(
