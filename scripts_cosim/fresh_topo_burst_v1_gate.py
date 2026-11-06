@@ -574,6 +574,19 @@ BUD_SFX = {"_bl": "l", "_bh": "h"}
 BUD_KINDS = tuple(f"{k}_nosplit_sr2{sfx}" for k in COMB_STATIC_E40 for sfx in BUD_SFX)
 
 
+# S7 pick: "<v8 e40 kind>_nosplit_sr2_pick" prices the partition plan and the refined GNN plan of every group with the rule's whole-plan S and serves the cheaper (HEROSIM_S7_PICK=cheaper);
+# "_pickpart" serves the partition plan without the GNN (the identity arm).
+PICK_SFX = {"_pick": "cheaper", "_pickpart": "part"}
+PICK_KINDS = tuple(f"{k}_nosplit_sr2{sfx}" for k in COMB_STATIC_E40 for sfx in PICK_SFX)
+
+
+def split_pick(kind: str) -> Tuple[str, Optional[str]]:
+    for sfx, m in PICK_SFX.items():
+        if kind.endswith(sfx) and kind[:-len(sfx)] in tuple(f"{b}_nosplit_sr2" for b in COMB_STATIC_E40):
+            return kind[:-len(sfx)], m
+    return kind, None
+
+
 def split_bud(kind: str) -> Tuple[str, Optional[str]]:
     for sfx, m in BUD_SFX.items():
         if kind.endswith(sfx) and kind[:-len(sfx)] in tuple(f"{b}_nosplit_sr2" for b in COMB_STATIC_E40):
@@ -645,8 +658,8 @@ def hyb_costs(kind: str, k: Optional[float], rung: str, g: int, rule_only: bool 
     return (DC_BUCKET_ENV, json.dumps(out, sort_keys=True)), s_json
 
 
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + GREF_KINDS + LK_KINDS + BUD_KINDS
-R1A_SCRATCH = GREF_KINDS + LK_KINDS + BUD_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS  # user-only scratch arms: named explicitly through R1A_ARMS, never part of the default list
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + GREF_KINDS + LK_KINDS + BUD_KINDS + PICK_KINDS
+R1A_SCRATCH = GREF_KINDS + LK_KINDS + BUD_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + PICK_KINDS  # user-only scratch arms: named explicitly through R1A_ARMS, never part of the default list
 # slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
 # submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
 def r1a_slate() -> str:
@@ -942,6 +955,29 @@ def write_task_times(task_results: Optional[List[dict]], path: str) -> Optional[
         return None
     with open(path + ".partial", "wb") as fh:
         np.save(fh, np.asarray(rows, dtype=np.float32))
+    os.replace(path + ".partial", path)
+    return len(rows)
+
+
+def write_task_detail(task_results: Optional[List[dict]], path: str) -> Optional[int]:
+    """S7 overnight (scratch, user-only, R1A_TASK_DETAIL=1): per-task placement and time components for the overload diagnosis, one npz per cell."""
+    import numpy as np
+
+    rows = [r for r in task_results or () if r.get("taskId") is None or int(r["taskId"]) >= 0]
+    if not rows:
+        return None
+    names: Dict[str, int] = {}
+    code = lambda v: names.setdefault(str(v), len(names))
+    num = ("taskId", "groupSize", "dispatchedTime", "scheduledTime", "arrivedTime", "startedTime", "doneTime", "queueTime", "pullTime", "coldStartTime", "peerExchangeTime", "linkWaitTime", "ingressWaitTime", "nodeContentionTime", "linkHops")
+    cols = {k: np.asarray([float(r.get(k) if isinstance(r.get(k), (int, float)) else -1.0) for r in rows], dtype=np.float32) for k in num}
+    cols["coldStarted"] = np.asarray([1 if r.get("coldStarted") else 0 for r in rows], dtype=np.int8)
+    for k in ("sourceNode", "executionNode", "executionPlatform", "platform"):
+        cols[k] = np.asarray([code(r.get(k)) for r in rows], dtype=np.int32)
+    inv = [None] * len(names)
+    for k, v in names.items():
+        inv[v] = k
+    with open(path + ".partial", "wb") as fh:
+        np.savez_compressed(fh, names=np.asarray(inv, dtype=object), **cols)
     os.replace(path + ".partial", path)
     return len(rows)
 
@@ -1331,10 +1367,11 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     kind, dc_k = split_dc(kind)
+    kind, pick = split_pick(kind)
     kind, bud = split_bud(kind)
     kind, lk = split_lk(kind)
     kind, gref = split_gref(kind)
-    gref = gref or lk is not None or bud is not None
+    gref = gref or lk is not None or bud is not None or pick is not None
     hyb_ss = None
     m_ss = re.search(r"_hyb10ss(\d+)$", kind)
     if m_ss is not None and kind in HYBSS_KINDS:
@@ -1394,7 +1431,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     for k in ("GNN_MODEL_PATH", "GNN_DISABLE_MESSAGE_PASSING", "GNN_MP_PLATFORM_EDGES_OFF", "GNN_BATCH_TIMEOUT",
               "GNN_BATCH_SIZE", "GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "GNN_PREFIX_ALPHA_KEY",
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
-              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_S7_MODE", "HEROSIM_S7_GREF", "HEROSIM_S7_LK", "HEROSIM_S7_BUDGET", "HEROSIM_S7_HK", "HEROSIM_S7_RESTRICT_DIAG", "HEROSIM_S7_POLISH_SECONDS", "HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET", "HEROSIM_S7_CHARGE_SCALE", "HEROSIM_S7_TIMELOG", "HEROSIM_PG_H1", "HEROSIM_PG_NOLTE", "HEROSIM_DECIMA_ALPHA", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
+              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_S7_MODE", "HEROSIM_S7_GREF", "HEROSIM_S7_LK", "HEROSIM_S7_BUDGET", "HEROSIM_S7_PICK", "HEROSIM_S7_HK", "HEROSIM_S7_RESTRICT_DIAG", "HEROSIM_S7_POLISH_SECONDS", "HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET", "HEROSIM_S7_CHARGE_SCALE", "HEROSIM_S7_TIMELOG", "HEROSIM_PG_H1", "HEROSIM_PG_NOLTE", "HEROSIM_DECIMA_ALPHA", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
@@ -1557,6 +1594,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                 env.update(HEROSIM_S7_GREF="0", HEROSIM_S7_LK=str(lk), HEROSIM_S7_RESTRICT_DIAG="1")
             if bud is not None:
                 env.update(HEROSIM_S7_GREF="0", HEROSIM_S7_BUDGET=bud)
+            if pick is not None:
+                env.update(HEROSIM_S7_GREF="0", HEROSIM_S7_PICK=pick)
             if os.environ.get("R1A_S7_TIMELOG"):
                 env["HEROSIM_S7_TIMELOG"] = os.path.join(out_dir, name + ".timelog.jsonl")
         if hyb_g is not None:
@@ -1792,7 +1831,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     if not kind.endswith("_selfrefkw") and int(c.get("keepwarm_armed") or 0):
         problems.append("keep-warm guard armed on an unguarded arm")
     refined = kind.endswith(("_selfref", "_selfrefkw")) or bool(sr_passes)
-    if refined and bud is None and int(c.get("prefix_self_refine_batches") or 0) == 0:
+    if refined and bud is None and pick != "part" and int(c.get("prefix_self_refine_batches") or 0) == 0:
         problems.append("self-refine instrument off: prefix_self_refine_batches == 0")
     if not refined and int(c.get("prefix_self_refine_batches") or 0):
         problems.append("unrefined arm self-refined")
@@ -1855,7 +1894,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     want_s = dc_s
     if (json.loads(served_s) if served_s else None) != (json.loads(want_s) if want_s else None):
         problems.append(f"{DC_S_ENV} served {served_s!r}, want {want_s!r}")
-    if int(c.get("sched_plan_evals") or 0) == 0 and not (gref and not sr_passes) and bud is None and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
+    if int(c.get("sched_plan_evals") or 0) == 0 and not (gref and not sr_passes) and bud is None and pick != "part" and int(c.get("pg_batches") or 0) + int(c.get("prefix_batches") or 0) > 0:
         problems.append("plan-evaluation meter off: sched_plan_evals == 0")
     charged = int(c.get("sched_batches_charged") or 0)
     if dc_ms and (charged == 0 or float(c.get("sched_busy_seconds") or 0) <= 0):
@@ -1977,7 +2016,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         elif not (out["env"].get("HEROSIM_DECISION_COST_MS") or out["env"].get("HEROSIM_DECISION_COST_MS_BY_BUCKET")):
             problems.append("S7 arm served without a decision charge")
     elif gref:
-        if out["env"].get("HEROSIM_S7_GREF") != ("0" if (lk is not None or bud is not None) else "1") or out["env"].get("HEROSIM_S7_MODE") != "partition":
+        if out["env"].get("HEROSIM_S7_GREF") != ("0" if (lk is not None or bud is not None or pick is not None) else "1") or out["env"].get("HEROSIM_S7_MODE") != "partition":
             problems.append(f"gref seed not served: HEROSIM_S7_GREF={out['env'].get('HEROSIM_S7_GREF')!r}, HEROSIM_S7_MODE={out['env'].get('HEROSIM_S7_MODE')!r}")
         if int(c.get("s7_batches") or 0) == 0 or int(c.get("s7_part_batches") or 0) != int(c.get("s7_batches") or 0):
             problems.append("gref partition instrument off: s7_batches == 0 or s7_part_batches != s7_batches")
@@ -1989,6 +2028,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             problems.append("gref served a polish budget")
         if bud is not None and (out["env"].get("HEROSIM_S7_BUDGET") != bud or sum(int(c.get(f"s7_bud_groups_{m}") or 0) for m in ("full", "k8", "k4", "gnn")) == 0):
             problems.append("budget rule not served: HEROSIM_S7_BUDGET off or no group was assigned a mode")
+        if pick is not None and (out["env"].get("HEROSIM_S7_PICK") != pick or int(c.get("s7_pick_groups") or 0) != int(c.get("s7_batches") or 0)
+                                 or int(c.get("s7_pick_gnn") or 0) + int(c.get("s7_pick_part") or 0) != int(c.get("s7_pick_groups") or 0)):
+            problems.append("pick rule not served on every group: HEROSIM_S7_PICK, s7_pick_groups or the gnn/part split off")
         if lk is not None and (int(out["env"].get("HEROSIM_S7_LK") or 0) != lk or int(c.get("s7_rs_batches") or 0) != int(c.get("s7_batches") or 0)
                                or int(c.get("s7_rs_diag_batches") or 0) != int(c.get("s7_rs_batches") or 0) or int(c.get("sched_plan_evals") or 0) == 0):
             problems.append("learned top-k not served on every batch: HEROSIM_S7_LK, s7_rs_batches, s7_rs_diag_batches or the decode pass's plan evaluations off")
@@ -2108,6 +2150,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     out["queue_share"] = q / e if e > 0 else None
     out["effective_queue_share"] = (out["lock_wait"] or {}).get("effective_queue_share")
     out["task_times_rows"] = write_task_times(st.get("taskResults"), os.path.join(out_dir, name + ".tasks.npy"))
+    if os.environ.get("R1A_TASK_DETAIL") == "1":
+        out["task_detail_rows"] = write_task_detail(st.get("taskResults"), os.path.join(out_dir, name + ".detail.npz"))
     out["task_bsz_rows"] = write_task_bsz(st.get("taskResults"), os.path.join(out_dir, name + ".tasks_bsz.npy"))
     out["task_lock_rows"] = write_task_lock(st.get("taskResults"), os.path.join(out_dir, name + ".tasks_lock.npy"))
     sealed = sealed_triggers(int(t["topo"]), window)

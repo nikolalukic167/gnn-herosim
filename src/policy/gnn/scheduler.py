@@ -223,6 +223,13 @@ def _s7_gref_on() -> bool:
     return raw == "1"
 
 
+def _s7_pick() -> str:
+    raw = os.environ.get("HEROSIM_S7_PICK", "").strip()
+    if raw not in ("", "0", "cheaper", "part"):
+        raise ValueError(f"FAIL LOUD: HEROSIM_S7_PICK must be unset, 0, 'cheaper' or 'part', got {raw!r}")
+    return "" if raw == "0" else raw
+
+
 def _cd_refine_mode() -> str:
     raw = os.environ.get("GNN_CD_REFINE", "").strip()
     if raw not in ("", "shadow", "apply"):
@@ -1010,6 +1017,52 @@ class GNNScheduler(StarvedDeferMixin, Scheduler):
         return tuple(tuple(placements[i]) for i in range(n))
 
     def _prefix_inference(
+        self,
+        batch_tasks: List[Task],
+        system_state: SystemState,
+        queue_snapshot: Dict[str, int],
+        temporal_state: Optional[Dict[str, Dict[str, float]]],
+    ) -> Dict[int, Tuple[int, int]]:
+        """S7 (scratch, user-only, HEROSIM_S7_PICK=cheaper|part): the partition placer's plan and the refined GNN's plan for the whole batch, both priced by the rule's
+        whole-plan S, the cheaper served (ties to the partition plan). `part` serves the partition plan without running the GNN (the identity arm). The partition part is
+        metered as S plans like gref; the GNN's pricing is the one extra evaluation, metered on the S channel."""
+        pick = _s7_pick()
+        if not pick:
+            return self._prefix_inference_plain(batch_tasks, system_state, queue_snapshot, temporal_state)
+        if _s7_budget() or _s7_gref_on() or _s7_lk_k():
+            raise RuntimeError("FAIL LOUD: HEROSIM_S7_PICK is its own arm: HEROSIM_S7_BUDGET, HEROSIM_S7_GREF and HEROSIM_S7_LK must be off")
+        if getattr(self, "_s7_seeder", None) is None:
+            from src.policy.peer_greedy_network.scheduler import S7PartSeeder
+
+            self._s7_seeder = S7PartSeeder(self)
+        seeder = self._s7_seeder
+        part = {i: tuple(v) for i, v in seeder.seed(batch_tasks, system_state).items()}
+        self.s7_pick_groups = getattr(self, "s7_pick_groups", 0) + 1
+        if pick == "part":
+            self.s7_pick_part = getattr(self, "s7_pick_part", 0) + 1
+            return part
+        gnn = {i: tuple(v) for i, v in self._prefix_inference_plain(batch_tasks, system_state, queue_snapshot, temporal_state).items()}
+        if gnn == part:
+            self.s7_pick_same = getattr(self, "s7_pick_same", 0) + 1
+            self.s7_pick_part = getattr(self, "s7_pick_part", 0) + 1
+            return part
+        orch, nodes, memo = seeder._pg_orchestrator(), self.nodes.items, {}
+        before = getattr(self, "sched_plan_evals", 0)
+        price = lambda pl: float(seeder._pg_plan_cost(batch_tasks, seeder._s7_plan_of(batch_tasks, system_state, pl)[1], orch, memo, nodes)[0])
+        c_part = price(part)
+        mid = getattr(self, "sched_plan_evals", 0)
+        c_gnn = price(gnn)
+        spent = getattr(self, "sched_plan_evals", 0) - mid
+        self.sched_plan_evals = before
+        self.sched_plan_evals_s = getattr(self, "sched_plan_evals_s", 0) + spent
+        self.s7_pick_price_evals = getattr(self, "s7_pick_price_evals", 0) + spent
+        if c_gnn < c_part - 1e-12:
+            self.s7_pick_gnn = getattr(self, "s7_pick_gnn", 0) + 1
+            return gnn
+        self.s7_pick_part = getattr(self, "s7_pick_part", 0) + 1
+        return part
+
+    def _prefix_inference_plain(
         self,
         batch_tasks: List[Task],
         system_state: SystemState,

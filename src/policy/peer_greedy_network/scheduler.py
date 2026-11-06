@@ -2099,6 +2099,7 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                     score[nid] = v
             ranked = sorted(score, key=lambda nid: (score[nid], nid)) + [nid for nid in all_nodes if nid not in score]  # servers the heaviest member cannot use rank last
             allowed = set(ranked[:self.s7_hk])
+            self._s7_rank_info = {"heavy": int(batch_tasks[heavy].id), "touch": touch[heavy], "score": {str(k): round(v, 6) for k, v in score.items()}, "ranked": ranked}
         out = {}
         for i in range(n):
             kept = [c for c in cands_of[i] if int(c[0].id) in allowed]
@@ -2137,6 +2138,12 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             FSAWARE_STATS.update(fs_snap)
             self.pg_partners_known, self.pg_partners_unknown, self.pg_partners_blinded = books
         inside = sum(1 for i in full if int(full[i][0]) in allowed_nodes)
+        dump = os.environ.get("HEROSIM_S7_TIMELOG")
+        info = getattr(self, "_s7_rank_info", None)
+        if dump and info is not None:
+            import json as _json
+            with open(dump + ".rsdump.jsonl", "a") as fh:
+                fh.write(_json.dumps({"tasks": [int(t.id) for t in batch_tasks], "kept": sorted(int(x) for x in allowed_nodes), "full_pick": [int(full[i][0]) for i in sorted(full)], **info}) + "\n")
         self.s7_rs_diag_batches += 1
         self.s7_rs_diag_members += len(full)
         self.s7_rs_diag_inside += inside
