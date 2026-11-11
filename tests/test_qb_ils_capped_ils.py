@@ -134,3 +134,34 @@ def test_qbils_cd_is_the_stock_hybrid_small_path_plus_ils(monkeypatch):
 def test_qbils_needs_the_ils_budget_and_a_known_value(monkeypatch):
     src = open(S.__file__).read()
     assert 'raise ValueError(f"FAIL LOUD: {QBILS_ENV} needs {PG_ILS_PER_ENV}' in src and 'raise ValueError(f"FAIL LOUD: {QBILS_ENV} must be unset, 1 or cd' in src
+
+
+def _gate():
+    import os
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts_cosim"))
+    import fresh_topo_burst_v1_gate as G
+
+    return G
+
+
+def test_the_gate_names_both_arms_as_scratch_and_splits_their_suffixes():
+    G = _gate()
+    for k in (*G.QBILS_KINDS, *G.ILSCAP_KINDS):
+        assert k in G.R1A_ARMS and k in G.R1A_SCRATCH
+    base = f"{G.COMB_STATIC_E40[0]}_nosplit_sr2"
+    assert G.split_qbils(base + "_qbils") == (base, "1") and G.split_qbils(base + "_qbilscd") == (base, "cd") and G.split_qbils(base) == (base, None)
+    assert G.ILSCAP_KINDS == ("cd_ib0_inflightfull_fsaware_sym_ils10szw_g0_cap",) and G.ILSCAP_KINDS[0][:-4] in G.ILS_PER
+
+
+def test_the_cap_table_row_is_scaled_by_k_and_fails_loud_without_a_row(monkeypatch, tmp_path):
+    G = _gate()
+    f = tmp_path / "caps.json"
+    f.write_text(json.dumps({"rand_s20_p48c50|moderate": {"le10": 0.2, "11_50": 1.5, "gt50": 9.0, "_cells": 96}}))
+    monkeypatch.setattr(G, "ILS_CAP_FILE", str(f))
+    assert json.loads(G.ils_cap_s("rand_s20_p48c50", "moderate", 0.5)) == {"le10": 0.1, "11_50": 0.75, "gt50": 4.5}
+    with pytest.raises(SystemExit, match="FAIL LOUD"):
+        G.ils_cap_s("rand_s20_p48c50", "heavy", 1.0)
+    with pytest.raises(SystemExit, match="FAIL LOUD"):
+        G.ils_cap_s("rand_s20_p48c50", "moderate", None)

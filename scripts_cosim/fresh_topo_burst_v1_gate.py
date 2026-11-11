@@ -628,6 +628,29 @@ LAD_ALLOWED = ((9999, 9999), (4, 9999), (0, 9999))  # backlog ladder (scratch, u
 LAD_KINDS = tuple(f"{b}_hybg5_lad{t1}_{t2}" for b in HYB_BASES for t1, t2 in LAD_ALLOWED)
 HYBR_KINDS = tuple(f"{b}_hybr{g}" for b in HYB_BASES for g in (0, 10, 1000))  # hybrid-rule: the same split, the small side is the cd3 plan with the search phase off
 HYB_SMALL_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10szw_g10"  # the gated ILS arm whose small-batch charge the hybrid copies
+# ILS baselines (S7, user-only scratch): "<v8 e40 kind>_nosplit_sr2_qbils" decides every group with the refined GNN (charged at its bucket rate), then runs the paper's ILS (budget 10 x n x mean candidates, S rate of the
+# ILS arm) from that plan instead of the CD plan (HEROSIM_QBILS=1); "_qbilscd" is its identity arm: no GNN, the CD passes' plan goes through the same seed path and must reproduce the ILS arm.
+# "cd_ib0_inflightfull_fsaware_sym_ils10szw_g0_cap" is the paper's ILS (g0: every group) with each group's whole charged decision time capped at the refined GNN's median charge for its size bucket
+# (scripts_cosim/ils_cap_s.json, built by ils_cap_table.py; times k; HEROSIM_ILS_CAP_S_BY_BUCKET). Both are named through R1A_ARMS and need R1A_S7_DL_PAY for the cap's table row.
+QBILS_SFX = {"_qbils": "1", "_qbilscd": "cd"}
+QBILS_KINDS = tuple(f"{k}_nosplit_sr2{sfx}" for k in COMB_STATIC_E40 for sfx in QBILS_SFX)
+ILSCAP_KINDS = tuple(f"{k}_cap" for k in FSILSG_KINDS if k.endswith("_g0"))
+ILS_CAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ils_cap_s.json")
+
+
+def split_qbils(kind: str) -> Tuple[str, Optional[str]]:
+    for sfx, m in QBILS_SFX.items():
+        if kind.endswith(sfx) and kind[:-len(sfx)] in tuple(f"{b}_nosplit_sr2" for b in COMB_STATIC_E40):
+            return kind[:-len(sfx)], m
+    return kind, None
+
+
+def ils_cap_s(pay: str, rung: str, k: Optional[float]) -> str:
+    """The cap table of a cell: the refined GNN's median group charge per size bucket (seconds at k = 1), times the cell's k."""
+    row = json.load(open(ILS_CAP_FILE)).get(f"{pay}|{rung}")
+    if row is None or k is None:
+        raise SystemExit(f"FAIL LOUD: no ILS cap row for {pay + '|' + rung!r} (R1A_S7_DL_PAY) or the cell is not charged (k={k}) in {ILS_CAP_FILE}")
+    return json.dumps({b: float(v) * float(k) for b, v in row.items() if b in ("le10", "11_50", "gt50")}, sort_keys=True)
 
 
 def split_hyb(kind: str) -> Tuple[str, Optional[int]]:
@@ -658,8 +681,8 @@ def hyb_costs(kind: str, k: Optional[float], rung: str, g: int, rule_only: bool 
     return (DC_BUCKET_ENV, json.dumps(out, sort_keys=True)), s_json
 
 
-R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + GREF_KINDS + LK_KINDS + BUD_KINDS + PICK_KINDS
-R1A_SCRATCH = GREF_KINDS + LK_KINDS + BUD_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + PICK_KINDS  # user-only scratch arms: named explicitly through R1A_ARMS, never part of the default list
+R1A_ARMS = R1A_CLASSICAL + RA_KINDS + R1A_SEEDED_CD + R1A_RANDOM + R1A_DIAG + R1A_NOSPLIT + R1A_SELFSEARCH + R1A_CDX + SR_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + GREF_KINDS + LK_KINDS + BUD_KINDS + PICK_KINDS + QBILS_KINDS + ILSCAP_KINDS
+R1A_SCRATCH = GREF_KINDS + LK_KINDS + BUD_KINDS + HYB_KINDS + HYBSS_KINDS + HYBR_KINDS + HYBG_KINDS + LAD_KINDS + PICK_KINDS + QBILS_KINDS + ILSCAP_KINDS  # user-only scratch arms: named explicitly through R1A_ARMS, never part of the default list
 # slate_fix_v1: an r1a checkpoint is served under the candidate-slate rule its sidecar records. R1A_SLATE names the rule a gate
 # submission expects (unset: declared_pruning_v1, every checkpoint before slate_fix_v1); a sidecar with another rule fails the cell.
 def r1a_slate() -> str:
@@ -1367,6 +1390,10 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
         return f"[skip] {name}"
     kind, seed, window = str(t["kind"]), int(t["seed"]), str(t["window"])
     kind, dc_k = split_dc(kind)
+    ils_cap = kind.endswith("_cap") and kind in ILSCAP_KINDS
+    if ils_cap:
+        kind = kind[:-len("_cap")]
+    kind, qb = split_qbils(kind)
     kind, pick = split_pick(kind)
     kind, bud = split_bud(kind)
     kind, lk = split_lk(kind)
@@ -1394,6 +1421,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     kind, hyb_g = split_hyb(kind)
     if hyb_sized:
         hyb_g = g_sized
+    if qb is not None:
+        hyb_g = 0 if qb == "1" else 1000
     kind, sr_passes = split_sr(kind)
     rung_w = "heavy" if window[2:].startswith("heavy") else window[2:]  # the load-sweep rungs heavy15 / heavy20 are charged at the heavy-calibrated rate
     dc_ms = dc_cost_ms(kind, dc_k, rung_w)
@@ -1403,6 +1432,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             dc_ms, dc_s, hyb_big = hyb_costs(kind, dc_k, rung_w, 1000 if lad is not None else hyb_g, hybr, hyb_ss, sized=True)  # ladder: both tables whole (the path, not the size, picks one)
         else:
             dc_ms, dc_s = hyb_costs(kind, dc_k, rung_w, hyb_g, hybr, hyb_ss)
+        if qb == "1":
+            dc_s = dc_s_cost_ms(HYB_SMALL_KIND, dc_k, rung_w)   # the ILS phase after the GNN: the ILS arm's S rate
     if R1A_ON:
         state = pw.rung_state(out_dir, window[2:])
         if pw.paused(state):
@@ -1431,7 +1462,7 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
     for k in ("GNN_MODEL_PATH", "GNN_DISABLE_MESSAGE_PASSING", "GNN_MP_PLATFORM_EDGES_OFF", "GNN_BATCH_TIMEOUT",
               "GNN_BATCH_SIZE", "GNN_DECODE_MODE", "GNN_BATCH_BY_PEER_GROUP", "GNN_PREFIX_ALPHA_KEY",
               "LIVE_AUDIT_SNAPSHOT_PATH", "HEROSIM_ROLLOUT_SCORER", "HEROSIM_PG_EXCHANGE_SCALE",
-              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_S7_MODE", "HEROSIM_S7_GREF", "HEROSIM_S7_LK", "HEROSIM_S7_BUDGET", "HEROSIM_S7_PICK", "HEROSIM_S7_HK", "HEROSIM_S7_RESTRICT_DIAG", "HEROSIM_S7_POLISH_SECONDS", "HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET", "HEROSIM_S7_CHARGE_SCALE", "HEROSIM_S7_TIMELOG", "HEROSIM_PG_H1", "HEROSIM_PG_NOLTE", "HEROSIM_DECIMA_ALPHA", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
+              "HEROSIM_PG_ORACLE_NODES", "HEROSIM_PG_CD_PASSES", "HEROSIM_S7_MODE", "HEROSIM_S7_GREF", "HEROSIM_S7_LK", "HEROSIM_S7_BUDGET", "HEROSIM_S7_PICK", "HEROSIM_QBILS", "HEROSIM_ILS_CAP_S_BY_BUCKET", "HEROSIM_S7_HK", "HEROSIM_S7_RESTRICT_DIAG", "HEROSIM_S7_POLISH_SECONDS", "HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET", "HEROSIM_S7_CHARGE_SCALE", "HEROSIM_S7_TIMELOG", "HEROSIM_PG_H1", "HEROSIM_PG_NOLTE", "HEROSIM_DECIMA_ALPHA", "HEROSIM_MAX_EVENTS", "HEROSIM_FORCED_PLACEMENTS",
               "HEROSIM_EXEC_PHYSICS", "HEROSIM_EXEC_SEED", "HEROSIM_PG_EXEC_KNOWLEDGE", "HEROSIM_PG_BATCH_BLIND",
               "GNN_PREFIX_SIBLING_SPREAD", "GNN_SERVE_CORPUS_SLATE", "NEAR_RTT_LABEL_OVERRIDE_JSON", "GNN_CD_REFINE",
               "GNN_PREFIX_SELF_REFINE", "HEROSIM_POLICY_TIME_SCALE", "PARTIAL_STATE_CONTRACT",
@@ -1603,6 +1634,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             env.update(HEROSIM_HYB_G=str(hyb_g), HEROSIM_PG_INFLIGHT_FULL="1", HEROSIM_PG_FAIRSHARE_AWARE="1", **ib0_alpha(HYB_SMALL_KIND))
             if lad is not None:
                 env.update(HEROSIM_LADDER=f"{lad[0]},{lad[1]}")
+            if qb is not None:
+                env["HEROSIM_QBILS"] = qb
             if not hybr:
                 env.update(HEROSIM_PG_ILS_PER=str(ILS_PER[HYB_SMALL_KIND]), HEROSIM_PG_ILS_SEED="0", HEROSIM_PG_ILS_MAX_TASKS=str(hyb_g) if hyb_g < 1000 else "0")
             else:
@@ -1657,6 +1690,8 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
                 env["HEROSIM_S7_POLISH_PER_TASK_MS_BY_BUCKET"] = json.dumps({b: S7_DL[kind] * mg[b] * float(v) * (dc_k or 0.0) for b, v in wg.items()}, sort_keys=True)
         if kind in ILS_PER:
             env.update(HEROSIM_PG_ILS_PER=str(ILS_PER[kind]), HEROSIM_PG_ILS_SEED="0")
+            if ils_cap:
+                env["HEROSIM_ILS_CAP_S_BY_BUCKET"] = ils_cap_s(os.environ.get("R1A_S7_DL_PAY", ""), window[2:], dc_k)
         if kind == EXACT_LIVE:
             env.update(HEROSIM_PG_CD_EXACT="1", HEROSIM_PG_CD_EXPANSION="1", HEROSIM_PG_BATCH_ALPHA="0", HEROSIM_PG_EXACT_G=str(exact_live_g()))
         if kind == "cd_pull":
@@ -2085,6 +2120,9 @@ def run_one(t: Dict[str, object], inputs: str, out_dir: str, mem: str, timeout_s
             lg = [int(c.get(f"lad_{x}_groups") or 0) for x in ("low", "med", "high")]
             if sum(lg) == 0 or (lad == (9999, 9999) and (lg[1] or lg[2])) or (lad == (0, 9999) and (lg[0] or lg[2])):
                 problems.append(f"ladder instrument off: want {lad}, groups low/med/high {lg}")
+        elif qb is not None:
+            if hs + hl == 0 or ils_b == 0 or (qb == "1" and (hs or out["env"].get("HEROSIM_QBILS") != "1")) or (qb == "cd" and (hl or out["env"].get("HEROSIM_QBILS") != "cd")):
+                problems.append(f"QB+ILS instrument off: HEROSIM_QBILS={out['env'].get('HEROSIM_QBILS')!r}, GNN-first batches {hl}, CD-seeded batches {hs}, ILS batches {ils_b}")
         elif hs + hl == 0 or (hyb_g == 0 and (hs or ils_b)) or (hyb_g >= 1000 and hl) or (0 < hyb_g < 1000 and (hs == 0 or hl == 0 or (ils_b > 0 if hybr else ils_b == 0))) or (hybr and (ils_b or int(c.get("sched_plan_evals_s") or 0))):
             problems.append(f"hybrid instrument off: want G={hyb_g}, small {hs} large {hl} batches, ILS batches {ils_b}")
     if kind != "cd_inflight" and (out["env"].get("HEROSIM_PG_INFLIGHT") or int(c.get("pg_inflight_charged") or 0)):
