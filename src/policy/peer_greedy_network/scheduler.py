@@ -353,6 +353,7 @@ class _PeerGreedyCore:
     _pg_allowed: Optional[Dict[int, Set[Tuple[int, int]]]] = None
     _s7_on: bool = False
     _pg_no_ils: bool = False
+    _pg_seed_active: bool = False
     _pg_evals0: int = 0
     ils_cap_s: Optional[Dict[str, float]] = None
     _s7_inner: bool = False
@@ -1432,7 +1433,11 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         metered = self.sched_plan_evals
         self._pg_write_books(batch_tasks, plan, orch, memo, committed_service, planned, placements, service_of)
         self.sched_plan_evals = metered
-        self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        self._pg_seed_active = True
+        try:
+            self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        finally:
+            self._pg_seed_active = False
 
     def _pg_candidates(self, task: "Task", system_state: SystemState) -> List[Tuple["Node", "Platform"]]:
         """The couples a refine pass offers this task: the (slate-restricted) reachable replicas, initialized ones if any.
@@ -1801,7 +1806,14 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         start = tuple(ident(p) for p in plan)
         cand_keys = [sorted(k) for k in keys]
         budget = int(self.pg_ils_per * n * (sum(len(c) for c in cand_keys) / n))      # uncut_ils.default_budget(cands, per)
+        if self._pg_seed_active:
+            # a seed plan may sit on a couple the CD candidate set does not offer (the GNN picks uninitialized replicas too): that task is pinned and keeps its couple, but the budget still
+            # counts its candidates, so the group's search size is the paper's 10 x n x mean candidates whatever the seed
+            budget = int(self.pg_ils_per * n * (sum(len(c) for c in _cands) / n))
         metered_before = self.sched_plan_evals
+        if budget < 1:
+            self.pg_ils_small_batches += 1
+            return 0
         if self.ils_cap_s is not None:
             s_rate = decision_cost.s_rate_ms(n)
             if not s_rate > 0:

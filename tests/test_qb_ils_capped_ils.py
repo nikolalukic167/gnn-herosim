@@ -165,3 +165,15 @@ def test_the_cap_table_row_is_scaled_by_k_and_fails_loud_without_a_row(monkeypat
         G.ils_cap_s("rand_s20_p48c50", "heavy", 1.0)
     with pytest.raises(SystemExit, match="FAIL LOUD"):
         G.ils_cap_s("rand_s20_p48c50", "moderate", None)
+
+
+def test_a_seed_on_couples_outside_the_candidate_set_still_gets_the_papers_budget(monkeypatch):
+    """The GNN may pick a replica the CD candidate set does not offer (uninitialized): that task is pinned, the budget still counts its candidates, no zero-budget crash."""
+    s, _plan, tasks, state = _run(monkeypatch, per=20)
+    for r in state.replicas["cnn"]:
+        r[1].initialized.triggered = r[0].id == 3          # only C is initialized: the candidate set is {C} for every task
+    s2, tasks2, state2 = _shell(monkeypatch)
+    for r in state2.replicas["cnn"]:
+        r[1].initialized.triggered = r[0].id == 3
+    plan = s2._pg_decide(tasks2, state2, seed={0: (1, 11), 1: (2, 22)})   # both seed couples are outside {C}: both pinned
+    assert plan == {0: (1, 11), 1: (2, 22)} and s2.pg_ils_batches == 1 and s2.pg_ils_budget == 20 * 2 * 1
