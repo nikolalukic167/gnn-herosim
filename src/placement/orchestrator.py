@@ -268,7 +268,7 @@ class Orchestrator:
             # cd_ib0_ils: the live ILS arm (HEROSIM_PG_ILS_PER)
             "pg_ils_batches", "pg_ils_evals", "pg_ils_improved", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget",
             "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
-            "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_exact_g_skipped", "sched_plan_evals_s",
+            "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_ils_cap_binding", "pg_ils_cap_skipped", "pg_ils_cap_plans", "qbils_unseeded", "pg_exact_g_skipped", "sched_plan_evals_s",
             # decision_cost_s0_v1: plans evaluated (always counted) and the scheduler-server books (HEROSIM_DECISION_COST_MS > 0)
             "sched_plan_evals", "sched_busy_seconds", "sched_felt_task_seconds", "sched_batches_charged", "sched_queue_wait_seconds", "sched_queue_wait_max",
             # S7 hand-placer arms (scratch)

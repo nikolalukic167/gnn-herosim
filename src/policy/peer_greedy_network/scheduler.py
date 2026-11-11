@@ -73,7 +73,7 @@ PEER_GREEDY_COUNTERS = (
     "pg_expand_gain_seconds", "pg_expand_labels_skipped",
     "pg_ils_batches", "pg_ils_evals", "pg_ils_improved", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget",
     "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
-    "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_exact_g_skipped", "sched_plan_evals_s",
+    "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50", "pg_ils_cap_binding", "pg_ils_cap_skipped", "pg_ils_cap_plans", "qbils_unseeded", "pg_exact_g_skipped", "sched_plan_evals_s",
     "pg_exact_batches", "pg_exact_plans", "pg_exact_ties", "pg_exact_fallbacks", "pg_exact_kept_pass", "pg_exact_tasks_moved",
     "pg_exact_gain_seconds",
     "pg_exact_gnn_tie_batches", "pg_exact_gnn_tie_plans", "pg_exact_gnn_changed", "pg_exact_gnn_capped", "pg_exact_gnn_scored", "pg_exact_gnn_fb_batches", "pg_exact_gnn_fb_differs",    "pg_exact_prune_batches", "pg_exact_prune_plans", "pg_exact_prune_differs", "pg_exact_prune_better", "pg_exact_prune_worse",
@@ -170,7 +170,14 @@ S7_COUNTERS = (*S7_RS_COUNTERS, "s7_batches", "s7_pick_cd3", "s7_pick_nolte", "s
                "s7_part_pick_p4", "s7_part_pick_p8", "s7_part_pick_pn", "s7_part_fallback_tasks", "s7_part_assignments", "s7_scale_extra_evals")
 PG_ILS_COUNTERS = ("pg_ils_batches", "pg_ils_evals", "pg_ils_improved", "pg_ils_tasks_moved", "pg_ils_gain_seconds", "pg_ils_budget",
                    "pg_ils_stop_evals", "pg_ils_stop_converged", "pg_ils_stop_other", "pg_ils_small_batches",
-                   "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50")
+                   "pg_ils_evals_11_50", "pg_ils_wall_11_50", "pg_ils_evals_gt50", "pg_ils_wall_gt50",
+                   "pg_ils_cap_binding", "pg_ils_cap_skipped", "pg_ils_cap_plans")
+# Two ILS baselines (off by default; unset is byte-identical). HEROSIM_ILS_CAP_S_BY_BUCKET = JSON {"le10": s, "11_50": s, "gt50": s}: the group's whole charged decision time (the bar's plans at the
+# ordinary rate plus the ILS phase at the S rate) may not pass this many seconds; the ILS gets floor((cap - bar charge) / S rate) plans (the start counts) and serves the best plan found, the bar's
+# plan when fewer than two plans fit (one plan of the cap is kept for the write-back of an improved plan). HEROSIM_QBILS = 1 (hybrid class): every group is decided by the served GNN (decode and self-refine, charged at the cell's ordinary rate), then the
+# ILS (budget HEROSIM_PG_ILS_PER x n x mean candidates, S rate) starts from that plan in place of the CD plan; "cd" is the identity arm: the CD passes' plan goes through the same seed path.
+ILS_CAP_ENV = "HEROSIM_ILS_CAP_S_BY_BUCKET"
+QBILS_ENV = "HEROSIM_QBILS"
 PG_ILS_MAX_TASKS_ENV = "HEROSIM_PG_ILS_MAX_TASKS"  # H3 gate (scratch): batches with more tasks than this keep the CD plan (no ILS); unset or 0 = no gate, byte-identical
 ILS_MIN_TASKS = 2    # the labels were made on groups > 10 (uncut_ils.BUCKETS); a smaller batch is served by the bar's plan
 # cd_exactS_ib0 "live" (registered 2026-10-20): HEROSIM_PG_EXACT_G = the size cap G; a batch of more than G tasks keeps the bar's plan (no exact search, no
@@ -345,6 +352,9 @@ class _PeerGreedyCore:
     # cd_declared: {task id -> {(node_id, platform_id)}} while a declared-pruning group is being decided, else None (inert)
     _pg_allowed: Optional[Dict[int, Set[Tuple[int, int]]]] = None
     _s7_on: bool = False
+    _pg_no_ils: bool = False
+    _pg_evals0: int = 0
+    ils_cap_s: Optional[Dict[str, float]] = None
     _s7_inner: bool = False
     _s7_nolte: bool = False
     _s7_h1: bool = False
@@ -501,6 +511,22 @@ class _PeerGreedyCore:
         if self.pg_ils_per < 0:
             raise ValueError(f"FAIL LOUD: {PG_ILS_PER_ENV} must be >= 0, got {self.pg_ils_per}")
         self.pg_ils_seed = int(os.environ.get(PG_ILS_SEED_ENV, "0").strip() or "0")
+        raw_cap = os.environ.get(ILS_CAP_ENV, "").strip()
+        self.ils_cap_s = None
+        if raw_cap:
+            from src.placement.decision_timing import SIZE_BUCKETS
+
+            tags = [tag for _hi, tag in SIZE_BUCKETS]
+            try:
+                cap = json.loads(raw_cap)
+                ok = isinstance(cap, dict) and sorted(cap) == sorted(tags) and all(type(v) in (int, float) and v >= 0 for v in cap.values())
+            except ValueError:
+                ok = False
+            if not ok:
+                raise ValueError(f"FAIL LOUD: {ILS_CAP_ENV} must be a JSON object of seconds >= 0 keyed exactly {tags}, got {raw_cap!r}")
+            if not self.pg_ils_per:
+                raise ValueError(f"FAIL LOUD: {ILS_CAP_ENV} caps the ILS; {PG_ILS_PER_ENV} is not set")
+            self.ils_cap_s = {tag: float(cap[tag]) for tag in tags}
         raw_gate = os.environ.get(PG_ILS_MAX_TASKS_ENV, "").strip()
         self.pg_ils_max_tasks = int(raw_gate) if raw_gate else 0
         if self.pg_ils_max_tasks < 0:
@@ -1333,9 +1359,12 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             self._pg_allowed = None
         return placements
 
-    def _pg_decide(self, batch_tasks: List["Task"], system_state: SystemState) -> Dict[int, Tuple[int, int]]:
+    def _pg_decide(self, batch_tasks: List["Task"], system_state: SystemState, seed=None) -> Dict[int, Tuple[int, int]]:
+        """`seed` (HEROSIM_QBILS): a placements dict, the plan the ILS starts from in place of the greedy pass and the CD passes, or "cd", the CD passes' own plan sent through the
+        same seed path (the identity arm). None is the stock rule."""
         if self._s7_on and not self._s7_inner:
             return self._s7_decide(batch_tasks, system_state)
+        self._pg_evals0 = getattr(self, "sched_plan_evals", 0)
         orch = self._pg_orchestrator()
         memo: Dict[str, float] = {}
         committed_service: Dict[str, float] = {}
@@ -1351,13 +1380,17 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
             self._pg_prov = self._pg_provisional(batch_tasks, system_state, orch, memo)
             self.pg_sp_batches += 1
         try:
-            self._pg_batch_pass(
-                batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
-                planned=planned, placements=placements, service_of=service_of, refine=False,
-            )
+            if not isinstance(seed, dict):
+                self._pg_batch_pass(
+                    batch_tasks, system_state, orch, memo=memo, committed_service=committed_service,
+                    planned=planned, placements=placements, service_of=service_of, refine=False,
+                )
         finally:
             self._pg_prov = {}
-        self._pg_refine(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        if seed is None:
+            self._pg_refine(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+        else:
+            self._pg_seeded_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of, seed)
         self.pg_batches += 1
         if fairshare_aware.herd_enabled():
             fairshare_aware.record_herd(next(iter(self.nodes.items)).fabric, self._pg_remote_edges(batch_tasks, orch, planned))
@@ -1381,6 +1414,25 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
                     if int(t.id) not in fb:
                         self.nolte_placed_cellular_nonfallback = getattr(self, "nolte_placed_cellular_nonfallback", 0) + 1
         return placements
+
+    def _pg_seeded_ils(self, batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of, seed) -> None:
+        """The ILS from a given plan. A dict seed is the plan itself; "cd" runs the CD passes first (no ILS) and takes their plan. The seed's books are written without metering:
+        the ILS scores its own start plan, and that is what is charged."""
+        if not self.pg_ils_per:
+            raise RuntimeError(f"FAIL LOUD: a seeded ILS needs {PG_ILS_PER_ENV}")
+        if seed == "cd":
+            self._pg_no_ils = True
+            try:
+                self._pg_refine(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+            finally:
+                self._pg_no_ils = False
+            seed = dict(placements)
+        self.sched_plan_evals = getattr(self, "sched_plan_evals", 0)   # created by the meter; a seeded batch has run no bar plan yet
+        _cands, _couple, _keys, plan, _pinned = self._pg_plan_objects(batch_tasks, system_state, seed)
+        metered = self.sched_plan_evals
+        self._pg_write_books(batch_tasks, plan, orch, memo, committed_service, planned, placements, service_of)
+        self.sched_plan_evals = metered
+        self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
 
     def _pg_candidates(self, task: "Task", system_state: SystemState) -> List[Tuple["Node", "Platform"]]:
         """The couples a refine pass offers this task: the (slate-restricted) reachable replicas, initialized ones if any.
@@ -1750,6 +1802,19 @@ class PeerGreedyNetworkBatchScheduler(_PeerGreedyCore, GNNScheduler):
         cand_keys = [sorted(k) for k in keys]
         budget = int(self.pg_ils_per * n * (sum(len(c) for c in cand_keys) / n))      # uncut_ils.default_budget(cands, per)
         metered_before = self.sched_plan_evals
+        if self.ils_cap_s is not None:
+            s_rate = decision_cost.s_rate_ms(n)
+            if not s_rate > 0:
+                raise RuntimeError(f"FAIL LOUD: {ILS_CAP_ENV} needs the ILS-phase charge (HEROSIM_DECISION_COST_MS_S_BY_BUCKET) to turn seconds into plans")
+            left = self.ils_cap_s[decision_cost.bucket_of(n)] - decision_cost.rate_ms(n) * (metered_before - self._pg_evals0) * 1e-3
+            fit = int(max(0.0, left) / (s_rate * 1e-3)) - 1   # one plan of the cap is kept for the write-back of an improved plan, so the group never charges more than the cap
+            if fit < budget:
+                self.pg_ils_cap_binding += 1
+                self.pg_ils_cap_plans += fit
+                budget = fit
+            if budget < 2:
+                self.pg_ils_cap_skipped += 1
+                return 0
         wall0 = default_timer()
 
         def score(p) -> float:
@@ -2619,7 +2684,8 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
             self.pg_exact_g_skipped += 1
             return
         if self.pg_ils_per:
-            self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
+            if not self._pg_no_ils:
+                self._pg_ils(batch_tasks, system_state, orch, memo, committed_service, planned, placements, service_of)
             return
         if not (self.pg_cd_expansion or self.pg_cd_exact):
             return
@@ -2655,7 +2721,7 @@ class PeerGreedyNetworkCDScheduler(PeerGreedyNetworkBatchScheduler):
 
 
 HYB_G_ENV = "HEROSIM_HYB_G"  # hybrid (scratch): batches of at most G tasks are decided by the CD rule (+ the gated ILS), larger ones by the GNN
-HYB_COUNTERS = ("hyb_small_batches", "hyb_large_batches", "hyb_small_tasks", "hyb_large_tasks")
+HYB_COUNTERS = ("hyb_small_batches", "hyb_large_batches", "hyb_small_tasks", "hyb_large_tasks", "qbils_unseeded")
 LAD_COUNTERS = ("lad_low_groups", "lad_med_groups", "lad_high_groups", "lad_low_tasks", "lad_med_tasks", "lad_high_tasks", "lad_q_sum")
 
 
@@ -2664,12 +2730,19 @@ class HybridGnnCdScheduler(PeerGreedyNetworkCDScheduler):
     its self-refine under GNN_PREFIX_SELF_REFINE). One scheduler, two decision paths; the charge buckets are set by the driver per path. The CD-refine
     hook of the GNN path is off for small batches, so a CD plan is never refined twice."""
 
+    qbils: str = ""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         raw = os.environ.get(HYB_G_ENV, "").strip()
         if not raw.isdigit():
             raise ValueError(f"FAIL LOUD: {HYB_G_ENV} must be a non-negative integer, got {raw!r}")
         self.hyb_g = int(raw)
+        self.qbils = os.environ.get(QBILS_ENV, "").strip()
+        if self.qbils not in ("", "1", "cd"):
+            raise ValueError(f"FAIL LOUD: {QBILS_ENV} must be unset, 1 or cd, got {self.qbils!r}")
+        if self.qbils and not self.pg_ils_per:
+            raise ValueError(f"FAIL LOUD: {QBILS_ENV} needs {PG_ILS_PER_ENV} (the ILS budget)")
         for name in HYB_COUNTERS:
             setattr(self, name, 0)
         self._ladder = ladder_thresholds()
@@ -2684,6 +2757,19 @@ class HybridGnnCdScheduler(PeerGreedyNetworkCDScheduler):
     def _prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state):
         if self._ladder is not None:
             return self._ladder_inference(batch_tasks, system_state, queue_snapshot, temporal_state)
+        if self.qbils:
+            n = len(batch_tasks)
+            if self.qbils == "cd":
+                self.hyb_small_batches += 1
+                self.hyb_small_tasks += n
+                return self._pg_decide(batch_tasks, system_state, seed="cd")
+            self.hyb_large_batches += 1
+            self.hyb_large_tasks += n
+            qb = GNNScheduler._prefix_inference(self, batch_tasks, system_state, queue_snapshot, temporal_state)
+            if any(i not in qb for i in range(n)):   # a task the decode left to the autoscaler has no couple to start the ILS from: the GNN's plan stands
+                self.qbils_unseeded += 1
+                return qb
+            return self._pg_decide(batch_tasks, system_state, seed={int(i): tuple(v) for i, v in qb.items()})
         if len(batch_tasks) <= self.hyb_g:
             self.hyb_small_batches += 1
             self.hyb_small_tasks += len(batch_tasks)
