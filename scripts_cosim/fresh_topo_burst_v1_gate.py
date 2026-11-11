@@ -635,7 +635,7 @@ HYB_SMALL_KIND = "cd_ib0_inflightfull_fsaware_sym_ils10szw_g10"  # the gated ILS
 QBILS_SFX = {"_qbils": "1", "_qbilscd": "cd"}
 QBILS_KINDS = tuple(f"{k}_nosplit_sr2{sfx}" for k in COMB_STATIC_E40 for sfx in QBILS_SFX)
 ILSCAP_KINDS = tuple(f"{k}_cap" for k in FSILSG_KINDS if k.endswith("_g0"))
-ILS_CAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ils_cap_s.json")
+ILS_CAP_FILE = os.environ.get("R1A_ILS_CAP_FILE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "ils_cap_s.json")   # R1A_ILS_CAP_FILE: a table of another path (the identity check names a cap no group reaches)
 
 
 def split_qbils(kind: str) -> Tuple[str, Optional[str]]:
